@@ -3,7 +3,16 @@
  * Documentos y Viajes, más edición inline y eliminación.
  */
 import { useState } from "react";
-import { Pencil, Trash2, ArrowLeft, FileText, Receipt, Plane, Send, Clock } from "lucide-react";
+import {
+  Pencil,
+  Trash2,
+  ArrowLeft,
+  FileText,
+  Receipt,
+  Plane,
+  GitBranch,
+  Clock,
+} from "lucide-react";
 
 import { PageHeader } from "@/components/common/page-header";
 import { DataTable } from "@/components/common/data-table";
@@ -36,6 +45,8 @@ import { RendicionForm } from "./rendicion-form";
 import { rendicionToForm, emptyToNull, estadoTone } from "./rendicion-types";
 import type { RendicionFormValues } from "./rendicion-types";
 import { ViajesTab } from "./viajes-tab";
+import { WorkflowTab } from "./workflow-tab";
+import { useWorkflows } from "@/hooks/entities/use-workflow";
 
 // ─── FinancialCard ────────────────────────────────────────────────────────────
 
@@ -210,6 +221,7 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
   const { data: proyectosData } = useProyectos({ pageSize: 200 });
   const { data: estadosData } = useEstadosRendicion({ pageSize: 100 });
   const { data: tiposData } = useTiposRendicion({ pageSize: 100 });
+  const { data: workflowsData } = useWorkflows();
 
   const actualizar = useActualizarRendicion();
   const eliminar = useEliminarRendicion();
@@ -217,6 +229,7 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
   const proyectos = proyectosData?.rows ?? [];
   const estados = estadosData?.rows ?? [];
   const tipos = tiposData?.rows ?? [];
+  const tieneWorkflowActivo = (workflowsData?.length ?? 0) > 0;
 
   const estadoCodigo = estados.find((e) => e.id === rendicion.estado_rendicion_id)?.codigo ?? null;
   const estadoNombre =
@@ -224,9 +237,6 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
   const tipoNombre = tipos.find((t) => t.id === rendicion.tipo_rendicion_id)?.nombre ?? "—";
   const proyectoNombre =
     proyectos.find((p) => p.id === rendicion.proyecto_id)?.nombre ?? rendicion.proyecto_id;
-
-  const puedeEnviar =
-    (estadoCodigo === "borrador" || estadoCodigo === null) && !rendicion.workflow_id;
 
   async function handleSubmitEdit(values: RendicionFormValues) {
     if (!empresaActivaId || !user?.id) return;
@@ -283,20 +293,19 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
           <div className="flex items-center gap-2">
             <StatusBadge tone={estadoTone(estadoCodigo)}>{estadoNombre}</StatusBadge>
 
+            {/* El botón de envío ahora vive en el tab Workflow — acceso directo aquí */}
             <Button
               variant="outline"
               size="sm"
               className="gap-1.5"
-              disabled
-              aria-label="Enviar para aprobación (requiere workflow configurado)"
-              title={
-                puedeEnviar
-                  ? "Requiere configurar un workflow de aprobación"
-                  : "Solo disponible en estado borrador"
-              }
+              aria-label="Ir al tab Workflow"
+              onClick={() => {
+                const tab = document.querySelector<HTMLButtonElement>('[data-tab="workflow"]');
+                tab?.click();
+              }}
             >
-              <Send className="size-4" />
-              Enviar para aprobación
+              <GitBranch className="size-4" />
+              Workflow
             </Button>
 
             <Button
@@ -372,6 +381,10 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
             <Plane className="size-4" />
             Viajes
           </TabsTrigger>
+          <TabsTrigger value="workflow" data-tab="workflow" className="gap-1.5">
+            <GitBranch className="size-4" />
+            Workflow
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="gastos">
@@ -384,6 +397,14 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
 
         <TabsContent value="viajes">
           <ViajesTab rendicionId={rendicion.id} />
+        </TabsContent>
+
+        <TabsContent value="workflow">
+          <WorkflowTab
+            rendicion={rendicion}
+            estadoCodigo={estadoCodigo}
+            tieneWorkflowActivo={tieneWorkflowActivo}
+          />
         </TabsContent>
       </Tabs>
 

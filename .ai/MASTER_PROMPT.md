@@ -215,3 +215,9 @@ Cuando exista una vista (view) o una función RPC en Supabase que resuelva una n
 No reconstruyas cálculos complejos en el frontend.
 
 El frontend debe consumir datos agregados cuando la base de datos ya los proporciona.
+database.ts es un archivo generado.
+
+Nunca modificarlo manualmente.
+
+Si falta un tipo,
+regenerar el schema de Supabase.
