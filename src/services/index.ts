@@ -1,0 +1,12 @@
+export { clientesService } from "./clientes";
+export { proyectosService } from "./proyectos";
+export { proveedoresService } from "./proveedores";
+export { presupuestosService } from "./presupuestos";
+export { gastosService } from "./gastos";
+export { documentosService } from "./documentos";
+export { rendicionesService } from "./rendiciones";
+export { viajesService } from "./viajes";
+export { usuariosService } from "./usuarios";
+export { empresasService } from "./empresas";
+export { createCrudService } from "./_factory";
+export type { CrudService, CrudServiceOptions } from "./_factory";
