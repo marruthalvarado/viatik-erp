@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { z } from "zod";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 
 import { AppShell } from "@/components/layout/app-shell";
@@ -10,7 +9,6 @@ import { SearchBar } from "@/components/common/search-bar";
 import { Pagination } from "@/components/common/pagination";
 import { DeleteDialog } from "@/components/common/delete-dialog";
 import { StatusBadge } from "@/components/common/status-badge";
-import { EntityForm } from "@/components/common/entity-form";
 import { EmptyState } from "@/components/common/empty-state";
 import { toast } from "@/components/common/toast";
 import {
@@ -20,17 +18,7 @@ import {
   DrawerTitle,
   DrawerDescription,
 } from "@/components/common/drawer";
-
-import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 import {
   useProveedores,
@@ -39,64 +27,20 @@ import {
   useEliminarProveedor,
 } from "@/hooks/entities/use-proveedores";
 import { useCompany } from "@/contexts/company-context";
+import { emptyToNull } from "@/utils/formatters";
 
 import type { DataTableColumn } from "@/components/common/data-table";
 import type { Proveedor, ProveedorInsert, ProveedorUpdate } from "@/types/entities";
 import type { ListParams } from "@/types/common";
 
+import { ProveedorForm } from "@/components/proveedores/proveedor-form";
+import { EMPTY_PROVEEDOR, proveedorToForm } from "@/components/proveedores/proveedor-types";
+import type { ProveedorFormValues } from "@/components/proveedores/proveedor-types";
+
 export const Route = createFileRoute("/proveedores")({
   head: () => ({ meta: [{ title: "Proveedores · Viatik" }] }),
   component: ProveedoresPage,
 });
-
-// ─── Schema ────────────────────────────────────────────────────────────────────
-
-const proveedorSchema = z.object({
-  nombre: z.string().min(1, "El nombre es requerido"),
-  codigo: z.string().nullable().optional(),
-  identificacion: z.string().nullable().optional(),
-  correo: z
-    .string()
-    .nullable()
-    .optional()
-    .refine((v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), {
-      message: "Correo inválido",
-    }),
-  telefono: z.string().nullable().optional(),
-  ciudad: z.string().nullable().optional(),
-  pais: z.string().nullable().optional(),
-  estado: z.string().nullable().optional(),
-});
-
-type ProveedorFormValues = z.infer<typeof proveedorSchema>;
-
-const EMPTY_FORM: ProveedorFormValues = {
-  nombre: "",
-  codigo: "",
-  identificacion: "",
-  correo: "",
-  telefono: "",
-  ciudad: "",
-  pais: "",
-  estado: "activo",
-};
-
-function proveedorToForm(p: Proveedor): ProveedorFormValues {
-  return {
-    nombre: p.nombre,
-    codigo: p.codigo ?? "",
-    identificacion: p.identificacion ?? "",
-    correo: p.correo ?? "",
-    telefono: p.telefono ?? "",
-    ciudad: p.ciudad ?? "",
-    pais: p.pais ?? "",
-    estado: p.estado ?? "activo",
-  };
-}
-
-import { emptyToNull } from "@/utils/formatters";
-
-// ─── Route component ───────────────────────────────────────────────────────────
 
 function ProveedoresPage() {
   return (
@@ -105,8 +49,6 @@ function ProveedoresPage() {
     </AppShell>
   );
 }
-
-// ─── Content ───────────────────────────────────────────────────────────────────
 
 function ProveedoresContent() {
   const { empresaActivaId } = useCompany();
@@ -120,8 +62,6 @@ function ProveedoresContent() {
   const crear = useCrearProveedor();
   const actualizar = useActualizarProveedor();
   const eliminar = useEliminarProveedor();
-
-  // ─── Columns ─────────────────────────────────────────────────────────────────
 
   const columns: DataTableColumn<Proveedor>[] = [
     {
@@ -156,10 +96,7 @@ function ProveedoresContent() {
     {
       key: "ubicacion",
       header: "Ubicación",
-      cell: (row) => {
-        const parts = [row.ciudad, row.pais].filter(Boolean).join(", ");
-        return parts || "—";
-      },
+      cell: (row) => [row.ciudad, row.pais].filter(Boolean).join(", ") || "—",
     },
     {
       key: "estado",
@@ -211,18 +148,10 @@ function ProveedoresContent() {
     },
   ];
 
-  // ─── Handlers ─────────────────────────────────────────────────────────────────
-
-  function handleSearchChange(value: string) {
-    setSearch(value);
-    setParams((p) => ({ ...p, page: 1 }));
-  }
-
   function handleOpenNew() {
     setEditingProveedor(null);
     setDrawerOpen(true);
   }
-
   function handleCloseDrawer() {
     setDrawerOpen(false);
     setEditingProveedor(null);
@@ -233,7 +162,6 @@ function ProveedoresContent() {
       toast.error("Selecciona una empresa activa antes de continuar.");
       return;
     }
-
     try {
       if (editingProveedor) {
         const payload: ProveedorUpdate = {
@@ -281,8 +209,6 @@ function ProveedoresContent() {
     }
   }
 
-  // ─── Render ──────────────────────────────────────────────────────────────────
-
   return (
     <>
       <PageHeader
@@ -300,7 +226,10 @@ function ProveedoresContent() {
       <div className="mb-4 flex items-center gap-3">
         <SearchBar
           value={search}
-          onChange={handleSearchChange}
+          onChange={(v) => {
+            setSearch(v);
+            setParams((p) => ({ ...p, page: 1 }));
+          }}
           placeholder="Buscar por nombre, identificación, correo, ciudad..."
         />
       </div>
@@ -326,7 +255,6 @@ function ProveedoresContent() {
               </Button>
             }
           />
-
           {data && data.total > 0 && (
             <div className="mt-3">
               <Pagination
@@ -357,7 +285,7 @@ function ProveedoresContent() {
           </DrawerHeader>
           <div className="overflow-y-auto px-6 pb-6">
             <ProveedorForm
-              defaultValues={editingProveedor ? proveedorToForm(editingProveedor) : EMPTY_FORM}
+              defaultValues={editingProveedor ? proveedorToForm(editingProveedor) : EMPTY_PROVEEDOR}
               onSubmit={handleSubmit}
               onCancel={handleCloseDrawer}
               loading={crear.isPending || actualizar.isPending}
@@ -377,164 +305,5 @@ function ProveedoresContent() {
         loading={eliminar.isPending}
       />
     </>
-  );
-}
-
-// ─── Form component ────────────────────────────────────────────────────────────
-
-interface ProveedorFormProps {
-  defaultValues: ProveedorFormValues;
-  onSubmit: (values: ProveedorFormValues) => Promise<void>;
-  onCancel: () => void;
-  loading: boolean;
-  submitLabel: string;
-}
-
-function ProveedorForm({
-  defaultValues,
-  onSubmit,
-  onCancel,
-  loading,
-  submitLabel,
-}: ProveedorFormProps) {
-  return (
-    <EntityForm
-      schema={proveedorSchema}
-      defaultValues={defaultValues}
-      onSubmit={onSubmit}
-      onCancel={onCancel}
-      loading={loading}
-      submitLabel={submitLabel}
-    >
-      {(form) => (
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="nombre"
-            render={({ field }) => (
-              <FormItem className="col-span-2">
-                <FormLabel>Nombre *</FormLabel>
-                <FormControl>
-                  <Input placeholder="Nombre del proveedor" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="codigo"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Código</FormLabel>
-                <FormControl>
-                  <Input placeholder="PRV-001" {...field} value={field.value ?? ""} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="identificacion"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>RUC / Identificación</FormLabel>
-                <FormControl>
-                  <Input placeholder="20123456789" {...field} value={field.value ?? ""} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="correo"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Correo</FormLabel>
-                <FormControl>
-                  <Input
-                    type="email"
-                    placeholder="contacto@proveedor.com"
-                    {...field}
-                    value={field.value ?? ""}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="telefono"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Teléfono</FormLabel>
-                <FormControl>
-                  <Input placeholder="+51 999 999 999" {...field} value={field.value ?? ""} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="ciudad"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Ciudad</FormLabel>
-                <FormControl>
-                  <Input placeholder="Lima" {...field} value={field.value ?? ""} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="pais"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>País</FormLabel>
-                <FormControl>
-                  <Input placeholder="Perú" {...field} value={field.value ?? ""} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="estado"
-            render={({ field }) => (
-              <FormItem className="col-span-2">
-                <FormLabel>Estado</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value ?? "activo"}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar estado" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="activo">Activo</SelectItem>
-                    <SelectItem value="inactivo">Inactivo</SelectItem>
-                    <SelectItem value="suspendido">Suspendido</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-      )}
-    </EntityForm>
   );
 }

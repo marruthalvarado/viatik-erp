@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { z } from "zod";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 
 import { AppShell } from "@/components/layout/app-shell";
@@ -10,7 +9,6 @@ import { SearchBar } from "@/components/common/search-bar";
 import { Pagination } from "@/components/common/pagination";
 import { DeleteDialog } from "@/components/common/delete-dialog";
 import { StatusBadge } from "@/components/common/status-badge";
-import { EntityForm } from "@/components/common/entity-form";
 import { EmptyState } from "@/components/common/empty-state";
 import { toast } from "@/components/common/toast";
 import {
@@ -20,17 +18,7 @@ import {
   DrawerTitle,
   DrawerDescription,
 } from "@/components/common/drawer";
-
-import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 import {
   useClientes,
@@ -39,71 +27,20 @@ import {
   useEliminarCliente,
 } from "@/hooks/entities/use-clientes";
 import { useCompany } from "@/contexts/company-context";
+import { emptyToNull } from "@/utils/formatters";
 
 import type { DataTableColumn } from "@/components/common/data-table";
 import type { Cliente, ClienteInsert, ClienteUpdate } from "@/types/entities";
 import type { ListParams } from "@/types/common";
 
+import { ClienteForm } from "@/components/clientes/cliente-form";
+import { EMPTY_CLIENTE, clienteToForm } from "@/components/clientes/cliente-types";
+import type { ClienteFormValues } from "@/components/clientes/cliente-types";
+
 export const Route = createFileRoute("/clientes")({
   head: () => ({ meta: [{ title: "Clientes · Viatik" }] }),
   component: ClientesPage,
 });
-
-// ─── Schema ────────────────────────────────────────────────────────────────────
-
-const clienteSchema = z.object({
-  nombre: z.string().min(1, "El nombre es requerido"),
-  nombre_comercial: z.string().nullable().optional(),
-  codigo: z.string().nullable().optional(),
-  ruc: z.string().nullable().optional(),
-  correo: z
-    .string()
-    .nullable()
-    .optional()
-    .refine((v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), {
-      message: "Correo inválido",
-    }),
-  telefono: z.string().nullable().optional(),
-  contacto_principal: z.string().nullable().optional(),
-  estado: z.string().nullable().optional(),
-  meta_facturacion_anual: z
-    .number()
-    .nonnegative("Debe ser un número positivo")
-    .nullable()
-    .optional(),
-});
-
-type ClienteFormValues = z.infer<typeof clienteSchema>;
-
-const EMPTY_FORM: ClienteFormValues = {
-  nombre: "",
-  nombre_comercial: "",
-  codigo: "",
-  ruc: "",
-  correo: "",
-  telefono: "",
-  contacto_principal: "",
-  estado: "activo",
-  meta_facturacion_anual: null,
-};
-
-function clienteToForm(c: Cliente): ClienteFormValues {
-  return {
-    nombre: c.nombre,
-    nombre_comercial: c.nombre_comercial ?? "",
-    codigo: c.codigo ?? "",
-    ruc: c.ruc ?? "",
-    correo: c.correo ?? "",
-    telefono: c.telefono ?? "",
-    contacto_principal: c.contacto_principal ?? "",
-    estado: c.estado ?? "activo",
-    meta_facturacion_anual: c.meta_facturacion_anual ?? null,
-  };
-}
-
-import { emptyToNull } from "@/utils/formatters";
-
-// ─── Route component ───────────────────────────────────────────────────────────
 
 function ClientesPage() {
   return (
@@ -112,8 +49,6 @@ function ClientesPage() {
     </AppShell>
   );
 }
-
-// ─── Content ───────────────────────────────────────────────────────────────────
 
 function ClientesContent() {
   const { empresaActivaId } = useCompany();
@@ -127,8 +62,6 @@ function ClientesContent() {
   const crear = useCrearCliente();
   const actualizar = useActualizarCliente();
   const eliminar = useEliminarCliente();
-
-  // ─── Columns ─────────────────────────────────────────────────────────────────
 
   const columns: DataTableColumn<Cliente>[] = [
     {
@@ -149,11 +82,7 @@ function ClientesContent() {
         </div>
       ),
     },
-    {
-      key: "ruc",
-      header: "RUC",
-      cell: (row) => row.ruc ?? "—",
-    },
+    { key: "ruc", header: "RUC", cell: (row) => row.ruc ?? "—" },
     {
       key: "contacto",
       header: "Contacto",
@@ -165,11 +94,7 @@ function ClientesContent() {
         </div>
       ),
     },
-    {
-      key: "telefono",
-      header: "Teléfono",
-      cell: (row) => row.telefono ?? "—",
-    },
+    { key: "telefono", header: "Teléfono", cell: (row) => row.telefono ?? "—" },
     {
       key: "estado",
       header: "Estado",
@@ -218,18 +143,10 @@ function ClientesContent() {
     },
   ];
 
-  // ─── Handlers ─────────────────────────────────────────────────────────────────
-
-  function handleSearchChange(value: string) {
-    setSearch(value);
-    setParams((p) => ({ ...p, page: 1 }));
-  }
-
   function handleOpenNew() {
     setEditingCliente(null);
     setDrawerOpen(true);
   }
-
   function handleCloseDrawer() {
     setDrawerOpen(false);
     setEditingCliente(null);
@@ -240,7 +157,6 @@ function ClientesContent() {
       toast.error("Selecciona una empresa activa antes de continuar.");
       return;
     }
-
     try {
       if (editingCliente) {
         const payload: ClienteUpdate = {
@@ -290,8 +206,6 @@ function ClientesContent() {
     }
   }
 
-  // ─── Render ──────────────────────────────────────────────────────────────────
-
   return (
     <>
       <PageHeader
@@ -309,7 +223,10 @@ function ClientesContent() {
       <div className="mb-4 flex items-center gap-3">
         <SearchBar
           value={search}
-          onChange={handleSearchChange}
+          onChange={(v) => {
+            setSearch(v);
+            setParams((p) => ({ ...p, page: 1 }));
+          }}
           placeholder="Buscar por nombre, RUC, correo, código..."
         />
       </div>
@@ -335,7 +252,6 @@ function ClientesContent() {
               </Button>
             }
           />
-
           {data && data.total > 0 && (
             <div className="mt-3">
               <Pagination
@@ -366,7 +282,7 @@ function ClientesContent() {
           </DrawerHeader>
           <div className="overflow-y-auto px-6 pb-6">
             <ClienteForm
-              defaultValues={editingCliente ? clienteToForm(editingCliente) : EMPTY_FORM}
+              defaultValues={editingCliente ? clienteToForm(editingCliente) : EMPTY_CLIENTE}
               onSubmit={handleSubmit}
               onCancel={handleCloseDrawer}
               loading={crear.isPending || actualizar.isPending}
@@ -386,193 +302,5 @@ function ClientesContent() {
         loading={eliminar.isPending}
       />
     </>
-  );
-}
-
-// ─── Form component ────────────────────────────────────────────────────────────
-
-interface ClienteFormProps {
-  defaultValues: ClienteFormValues;
-  onSubmit: (values: ClienteFormValues) => Promise<void>;
-  onCancel: () => void;
-  loading: boolean;
-  submitLabel: string;
-}
-
-function ClienteForm({
-  defaultValues,
-  onSubmit,
-  onCancel,
-  loading,
-  submitLabel,
-}: ClienteFormProps) {
-  return (
-    <EntityForm
-      schema={clienteSchema}
-      defaultValues={defaultValues}
-      onSubmit={onSubmit}
-      onCancel={onCancel}
-      loading={loading}
-      submitLabel={submitLabel}
-    >
-      {(form) => (
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="nombre"
-            render={({ field }) => (
-              <FormItem className="col-span-2">
-                <FormLabel>Nombre *</FormLabel>
-                <FormControl>
-                  <Input placeholder="Nombre legal del cliente" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="nombre_comercial"
-            render={({ field }) => (
-              <FormItem className="col-span-2">
-                <FormLabel>Nombre comercial</FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder="Nombre comercial o fantasía"
-                    {...field}
-                    value={field.value ?? ""}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="codigo"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Código</FormLabel>
-                <FormControl>
-                  <Input placeholder="CLI-001" {...field} value={field.value ?? ""} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="ruc"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>RUC / Identificación</FormLabel>
-                <FormControl>
-                  <Input placeholder="20123456789" {...field} value={field.value ?? ""} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="correo"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Correo</FormLabel>
-                <FormControl>
-                  <Input
-                    type="email"
-                    placeholder="contacto@empresa.com"
-                    {...field}
-                    value={field.value ?? ""}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="telefono"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Teléfono</FormLabel>
-                <FormControl>
-                  <Input placeholder="+51 999 999 999" {...field} value={field.value ?? ""} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="contacto_principal"
-            render={({ field }) => (
-              <FormItem className="col-span-2">
-                <FormLabel>Contacto principal</FormLabel>
-                <FormControl>
-                  <Input placeholder="Nombre del contacto" {...field} value={field.value ?? ""} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="estado"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Estado</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value ?? "activo"}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar estado" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="activo">Activo</SelectItem>
-                    <SelectItem value="inactivo">Inactivo</SelectItem>
-                    <SelectItem value="prospecto">Prospecto</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="meta_facturacion_anual"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Meta facturación anual</FormLabel>
-                <FormControl>
-                  <Input
-                    type="number"
-                    min="0"
-                    placeholder="0"
-                    value={field.value ?? ""}
-                    onChange={(e) =>
-                      field.onChange(e.target.value === "" ? null : Number(e.target.value))
-                    }
-                    onBlur={field.onBlur}
-                    name={field.name}
-                    ref={field.ref}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-      )}
-    </EntityForm>
   );
 }
