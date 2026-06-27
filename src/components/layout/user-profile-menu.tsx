@@ -40,18 +40,18 @@ export function UserProfileMenu() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem>
+          <DropdownMenuItem disabled aria-disabled="true">
             <User className="mr-2 size-4" /> Perfil
           </DropdownMenuItem>
-          <DropdownMenuItem>
+          <DropdownMenuItem disabled aria-disabled="true">
             <Settings className="mr-2 size-4" /> Configuración
           </DropdownMenuItem>
-          <DropdownMenuItem>
+          <DropdownMenuItem disabled aria-disabled="true">
             <CreditCard className="mr-2 size-4" /> Facturación
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem>
+        <DropdownMenuItem disabled aria-disabled="true">
           <LifeBuoy className="mr-2 size-4" /> Soporte
         </DropdownMenuItem>
         <DropdownMenuSeparator />

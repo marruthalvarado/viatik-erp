@@ -32,7 +32,6 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { CompanySwitcher } from "./company-switcher";
-import { NotificationBell } from "@/components/notifications/notification-bell";
 
 const workspaceItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
@@ -91,16 +90,18 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className="border-r">
       <SidebarHeader className="border-b">
         <div className="flex items-center gap-2 px-1 py-1.5">
-          <div className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground shrink-0">
+          <div
+            className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground shrink-0"
+            aria-hidden="true"
+          >
             <Sparkles className="size-4" />
           </div>
           {!collapsed && (
-            <div className="flex flex-col leading-tight flex-1 min-w-0">
+            <div className="flex flex-col leading-tight">
               <span className="font-display text-sm font-semibold tracking-tight">Viatik</span>
-              <span className="text-[11px] text-muted-foreground">Gestion financiera</span>
+              <span className="text-[11px] text-muted-foreground">Gestión financiera</span>
             </div>
           )}
-          {!collapsed && <NotificationBell />}
         </div>
         {!collapsed && (
           <div className="px-1 pb-1">
@@ -119,7 +120,7 @@ export function AppSidebar() {
       <SidebarFooter className="border-t">
         {!collapsed && (
           <div className="px-2 py-1.5 text-[11px] text-muted-foreground">
-            v0.1 - Viatik {new Date().getFullYear()}
+            v0.1 · Viatik {new Date().getFullYear()}
           </div>
         )}
       </SidebarFooter>

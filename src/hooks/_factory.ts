@@ -41,6 +41,7 @@ export function createEntityHooks<S extends AnyCrudService>(key: string, service
     return useQuery<Paginated<TRow>>({
       queryKey: [key, "list", finalParams],
       queryFn: () => service.listar(finalParams),
+      staleTime: 2 * 60_000, // 2 min — dato CRUD tiene ciclo de vida razonable
       ...options,
     });
   }
@@ -53,6 +54,7 @@ export function createEntityHooks<S extends AnyCrudService>(key: string, service
       queryKey: [key, "one", id],
       queryFn: () => service.obtener(id as ID),
       enabled: !!id,
+      staleTime: 5 * 60_000, // 5 min — registros individuales cambian poco
       ...options,
     });
   }

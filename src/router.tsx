@@ -3,7 +3,15 @@ import { createRouter } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
 
 export const getRouter = () => {
-  const queryClient = new QueryClient();
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: 1, // un solo reintento por defecto
+        staleTime: 0, // las rutas sobreescriben; los hooks propios definen su propio stale
+        refetchOnWindowFocus: false, // evita re-fetch agresivo en cambio de foco
+      },
+    },
+  });
 
   const router = createRouter({
     routeTree,
