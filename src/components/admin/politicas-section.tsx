@@ -1,23 +1,17 @@
+/**
+ * politicas-section.tsx
+ * Gestión de políticas de reembolso — sección del módulo Administración.
+ * Arquitectura: Componente → Hook → Service → Supabase
+ */
 import { useState } from "react";
-import { z } from "zod";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 
 import { DataTable } from "@/components/common/data-table";
 import { SearchBar } from "@/components/common/search-bar";
 import { DeleteDialog } from "@/components/common/delete-dialog";
 import { StatusBadge } from "@/components/common/status-badge";
-import { EntityForm } from "@/components/common/entity-form";
 import { EmptyState } from "@/components/common/empty-state";
 import { toast } from "@/components/common/toast";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerDescription,
-} from "@/components/common/drawer";
-import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 import {
@@ -32,54 +26,8 @@ import { emptyToNull } from "@/utils/formatters";
 import type { DataTableColumn } from "@/components/common/data-table";
 import type { Politica, PoliticaInsert, PoliticaUpdate } from "@/types/entities";
 
-const politicaSchema = z.object({
-  nombre: z.string().min(1, "El nombre es requerido"),
-  codigo: z.string().nullable().optional(),
-  descripcion: z.string().nullable().optional(),
-  activo: z.boolean().nullable().optional(),
-  valor_km: z.number().nonnegative().nullable().optional(),
-  tope_almuerzo: z.number().nonnegative().nullable().optional(),
-  tope_cena: z.number().nonnegative().nullable().optional(),
-  tope_desayuno: z.number().nonnegative().nullable().optional(),
-  tope_hospedaje: z.number().nonnegative().nullable().optional(),
-  tope_miscelaneo: z.number().nonnegative().nullable().optional(),
-  paga_combustible: z.boolean().nullable().optional(),
-  paga_peajes: z.boolean().nullable().optional(),
-});
-
-type PoliticaFormValues = z.infer<typeof politicaSchema>;
-
-const EMPTY_POLITICA: PoliticaFormValues = {
-  nombre: "",
-  codigo: "",
-  descripcion: "",
-  activo: true,
-  valor_km: null,
-  tope_almuerzo: null,
-  tope_cena: null,
-  tope_desayuno: null,
-  tope_hospedaje: null,
-  tope_miscelaneo: null,
-  paga_combustible: false,
-  paga_peajes: false,
-};
-
-function toPoliticaForm(p: Politica): PoliticaFormValues {
-  return {
-    nombre: p.nombre,
-    codigo: p.codigo ?? "",
-    descripcion: p.descripcion ?? "",
-    activo: p.activo ?? true,
-    valor_km: p.valor_km ?? null,
-    tope_almuerzo: p.tope_almuerzo ?? null,
-    tope_cena: p.tope_cena ?? null,
-    tope_desayuno: p.tope_desayuno ?? null,
-    tope_hospedaje: p.tope_hospedaje ?? null,
-    tope_miscelaneo: p.tope_miscelaneo ?? null,
-    paga_combustible: p.paga_combustible ?? false,
-    paga_peajes: p.paga_peajes ?? false,
-  };
-}
+import { PoliticaFormDrawer } from "./politica-form";
+import type { PoliticaFormValues } from "./politica-types";
 
 export function PoliticasSection() {
   const { empresaActivaId } = useCompany();
@@ -92,6 +40,11 @@ export function PoliticasSection() {
   const crear = useCrearPolitica();
   const actualizar = useActualizarPolitica();
   const eliminar = useEliminarPolitica();
+
+  function openCreate() {
+    setEditingPolitica(null);
+    setDrawerOpen(true);
+  }
 
   async function handleSubmit(values: PoliticaFormValues) {
     if (!empresaActivaId) {
@@ -114,12 +67,10 @@ export function PoliticasSection() {
         paga_peajes: values.paga_peajes ?? false,
       };
       if (editingPolitica) {
-        const payload: PoliticaUpdate = common;
-        await actualizar.mutateAsync({ id: editingPolitica.id, payload });
+        await actualizar.mutateAsync({ id: editingPolitica.id, payload: common as PoliticaUpdate });
         toast.success("Política actualizada.");
       } else {
-        const payload: PoliticaInsert = { ...common, empresa_id: empresaActivaId };
-        await crear.mutateAsync(payload);
+        await crear.mutateAsync({ ...common, empresa_id: empresaActivaId } as PoliticaInsert);
         toast.success("Política creada.");
       }
       setDrawerOpen(false);
@@ -221,14 +172,7 @@ export function PoliticasSection() {
     <>
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-base font-semibold">Políticas de reembolso</h2>
-        <Button
-          size="sm"
-          onClick={() => {
-            setEditingPolitica(null);
-            setDrawerOpen(true);
-          }}
-          className="gap-1.5"
-        >
+        <Button size="sm" onClick={openCreate} className="gap-1.5">
           <Plus className="size-4" />
           Nueva política
         </Button>
@@ -250,14 +194,7 @@ export function PoliticasSection() {
           emptyTitle="Sin políticas"
           emptyDescription="Define políticas de reembolso para los empleados."
           emptyAction={
-            <Button
-              size="sm"
-              onClick={() => {
-                setEditingPolitica(null);
-                setDrawerOpen(true);
-              }}
-              className="gap-1.5"
-            >
+            <Button size="sm" onClick={openCreate} className="gap-1.5">
               <Plus className="size-4" />
               Nueva política
             </Button>
@@ -265,195 +202,16 @@ export function PoliticasSection() {
         />
       )}
 
-      <Drawer
+      <PoliticaFormDrawer
         open={drawerOpen}
         onOpenChange={(open) => {
-          if (!open) {
-            setDrawerOpen(false);
-            setEditingPolitica(null);
-          }
+          setDrawerOpen(open);
+          if (!open) setEditingPolitica(null);
         }}
-      >
-        <DrawerContent className="sm:max-w-lg">
-          <DrawerHeader>
-            <DrawerTitle>{editingPolitica ? "Editar política" : "Nueva política"}</DrawerTitle>
-            <DrawerDescription>Define topes y condiciones de reembolso.</DrawerDescription>
-          </DrawerHeader>
-          <div className="overflow-y-auto px-6 pb-6">
-            <EntityForm
-              schema={politicaSchema}
-              defaultValues={editingPolitica ? toPoliticaForm(editingPolitica) : EMPTY_POLITICA}
-              onSubmit={handleSubmit}
-              onCancel={() => {
-                setDrawerOpen(false);
-                setEditingPolitica(null);
-              }}
-              loading={crear.isPending || actualizar.isPending}
-              submitLabel={editingPolitica ? "Guardar cambios" : "Crear política"}
-            >
-              {(form) => (
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="nombre"
-                    render={({ field }) => (
-                      <FormItem className="col-span-2">
-                        <FormLabel>Nombre *</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Política estándar" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="codigo"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Código</FormLabel>
-                        <FormControl>
-                          <Input placeholder="POL-001" {...field} value={field.value ?? ""} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="valor_km"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Valor por km</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            placeholder="0.00"
-                            value={field.value ?? ""}
-                            onChange={(e) =>
-                              field.onChange(e.target.value === "" ? null : Number(e.target.value))
-                            }
-                            onBlur={field.onBlur}
-                            name={field.name}
-                            ref={field.ref}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="descripcion"
-                    render={({ field }) => (
-                      <FormItem className="col-span-2">
-                        <FormLabel>Descripción</FormLabel>
-                        <FormControl>
-                          <Input
-                            placeholder="Descripción de la política"
-                            {...field}
-                            value={field.value ?? ""}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <p className="col-span-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Topes de reembolso
-                  </p>
-
-                  {(
-                    [
-                      "tope_desayuno",
-                      "tope_almuerzo",
-                      "tope_cena",
-                      "tope_hospedaje",
-                      "tope_miscelaneo",
-                    ] as const
-                  ).map((fieldName) => {
-                    const labels: Record<string, string> = {
-                      tope_desayuno: "Desayuno",
-                      tope_almuerzo: "Almuerzo",
-                      tope_cena: "Cena",
-                      tope_hospedaje: "Hospedaje",
-                      tope_miscelaneo: "Misceláneo",
-                    };
-                    return (
-                      <FormField
-                        key={fieldName}
-                        control={form.control}
-                        name={fieldName}
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>{labels[fieldName]}</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                placeholder="0.00"
-                                value={field.value ?? ""}
-                                onChange={(e) =>
-                                  field.onChange(
-                                    e.target.value === "" ? null : Number(e.target.value),
-                                  )
-                                }
-                                onBlur={field.onBlur}
-                                name={field.name}
-                                ref={field.ref}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    );
-                  })}
-
-                  <div className="col-span-2 flex flex-col gap-3">
-                    {(["paga_combustible", "paga_peajes", "activo"] as const).map((fieldName) => {
-                      const labels: Record<string, string> = {
-                        paga_combustible: "Paga combustible",
-                        paga_peajes: "Paga peajes",
-                        activo: "Política activa",
-                      };
-                      return (
-                        <FormField
-                          key={fieldName}
-                          control={form.control}
-                          name={fieldName}
-                          render={({ field }) => (
-                            <FormItem className="flex flex-row items-center gap-3 space-y-0">
-                              <FormControl>
-                                <input
-                                  type="checkbox"
-                                  className="h-4 w-4 rounded border-input"
-                                  checked={field.value ?? false}
-                                  onChange={(e) => field.onChange(e.target.checked)}
-                                  onBlur={field.onBlur}
-                                  name={field.name}
-                                  ref={field.ref}
-                                />
-                              </FormControl>
-                              <FormLabel className="cursor-pointer font-normal">
-                                {labels[fieldName]}
-                              </FormLabel>
-                            </FormItem>
-                          )}
-                        />
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </EntityForm>
-          </div>
-        </DrawerContent>
-      </Drawer>
+        editing={editingPolitica}
+        loading={crear.isPending || actualizar.isPending}
+        onSubmit={handleSubmit}
+      />
 
       <DeleteDialog
         open={!!deletingPolitica}

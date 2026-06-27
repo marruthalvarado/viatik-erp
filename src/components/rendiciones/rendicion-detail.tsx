@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 
 import { PageHeader } from "@/components/common/page-header";
-import { DataTable } from "@/components/common/data-table";
 import { DeleteDialog } from "@/components/common/delete-dialog";
 import { StatusBadge } from "@/components/common/status-badge";
 import { toast } from "@/components/common/toast";
@@ -29,8 +28,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-import { useGastos } from "@/hooks/entities/use-gastos";
-import { useDocumentos } from "@/hooks/entities/use-documentos";
 import { useProyectos } from "@/hooks/entities/use-proyectos";
 import { useEstadosRendicion, useTiposRendicion } from "@/hooks/entities/use-catalogs";
 import { useActualizarRendicion, useEliminarRendicion } from "@/hooks/entities/use-rendiciones";
@@ -38,8 +35,7 @@ import { useCompany } from "@/contexts/company-context";
 import { useAuth } from "@/contexts/auth-context";
 import { formatCurrency, formatDate } from "@/utils/formatters";
 
-import type { DataTableColumn } from "@/components/common/data-table";
-import type { Rendicion, RendicionUpdate, Gasto, Documento } from "@/types/entities";
+import type { Rendicion, RendicionUpdate } from "@/types/entities";
 
 import { RendicionForm } from "./rendicion-form";
 import { rendicionToForm, emptyToNull, estadoTone } from "./rendicion-types";
@@ -71,137 +67,7 @@ function FinancialCard({ label, value, highlight = "normal" }: FinancialCardProp
 
 // ─── GastosTab ────────────────────────────────────────────────────────────────
 
-function GastosTab({ rendicionId }: { rendicionId: string }) {
-  const { data, isLoading } = useGastos({
-    pageSize: 50,
-    filters: { rendicion_id: rendicionId },
-  });
-
-  const gastos = data?.rows ?? [];
-
-  const columns: DataTableColumn<Gasto>[] = [
-    {
-      key: "fecha",
-      header: "Fecha",
-      className: "w-28",
-      cell: (row) => <span className="text-sm tabular-nums">{formatDate(row.fecha)}</span>,
-    },
-    {
-      key: "descripcion",
-      header: "Descripción",
-      cell: (row) => <span className="text-sm">{row.descripcion ?? "—"}</span>,
-    },
-    {
-      key: "numero_documento",
-      header: "Documento",
-      className: "w-36",
-      cell: (row) => (
-        <span className="text-xs text-muted-foreground">{row.numero_documento ?? "—"}</span>
-      ),
-    },
-    {
-      key: "valor_factura",
-      header: "Valor",
-      align: "right",
-      cell: (row) => (
-        <span className="tabular-nums text-sm">{formatCurrency(row.valor_factura)}</span>
-      ),
-    },
-    {
-      key: "valor_reembolsable",
-      header: "Reembolsable",
-      align: "right",
-      cell: (row) => (
-        <span className="tabular-nums text-sm">{formatCurrency(row.valor_reembolsable)}</span>
-      ),
-    },
-  ];
-
-  return (
-    <div>
-      <div className="mb-3 flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          {data?.total ?? 0} gasto{(data?.total ?? 0) !== 1 ? "s" : ""} registrado
-          {(data?.total ?? 0) !== 1 ? "s" : ""}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          Para agregar gastos usa el módulo{" "}
-          <span className="font-medium text-foreground">Gastos</span>
-        </p>
-      </div>
-      <DataTable
-        columns={columns}
-        data={gastos}
-        isLoading={isLoading}
-        getRowId={(row) => row.id}
-        emptyTitle="Sin gastos"
-        emptyDescription="Esta rendición no tiene gastos registrados."
-      />
-    </div>
-  );
-}
-
-// ─── DocumentosTab ────────────────────────────────────────────────────────────
-
-function DocumentosTab({ rendicionId }: { rendicionId: string }) {
-  const { data, isLoading } = useDocumentos({
-    pageSize: 50,
-    filters: { rendicion_id: rendicionId },
-  });
-
-  const documentos = data?.rows ?? [];
-
-  const columns: DataTableColumn<Documento>[] = [
-    {
-      key: "nombre_archivo",
-      header: "Archivo",
-      cell: (row) => (
-        <span className="text-sm font-medium">{row.nombre_archivo ?? "Sin nombre"}</span>
-      ),
-    },
-    {
-      key: "procesado",
-      header: "OCR",
-      className: "w-28",
-      cell: (row) => (
-        <StatusBadge tone={row.procesado ? "success" : "neutral"}>
-          {row.procesado ? "Procesado" : "Pendiente"}
-        </StatusBadge>
-      ),
-    },
-    {
-      key: "created_at",
-      header: "Subido",
-      className: "w-36",
-      cell: (row) => (
-        <span className="text-xs text-muted-foreground">{formatDate(row.created_at)}</span>
-      ),
-    },
-  ];
-
-  return (
-    <div>
-      <div className="mb-3 flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          {data?.total ?? 0} documento{(data?.total ?? 0) !== 1 ? "s" : ""} registrado
-          {(data?.total ?? 0) !== 1 ? "s" : ""}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          Para adjuntar documentos usa el módulo{" "}
-          <span className="font-medium text-foreground">Documentos</span>
-        </p>
-      </div>
-      <DataTable
-        columns={columns}
-        data={documentos}
-        isLoading={isLoading}
-        getRowId={(row) => row.id}
-        emptyTitle="Sin documentos"
-        emptyDescription="Esta rendición no tiene documentos adjuntos."
-      />
-    </div>
-  );
-}
+import { GastosTab, DocumentosTab } from "./rendicion-tabs";
 
 // ─── RendicionDetail (exportado) ──────────────────────────────────────────────
 
