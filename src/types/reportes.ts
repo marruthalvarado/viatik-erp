@@ -232,14 +232,14 @@ export interface ResumenEjecutivoResponse {
 }
 
 /** Parámetros para RPC rpt_resumen_ejecutivo */
-export interface ParamsResumenEjecutivo extends FiltroFechas {
+export interface ParamsResumenEjecutivo {
   p_empresa_id: string;
   p_fecha_desde: string;
   p_fecha_hasta: string;
 }
 
 /** Parámetros para RPC rpt_top_proveedores */
-export interface ParamsTopProveedores extends FiltroFechas {
+export interface ParamsTopProveedores {
   p_empresa_id: string;
   p_fecha_desde: string;
   p_fecha_hasta: string;
@@ -322,7 +322,7 @@ export interface AprobacionEficienciaRow {
 }
 
 /** Parámetros para RPC rpt_tiempos_workflow */
-export interface ParamsTiemposWorkflow extends FiltroFechas {
+export interface ParamsTiemposWorkflow {
   p_empresa_id: string;
   p_fecha_desde: string;
   p_fecha_hasta: string;
