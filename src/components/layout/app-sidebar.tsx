@@ -32,6 +32,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { CompanySwitcher } from "./company-switcher";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 
 const workspaceItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
@@ -94,11 +95,12 @@ export function AppSidebar() {
             <Sparkles className="size-4" />
           </div>
           {!collapsed && (
-            <div className="flex flex-col leading-tight">
+            <div className="flex flex-col leading-tight flex-1 min-w-0">
               <span className="font-display text-sm font-semibold tracking-tight">Viatik</span>
               <span className="text-[11px] text-muted-foreground">Gestion financiera</span>
             </div>
           )}
+          {!collapsed && <NotificationBell />}
         </div>
         {!collapsed && (
           <div className="px-1 pb-1">

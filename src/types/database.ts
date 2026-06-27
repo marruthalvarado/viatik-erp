@@ -1095,7 +1095,11 @@ export type Database = {
           id: string;
           leida: boolean | null;
           mensaje: string | null;
+          metadata: Json;
+          prioridad: string;
+          tipo: string;
           titulo: string | null;
+          url_destino: string | null;
           usuario_id: string;
         };
         Insert: {
@@ -1105,7 +1109,11 @@ export type Database = {
           id?: string;
           leida?: boolean | null;
           mensaje?: string | null;
+          metadata?: Json;
+          prioridad?: string;
+          tipo?: string;
           titulo?: string | null;
+          url_destino?: string | null;
           usuario_id: string;
         };
         Update: {
@@ -1115,7 +1123,11 @@ export type Database = {
           id?: string;
           leida?: boolean | null;
           mensaje?: string | null;
+          metadata?: Json;
+          prioridad?: string;
+          tipo?: string;
           titulo?: string | null;
+          url_destino?: string | null;
           usuario_id?: string;
         };
         Relationships: [
@@ -2407,6 +2419,15 @@ export type Database = {
       };
     };
     Functions: {
+      // FASE 9A: RPCs de notificaciones
+      marcar_todas_notificaciones_leidas: {
+        Args: { p_usuario_id: string; p_empresa_id: string };
+        Returns: number;
+      };
+      contar_notificaciones_no_leidas: {
+        Args: { p_usuario_id: string; p_empresa_id: string };
+        Returns: number;
+      };
       generar_codigo: {
         Args: { numero: number; prefijo: string };
         Returns: string;
