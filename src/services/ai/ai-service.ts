@@ -14,7 +14,7 @@
  *
  * Arquitectura: Hook → ExpenseAIService → AiService → DocumentAIProvider → API IA
  */
-import { OpenAIDocumentProvider } from "./openai-provider";
+import { EdgeFunctionDocumentProvider } from "./edge-function-provider";
 import {
   DocumentAIError,
   type DocumentAIProvider,
@@ -35,7 +35,7 @@ let _provider: DocumentAIProvider | null = null;
 
 function getProvider(): DocumentAIProvider {
   if (!_provider) {
-    _provider = new OpenAIDocumentProvider();
+    _provider = new EdgeFunctionDocumentProvider();
   }
   return _provider;
 }

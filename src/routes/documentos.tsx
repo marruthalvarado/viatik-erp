@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Plus, Pencil, Trash2, FileText as FileIcon } from "lucide-react";
+import { Plus, Pencil, Trash2, FileText as FileIcon, ScanLine } from "lucide-react";
 
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/common/page-header";
@@ -19,6 +19,14 @@ import {
   DrawerDescription,
 } from "@/components/common/drawer";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { AiExpenseWizard } from "@/components/ai/ai-expense-wizard";
 
 import {
   useDocumentos,
@@ -63,6 +71,7 @@ function DocumentosContent() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingDocumento, setEditingDocumento] = useState<Documento | null>(null);
   const [deletingDocumento, setDeletingDocumento] = useState<Documento | null>(null);
+  const [wizardOpen, setWizardOpen] = useState(false);
 
   const { data, isLoading, error } = useDocumentos({ ...params, search });
   const { data: rendicionesData } = useRendiciones({ pageSize: 200 });
@@ -225,10 +234,21 @@ function DocumentosContent() {
         description="Facturas, recibos y archivos contables."
         breadcrumbs={[{ label: "Documentos" }]}
         actions={
-          <Button onClick={handleOpenNew} size="sm" className="gap-1.5">
-            <Plus className="size-4" />
-            Nuevo documento
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => setWizardOpen(true)}
+              size="sm"
+              variant="secondary"
+              className="gap-1.5"
+            >
+              <ScanLine className="size-4" />
+              Subir factura IA
+            </Button>
+            <Button onClick={handleOpenNew} size="sm" className="gap-1.5">
+              <Plus className="size-4" />
+              Nuevo documento
+            </Button>
+          </div>
         }
       />
 
@@ -316,6 +336,24 @@ function DocumentosContent() {
         onConfirm={handleDelete}
         loading={eliminar.isPending}
       />
+
+      {/* Wizard IA: subida de factura → OCR → IA → gasto */}
+      <Dialog open={wizardOpen} onOpenChange={setWizardOpen}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Subir factura con IA</DialogTitle>
+            <DialogDescription>
+              Sube una imagen o PDF. La IA leerá el documento y pre-llenará el formulario de gasto.
+            </DialogDescription>
+          </DialogHeader>
+          <AiExpenseWizard
+            onSuccess={(_documentoId, _gastoId) => {
+              setWizardOpen(false);
+            }}
+            onCancel={() => setWizardOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
