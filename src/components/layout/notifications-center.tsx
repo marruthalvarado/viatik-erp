@@ -1,11 +1,7 @@
 import { Bell, Inbox } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export function NotificationsCenter() {
@@ -31,9 +27,15 @@ export function NotificationsCenter() {
         </div>
         <Tabs defaultValue="all" className="w-full">
           <TabsList className="w-full justify-start rounded-none border-b bg-transparent px-2 h-9">
-            <TabsTrigger value="all" className="text-xs">Todas</TabsTrigger>
-            <TabsTrigger value="unread" className="text-xs">No leídas</TabsTrigger>
-            <TabsTrigger value="mentions" className="text-xs">Menciones</TabsTrigger>
+            <TabsTrigger value="all" className="text-xs">
+              Todas
+            </TabsTrigger>
+            <TabsTrigger value="unread" className="text-xs">
+              No leídas
+            </TabsTrigger>
+            <TabsTrigger value="mentions" className="text-xs">
+              Menciones
+            </TabsTrigger>
           </TabsList>
           {(["all", "unread", "mentions"] as const).map((v) => (
             <TabsContent key={v} value={v} className="m-0">

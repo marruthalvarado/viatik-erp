@@ -16,10 +16,7 @@ import { useAuth } from "@/hooks/use-auth";
 export function UserProfileMenu() {
   const { user, signOut } = useAuth();
   const email = user?.email ?? "Invitado";
-  const initials = (user?.email ?? "VT")
-    .split("@")[0]
-    .slice(0, 2)
-    .toUpperCase();
+  const initials = (user?.email ?? "VT").split("@")[0].slice(0, 2).toUpperCase();
 
   return (
     <DropdownMenu>

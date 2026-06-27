@@ -14,10 +14,7 @@ import type { Tables } from "@/types/database";
 
 const STORAGE_KEY = "viatik.empresa_activa_id";
 
-export type EmpresaOpcion = Pick<
-  Tables<"empresas">,
-  "id" | "nombre" | "codigo" | "logo_url"
->;
+export type EmpresaOpcion = Pick<Tables<"empresas">, "id" | "nombre" | "codigo" | "logo_url">;
 
 interface CompanyContextValue {
   empresas: EmpresaOpcion[];
@@ -60,9 +57,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     // RLS restringe filas; el join trae los datos de la empresa.
     const { data, error: err } = await supabase
       .from("empresas_usuarios")
-      .select(
-        "empresa_id, activo, empresa:empresas(id, nombre, codigo, logo_url, deleted_at)",
-      )
+      .select("empresa_id, activo, empresa:empresas(id, nombre, codigo, logo_url, deleted_at)")
       .eq("usuario_id", user.id)
       .eq("activo", true);
 
@@ -86,10 +81,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     setEmpresas(rows);
 
     // Restaurar empresa activa o auto-seleccionar primera
-    const stored =
-      typeof window !== "undefined"
-        ? window.localStorage.getItem(STORAGE_KEY)
-        : null;
+    const stored = typeof window !== "undefined" ? window.localStorage.getItem(STORAGE_KEY) : null;
     const valid = rows.find((e) => e.id === stored);
     if (valid) {
       setActivaId(valid.id);

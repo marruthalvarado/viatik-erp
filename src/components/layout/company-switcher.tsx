@@ -3,11 +3,7 @@ import { useState } from "react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Command,
   CommandEmpty,
@@ -24,8 +20,7 @@ import { useCompany } from "@/contexts/company-context";
  */
 export function CompanySwitcher() {
   const [open, setOpen] = useState(false);
-  const { empresas, empresaActiva, empresaActivaId, setEmpresaActiva, loading } =
-    useCompany();
+  const { empresas, empresaActiva, empresaActivaId, setEmpresaActiva, loading } = useCompany();
 
   const label = empresaActiva?.nombre ?? (loading ? "Cargando…" : "Seleccionar empresa");
 
@@ -50,9 +45,7 @@ export function CompanySwitcher() {
         <Command>
           <CommandInput placeholder="Buscar empresa..." />
           <CommandList>
-            <CommandEmpty>
-              {loading ? "Cargando..." : "No hay empresas disponibles."}
-            </CommandEmpty>
+            <CommandEmpty>{loading ? "Cargando..." : "No hay empresas disponibles."}</CommandEmpty>
             {empresas.length > 0 && (
               <CommandGroup heading="Tus empresas">
                 {empresas.map((c) => (
@@ -72,9 +65,7 @@ export function CompanySwitcher() {
                     />
                     <span className="truncate">{c.nombre ?? c.id}</span>
                     {c.codigo && (
-                      <span className="ml-auto text-xs text-muted-foreground">
-                        {c.codigo}
-                      </span>
+                      <span className="ml-auto text-xs text-muted-foreground">{c.codigo}</span>
                     )}
                   </CommandItem>
                 ))}

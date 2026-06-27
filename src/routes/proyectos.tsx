@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { z } from "zod";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 
 import { AppShell } from "@/components/layout/app-shell";
@@ -10,7 +9,6 @@ import { SearchBar } from "@/components/common/search-bar";
 import { Pagination } from "@/components/common/pagination";
 import { DeleteDialog } from "@/components/common/delete-dialog";
 import { StatusBadge } from "@/components/common/status-badge";
-import { EntityForm } from "@/components/common/entity-form";
 import { EmptyState } from "@/components/common/empty-state";
 import { toast } from "@/components/common/toast";
 import {
@@ -20,17 +18,7 @@ import {
   DrawerTitle,
   DrawerDescription,
 } from "@/components/common/drawer";
-
-import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 import {
   useProyectos,
@@ -46,54 +34,14 @@ import type { DataTableColumn } from "@/components/common/data-table";
 import type { Proyecto, ProyectoInsert, ProyectoUpdate } from "@/types/entities";
 import type { ListParams } from "@/types/common";
 
+import { ProyectoForm } from "@/components/proyectos/proyecto-form";
+import { EMPTY_PROYECTO, proyectoToForm } from "@/components/proyectos/proyecto-types";
+import type { ProyectoFormValues } from "@/components/proyectos/proyecto-types";
+
 export const Route = createFileRoute("/proyectos")({
   head: () => ({ meta: [{ title: "Proyectos · Viatik" }] }),
   component: ProyectosPage,
 });
-
-// ─── Schema ────────────────────────────────────────────────────────────────────
-
-const proyectoSchema = z.object({
-  nombre: z.string().min(1, "El nombre es requerido"),
-  codigo: z.string().nullable().optional(),
-  descripcion: z.string().nullable().optional(),
-  cliente_id: z.string().min(1, "El cliente es requerido"),
-  fecha_inicio: z.string().nullable().optional(),
-  fecha_fin: z.string().nullable().optional(),
-  presupuesto: z.number().nonnegative("Debe ser positivo").nullable().optional(),
-  valor_contrato: z.number().nonnegative("Debe ser positivo").nullable().optional(),
-  estado_financiero: z.string().nullable().optional(),
-});
-
-type ProyectoFormValues = z.infer<typeof proyectoSchema>;
-
-const EMPTY_FORM: ProyectoFormValues = {
-  nombre: "",
-  codigo: "",
-  descripcion: "",
-  cliente_id: "",
-  fecha_inicio: "",
-  fecha_fin: "",
-  presupuesto: null,
-  valor_contrato: null,
-  estado_financiero: "en_curso",
-};
-
-function proyectoToForm(p: Proyecto): ProyectoFormValues {
-  return {
-    nombre: p.nombre,
-    codigo: p.codigo ?? "",
-    descripcion: p.descripcion ?? "",
-    cliente_id: p.cliente_id,
-    fecha_inicio: p.fecha_inicio ?? "",
-    fecha_fin: p.fecha_fin ?? "",
-    presupuesto: p.presupuesto ?? null,
-    valor_contrato: p.valor_contrato ?? null,
-    estado_financiero: p.estado_financiero ?? "en_curso",
-  };
-}
-
-// ─── Route component ───────────────────────────────────────────────────────────
 
 function ProyectosPage() {
   return (
@@ -102,8 +50,6 @@ function ProyectosPage() {
     </AppShell>
   );
 }
-
-// ─── Content ───────────────────────────────────────────────────────────────────
 
 function ProyectosContent() {
   const { empresaActivaId } = useCompany();
@@ -120,9 +66,6 @@ function ProyectosContent() {
   const eliminar = useEliminarProyecto();
 
   const clientes = clientesData?.rows ?? [];
-
-  // ─── Columns ─────────────────────────────────────────────────────────────────
-
   const clienteNombre = (id: string) => clientes.find((c) => c.id === id)?.nombre ?? id;
 
   const columns: DataTableColumn<Proyecto>[] = [
@@ -226,18 +169,10 @@ function ProyectosContent() {
     },
   ];
 
-  // ─── Handlers ─────────────────────────────────────────────────────────────────
-
-  function handleSearchChange(value: string) {
-    setSearch(value);
-    setParams((p) => ({ ...p, page: 1 }));
-  }
-
   function handleOpenNew() {
     setEditingProyecto(null);
     setDrawerOpen(true);
   }
-
   function handleCloseDrawer() {
     setDrawerOpen(false);
     setEditingProyecto(null);
@@ -248,7 +183,6 @@ function ProyectosContent() {
       toast.error("Selecciona una empresa activa antes de continuar.");
       return;
     }
-
     try {
       if (editingProyecto) {
         const payload: ProyectoUpdate = {
@@ -298,8 +232,6 @@ function ProyectosContent() {
     }
   }
 
-  // ─── Render ──────────────────────────────────────────────────────────────────
-
   return (
     <>
       <PageHeader
@@ -317,7 +249,10 @@ function ProyectosContent() {
       <div className="mb-4 flex items-center gap-3">
         <SearchBar
           value={search}
-          onChange={handleSearchChange}
+          onChange={(v) => {
+            setSearch(v);
+            setParams((p) => ({ ...p, page: 1 }));
+          }}
           placeholder="Buscar por nombre, código, descripción..."
         />
       </div>
@@ -343,7 +278,6 @@ function ProyectosContent() {
               </Button>
             }
           />
-
           {data && data.total > 0 && (
             <div className="mt-3">
               <Pagination
@@ -374,7 +308,7 @@ function ProyectosContent() {
           </DrawerHeader>
           <div className="overflow-y-auto px-6 pb-6">
             <ProyectoForm
-              defaultValues={editingProyecto ? proyectoToForm(editingProyecto) : EMPTY_FORM}
+              defaultValues={editingProyecto ? proyectoToForm(editingProyecto) : EMPTY_PROYECTO}
               onSubmit={handleSubmit}
               onCancel={handleCloseDrawer}
               loading={crear.isPending || actualizar.isPending}
@@ -395,213 +329,5 @@ function ProyectosContent() {
         loading={eliminar.isPending}
       />
     </>
-  );
-}
-
-// ─── Form component ────────────────────────────────────────────────────────────
-
-interface ProyectoFormProps {
-  defaultValues: ProyectoFormValues;
-  onSubmit: (values: ProyectoFormValues) => Promise<void>;
-  onCancel: () => void;
-  loading: boolean;
-  submitLabel: string;
-  clientes: { id: string; nombre: string }[];
-}
-
-function ProyectoForm({
-  defaultValues,
-  onSubmit,
-  onCancel,
-  loading,
-  submitLabel,
-  clientes,
-}: ProyectoFormProps) {
-  return (
-    <EntityForm
-      schema={proyectoSchema}
-      defaultValues={defaultValues}
-      onSubmit={onSubmit}
-      onCancel={onCancel}
-      loading={loading}
-      submitLabel={submitLabel}
-    >
-      {(form) => (
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="nombre"
-            render={({ field }) => (
-              <FormItem className="col-span-2">
-                <FormLabel>Nombre *</FormLabel>
-                <FormControl>
-                  <Input placeholder="Nombre del proyecto" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="codigo"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Código</FormLabel>
-                <FormControl>
-                  <Input placeholder="PRY-001" {...field} value={field.value ?? ""} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="cliente_id"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Cliente *</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar cliente" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {clientes.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="descripcion"
-            render={({ field }) => (
-              <FormItem className="col-span-2">
-                <FormLabel>Descripción</FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder="Descripción del proyecto"
-                    {...field}
-                    value={field.value ?? ""}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="fecha_inicio"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Fecha inicio</FormLabel>
-                <FormControl>
-                  <Input type="date" {...field} value={field.value ?? ""} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="fecha_fin"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Fecha fin</FormLabel>
-                <FormControl>
-                  <Input type="date" {...field} value={field.value ?? ""} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="presupuesto"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Presupuesto</FormLabel>
-                <FormControl>
-                  <Input
-                    type="number"
-                    min="0"
-                    placeholder="0"
-                    value={field.value ?? ""}
-                    onChange={(e) =>
-                      field.onChange(e.target.value === "" ? null : Number(e.target.value))
-                    }
-                    onBlur={field.onBlur}
-                    name={field.name}
-                    ref={field.ref}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="valor_contrato"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Valor contrato</FormLabel>
-                <FormControl>
-                  <Input
-                    type="number"
-                    min="0"
-                    placeholder="0"
-                    value={field.value ?? ""}
-                    onChange={(e) =>
-                      field.onChange(e.target.value === "" ? null : Number(e.target.value))
-                    }
-                    onBlur={field.onBlur}
-                    name={field.name}
-                    ref={field.ref}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="estado_financiero"
-            render={({ field }) => (
-              <FormItem className="col-span-2">
-                <FormLabel>Estado</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value ?? "en_curso"}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar estado" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="en_curso">En curso</SelectItem>
-                    <SelectItem value="en_pausa">En pausa</SelectItem>
-                    <SelectItem value="finalizado">Finalizado</SelectItem>
-                    <SelectItem value="cancelado">Cancelado</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
-      )}
-    </EntityForm>
   );
 }

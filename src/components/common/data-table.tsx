@@ -70,7 +70,11 @@ export function DataTable<T>({
             {columns.map((col) => (
               <TableHead
                 key={col.key}
-                className={cn("text-xs uppercase tracking-wide text-muted-foreground", alignClass(col.align), col.className)}
+                className={cn(
+                  "text-xs uppercase tracking-wide text-muted-foreground",
+                  alignClass(col.align),
+                  col.className,
+                )}
               >
                 {col.header}
               </TableHead>

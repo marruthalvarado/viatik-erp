@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { z } from "zod";
 import { Plus, Pencil, Trash2, FileText as FileIcon } from "lucide-react";
 
 import { AppShell } from "@/components/layout/app-shell";
@@ -10,7 +9,6 @@ import { SearchBar } from "@/components/common/search-bar";
 import { Pagination } from "@/components/common/pagination";
 import { DeleteDialog } from "@/components/common/delete-dialog";
 import { StatusBadge } from "@/components/common/status-badge";
-import { EntityForm } from "@/components/common/entity-form";
 import { EmptyState } from "@/components/common/empty-state";
 import { toast } from "@/components/common/toast";
 import {
@@ -20,18 +18,7 @@ import {
   DrawerTitle,
   DrawerDescription,
 } from "@/components/common/drawer";
-
-import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 import {
   useDocumentos,
@@ -48,49 +35,18 @@ import type { DataTableColumn } from "@/components/common/data-table";
 import type { Documento, DocumentoInsert, DocumentoUpdate } from "@/types/entities";
 import type { ListParams } from "@/types/common";
 
+import { DocumentoForm } from "@/components/documentos/documento-form";
+import {
+  EMPTY_DOCUMENTO,
+  documentoToForm,
+  formatFileSize,
+} from "@/components/documentos/documento-types";
+import type { DocumentoFormValues } from "@/components/documentos/documento-types";
+
 export const Route = createFileRoute("/documentos")({
   head: () => ({ meta: [{ title: "Documentos · Viatik" }] }),
   component: DocumentosPage,
 });
-
-// ─── Schema ────────────────────────────────────────────────────────────────────
-
-const documentoSchema = z.object({
-  rendicion_id: z.string().min(1, "La rendición es requerida"),
-  nombre_archivo: z.string().nullable().optional(),
-  categoria_documento_id: z.string().nullable().optional(),
-  tipo_documento_id: z.string().nullable().optional(),
-  procesado: z.boolean().nullable().optional(),
-});
-
-type DocumentoFormValues = z.infer<typeof documentoSchema>;
-
-const EMPTY_FORM: DocumentoFormValues = {
-  rendicion_id: "",
-  nombre_archivo: "",
-  categoria_documento_id: null,
-  tipo_documento_id: null,
-  procesado: false,
-};
-
-function documentoToForm(d: Documento): DocumentoFormValues {
-  return {
-    rendicion_id: d.rendicion_id,
-    nombre_archivo: d.nombre_archivo ?? "",
-    categoria_documento_id: d.categoria_documento_id ?? null,
-    tipo_documento_id: d.tipo_documento_id ?? null,
-    procesado: d.procesado ?? false,
-  };
-}
-
-function formatFileSize(bytes: number | null | undefined): string {
-  if (!bytes) return "—";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-// ─── Route component ───────────────────────────────────────────────────────────
 
 function DocumentosPage() {
   return (
@@ -99,8 +55,6 @@ function DocumentosPage() {
     </AppShell>
   );
 }
-
-// ─── Content ───────────────────────────────────────────────────────────────────
 
 function DocumentosContent() {
   const { empresaActivaId } = useCompany();
@@ -114,7 +68,6 @@ function DocumentosContent() {
   const { data: rendicionesData } = useRendiciones({ pageSize: 200 });
   const { data: categoriasData } = useCategoriasDocumento({ pageSize: 200 });
   const { data: tiposData } = useTiposDocumento({ pageSize: 200 });
-
   const crear = useCrearDocumento();
   const actualizar = useActualizarDocumento();
   const eliminar = useEliminarDocumento();
@@ -123,21 +76,11 @@ function DocumentosContent() {
   const categorias = categoriasData?.rows ?? [];
   const tipos = tiposData?.rows ?? [];
 
-  function rendicionLabel(id: string): string {
-    return rendiciones.find((r) => r.id === id)?.numero ?? id;
-  }
-
-  function categoriaLabel(id: string | null | undefined): string {
-    if (!id) return "—";
-    return categorias.find((c) => c.id === id)?.nombre ?? "—";
-  }
-
-  function tipoLabel(id: string | null | undefined): string {
-    if (!id) return "—";
-    return tipos.find((t) => t.id === id)?.nombre ?? "—";
-  }
-
-  // ─── Columns ─────────────────────────────────────────────────────────────────
+  const rendicionLabel = (id: string) => rendiciones.find((r) => r.id === id)?.numero ?? id;
+  const categoriaLabel = (id: string | null | undefined) =>
+    id ? (categorias.find((c) => c.id === id)?.nombre ?? "—") : "—";
+  const tipoLabel = (id: string | null | undefined) =>
+    id ? (tipos.find((t) => t.id === id)?.nombre ?? "—") : "—";
 
   const columns: DataTableColumn<Documento>[] = [
     {
@@ -165,11 +108,7 @@ function DocumentosContent() {
       header: "Categoría",
       cell: (row) => categoriaLabel(row.categoria_documento_id),
     },
-    {
-      key: "tipo",
-      header: "Tipo",
-      cell: (row) => tipoLabel(row.tipo_documento_id),
-    },
+    { key: "tipo", header: "Tipo", cell: (row) => tipoLabel(row.tipo_documento_id) },
     {
       key: "procesado",
       header: "OCR",
@@ -224,18 +163,10 @@ function DocumentosContent() {
     },
   ];
 
-  // ─── Handlers ─────────────────────────────────────────────────────────────────
-
-  function handleSearchChange(value: string) {
-    setSearch(value);
-    setParams((p) => ({ ...p, page: 1 }));
-  }
-
   function handleOpenNew() {
     setEditingDocumento(null);
     setDrawerOpen(true);
   }
-
   function handleCloseDrawer() {
     setDrawerOpen(false);
     setEditingDocumento(null);
@@ -265,7 +196,6 @@ function DocumentosContent() {
           categoria_documento_id: values.categoria_documento_id ?? null,
           tipo_documento_id: values.tipo_documento_id ?? null,
           procesado: values.procesado ?? false,
-          // storage_path se asignará al integrar Supabase Storage
         };
         await crear.mutateAsync(payload);
         toast.success("Documento registrado correctamente.");
@@ -288,8 +218,6 @@ function DocumentosContent() {
     }
   }
 
-  // ─── Render ───────────────────────────────────────────────────────────────────
-
   return (
     <>
       <PageHeader
@@ -307,7 +235,10 @@ function DocumentosContent() {
       <div className="mb-4 flex items-center gap-3">
         <SearchBar
           value={search}
-          onChange={handleSearchChange}
+          onChange={(v) => {
+            setSearch(v);
+            setParams((p) => ({ ...p, page: 1 }));
+          }}
           placeholder="Buscar por nombre de archivo..."
         />
       </div>
@@ -333,7 +264,6 @@ function DocumentosContent() {
               </Button>
             }
           />
-
           {data && data.total > 0 && (
             <div className="mt-3">
               <Pagination
@@ -364,7 +294,7 @@ function DocumentosContent() {
           </DrawerHeader>
           <div className="overflow-y-auto px-6 pb-6">
             <DocumentoForm
-              defaultValues={editingDocumento ? documentoToForm(editingDocumento) : EMPTY_FORM}
+              defaultValues={editingDocumento ? documentoToForm(editingDocumento) : EMPTY_DOCUMENTO}
               onSubmit={handleSubmit}
               onCancel={handleCloseDrawer}
               loading={crear.isPending || actualizar.isPending}
@@ -387,156 +317,5 @@ function DocumentosContent() {
         loading={eliminar.isPending}
       />
     </>
-  );
-}
-
-// ─── Form ─────────────────────────────────────────────────────────────────────
-
-interface DocumentoFormProps {
-  defaultValues: DocumentoFormValues;
-  onSubmit: (values: DocumentoFormValues) => Promise<void>;
-  onCancel: () => void;
-  loading: boolean;
-  submitLabel: string;
-  rendiciones: Array<{ id: string; numero: string }>;
-  categorias: Array<{ id: string; nombre: string }>;
-  tipos: Array<{ id: string; nombre: string }>;
-}
-
-function DocumentoForm({
-  defaultValues,
-  onSubmit,
-  onCancel,
-  loading,
-  submitLabel,
-  rendiciones,
-  categorias,
-  tipos,
-}: DocumentoFormProps) {
-  return (
-    <EntityForm
-      schema={documentoSchema}
-      defaultValues={defaultValues}
-      onSubmit={onSubmit}
-      onCancel={onCancel}
-      loading={loading}
-      submitLabel={submitLabel}
-    >
-      {(form) => (
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="rendicion_id"
-            render={({ field }) => (
-              <FormItem className="col-span-2">
-                <FormLabel>Rendición *</FormLabel>
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecciona una rendición" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {rendiciones.map((r) => (
-                      <SelectItem key={r.id} value={r.id}>
-                        {r.numero}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="nombre_archivo"
-            render={({ field }) => (
-              <FormItem className="col-span-2">
-                <FormLabel>Nombre del archivo</FormLabel>
-                <FormControl>
-                  <Input placeholder="factura-001.pdf" {...field} value={field.value ?? ""} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="categoria_documento_id"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Categoría</FormLabel>
-                <Select
-                  value={field.value ?? "__none__"}
-                  onValueChange={(v) => field.onChange(v === "__none__" ? null : v)}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sin categoría" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="__none__">Sin categoría</SelectItem>
-                    {categorias.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="tipo_documento_id"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Tipo</FormLabel>
-                <Select
-                  value={field.value ?? "__none__"}
-                  onValueChange={(v) => field.onChange(v === "__none__" ? null : v)}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sin tipo" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="__none__">Sin tipo</SelectItem>
-                    {tipos.map((t) => (
-                      <SelectItem key={t.id} value={t.id}>
-                        {t.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="procesado"
-            render={({ field }) => (
-              <FormItem className="col-span-2 flex flex-row items-center gap-3 space-y-0">
-                <FormControl>
-                  <Checkbox checked={field.value ?? false} onCheckedChange={field.onChange} />
-                </FormControl>
-                <FormLabel className="cursor-pointer font-normal">
-                  Marcado como procesado (OCR)
-                </FormLabel>
-              </FormItem>
-            )}
-          />
-        </div>
-      )}
-    </EntityForm>
   );
 }

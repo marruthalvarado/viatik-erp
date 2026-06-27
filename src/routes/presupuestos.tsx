@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { z } from "zod";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 
 import { AppShell } from "@/components/layout/app-shell";
@@ -10,7 +9,6 @@ import { SearchBar } from "@/components/common/search-bar";
 import { Pagination } from "@/components/common/pagination";
 import { DeleteDialog } from "@/components/common/delete-dialog";
 import { StatusBadge } from "@/components/common/status-badge";
-import { EntityForm } from "@/components/common/entity-form";
 import { EmptyState } from "@/components/common/empty-state";
 import { toast } from "@/components/common/toast";
 import {
@@ -20,18 +18,7 @@ import {
   DrawerTitle,
   DrawerDescription,
 } from "@/components/common/drawer";
-
-import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 import {
   usePresupuestos,
@@ -47,54 +34,14 @@ import type { DataTableColumn } from "@/components/common/data-table";
 import type { Presupuesto, PresupuestoInsert, PresupuestoUpdate } from "@/types/entities";
 import type { ListParams } from "@/types/common";
 
+import { PresupuestoForm } from "@/components/presupuestos/presupuesto-form";
+import { EMPTY_PRESUPUESTO, presupuestoToForm } from "@/components/presupuestos/presupuesto-types";
+import type { PresupuestoFormValues } from "@/components/presupuestos/presupuesto-types";
+
 export const Route = createFileRoute("/presupuestos")({
   head: () => ({ meta: [{ title: "Presupuestos · Viatik" }] }),
   component: PresupuestosPage,
 });
-
-// ─── Schema ────────────────────────────────────────────────────────────────────
-
-const currentYear = new Date().getFullYear();
-
-const presupuestoSchema = z.object({
-  nombre: z.string().min(1, "El nombre es requerido"),
-  anio: z
-    .number({ invalid_type_error: "El año es requerido" })
-    .int("Debe ser un año entero")
-    .min(2000, "Año mínimo 2000")
-    .max(2100, "Año máximo 2100"),
-  codigo: z.string().nullable().optional(),
-  descripcion: z.string().nullable().optional(),
-  proyecto_id: z.string().nullable().optional(),
-  activo: z.boolean().nullable().optional(),
-  valor_total: z.number().nonnegative("Debe ser positivo").nullable().optional(),
-});
-
-type PresupuestoFormValues = z.infer<typeof presupuestoSchema>;
-
-const EMPTY_FORM: PresupuestoFormValues = {
-  nombre: "",
-  anio: currentYear,
-  codigo: "",
-  descripcion: "",
-  proyecto_id: null,
-  activo: true,
-  valor_total: null,
-};
-
-function presupuestoToForm(p: Presupuesto): PresupuestoFormValues {
-  return {
-    nombre: p.nombre,
-    anio: p.anio,
-    codigo: p.codigo ?? "",
-    descripcion: p.descripcion ?? "",
-    proyecto_id: p.proyecto_id ?? null,
-    activo: p.activo ?? true,
-    valor_total: p.valor_total ?? null,
-  };
-}
-
-// ─── Route component ───────────────────────────────────────────────────────────
 
 function PresupuestosPage() {
   return (
@@ -103,8 +50,6 @@ function PresupuestosPage() {
     </AppShell>
   );
 }
-
-// ─── Content ───────────────────────────────────────────────────────────────────
 
 function PresupuestosContent() {
   const { empresaActivaId } = useCompany();
@@ -121,13 +66,8 @@ function PresupuestosContent() {
   const eliminar = useEliminarPresupuesto();
 
   const proyectos = proyectosData?.rows ?? [];
-
-  function proyectoNombre(id: string | null | undefined): string {
-    if (!id) return "—";
-    return proyectos.find((p) => p.id === id)?.nombre ?? id;
-  }
-
-  // ─── Columns ─────────────────────────────────────────────────────────────────
+  const proyectoNombre = (id: string | null | undefined) =>
+    id ? (proyectos.find((p) => p.id === id)?.nombre ?? id) : "—";
 
   const columns: DataTableColumn<Presupuesto>[] = [
     {
@@ -152,11 +92,7 @@ function PresupuestosContent() {
       className: "w-20",
       cell: (row) => <span className="tabular-nums">{row.anio}</span>,
     },
-    {
-      key: "proyecto",
-      header: "Proyecto",
-      cell: (row) => proyectoNombre(row.proyecto_id),
-    },
+    { key: "proyecto", header: "Proyecto", cell: (row) => proyectoNombre(row.proyecto_id) },
     {
       key: "valor_total",
       header: "Total",
@@ -208,18 +144,10 @@ function PresupuestosContent() {
     },
   ];
 
-  // ─── Handlers ─────────────────────────────────────────────────────────────────
-
-  function handleSearchChange(value: string) {
-    setSearch(value);
-    setParams((p) => ({ ...p, page: 1 }));
-  }
-
   function handleOpenNew() {
     setEditingPresupuesto(null);
     setDrawerOpen(true);
   }
-
   function handleCloseDrawer() {
     setDrawerOpen(false);
     setEditingPresupuesto(null);
@@ -275,8 +203,6 @@ function PresupuestosContent() {
     }
   }
 
-  // ─── Render ───────────────────────────────────────────────────────────────────
-
   return (
     <>
       <PageHeader
@@ -294,7 +220,10 @@ function PresupuestosContent() {
       <div className="mb-4 flex items-center gap-3">
         <SearchBar
           value={search}
-          onChange={handleSearchChange}
+          onChange={(v) => {
+            setSearch(v);
+            setParams((p) => ({ ...p, page: 1 }));
+          }}
           placeholder="Buscar por nombre, código, descripción..."
         />
       </div>
@@ -320,7 +249,6 @@ function PresupuestosContent() {
               </Button>
             }
           />
-
           {data && data.total > 0 && (
             <div className="mt-3">
               <Pagination
@@ -354,7 +282,7 @@ function PresupuestosContent() {
           <div className="overflow-y-auto px-6 pb-6">
             <PresupuestoForm
               defaultValues={
-                editingPresupuesto ? presupuestoToForm(editingPresupuesto) : EMPTY_FORM
+                editingPresupuesto ? presupuestoToForm(editingPresupuesto) : EMPTY_PRESUPUESTO
               }
               onSubmit={handleSubmit}
               onCancel={handleCloseDrawer}
@@ -376,177 +304,5 @@ function PresupuestosContent() {
         loading={eliminar.isPending}
       />
     </>
-  );
-}
-
-// ─── Form ─────────────────────────────────────────────────────────────────────
-
-interface PresupuestoFormProps {
-  defaultValues: PresupuestoFormValues;
-  onSubmit: (values: PresupuestoFormValues) => Promise<void>;
-  onCancel: () => void;
-  loading: boolean;
-  submitLabel: string;
-  proyectos: Array<{ id: string; nombre: string }>;
-}
-
-function PresupuestoForm({
-  defaultValues,
-  onSubmit,
-  onCancel,
-  loading,
-  submitLabel,
-  proyectos,
-}: PresupuestoFormProps) {
-  return (
-    <EntityForm
-      schema={presupuestoSchema}
-      defaultValues={defaultValues}
-      onSubmit={onSubmit}
-      onCancel={onCancel}
-      loading={loading}
-      submitLabel={submitLabel}
-    >
-      {(form) => (
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="nombre"
-            render={({ field }) => (
-              <FormItem className="col-span-2">
-                <FormLabel>Nombre *</FormLabel>
-                <FormControl>
-                  <Input placeholder="Presupuesto Operativo 2025" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="anio"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Año *</FormLabel>
-                <FormControl>
-                  <Input
-                    type="number"
-                    placeholder="2025"
-                    value={field.value ?? ""}
-                    onChange={(e) =>
-                      field.onChange(e.target.value === "" ? null : Number(e.target.value))
-                    }
-                    onBlur={field.onBlur}
-                    name={field.name}
-                    ref={field.ref}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="codigo"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Código</FormLabel>
-                <FormControl>
-                  <Input placeholder="PRES-001" {...field} value={field.value ?? ""} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="descripcion"
-            render={({ field }) => (
-              <FormItem className="col-span-2">
-                <FormLabel>Descripción</FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder="Descripción del presupuesto"
-                    {...field}
-                    value={field.value ?? ""}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="proyecto_id"
-            render={({ field }) => (
-              <FormItem className="col-span-2">
-                <FormLabel>Proyecto</FormLabel>
-                <Select
-                  value={field.value ?? "__none__"}
-                  onValueChange={(v) => field.onChange(v === "__none__" ? null : v)}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sin proyecto" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="__none__">Sin proyecto</SelectItem>
-                    {proyectos.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="valor_total"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Valor total</FormLabel>
-                <FormControl>
-                  <Input
-                    type="number"
-                    min="0"
-                    placeholder="0"
-                    value={field.value ?? ""}
-                    onChange={(e) =>
-                      field.onChange(e.target.value === "" ? null : Number(e.target.value))
-                    }
-                    onBlur={field.onBlur}
-                    name={field.name}
-                    ref={field.ref}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="activo"
-            render={({ field }) => (
-              <FormItem className="flex flex-row items-center gap-3 space-y-0">
-                <FormControl>
-                  <Checkbox checked={field.value ?? true} onCheckedChange={field.onChange} />
-                </FormControl>
-                <FormLabel className="cursor-pointer font-normal">Presupuesto activo</FormLabel>
-              </FormItem>
-            )}
-          />
-        </div>
-      )}
-    </EntityForm>
   );
 }

@@ -12,6 +12,7 @@ import {
   Shield,
   Sparkles,
   DollarSign,
+  GitBranch,
 } from "lucide-react";
 
 import {
@@ -32,6 +33,7 @@ import { CompanySwitcher } from "./company-switcher";
 const workspaceItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Rendiciones", url: "/rendiciones", icon: Receipt },
+  { title: "Workflow", url: "/workflow", icon: GitBranch },
   { title: "Documentos", url: "/documentos", icon: FileText },
 ];
 
@@ -48,8 +50,8 @@ const financeItems = [
 ];
 
 const systemItems = [
-  { title: "Configuración", url: "/configuracion", icon: Settings },
-  { title: "Administración", url: "/administracion", icon: Shield },
+  { title: "Configuracion", url: "/configuracion", icon: Settings },
+  { title: "Administracion", url: "/administracion", icon: Shield },
 ];
 
 export function AppSidebar() {
@@ -88,7 +90,7 @@ export function AppSidebar() {
           {!collapsed && (
             <div className="flex flex-col leading-tight">
               <span className="font-display text-sm font-semibold tracking-tight">Viatik</span>
-              <span className="text-[11px] text-muted-foreground">Gestión financiera</span>
+              <span className="text-[11px] text-muted-foreground">Gestion financiera</span>
             </div>
           )}
         </div>
@@ -109,7 +111,7 @@ export function AppSidebar() {
       <SidebarFooter className="border-t">
         {!collapsed && (
           <div className="px-2 py-1.5 text-[11px] text-muted-foreground">
-            v0.1 · Viatik © {new Date().getFullYear()}
+            v0.1 - Viatik {new Date().getFullYear()}
           </div>
         )}
       </SidebarFooter>

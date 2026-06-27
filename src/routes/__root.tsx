@@ -81,9 +81,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Viatik · Gestión financiera" },
-      { name: "description", content: "Plataforma SaaS para gestión financiera, rendiciones y operaciones." },
+      {
+        name: "description",
+        content: "Plataforma SaaS para gestión financiera, rendiciones y operaciones.",
+      },
       { property: "og:title", content: "Viatik" },
-      { property: "og:description", content: "Plataforma SaaS para gestión financiera, rendiciones y operaciones." },
+      {
+        property: "og:description",
+        content: "Plataforma SaaS para gestión financiera, rendiciones y operaciones.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],

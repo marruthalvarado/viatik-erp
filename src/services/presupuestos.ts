@@ -1,9 +1,5 @@
 import { createCrudService } from "./_factory";
-import type {
-  Presupuesto,
-  PresupuestoInsert,
-  PresupuestoUpdate,
-} from "@/types/entities";
+import type { Presupuesto, PresupuestoInsert, PresupuestoUpdate } from "@/types/entities";
 
 export const presupuestosService = createCrudService<
   Presupuesto,

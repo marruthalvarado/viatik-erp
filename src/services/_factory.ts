@@ -52,7 +52,10 @@ export function createCrudService<TRow = unknown, TInsert = Partial<TRow>, TUpda
       is: (c: string, v: unknown) => typeof q;
       or: (s: string) => typeof q;
       order: (c: string, o: { ascending: boolean }) => typeof q;
-      range: (a: number, b: number) => Promise<{
+      range: (
+        a: number,
+        b: number,
+      ) => Promise<{
         data: TRow[] | null;
         error: { message: string } | null;
         count: number | null;
@@ -74,9 +77,7 @@ export function createCrudService<TRow = unknown, TInsert = Partial<TRow>, TUpda
       q = q.or(searchCols.map((c) => `${c}.ilike.%${safe}%`).join(","));
     }
 
-    const sort = sortBy
-      ? { column: sortBy, ascending: sortDir === "asc" }
-      : defaultSort;
+    const sort = sortBy ? { column: sortBy, ascending: sortDir === "asc" } : defaultSort;
     if (sort) q = q.order(sort.column, { ascending: sort.ascending });
 
     const fromIdx = (page - 1) * pageSize;
@@ -87,10 +88,7 @@ export function createCrudService<TRow = unknown, TInsert = Partial<TRow>, TUpda
   }
 
   async function obtener(id: ID): Promise<TRow | null> {
-    const { data, error } = await from()
-      .select(selectCols)
-      .eq(pk, id)
-      .maybeSingle();
+    const { data, error } = await from().select(selectCols).eq(pk, id).maybeSingle();
     if (error) throw new Error(error.message);
     return (data as TRow | null) ?? null;
   }

@@ -12,14 +12,7 @@ interface MetricCardProps {
   className?: string;
 }
 
-export function MetricCard({
-  label,
-  value,
-  hint,
-  trend,
-  icon: Icon,
-  className,
-}: MetricCardProps) {
+export function MetricCard({ label, value, hint, trend, icon: Icon, className }: MetricCardProps) {
   return (
     <div
       className={cn(

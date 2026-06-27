@@ -20,18 +20,11 @@ const statusBadgeVariants = cva(
 );
 
 interface StatusBadgeProps
-  extends React.HTMLAttributes<HTMLSpanElement>,
-    VariantProps<typeof statusBadgeVariants> {
+  extends React.HTMLAttributes<HTMLSpanElement>, VariantProps<typeof statusBadgeVariants> {
   dot?: boolean;
 }
 
-export function StatusBadge({
-  tone,
-  dot = true,
-  className,
-  children,
-  ...props
-}: StatusBadgeProps) {
+export function StatusBadge({ tone, dot = true, className, children, ...props }: StatusBadgeProps) {
   return (
     <span className={cn(statusBadgeVariants({ tone }), className)} {...props}>
       {dot && <span className="size-1.5 rounded-full bg-current" />}

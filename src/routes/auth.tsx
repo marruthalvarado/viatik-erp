@@ -34,7 +34,6 @@ function AuthPage() {
     }
   }, [loading, user, redirect, navigate]);
 
-
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4 py-12">
       <div className="w-full max-w-md space-y-6">

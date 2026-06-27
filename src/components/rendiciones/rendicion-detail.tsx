@@ -1,14 +1,16 @@
+/**
+ * RendicionDetail — vista detalle de una rendición con tabs de Gastos,
+ * Documentos y Viajes, más edición inline y eliminación.
+ */
 import { useState } from "react";
-import { z } from "zod";
 import {
-  Plus,
   Pencil,
   Trash2,
   ArrowLeft,
   FileText,
   Receipt,
   Plane,
-  Send,
+  GitBranch,
   Clock,
 } from "lucide-react";
 
@@ -16,7 +18,6 @@ import { PageHeader } from "@/components/common/page-header";
 import { DataTable } from "@/components/common/data-table";
 import { DeleteDialog } from "@/components/common/delete-dialog";
 import { StatusBadge } from "@/components/common/status-badge";
-import { EntityForm } from "@/components/common/entity-form";
 import { toast } from "@/components/common/toast";
 import {
   Drawer,
@@ -25,19 +26,11 @@ import {
   DrawerTitle,
   DrawerDescription,
 } from "@/components/common/drawer";
-import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { useGastos } from "@/hooks/entities/use-gastos";
 import { useDocumentos } from "@/hooks/entities/use-documentos";
-import {
-  useViajes,
-  useCrearViaje,
-  useActualizarViaje,
-  useEliminarViaje,
-} from "@/hooks/entities/use-viajes";
 import { useProyectos } from "@/hooks/entities/use-proyectos";
 import { useEstadosRendicion, useTiposRendicion } from "@/hooks/entities/use-catalogs";
 import { useActualizarRendicion, useEliminarRendicion } from "@/hooks/entities/use-rendiciones";
@@ -46,55 +39,14 @@ import { useAuth } from "@/contexts/auth-context";
 import { formatCurrency, formatDate } from "@/utils/formatters";
 
 import type { DataTableColumn } from "@/components/common/data-table";
-import type {
-  Rendicion,
-  RendicionUpdate,
-  Gasto,
-  Documento,
-  Viaje,
-  ViajeInsert,
-  ViajeUpdate,
-} from "@/types/entities";
+import type { Rendicion, RendicionUpdate, Gasto, Documento } from "@/types/entities";
 
 import { RendicionForm } from "./rendicion-form";
 import { rendicionToForm, emptyToNull, estadoTone } from "./rendicion-types";
 import type { RendicionFormValues } from "./rendicion-types";
-
-// ─── Viaje schema + helpers (internal to this module) ────────────────────────
-
-const viajeSchema = z.object({
-  destino: z.string().min(1, "El destino es requerido"),
-  numero: z.string().nullable().optional(),
-  fecha_inicio: z.string().nullable().optional(),
-  fecha_fin: z.string().nullable().optional(),
-  observaciones: z.string().nullable().optional(),
-  distancia_km: z.number().nonnegative("Debe ser positivo").nullable().optional(),
-  vehiculo_propio: z.boolean().nullable().optional(),
-});
-
-type ViajeFormValues = z.infer<typeof viajeSchema>;
-
-const EMPTY_VIAJE: ViajeFormValues = {
-  destino: "",
-  numero: "",
-  fecha_inicio: "",
-  fecha_fin: "",
-  observaciones: "",
-  distancia_km: null,
-  vehiculo_propio: false,
-};
-
-function viajeToForm(v: Viaje): ViajeFormValues {
-  return {
-    destino: v.destino,
-    numero: v.numero ?? "",
-    fecha_inicio: v.fecha_inicio ?? "",
-    fecha_fin: v.fecha_fin ?? "",
-    observaciones: v.observaciones ?? "",
-    distancia_km: v.distancia_km ?? null,
-    vehiculo_propio: v.vehiculo_propio ?? false,
-  };
-}
+import { ViajesTab } from "./viajes-tab";
+import { WorkflowTab } from "./workflow-tab";
+import { useWorkflows } from "@/hooks/entities/use-workflow";
 
 // ─── FinancialCard ────────────────────────────────────────────────────────────
 
@@ -251,367 +203,7 @@ function DocumentosTab({ rendicionId }: { rendicionId: string }) {
   );
 }
 
-// ─── ViajeForm ────────────────────────────────────────────────────────────────
-
-interface ViajeFormProps {
-  defaultValues: ViajeFormValues;
-  onSubmit: (values: ViajeFormValues) => Promise<void>;
-  onCancel: () => void;
-  loading: boolean;
-  submitLabel: string;
-}
-
-function ViajeForm({ defaultValues, onSubmit, onCancel, loading, submitLabel }: ViajeFormProps) {
-  return (
-    <EntityForm
-      schema={viajeSchema}
-      defaultValues={defaultValues}
-      onSubmit={onSubmit}
-      onCancel={onCancel}
-      loading={loading}
-      submitLabel={submitLabel}
-    >
-      {(form) => (
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="destino"
-            render={({ field }) => (
-              <FormItem className="col-span-2">
-                <FormLabel>Destino *</FormLabel>
-                <FormControl>
-                  <Input placeholder="Ciudad, País" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="numero"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Número</FormLabel>
-                <FormControl>
-                  <Input placeholder="VIA-001" {...field} value={field.value ?? ""} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="distancia_km"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Distancia (km)</FormLabel>
-                <FormControl>
-                  <Input
-                    type="number"
-                    min="0"
-                    placeholder="0"
-                    value={field.value ?? ""}
-                    onChange={(e) =>
-                      field.onChange(e.target.value === "" ? null : Number(e.target.value))
-                    }
-                    onBlur={field.onBlur}
-                    name={field.name}
-                    ref={field.ref}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="fecha_inicio"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Fecha inicio</FormLabel>
-                <FormControl>
-                  <Input type="date" {...field} value={field.value ?? ""} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="fecha_fin"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Fecha fin</FormLabel>
-                <FormControl>
-                  <Input type="date" {...field} value={field.value ?? ""} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="observaciones"
-            render={({ field }) => (
-              <FormItem className="col-span-2">
-                <FormLabel>Observaciones</FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder="Observaciones del viaje"
-                    {...field}
-                    value={field.value ?? ""}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="vehiculo_propio"
-            render={({ field }) => (
-              <FormItem className="col-span-2 flex flex-row items-center gap-3 space-y-0">
-                <FormControl>
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-input"
-                    checked={field.value ?? false}
-                    onChange={(e) => field.onChange(e.target.checked)}
-                    onBlur={field.onBlur}
-                    name={field.name}
-                    ref={field.ref}
-                  />
-                </FormControl>
-                <FormLabel className="cursor-pointer font-normal">Vehículo propio</FormLabel>
-              </FormItem>
-            )}
-          />
-        </div>
-      )}
-    </EntityForm>
-  );
-}
-
-// ─── ViajesTab ────────────────────────────────────────────────────────────────
-
-function ViajesTab({ rendicionId }: { rendicionId: string }) {
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [editingViaje, setEditingViaje] = useState<Viaje | null>(null);
-  const [deletingViaje, setDeletingViaje] = useState<Viaje | null>(null);
-
-  const { data, isLoading } = useViajes({
-    pageSize: 50,
-    filters: { rendicion_id: rendicionId },
-  });
-
-  const crear = useCrearViaje();
-  const actualizar = useActualizarViaje();
-  const eliminar = useEliminarViaje();
-
-  const viajes = data?.rows ?? [];
-
-  function handleOpenNew() {
-    setEditingViaje(null);
-    setDrawerOpen(true);
-  }
-
-  function handleCloseDrawer() {
-    setDrawerOpen(false);
-    setEditingViaje(null);
-  }
-
-  async function handleSubmit(values: ViajeFormValues) {
-    try {
-      if (editingViaje) {
-        const payload: ViajeUpdate = {
-          destino: values.destino,
-          numero: emptyToNull(values.numero),
-          fecha_inicio: emptyToNull(values.fecha_inicio),
-          fecha_fin: emptyToNull(values.fecha_fin),
-          observaciones: emptyToNull(values.observaciones),
-          distancia_km: values.distancia_km ?? null,
-          vehiculo_propio: values.vehiculo_propio ?? false,
-        };
-        await actualizar.mutateAsync({ id: editingViaje.id, payload });
-        toast.success("Viaje actualizado.");
-      } else {
-        const payload: ViajeInsert = {
-          rendicion_id: rendicionId,
-          destino: values.destino,
-          numero: emptyToNull(values.numero),
-          fecha_inicio: emptyToNull(values.fecha_inicio),
-          fecha_fin: emptyToNull(values.fecha_fin),
-          observaciones: emptyToNull(values.observaciones),
-          distancia_km: values.distancia_km ?? null,
-          vehiculo_propio: values.vehiculo_propio ?? false,
-        };
-        await crear.mutateAsync(payload);
-        toast.success("Viaje registrado.");
-      }
-      handleCloseDrawer();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al guardar el viaje.");
-    }
-  }
-
-  async function handleDelete() {
-    if (!deletingViaje) return;
-    try {
-      await eliminar.mutateAsync(deletingViaje.id);
-      toast.success("Viaje eliminado.");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al eliminar el viaje.");
-    } finally {
-      setDeletingViaje(null);
-    }
-  }
-
-  const columns: DataTableColumn<Viaje>[] = [
-    {
-      key: "destino",
-      header: "Destino",
-      cell: (row) => (
-        <div>
-          <p className="text-sm font-medium">{row.destino}</p>
-          {row.numero && <p className="text-xs text-muted-foreground">#{row.numero}</p>}
-        </div>
-      ),
-    },
-    {
-      key: "fechas",
-      header: "Período",
-      cell: (row) => (
-        <span className="text-sm tabular-nums">
-          {formatDate(row.fecha_inicio)}
-          {row.fecha_fin ? ` → ${formatDate(row.fecha_fin)}` : ""}
-        </span>
-      ),
-    },
-    {
-      key: "distancia_km",
-      header: "Km",
-      align: "right",
-      className: "w-20",
-      cell: (row) => (
-        <span className="text-sm tabular-nums">
-          {row.distancia_km != null ? `${row.distancia_km} km` : "—"}
-        </span>
-      ),
-    },
-    {
-      key: "vehiculo_propio",
-      header: "Vehículo",
-      className: "w-28",
-      cell: (row) => (
-        <StatusBadge tone={row.vehiculo_propio ? "info" : "neutral"}>
-          {row.vehiculo_propio ? "Propio" : "Sin vehículo"}
-        </StatusBadge>
-      ),
-    },
-    {
-      key: "acciones",
-      header: "",
-      className: "w-[88px]",
-      cell: (row) => (
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            aria-label="Editar viaje"
-            onClick={(e) => {
-              e.stopPropagation();
-              setEditingViaje(row);
-              setDrawerOpen(true);
-            }}
-          >
-            <Pencil className="size-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-destructive hover:text-destructive"
-            aria-label="Eliminar viaje"
-            onClick={(e) => {
-              e.stopPropagation();
-              setDeletingViaje(row);
-            }}
-          >
-            <Trash2 className="size-3.5" />
-          </Button>
-        </div>
-      ),
-    },
-  ];
-
-  return (
-    <>
-      <div className="mb-3 flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          {data?.total ?? 0} viaje{(data?.total ?? 0) !== 1 ? "s" : ""} registrado
-          {(data?.total ?? 0) !== 1 ? "s" : ""}
-        </p>
-        <Button size="sm" className="gap-1.5" onClick={handleOpenNew}>
-          <Plus className="size-4" />
-          Nuevo viaje
-        </Button>
-      </div>
-
-      <DataTable
-        columns={columns}
-        data={viajes}
-        isLoading={isLoading}
-        getRowId={(row) => row.id}
-        emptyTitle="Sin viajes"
-        emptyDescription="Esta rendición no tiene viajes registrados."
-        emptyAction={
-          <Button size="sm" onClick={handleOpenNew} className="gap-1.5">
-            <Plus className="size-4" />
-            Nuevo viaje
-          </Button>
-        }
-      />
-
-      <Drawer open={drawerOpen} onOpenChange={(open) => !open && handleCloseDrawer()}>
-        <DrawerContent className="sm:max-w-lg">
-          <DrawerHeader>
-            <DrawerTitle>{editingViaje ? "Editar viaje" : "Nuevo viaje"}</DrawerTitle>
-            <DrawerDescription>
-              {editingViaje
-                ? "Modifica los datos del viaje."
-                : "Registra los datos del viaje para esta rendición."}
-            </DrawerDescription>
-          </DrawerHeader>
-          <div className="overflow-y-auto px-6 pb-6">
-            <ViajeForm
-              defaultValues={editingViaje ? viajeToForm(editingViaje) : EMPTY_VIAJE}
-              onSubmit={handleSubmit}
-              onCancel={handleCloseDrawer}
-              loading={crear.isPending || actualizar.isPending}
-              submitLabel={editingViaje ? "Guardar cambios" : "Registrar viaje"}
-            />
-          </div>
-        </DrawerContent>
-      </Drawer>
-
-      <DeleteDialog
-        open={!!deletingViaje}
-        onOpenChange={(open) => !open && setDeletingViaje(null)}
-        entityLabel={`el viaje a "${deletingViaje?.destino ?? ""}"`}
-        onConfirm={handleDelete}
-        loading={eliminar.isPending}
-      />
-    </>
-  );
-}
-
-// ─── RendicionDetail (exported) ───────────────────────────────────────────────
+// ─── RendicionDetail (exportado) ──────────────────────────────────────────────
 
 export interface RendicionDetailProps {
   rendicion: Rendicion;
@@ -629,6 +221,7 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
   const { data: proyectosData } = useProyectos({ pageSize: 200 });
   const { data: estadosData } = useEstadosRendicion({ pageSize: 100 });
   const { data: tiposData } = useTiposRendicion({ pageSize: 100 });
+  const { data: workflowsData } = useWorkflows();
 
   const actualizar = useActualizarRendicion();
   const eliminar = useEliminarRendicion();
@@ -636,6 +229,7 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
   const proyectos = proyectosData?.rows ?? [];
   const estados = estadosData?.rows ?? [];
   const tipos = tiposData?.rows ?? [];
+  const tieneWorkflowActivo = (workflowsData?.length ?? 0) > 0;
 
   const estadoCodigo = estados.find((e) => e.id === rendicion.estado_rendicion_id)?.codigo ?? null;
   const estadoNombre =
@@ -643,9 +237,6 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
   const tipoNombre = tipos.find((t) => t.id === rendicion.tipo_rendicion_id)?.nombre ?? "—";
   const proyectoNombre =
     proyectos.find((p) => p.id === rendicion.proyecto_id)?.nombre ?? rendicion.proyecto_id;
-
-  const puedeEnviar =
-    (estadoCodigo === "borrador" || estadoCodigo === null) && !rendicion.workflow_id;
 
   async function handleSubmitEdit(values: RendicionFormValues) {
     if (!empresaActivaId || !user?.id) return;
@@ -702,20 +293,19 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
           <div className="flex items-center gap-2">
             <StatusBadge tone={estadoTone(estadoCodigo)}>{estadoNombre}</StatusBadge>
 
+            {/* El botón de envío ahora vive en el tab Workflow — acceso directo aquí */}
             <Button
               variant="outline"
               size="sm"
               className="gap-1.5"
-              disabled
-              aria-label="Enviar para aprobación (requiere workflow configurado)"
-              title={
-                puedeEnviar
-                  ? "Requiere configurar un workflow de aprobación"
-                  : "Solo disponible en estado borrador"
-              }
+              aria-label="Ir al tab Workflow"
+              onClick={() => {
+                const tab = document.querySelector<HTMLButtonElement>('[data-tab="workflow"]');
+                tab?.click();
+              }}
             >
-              <Send className="size-4" />
-              Enviar para aprobación
+              <GitBranch className="size-4" />
+              Workflow
             </Button>
 
             <Button
@@ -791,6 +381,10 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
             <Plane className="size-4" />
             Viajes
           </TabsTrigger>
+          <TabsTrigger value="workflow" data-tab="workflow" className="gap-1.5">
+            <GitBranch className="size-4" />
+            Workflow
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="gastos">
@@ -803,6 +397,14 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
 
         <TabsContent value="viajes">
           <ViajesTab rendicionId={rendicion.id} />
+        </TabsContent>
+
+        <TabsContent value="workflow">
+          <WorkflowTab
+            rendicion={rendicion}
+            estadoCodigo={estadoCodigo}
+            tieneWorkflowActivo={tieneWorkflowActivo}
+          />
         </TabsContent>
       </Tabs>
 

@@ -27,7 +27,10 @@ export function PageHeader({
   return (
     <div className={cn("mb-6 flex flex-col gap-3", className)}>
       {breadcrumbs && breadcrumbs.length > 0 && (
-        <nav aria-label="Breadcrumb" className="flex items-center gap-1 text-xs text-muted-foreground">
+        <nav
+          aria-label="Breadcrumb"
+          className="flex items-center gap-1 text-xs text-muted-foreground"
+        >
           {breadcrumbs.map((b, i) => (
             <span key={i} className="flex items-center gap-1">
               {b.href ? (
@@ -47,9 +50,7 @@ export function PageHeader({
           <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground">
             {title}
           </h1>
-          {description && (
-            <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-          )}
+          {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
         </div>
         {actions && <div className="flex items-center gap-2">{actions}</div>}
       </div>
