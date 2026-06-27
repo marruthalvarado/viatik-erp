@@ -28,6 +28,10 @@ export type Documento = Tables<"documentos">;
 export type DocumentoInsert = TablesInsert<"documentos">;
 export type DocumentoUpdate = TablesUpdate<"documentos">;
 
+export type OcrExtraccion = Tables<"ocr_extracciones">;
+export type OcrExtraccionInsert = TablesInsert<"ocr_extracciones">;
+export type OcrExtraccionUpdate = TablesUpdate<"ocr_extracciones">;
+
 export type Rendicion = Tables<"rendiciones">;
 export type RendicionInsert = TablesInsert<"rendiciones">;
 export type RendicionUpdate = TablesUpdate<"rendiciones">;
