@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WorkflowRouteImport } from './routes/workflow'
+import { Route as ReportesOperativosRouteImport } from './routes/reportes.operativos'
 import { Route as ReportesFinancierosRouteImport } from './routes/reportes.financieros'
 import { Route as ReportesRouteImport } from './routes/reportes'
 import { Route as RendicionesRouteImport } from './routes/rendiciones'
@@ -28,6 +29,11 @@ import { Route as IndexRouteImport } from './routes/index'
 const WorkflowRoute = WorkflowRouteImport.update({
   id: '/workflow',
   path: '/workflow',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReportesOperativosRoute = ReportesOperativosRouteImport.update({
+  id: '/reportes/operativos',
+  path: '/reportes/operativos',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ReportesFinancierosRoute = ReportesFinancierosRouteImport.update({
@@ -116,6 +122,7 @@ export interface FileRoutesByFullPath {
   '/rendiciones': typeof RendicionesRoute
   '/reportes': typeof ReportesRoute
   '/reportes/financieros': typeof ReportesFinancierosRoute
+  '/reportes/operativos': typeof ReportesOperativosRoute
   '/workflow': typeof WorkflowRoute
 }
 export interface FileRoutesByTo {
@@ -133,6 +140,7 @@ export interface FileRoutesByTo {
   '/rendiciones': typeof RendicionesRoute
   '/reportes': typeof ReportesRoute
   '/reportes/financieros': typeof ReportesFinancierosRoute
+  '/reportes/operativos': typeof ReportesOperativosRoute
   '/workflow': typeof WorkflowRoute
 }
 export interface FileRoutesById {
@@ -151,6 +159,7 @@ export interface FileRoutesById {
   '/rendiciones': typeof RendicionesRoute
   '/reportes': typeof ReportesRoute
   '/reportes/financieros': typeof ReportesFinancierosRoute
+  '/reportes/operativos': typeof ReportesOperativosRoute
   '/workflow': typeof WorkflowRoute
 }
 export interface FileRouteTypes {
@@ -170,6 +179,7 @@ export interface FileRouteTypes {
     | '/rendiciones'
     | '/reportes'
     | '/reportes/financieros'
+    | '/reportes/operativos'
     | '/workflow'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -187,6 +197,7 @@ export interface FileRouteTypes {
     | '/rendiciones'
     | '/reportes'
     | '/reportes/financieros'
+    | '/reportes/operativos'
     | '/workflow'
   id:
     | '__root__'
@@ -204,6 +215,7 @@ export interface FileRouteTypes {
     | '/rendiciones'
     | '/reportes'
     | '/reportes/financieros'
+    | '/reportes/operativos'
     | '/workflow'
   fileRoutesById: FileRoutesById
 }
@@ -222,6 +234,7 @@ export interface RootRouteChildren {
   RendicionesRoute: typeof RendicionesRoute
   ReportesRoute: typeof ReportesRoute
   ReportesFinancierosRoute: typeof ReportesFinancierosRoute
+  ReportesOperativosRoute: typeof ReportesOperativosRoute
   WorkflowRoute: typeof WorkflowRoute
 }
 
@@ -246,6 +259,13 @@ declare module '@tanstack/react-router' {
       path: '/reportes/financieros'
       fullPath: '/reportes/financieros'
       preLoaderRoute: typeof ReportesFinancierosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reportes/operativos': {
+      id: '/reportes/operativos'
+      path: '/reportes/operativos'
+      fullPath: '/reportes/operativos'
+      preLoaderRoute: typeof ReportesOperativosRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/rendiciones': {
@@ -338,7 +358,6 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdministracionRoute: AdministracionRoute,
-  AuthRoute: AuthRoute,
   ClientesRoute: ClientesRoute,
   ConfiguracionRoute: ConfiguracionRoute,
   DashboardRoute: DashboardRoute,
@@ -349,6 +368,7 @@ const rootRouteChildren: RootRouteChildren = {
   RendicionesRoute: RendicionesRoute,
   ReportesRoute: ReportesRoute,
   ReportesFinancierosRoute: ReportesFinancierosRoute,
+  ReportesOperativosRoute: ReportesOperativosRoute,
   WorkflowRoute: WorkflowRoute,
   DocumentosRoute: DocumentosRoute,
 }

@@ -9,6 +9,7 @@ import {
   Wallet,
   BarChart3,
   TrendingUp,
+  Activity,
   Settings,
   Shield,
   Sparkles,
@@ -49,6 +50,7 @@ const financeItems = [
   { title: "Gastos", url: "/gastos", icon: DollarSign },
   { title: "Dashboard BI", url: "/reportes", icon: BarChart3 },
   { title: "Rpt. Financieros", url: "/reportes/financieros", icon: TrendingUp },
+  { title: "Rpt. Operativos", url: "/reportes/operativos", icon: Activity },
 ];
 
 const systemItems = [
