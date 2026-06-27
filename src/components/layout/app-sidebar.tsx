@@ -8,6 +8,7 @@ import {
   Truck,
   Wallet,
   BarChart3,
+  TrendingUp,
   Settings,
   Shield,
   Sparkles,
@@ -46,7 +47,8 @@ const relationsItems = [
 const financeItems = [
   { title: "Presupuestos", url: "/presupuestos", icon: Wallet },
   { title: "Gastos", url: "/gastos", icon: DollarSign },
-  { title: "Reportes", url: "/reportes", icon: BarChart3 },
+  { title: "Dashboard BI", url: "/reportes", icon: BarChart3 },
+  { title: "Rpt. Financieros", url: "/reportes/financieros", icon: TrendingUp },
 ];
 
 const systemItems = [
