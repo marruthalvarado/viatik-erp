@@ -10,6 +10,7 @@ import {
   BarChart3,
   TrendingUp,
   Activity,
+  Network,
   Settings,
   Shield,
   Sparkles,
@@ -51,6 +52,7 @@ const financeItems = [
   { title: "Dashboard BI", url: "/reportes", icon: BarChart3 },
   { title: "Rpt. Financieros", url: "/reportes/financieros", icon: TrendingUp },
   { title: "Rpt. Operativos", url: "/reportes/operativos", icon: Activity },
+  { title: "Workflow Rpt.", url: "/reportes/workflow", icon: Network },
 ];
 
 const systemItems = [
