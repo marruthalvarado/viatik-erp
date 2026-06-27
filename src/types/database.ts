@@ -2249,6 +2249,162 @@ export type Database = {
           },
         ];
       };
+      // ─── FASE 8A: Vistas analíticas BI ───────────────────────────────────────
+      vw_rpt_rendiciones_estado: {
+        Row: {
+          id: string;
+          numero: string | null;
+          fecha_rendicion: string | null;
+          fecha_envio: string | null;
+          fecha_aprobacion: string | null;
+          created_at: string | null;
+          estado_codigo: string | null;
+          estado_nombre: string | null;
+          tipo_nombre: string | null;
+          proyecto_nombre: string | null;
+          proyecto_id: string | null;
+          usuario_nombre: string | null;
+          usuario_id: string | null;
+          total_facturado: number | null;
+          total_reembolsable: number | null;
+          total_anticipos: number | null;
+          saldo: number | null;
+          dias_en_estado: number | null;
+          score_auditoria: number | null;
+          empresa_id: string | null;
+          politica_id: string | null;
+          tipo_rendicion_id: string | null;
+          estado_rendicion_id: string | null;
+          workflow_id: string | null;
+        };
+        Relationships: [];
+      };
+      vw_rpt_gastos_detalle: {
+        Row: {
+          id: string;
+          fecha: string | null;
+          rendicion_id: string | null;
+          rendicion_numero: string | null;
+          proyecto_id: string | null;
+          proyecto_nombre: string | null;
+          categoria_nombre: string | null;
+          categoria_gasto_id: string | null;
+          proveedor_nombre: string | null;
+          proveedor_id: string | null;
+          valor_factura: number | null;
+          valor_reembolsable: number | null;
+          valor_moneda_base: number | null;
+          valor_moneda_origen: number | null;
+          moneda_codigo: string | null;
+          tipo_cambio: number | null;
+          numero_documento: string | null;
+          es_manual: boolean | null;
+          estado_codigo: string | null;
+          origen_nombre: string | null;
+          empresa_id: string | null;
+          created_at: string | null;
+          observaciones: string | null;
+        };
+        Relationships: [];
+      };
+      vw_rpt_viajes_detalle: {
+        Row: {
+          id: string;
+          numero: string | null;
+          fecha_inicio: string | null;
+          fecha_fin: string | null;
+          destino: string | null;
+          pais_nombre: string | null;
+          pais_id: string | null;
+          distancia_km: number | null;
+          vehiculo_propio: boolean | null;
+          observaciones: string | null;
+          duracion_dias: number | null;
+          empresa_id: string | null;
+          proyecto_id: string | null;
+          proyecto_nombre: string | null;
+          usuario_id: string | null;
+          usuario_nombre: string | null;
+          rendicion_id: string | null;
+          rendicion_numero: string | null;
+        };
+        Relationships: [];
+      };
+      vw_rpt_anticipos: {
+        Row: {
+          id: string;
+          numero: string | null;
+          fecha: string | null;
+          valor: number | null;
+          moneda_codigo: string | null;
+          observacion: string | null;
+          proyecto_id: string | null;
+          proyecto_nombre: string | null;
+          rendicion_id: string | null;
+          rendicion_numero: string | null;
+          empresa_id: string | null;
+          liquidado: boolean | null;
+        };
+        Relationships: [];
+      };
+      vw_rpt_aprobaciones_eficiencia: {
+        Row: {
+          aprobacion_id: string;
+          rendicion_id: string | null;
+          rendicion_numero: string | null;
+          aprobador_id: string | null;
+          aprobador_nombre: string | null;
+          workflow_nombre: string | null;
+          workflow_id: string | null;
+          paso_nombre: string | null;
+          paso_orden: number | null;
+          accion_codigo: string | null;
+          accion_nombre: string | null;
+          fecha_accion: string | null;
+          comentario: string | null;
+          empresa_id: string | null;
+          created_at: string | null;
+        };
+        Relationships: [];
+      };
+      vw_rpt_ejecucion_presupuestaria: {
+        Row: {
+          presupuesto_id: string;
+          presupuesto_nombre: string | null;
+          anio: number | null;
+          proyecto_id: string | null;
+          proyecto_nombre: string | null;
+          empresa_id: string | null;
+          detalle_id: string | null;
+          categoria_gasto_id: string | null;
+          categoria_nombre: string | null;
+          valor_presupuestado: number | null;
+          ejecutado: number | null;
+          disponible: number | null;
+          pct_ejecucion: number | null;
+        };
+        Relationships: [];
+      };
+      vw_rpt_cumplimiento_politicas: {
+        Row: {
+          gasto_id: string;
+          fecha: string | null;
+          rendicion_id: string | null;
+          rendicion_numero: string | null;
+          usuario_id: string | null;
+          usuario_nombre: string | null;
+          categoria_nombre: string | null;
+          categoria_gasto_id: string | null;
+          categoria_codigo: string | null;
+          politica_id: string | null;
+          politica_nombre: string | null;
+          tope_politica: number | null;
+          valor_gasto: number | null;
+          excedente: number | null;
+          empresa_id: string | null;
+        };
+        Relationships: [];
+      };
     };
     Functions: {
       generar_codigo: {
@@ -2301,6 +2457,66 @@ export type Database = {
           p_comentario: string | null;
           p_usuario_id: string;
           p_empresa_id: string;
+        };
+        Returns: Json;
+      };
+      // FASE 8A: RPCs analiticas BI
+      rpt_evolucion_mensual: {
+        Args: {
+          p_empresa_id: string;
+          p_anio_desde: number;
+          p_anio_hasta: number;
+          p_categoria_id?: string;
+        };
+        Returns: {
+          anio: number;
+          mes: number;
+          label: string;
+          facturado: number;
+          reembolsable: number;
+        }[];
+      };
+      rpt_top_proveedores: {
+        Args: {
+          p_empresa_id: string;
+          p_fecha_desde: string;
+          p_fecha_hasta: string;
+          p_limite?: number;
+        };
+        Returns: {
+          proveedor_id: string;
+          nombre: string;
+          pais: string;
+          ciudad: string;
+          n_gastos: number;
+          total: number;
+          pct_total: number;
+          categoria_principal: string;
+        }[];
+      };
+      rpt_tiempos_workflow: {
+        Args: {
+          p_empresa_id: string;
+          p_fecha_desde: string;
+          p_fecha_hasta: string;
+        };
+        Returns: {
+          rendicion_id: string;
+          rendicion_numero: string;
+          usuario_nombre: string;
+          fecha_envio: string;
+          fecha_primera_accion: string | null;
+          fecha_aprobacion_final: string | null;
+          horas_espera_total: number | null;
+          n_acciones: number;
+          n_rechazos: number;
+        }[];
+      };
+      rpt_resumen_ejecutivo: {
+        Args: {
+          p_empresa_id: string;
+          p_fecha_desde: string;
+          p_fecha_hasta: string;
         };
         Returns: Json;
       };
