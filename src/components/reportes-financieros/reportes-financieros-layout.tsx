@@ -8,13 +8,15 @@
  *
  * Arquitectura: Route -> ReportesFinancierosLayout -> Hooks 8A -> Services 8A -> Supabase
  */
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { TrendingUp, BarChart3 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useCompany } from "@/contexts/company-context";
 import { PageHeader } from "@/components/common/page-header";
 import { LoadingState } from "@/components/common/loading-state";
 import { EmptyState } from "@/components/common/empty-state";
+import { ExportMenu } from "@/components/export/export-menu";
+import type { ExportConfig, ExportRow } from "@/services/export/export-utils";
 
 import {
   defaultFiltrosFinancieros,
@@ -134,6 +136,98 @@ export function ReportesFinancierosLayout() {
     void anticipos.refetch();
   }
 
+  // ─── Config exportación (tab activo) ───────────────────────────────────────
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const exportConfig = useMemo<ExportConfig>(() => {
+    const periodo = `${filtros.fecha_desde} / ${filtros.fecha_hasta}`;
+    if (tab === "gastos") {
+      const rows: ExportRow[] = (gastos.data ?? []).map((r) => ({
+        numero: r.numero_documento,
+        proveedor: r.proveedor_nombre,
+        categoria: r.categoria_nombre,
+        fecha: r.fecha,
+        moneda: r.moneda_codigo,
+        importe: r.valor_factura,
+        proyecto: r.proyecto_nombre,
+      }));
+      return {
+        filename: `viatik-gastos-${filtros.anio}`,
+        title: "Gastos",
+        empresa: empresaNombre,
+        filtros: { Periodo: periodo } as Record<string, string>,
+        rows,
+        columns: [
+          { key: "numero", header: "N° Doc.", width: 14 },
+          { key: "fecha", header: "Fecha", width: 12, format: "date" },
+          { key: "proveedor", header: "Proveedor", width: 22 },
+          { key: "categoria", header: "Categoria", width: 18 },
+          { key: "importe", header: "Importe", width: 14, format: "currency", align: "right" },
+          { key: "moneda", header: "Moneda", width: 10 },
+          { key: "proyecto", header: "Proyecto", width: 20 },
+        ],
+      };
+    }
+    if (tab === "anticipos") {
+      const rows: ExportRow[] = (anticipos.data ?? []).map((r) => ({
+        numero: r.numero,
+        rendicion: r.rendicion_numero,
+        proyecto: r.proyecto_nombre,
+        fecha: r.fecha,
+        valor: r.valor,
+        moneda: r.moneda_codigo,
+        liquidado: r.liquidado ? "Sí" : "No",
+      }));
+      return {
+        filename: `viatik-anticipos-${filtros.anio}`,
+        title: "Anticipos",
+        empresa: empresaNombre,
+        filtros: { Periodo: periodo } as Record<string, string>,
+        rows,
+        columns: [
+          { key: "numero", header: "N°", width: 10 },
+          { key: "fecha", header: "Fecha", width: 12, format: "date" },
+          { key: "rendicion", header: "Rendición", width: 16 },
+          { key: "proyecto", header: "Proyecto", width: 20 },
+          { key: "valor", header: "Valor", width: 14, format: "currency", align: "right" },
+          { key: "moneda", header: "Moneda", width: 10 },
+          { key: "liquidado", header: "Liquidado", width: 12 },
+        ],
+      };
+    }
+    // presupuesto / categorias / proyectos → todos usan ejecucion
+    const rows: ExportRow[] = (ejecucion.data ?? []).map((r) => ({
+      nombre: r.presupuesto_nombre ?? r.categoria_nombre ?? r.proyecto_nombre,
+      valor_presupuestado: r.valor_presupuestado,
+      ejecutado: r.ejecutado,
+      disponible: r.disponible,
+      pct: r.pct_ejecucion,
+    }));
+    const tabLabel =
+      tab === "presupuesto" ? "Presupuesto" : tab === "categorias" ? "Categorias" : "Proyectos";
+    return {
+      filename: `viatik-${tab}-${filtros.anio}`,
+      title: tabLabel,
+      empresa: empresaNombre,
+      filtros: { Año: String(filtros.anio) } as Record<string, string>,
+      rows,
+      columns: [
+        { key: "nombre", header: "Concepto", width: 28 },
+        {
+          key: "valor_presupuestado",
+          header: "Presupuesto",
+          width: 16,
+          format: "currency",
+          align: "right",
+        },
+        { key: "ejecutado", header: "Ejecutado", width: 16, format: "currency", align: "right" },
+        { key: "disponible", header: "Disponible", width: 16, format: "currency", align: "right" },
+        { key: "pct", header: "% Ejecucion", width: 14, format: "number", align: "right" },
+      ],
+    };
+  }, [tab, gastos.data, anticipos.data, ejecucion.data, empresaNombre, filtros]);
+
+  const exportLoading = gastos.isLoading || ejecucion.isLoading || anticipos.isLoading;
+
   // -------------------------------------------------------------------------
   // Render
   // -------------------------------------------------------------------------
@@ -146,7 +240,12 @@ export function ReportesFinancierosLayout() {
           empresaNombre ? `Analisis financiero de ${empresaNombre}.` : "Analisis financiero."
         }
         breadcrumbs={[{ label: "Reportes", href: "/reportes" }, { label: "Financieros" }]}
-        actions={<FinancialFilters filtros={filtros} onFiltrosChange={setFiltros} />}
+        actions={
+          <div className="flex items-center gap-2">
+            <FinancialFilters filtros={filtros} onFiltrosChange={setFiltros} />
+            <ExportMenu config={exportConfig} disabled={exportLoading} />
+          </div>
+        }
       />
 
       <Tabs value={tab} onValueChange={setTab} className="space-y-6">

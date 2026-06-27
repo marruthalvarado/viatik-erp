@@ -8,13 +8,15 @@
  *
  * Arquitectura: Route -> ReportesOperativosLayout -> Hooks 8A -> Services 8A -> Supabase
  */
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Activity, BarChart3 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useCompany } from "@/contexts/company-context";
 import { PageHeader } from "@/components/common/page-header";
 import { LoadingState } from "@/components/common/loading-state";
 import { EmptyState } from "@/components/common/empty-state";
+import { ExportMenu } from "@/components/export/export-menu";
+import type { ExportConfig, ExportRow } from "@/services/export/export-utils";
 
 import {
   loadFiltrosOperativos,
@@ -141,6 +143,137 @@ export function ReportesOperativosLayout() {
   const proyectosError = ejecucion.error ?? rendiciones.error ?? viajes.error;
   const proyectosLoading = ejecucion.isLoading || rendiciones.isLoading || viajes.isLoading;
 
+  // ─── Config exportación (tab activo) ───────────────────────────────────────
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const exportConfig = useMemo<ExportConfig>(() => {
+    const periodo = `${filtros.fecha_desde} / ${filtros.fecha_hasta}`;
+    if (tab === "viajes") {
+      const rows: ExportRow[] = (viajes.data ?? []).map((r) => ({
+        numero: r.numero,
+        usuario: r.usuario_nombre,
+        destino: r.destino,
+        pais: r.pais_nombre,
+        fecha_inicio: r.fecha_inicio,
+        fecha_fin: r.fecha_fin,
+        duracion: r.duracion_dias,
+        proyecto: r.proyecto_nombre,
+      }));
+      return {
+        filename: `viatik-viajes-${filtros.anio}`,
+        title: "Viajes",
+        empresa: empresaNombre,
+        filtros: { Periodo: periodo } as Record<string, string>,
+        rows,
+        columns: [
+          { key: "numero", header: "N°", width: 10 },
+          { key: "usuario", header: "Responsable", width: 22 },
+          { key: "destino", header: "Destino", width: 18 },
+          { key: "pais", header: "País", width: 14 },
+          { key: "fecha_inicio", header: "Inicio", width: 12, format: "date" },
+          { key: "fecha_fin", header: "Fin", width: 12, format: "date" },
+          { key: "duracion", header: "Días", width: 8, format: "number", align: "right" },
+          { key: "proyecto", header: "Proyecto", width: 20 },
+        ],
+      };
+    }
+    if (tab === "rendiciones") {
+      const rows: ExportRow[] = (rendiciones.data ?? []).map((r) => ({
+        numero: r.numero,
+        usuario: r.usuario_nombre,
+        proyecto: r.proyecto_nombre,
+        estado: r.estado_nombre,
+        fecha: r.fecha_rendicion,
+        total: r.total_facturado,
+        saldo: r.saldo,
+        dias: r.dias_en_estado,
+      }));
+      return {
+        filename: `viatik-rendiciones-${filtros.anio}`,
+        title: "Rendiciones",
+        empresa: empresaNombre,
+        filtros: { Periodo: periodo } as Record<string, string>,
+        rows,
+        columns: [
+          { key: "numero", header: "N°", width: 10 },
+          { key: "usuario", header: "Responsable", width: 22 },
+          { key: "proyecto", header: "Proyecto", width: 20 },
+          { key: "estado", header: "Estado", width: 16 },
+          { key: "fecha", header: "Fecha", width: 12, format: "date" },
+          { key: "total", header: "Total USD", width: 14, format: "currency", align: "right" },
+          { key: "saldo", header: "Saldo USD", width: 14, format: "currency", align: "right" },
+          { key: "dias", header: "Días", width: 8, format: "number", align: "right" },
+        ],
+      };
+    }
+    if (tab === "proveedores") {
+      const rows: ExportRow[] = (proveedores.data ?? []).map((r) => ({
+        nombre: r.nombre,
+        pais: r.pais,
+        ciudad: r.ciudad,
+        n_gastos: r.n_gastos,
+        total: r.total,
+        pct: r.pct_total,
+        categoria: r.categoria_principal,
+      }));
+      return {
+        filename: `viatik-proveedores-${filtros.anio}`,
+        title: "Top Proveedores",
+        empresa: empresaNombre,
+        filtros: { Periodo: periodo } as Record<string, string>,
+        rows,
+        columns: [
+          { key: "nombre", header: "Proveedor", width: 24 },
+          { key: "pais", header: "País", width: 14 },
+          { key: "ciudad", header: "Ciudad", width: 14 },
+          { key: "categoria", header: "Categoria", width: 20 },
+          { key: "n_gastos", header: "# Gastos", width: 10, format: "number", align: "right" },
+          { key: "total", header: "Total USD", width: 14, format: "currency", align: "right" },
+          { key: "pct", header: "% Total", width: 10, format: "percent", align: "right" },
+        ],
+      };
+    }
+    // clientes / proyectos → ejecucion
+    const rows: ExportRow[] = (ejecucion.data ?? []).map((r) => ({
+      nombre: r.presupuesto_nombre ?? r.categoria_nombre ?? r.proyecto_nombre,
+      valor_presupuestado: r.valor_presupuestado,
+      ejecutado: r.ejecutado,
+      disponible: r.disponible,
+      pct: r.pct_ejecucion,
+    }));
+    const label = tab === "clientes" ? "Clientes" : "Proyectos";
+    return {
+      filename: `viatik-${tab}-${filtros.anio}`,
+      title: label,
+      empresa: empresaNombre,
+      filtros: { Año: String(filtros.anio) } as Record<string, string>,
+      rows,
+      columns: [
+        { key: "nombre", header: "Concepto", width: 28 },
+        {
+          key: "valor_presupuestado",
+          header: "Presupuesto",
+          width: 16,
+          format: "currency",
+          align: "right",
+        },
+        { key: "ejecutado", header: "Ejecutado", width: 16, format: "currency", align: "right" },
+        { key: "disponible", header: "Disponible", width: 16, format: "currency", align: "right" },
+        { key: "pct", header: "% Ejecucion", width: 14, format: "number", align: "right" },
+      ],
+    };
+  }, [
+    tab,
+    viajes.data,
+    rendiciones.data,
+    ejecucion.data,
+    proveedores.data,
+    empresaNombre,
+    filtros,
+  ]);
+
+  const exportLoading =
+    viajes.isLoading || rendiciones.isLoading || ejecucion.isLoading || proveedores.isLoading;
+
   // -------------------------------------------------------------------------
   // Render
   // -------------------------------------------------------------------------
@@ -153,7 +286,12 @@ export function ReportesOperativosLayout() {
           empresaNombre ? `Analisis operativo de ${empresaNombre}.` : "Analisis operativo."
         }
         breadcrumbs={[{ label: "Reportes", href: "/reportes" }, { label: "Operativos" }]}
-        actions={<OperationalFilters filtros={filtros} onFiltrosChange={setFiltros} />}
+        actions={
+          <div className="flex items-center gap-2">
+            <OperationalFilters filtros={filtros} onFiltrosChange={setFiltros} />
+            <ExportMenu config={exportConfig} disabled={exportLoading} />
+          </div>
+        }
       />
 
       <Tabs value={tab} onValueChange={setTab} className="space-y-6">

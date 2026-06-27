@@ -12,6 +12,8 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { BarChart3, ClipboardList, Truck, FolderKanban, Workflow, Receipt } from "lucide-react";
+import { ExportMenu } from "@/components/export/export-menu";
+import type { ExportConfig, ExportRow } from "@/services/export/export-utils";
 
 import { useCompany } from "@/contexts/company-context";
 import { PageHeader } from "@/components/common/page-header";
@@ -160,6 +162,38 @@ export function BiLayout() {
 
   const empresaNombre = empresaActiva?.nombre ?? "";
 
+  // ─── Config de exportación ────────────────────────────────────────────────────
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const exportConfig = useMemo<ExportConfig>(() => {
+    const rows: ExportRow[] = (rendicionesEstado.data ?? []).map((r) => ({
+      numero: r.numero,
+      usuario: r.usuario_nombre,
+      proyecto: r.proyecto_nombre,
+      estado: r.estado_nombre,
+      fecha: r.fecha_rendicion,
+      total: r.total_facturado,
+      saldo: r.saldo,
+      dias: r.dias_en_estado,
+    }));
+    return {
+      filename: `viatik-dashboard-bi-${filtros.anio}`,
+      title: "Dashboard BI — Rendiciones",
+      empresa: empresaNombre,
+      filtros: { Año: String(filtros.anio) },
+      columns: [
+        { key: "numero", header: "N° Rendición", width: 14 },
+        { key: "usuario", header: "Responsable", width: 22 },
+        { key: "proyecto", header: "Proyecto", width: 20 },
+        { key: "estado", header: "Estado", width: 16 },
+        { key: "fecha", header: "Fecha", width: 12, format: "date" },
+        { key: "total", header: "Total USD", width: 14, format: "currency", align: "right" },
+        { key: "saldo", header: "Saldo USD", width: 14, format: "currency", align: "right" },
+        { key: "dias", header: "Días en estado", width: 16, format: "number", align: "right" },
+      ],
+      rows,
+    };
+  }, [rendicionesEstado.data, empresaNombre, filtros.anio]);
+
   return (
     <>
       <PageHeader
@@ -168,7 +202,12 @@ export function BiLayout() {
           empresaNombre ? `Análisis ejecutivo de ${empresaNombre}.` : "Análisis ejecutivo."
         }
         breadcrumbs={[{ label: "Reportes" }, { label: "Dashboard BI" }]}
-        actions={<BiFilters filtros={filtros} onFiltrosChange={setFiltros} />}
+        actions={
+          <div className="flex items-center gap-2">
+            <BiFilters filtros={filtros} onFiltrosChange={setFiltros} />
+            <ExportMenu config={exportConfig} disabled={rendicionesEstado.isLoading} />
+          </div>
+        }
       />
 
       {/* KPIs */}
@@ -215,54 +254,6 @@ export function BiLayout() {
           data={ejecucion.data ?? []}
           loading={ejecucion.isLoading}
           onNavigate={() => nav("/gastos")}
-        />
-      </div>
-
-      {/* Resumen + Alertas */}
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <div className="space-y-6">
-          <BiRendicionesPendientes
-            data={rendicionesEstado.data ?? []}
-            loading={rendicionesEstado.isLoading}
-            onNavigate={() => nav("/rendiciones")}
-          />
-          <BiTopProveedoresTable
-            data={topProveedores.data ?? []}
-            loading={topProveedores.isLoading}
-            onNavigate={() => nav("/proveedores")}
-          />
-        </div>
-        <BiAlerts
-          ejecucion={ejecucion.data ?? []}
-          cumplimiento={cumplimiento.data ?? []}
-          rendiciones={rendicionesEstado.data ?? []}
-          pendientes={resumen.data?.kpis.pendientes ?? 0}
-          loading={ejecucion.isLoading || cumplimiento.isLoading || rendicionesEstado.isLoading}
-          onNavigate={nav}
-        />
-      </div>
-
-      {/* Drill-down bar */}
-      <div className="mt-6">
-        <DrillDownBar
-          items={[
-            {
-              label: "Rendiciones",
-              icon: ClipboardList,
-              onClick: () => nav("/rendiciones"),
-              count: resumen.data?.kpis.total_rendiciones,
-            },
-            {
-              label: "Workflow",
-              icon: Workflow,
-              onClick: () => nav("/workflow"),
-              count: resumen.data?.kpis.pendientes,
-            },
-            { label: "Proyectos", icon: FolderKanban, onClick: () => nav("/proyectos") },
-            { label: "Proyectos", icon: FolderKanban, onClick: () => nav("/proyectos") },
-            { label: "Gastos", icon: Receipt, onClick: () => nav("/gastos") },
-            { label: "Proveedores", icon: Truck, onClick: () => nav("/proveedores") },
-          ]}
         />
       </div>
     </>

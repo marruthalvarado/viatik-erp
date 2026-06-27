@@ -8,7 +8,7 @@
  *
  * Arquitectura: Route -> WorkflowReportLayout -> Hooks 8A -> Services 8A -> Supabase
  */
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Network, RotateCcw } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,8 @@ import { useCompany } from "@/contexts/company-context";
 import { PageHeader } from "@/components/common/page-header";
 import { LoadingState } from "@/components/common/loading-state";
 import { EmptyState } from "@/components/common/empty-state";
+import { ExportMenu } from "@/components/export/export-menu";
+import type { ExportConfig, ExportRow } from "@/services/export/export-utils";
 import {
   useRptAprobacionesEficiencia,
   useRptTiemposWorkflow,
@@ -173,6 +175,99 @@ export function WorkflowReportLayout() {
     void rendiciones.refetch();
   }
 
+  // ─── Config exportación (tab activo) ───────────────────────────────────────
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const exportConfig = useMemo<ExportConfig>(() => {
+    const periodo = `${fechaDesde} / ${fechaHasta}`;
+    if (tab === "flujo") {
+      const rows: ExportRow[] = (tiempos.data ?? []).map((r) => ({
+        rendicion: r.rendicion_numero,
+        responsable: r.usuario_nombre,
+        envio: r.fecha_envio,
+        primera_accion: r.fecha_primera_accion,
+        aprobacion: r.fecha_aprobacion_final,
+        horas: r.horas_espera_total,
+        acciones: r.n_acciones,
+        rechazos: r.n_rechazos,
+      }));
+      return {
+        filename: `viatik-workflow-flujo-${filtros.anio}`,
+        title: "Flujo de Aprobaciones",
+        empresa: empresaNombre,
+        filtros: { Periodo: periodo },
+        rows,
+        columns: [
+          { key: "rendicion", header: "Rendición", width: 14 },
+          { key: "responsable", header: "Responsable", width: 22 },
+          { key: "envio", header: "Fecha Envío", width: 14, format: "date" },
+          { key: "horas", header: "Horas Espera", width: 14, format: "number", align: "right" },
+          { key: "acciones", header: "Acciones", width: 10, format: "number", align: "right" },
+          { key: "rechazos", header: "Rechazos", width: 10, format: "number", align: "right" },
+        ],
+      };
+    }
+    if (tab === "aprobadores" || tab === "cuellos") {
+      const rows: ExportRow[] = (aprobaciones.data ?? []).map((r) => ({
+        aprobador: r.aprobador_nombre,
+        paso: r.paso_nombre,
+        workflow: r.workflow_nombre,
+        rendicion: r.rendicion_numero,
+        accion: r.accion_nombre,
+        fecha: r.fecha_accion,
+      }));
+      return {
+        filename: `viatik-workflow-${tab}-${filtros.anio}`,
+        title: tab === "aprobadores" ? "Aprobadores" : "Cuellos de Botella",
+        empresa: empresaNombre,
+        filtros: { Periodo: periodo },
+        rows,
+        columns: [
+          { key: "aprobador", header: "Aprobador", width: 22 },
+          { key: "paso", header: "Paso", width: 18 },
+          { key: "workflow", header: "Workflow", width: 18 },
+          { key: "rendicion", header: "Rendición", width: 14 },
+          { key: "accion", header: "Acción", width: 14 },
+          { key: "fecha", header: "Fecha", width: 14, format: "date" },
+        ],
+      };
+    }
+    // estados / sla → rendiciones
+    const rows: ExportRow[] = (rendiciones.data ?? []).map((r) => ({
+      numero: r.numero,
+      usuario: r.usuario_nombre,
+      estado: r.estado_nombre,
+      fecha: r.fecha_rendicion,
+      total: r.total_facturado,
+      dias: r.dias_en_estado,
+    }));
+    return {
+      filename: `viatik-workflow-${tab}-${filtros.anio}`,
+      title: tab === "estados" ? "Estados de Rendiciones" : "SLA Workflow",
+      empresa: empresaNombre,
+      filtros: { Periodo: periodo },
+      rows,
+      columns: [
+        { key: "numero", header: "Rendición", width: 14 },
+        { key: "usuario", header: "Responsable", width: 22 },
+        { key: "estado", header: "Estado", width: 16 },
+        { key: "fecha", header: "Fecha", width: 12, format: "date" },
+        { key: "total", header: "Total USD", width: 14, format: "currency", align: "right" },
+        { key: "dias", header: "Días en estado", width: 14, format: "number", align: "right" },
+      ],
+    };
+  }, [
+    tab,
+    tiempos.data,
+    aprobaciones.data,
+    rendiciones.data,
+    empresaNombre,
+    filtros.anio,
+    fechaDesde,
+    fechaHasta,
+  ]);
+
+  const exportLoading = tiempos.isLoading || aprobaciones.isLoading || rendiciones.isLoading;
+
   // -------------------------------------------------------------------------
   // Render
   // -------------------------------------------------------------------------
@@ -262,6 +357,10 @@ export function WorkflowReportLayout() {
           <RotateCcw className="size-3.5" aria-hidden="true" />
           Restablecer
         </Button>
+
+        <div className="ml-auto">
+          <ExportMenu config={exportConfig} disabled={exportLoading} />
+        </div>
       </div>
 
       {/* Tabs */}
