@@ -80,15 +80,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Viatik · Gestión financiera" },
+      { title: "Viatik ERP" },
+      { name: "author", content: "Nuclearpet S.A.S." },
       {
         name: "description",
-        content: "Plataforma SaaS para gestión financiera, rendiciones y operaciones.",
+        content:
+          "Viatik ERP — Sistema Inteligente de Gestión de Viáticos y Rendiciones de Gastos. Desarrollado por Nuclearpet S.A.S.",
       },
-      { property: "og:title", content: "Viatik" },
+      { property: "og:title", content: "Viatik ERP" },
       {
         property: "og:description",
-        content: "Plataforma SaaS para gestión financiera, rendiciones y operaciones.",
+        content: "Sistema Inteligente de Gestión de Viáticos y Rendiciones de Gastos.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

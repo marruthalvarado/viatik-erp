@@ -35,11 +35,15 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset>
+      <SidebarInset className="flex flex-col min-h-screen">
         <Topbar />
         <main className="flex-1 px-4 py-6 md:px-8 md:py-8">
           <div className="mx-auto w-full max-w-7xl">{children}</div>
         </main>
+        <footer className="border-t bg-background px-4 py-2.5 text-center text-[11px] text-muted-foreground">
+          Viatik ERP v1.0.0 RC1 &nbsp;·&nbsp; © 2026 Nuclearpet S.A.S. Todos los derechos
+          reservados.
+        </footer>
       </SidebarInset>
     </SidebarProvider>
   );

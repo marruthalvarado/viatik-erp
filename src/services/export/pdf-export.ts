@@ -104,12 +104,20 @@ export async function exportToPdf(config: ExportConfig): Promise<ExportResult> {
       didDrawPage: (data) => {
         const pageNum = data.pageNumber;
         const total = doc.getNumberOfPages();
-        doc.setFontSize(7);
+        doc.setFontSize(6.5);
+        doc.setFont("helvetica", "normal");
         doc.setTextColor(...PDF_GRAY_TEXT);
-        // Pie izquierdo: título
-        doc.text(config.title, 14, pageH - 7);
+        // Pie izquierdo: título del reporte
+        doc.text(config.title, 14, pageH - 9);
+        // Pie central: aviso legal
+        doc.text(
+          "Viatik ERP · © 2026 Nuclearpet S.A.S. Todos los derechos reservados. · Software propietario.",
+          pageW / 2,
+          pageH - 9,
+          { align: "center" },
+        );
         // Pie derecho: paginación
-        doc.text(`Página ${pageNum} de ${total}`, pageW - 14, pageH - 7, { align: "right" });
+        doc.text(`Página ${pageNum} de ${total}`, pageW - 14, pageH - 9, { align: "right" });
         doc.setTextColor(0, 0, 0);
       },
     };

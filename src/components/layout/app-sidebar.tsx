@@ -98,8 +98,8 @@ export function AppSidebar() {
           </div>
           {!collapsed && (
             <div className="flex flex-col leading-tight">
-              <span className="font-display text-sm font-semibold tracking-tight">Viatik</span>
-              <span className="text-[11px] text-muted-foreground">Gestión financiera</span>
+              <span className="font-display text-sm font-semibold tracking-tight">Viatik ERP</span>
+              <span className="text-[11px] text-muted-foreground">Gestion de viaticos</span>
             </div>
           )}
         </div>
@@ -119,8 +119,10 @@ export function AppSidebar() {
 
       <SidebarFooter className="border-t">
         {!collapsed && (
-          <div className="px-2 py-1.5 text-[11px] text-muted-foreground">
-            v0.1 · Viatik {new Date().getFullYear()}
+          <div className="px-2 py-1.5 text-[11px] text-muted-foreground leading-tight">
+            <span className="font-medium">Viatik ERP</span> v1.0.0 RC1
+            <br />
+            Nuclearpet S.A.S.
           </div>
         )}
       </SidebarFooter>

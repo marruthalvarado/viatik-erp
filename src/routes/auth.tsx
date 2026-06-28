@@ -16,8 +16,8 @@ export const Route = createFileRoute("/auth")({
   }),
   head: () => ({
     meta: [
-      { title: "Acceso · Viatik" },
-      { name: "description", content: "Inicia sesión en tu cuenta Viatik." },
+      { title: "Acceso · Viatik ERP" },
+      { name: "description", content: "Inicia sesión en Viatik ERP." },
     ],
   }),
   component: AuthPage,
@@ -35,12 +35,12 @@ function AuthPage() {
   }, [loading, user, redirect, navigate]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4 py-12">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-muted/30 px-4 py-12">
       <div className="w-full max-w-md space-y-6">
         <div className="text-center">
-          <h1 className="font-display text-3xl font-semibold tracking-tight">Viatik</h1>
+          <h1 className="font-display text-3xl font-semibold tracking-tight">Viatik ERP</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Plataforma de gestión financiera, rendiciones y operaciones.
+            Sistema Inteligente de Gestión de Viáticos y Rendiciones de Gastos.
           </p>
         </div>
 
@@ -58,6 +58,10 @@ function AuthPage() {
             </TabsContent>
           </Tabs>
         </div>
+
+        <p className="text-center text-[11px] text-muted-foreground">
+          Diseñado y desarrollado por <span className="font-medium">Nuclearpet S.A.S.</span>
+        </p>
       </div>
     </div>
   );
