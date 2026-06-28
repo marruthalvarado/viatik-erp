@@ -13,7 +13,6 @@ import {
   Network,
   Settings,
   Shield,
-  Sparkles,
   DollarSign,
   GitBranch,
 } from "lucide-react";
@@ -32,6 +31,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { CompanySwitcher } from "./company-switcher";
+import { BrandLogo } from "./brand-logo";
 
 const workspaceItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
@@ -90,16 +90,11 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className="border-r">
       <SidebarHeader className="border-b">
         <div className="flex items-center gap-2 px-1 py-1.5">
-          <div
-            className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground shrink-0"
-            aria-hidden="true"
-          >
-            <Sparkles className="size-4" />
-          </div>
+          <BrandLogo iconOnly className="size-8 shrink-0" />
           {!collapsed && (
             <div className="flex flex-col leading-tight">
-              <span className="font-display text-sm font-semibold tracking-tight">Viatik ERP</span>
-              <span className="text-[11px] text-muted-foreground">Gestion de viaticos</span>
+              <span className="font-display text-sm font-semibold tracking-tight">VIATIQ</span>
+              <span className="text-[11px] text-muted-foreground">Gestión de viáticos</span>
             </div>
           )}
         </div>
@@ -120,9 +115,8 @@ export function AppSidebar() {
       <SidebarFooter className="border-t">
         {!collapsed && (
           <div className="px-2 py-1.5 text-[11px] text-muted-foreground leading-tight">
-            <span className="font-medium">Viatik ERP</span> v1.0.0 RC1
-            <br />
-            Nuclearpet S.A.S.
+            <span className="font-medium">VIATIQ</span> v1.0 RC1
+            <br />© 2026 Nuclearpet S.A.S.
           </div>
         )}
       </SidebarFooter>

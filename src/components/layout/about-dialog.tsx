@@ -1,36 +1,25 @@
 /**
  * about-dialog.tsx
  *
- * Diálogo "Acerca del sistema" con identidad corporativa y aviso legal de Viatik ERP.
+ * Diálogo "Acerca del sistema" con identidad corporativa y aviso legal de VIATIQ.
  * Se activa desde el menú de usuario (UserProfileMenu).
  * No tiene lógica de negocio ni accede a Supabase.
  */
-import { Sparkles } from "lucide-react";
-
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
+import { BrandLogo } from "./brand-logo";
 
-// ─── Constantes corporativas ──────────────────────────────────────────────────
-
-const APP_NAME = "Viatik ERP";
-const APP_VERSION = "1.0.0 RC1";
-const APP_PRODUCT = "Sistema Inteligente de Gestión de Viáticos y Rendiciones de Gastos";
+const APP_NAME = "VIATIQ";
+const APP_VERSION = "v1.0 RC1";
+const APP_PRODUCT = "Plataforma Inteligente para Gestión de Viáticos y Gastos";
 const COMPANY = "Nuclearpet S.A.S.";
-const COPYRIGHT = `© 2026 ${COMPANY} Todos los derechos reservados.`;
+const COPYRIGHT = `© 2026 ${COMPANY}`;
 const LICENSE = "Software propietario.";
 const LEGAL_NOTICE =
   `${APP_NAME} es un software propietario desarrollado por ${COMPANY}. ` +
   "Queda prohibida su reproducción, modificación, distribución, ingeniería inversa " +
-  "o utilización no autorizada sin autorización expresa y por escrito de " +
+  "o utilización parcial o total sin autorización expresa y por escrito de " +
   `${COMPANY}`;
-
-// ─── Componente ───────────────────────────────────────────────────────────────
 
 export interface AboutDialogProps {
   open: boolean;
@@ -42,22 +31,19 @@ export function AboutDialog({ open, onOpenChange }: AboutDialogProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2.5">
-            <span
-              className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground"
-              aria-hidden="true"
-            >
-              <Sparkles className="size-5" />
-            </span>
-            {APP_NAME}
-          </DialogTitle>
-          <DialogDescription>{APP_PRODUCT}</DialogDescription>
+          <div className="flex flex-col items-center gap-3 pb-1 text-center">
+            <BrandLogo className="h-9 w-auto" alt={APP_NAME} />
+            <div>
+              <p className="text-lg font-bold tracking-tight">{APP_NAME}</p>
+              <p className="text-xs text-muted-foreground">{APP_PRODUCT}</p>
+            </div>
+          </div>
         </DialogHeader>
 
-        <div className="mt-1 space-y-3 text-sm">
+        <div className="mt-1 space-y-2.5 text-sm">
           <InfoRow label="Versión" value={APP_VERSION} />
           <InfoRow label="Desarrollado por" value={COMPANY} />
-          <InfoRow label="Copyright" value={COPYRIGHT} />
+          <InfoRow label="Copyright" value={`${COPYRIGHT} Todos los derechos reservados.`} />
           <InfoRow label="Licencia" value={LICENSE} />
 
           <Separator />
@@ -73,8 +59,6 @@ export function AboutDialog({ open, onOpenChange }: AboutDialogProps) {
     </Dialog>
   );
 }
-
-// ─── Helper interno ───────────────────────────────────────────────────────────
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (

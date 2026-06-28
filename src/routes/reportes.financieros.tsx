@@ -3,7 +3,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { ReportesFinancierosLayout } from "@/components/reportes-financieros/reportes-financieros-layout";
 
 export const Route = createFileRoute("/reportes/financieros")({
-  head: () => ({ meta: [{ title: "Reportes Financieros · Viatik" }] }),
+  head: () => ({ meta: [{ title: "Reportes Financieros · VIATIQ" }] }),
   component: ReportesFinancierosPage,
 });
 

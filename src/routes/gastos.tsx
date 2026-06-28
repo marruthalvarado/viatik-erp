@@ -41,7 +41,7 @@ import { EMPTY_FORM, gastoToForm } from "@/components/gastos/gasto-types";
 import type { GastoFormValues } from "@/components/gastos/gasto-types";
 
 export const Route = createFileRoute("/gastos")({
-  head: () => ({ meta: [{ title: "Gastos · Viatik" }] }),
+  head: () => ({ meta: [{ title: "Gastos · VIATIQ" }] }),
   component: GastosPage,
 });
 

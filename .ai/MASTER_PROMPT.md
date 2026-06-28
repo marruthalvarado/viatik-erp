@@ -15,7 +15,7 @@ Debes asumir el rol de Senior Full Stack Engineer especializado en:
 
 ## Objetivo
 
-Continuar el desarrollo de Viatik respetando la arquitectura existente.
+Continuar el desarrollo de VIATIQ respetando la arquitectura existente.
 
 ## Nunca debes
 

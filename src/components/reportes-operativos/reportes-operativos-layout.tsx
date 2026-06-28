@@ -159,7 +159,7 @@ export function ReportesOperativosLayout() {
         proyecto: r.proyecto_nombre,
       }));
       return {
-        filename: `viatik-viajes-${filtros.anio}`,
+        filename: `viatiq-viajes-${filtros.anio}`,
         title: "Viajes",
         empresa: empresaNombre,
         filtros: { Periodo: periodo } as Record<string, string>,
@@ -188,7 +188,7 @@ export function ReportesOperativosLayout() {
         dias: r.dias_en_estado,
       }));
       return {
-        filename: `viatik-rendiciones-${filtros.anio}`,
+        filename: `viatiq-rendiciones-${filtros.anio}`,
         title: "Rendiciones",
         empresa: empresaNombre,
         filtros: { Periodo: periodo } as Record<string, string>,
@@ -216,7 +216,7 @@ export function ReportesOperativosLayout() {
         categoria: r.categoria_principal,
       }));
       return {
-        filename: `viatik-proveedores-${filtros.anio}`,
+        filename: `viatiq-proveedores-${filtros.anio}`,
         title: "Top Proveedores",
         empresa: empresaNombre,
         filtros: { Periodo: periodo } as Record<string, string>,
@@ -242,7 +242,7 @@ export function ReportesOperativosLayout() {
     }));
     const label = tab === "clientes" ? "Clientes" : "Proyectos";
     return {
-      filename: `viatik-${tab}-${filtros.anio}`,
+      filename: `viatiq-${tab}-${filtros.anio}`,
       title: label,
       empresa: empresaNombre,
       filtros: { Año: String(filtros.anio) } as Record<string, string>,

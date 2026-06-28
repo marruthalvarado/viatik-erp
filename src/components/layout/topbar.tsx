@@ -24,7 +24,7 @@ export function Topbar() {
       <div className="relative ml-4 hidden lg:flex flex-1 max-w-md" aria-hidden="true">
         <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
-          placeholder="Buscar en Viatik..."
+          placeholder="Buscar en VIATIQ..."
           className="h-9 pl-8 bg-muted/40 border-transparent opacity-50 cursor-not-allowed"
           disabled
           tabIndex={-1}

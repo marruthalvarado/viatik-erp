@@ -38,7 +38,7 @@ import { EMPTY_CLIENTE, clienteToForm } from "@/components/clientes/cliente-type
 import type { ClienteFormValues } from "@/components/clientes/cliente-types";
 
 export const Route = createFileRoute("/clientes")({
-  head: () => ({ meta: [{ title: "Clientes · Viatik" }] }),
+  head: () => ({ meta: [{ title: "Clientes · VIATIQ" }] }),
   component: ClientesPage,
 });
 

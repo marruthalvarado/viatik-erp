@@ -46,7 +46,7 @@ import type { RendicionFormValues } from "@/components/rendiciones/rendicion-typ
 import { RendicionDetail } from "@/components/rendiciones/rendicion-detail";
 
 export const Route = createFileRoute("/rendiciones")({
-  head: () => ({ meta: [{ title: "Rendiciones · Viatik" }] }),
+  head: () => ({ meta: [{ title: "Rendiciones · VIATIQ" }] }),
   component: RendicionesPage,
 });
 

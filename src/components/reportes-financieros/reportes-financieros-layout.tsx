@@ -151,7 +151,7 @@ export function ReportesFinancierosLayout() {
         proyecto: r.proyecto_nombre,
       }));
       return {
-        filename: `viatik-gastos-${filtros.anio}`,
+        filename: `viatiq-gastos-${filtros.anio}`,
         title: "Gastos",
         empresa: empresaNombre,
         filtros: { Periodo: periodo } as Record<string, string>,
@@ -178,7 +178,7 @@ export function ReportesFinancierosLayout() {
         liquidado: r.liquidado ? "Sí" : "No",
       }));
       return {
-        filename: `viatik-anticipos-${filtros.anio}`,
+        filename: `viatiq-anticipos-${filtros.anio}`,
         title: "Anticipos",
         empresa: empresaNombre,
         filtros: { Periodo: periodo } as Record<string, string>,
@@ -205,7 +205,7 @@ export function ReportesFinancierosLayout() {
     const tabLabel =
       tab === "presupuesto" ? "Presupuesto" : tab === "categorias" ? "Categorias" : "Proyectos";
     return {
-      filename: `viatik-${tab}-${filtros.anio}`,
+      filename: `viatiq-${tab}-${filtros.anio}`,
       title: tabLabel,
       empresa: empresaNombre,
       filtros: { Año: String(filtros.anio) } as Record<string, string>,

@@ -52,7 +52,7 @@ import {
 import type { DocumentoFormValues } from "@/components/documentos/documento-types";
 
 export const Route = createFileRoute("/documentos")({
-  head: () => ({ meta: [{ title: "Documentos · Viatik" }] }),
+  head: () => ({ meta: [{ title: "Documentos · VIATIQ" }] }),
   component: DocumentosPage,
 });
 

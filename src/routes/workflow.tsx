@@ -11,7 +11,7 @@ import { useMisAprobacionesPendientes } from "@/hooks/entities/use-workflow";
 import { MisAprobacionesTable } from "@/components/workflow/mis-aprobaciones-table";
 
 export const Route = createFileRoute("/workflow")({
-  head: () => ({ meta: [{ title: "Workflow · Viatik" }] }),
+  head: () => ({ meta: [{ title: "Workflow · VIATIQ" }] }),
   component: WorkflowPage,
 });
 

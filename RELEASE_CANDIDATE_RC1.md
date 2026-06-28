@@ -1,4 +1,4 @@
-# Viatik ERP — Release Candidate RC1
+# VIATIQ — Release Candidate RC1
 **FASE 11 — Production Readiness Audit**
 Fecha: 2026-06-27 | Rama: `feature/reportes`
 

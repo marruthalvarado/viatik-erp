@@ -1,4 +1,4 @@
-# Arquitectura base Viatik — Plan de reorganización
+# Arquitectura base VIATIQ — Plan de reorganización
 
 ## 0. Prerrequisito bloqueante
 

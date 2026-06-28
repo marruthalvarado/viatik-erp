@@ -1,5 +1,5 @@
 # FASE 8 — Diseño Técnico del Módulo BI y Reportes
-## Viatik ERP · `feature/reportes`
+## VIATIQ · `feature/reportes`
 **Fecha:** 2026-06-26 · **Estado:** Diseño completo, listo para implementación
 
 ---
@@ -1014,7 +1014,7 @@ Hook → data (array de objetos tipados)
 
 ### 7.5 Funcionalidades de exportación PDF
 
-- Encabezado: logo Viatik + nombre empresa + período + fecha generación
+- Encabezado: logo VIATIQ + nombre empresa + período + fecha generación
 - Tabla: columnas adaptadas a landscape, fuente reducida a 8pt
 - Totales al pie de página en cada hoja
 - Footer: número de página / total de páginas

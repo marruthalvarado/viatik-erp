@@ -39,7 +39,7 @@ import { EMPTY_PROYECTO, proyectoToForm } from "@/components/proyectos/proyecto-
 import type { ProyectoFormValues } from "@/components/proyectos/proyecto-types";
 
 export const Route = createFileRoute("/proyectos")({
-  head: () => ({ meta: [{ title: "Proyectos · Viatik" }] }),
+  head: () => ({ meta: [{ title: "Proyectos · VIATIQ" }] }),
   component: ProyectosPage,
 });
 

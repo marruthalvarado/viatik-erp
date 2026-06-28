@@ -80,22 +80,23 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Viatik ERP" },
+      { title: "VIATIQ" },
       { name: "author", content: "Nuclearpet S.A.S." },
       {
         name: "description",
         content:
-          "Viatik ERP — Sistema Inteligente de Gestión de Viáticos y Rendiciones de Gastos. Desarrollado por Nuclearpet S.A.S.",
+          "VIATIQ — Plataforma Inteligente para Gestión de Viáticos y Gastos. Desarrollado por Nuclearpet S.A.S.",
       },
-      { property: "og:title", content: "Viatik ERP" },
+      { property: "og:title", content: "VIATIQ" },
       {
         property: "og:description",
-        content: "Sistema Inteligente de Gestión de Viáticos y Rendiciones de Gastos.",
+        content: "Plataforma Inteligente para Gestión de Viáticos y Gastos.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
     links: [
+      { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
       { rel: "stylesheet", href: appCss },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },

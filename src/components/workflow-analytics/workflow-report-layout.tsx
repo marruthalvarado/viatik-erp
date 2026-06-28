@@ -191,7 +191,7 @@ export function WorkflowReportLayout() {
         rechazos: r.n_rechazos,
       }));
       return {
-        filename: `viatik-workflow-flujo-${filtros.anio}`,
+        filename: `viatiq-workflow-flujo-${filtros.anio}`,
         title: "Flujo de Aprobaciones",
         empresa: empresaNombre,
         filtros: { Periodo: periodo },
@@ -216,7 +216,7 @@ export function WorkflowReportLayout() {
         fecha: r.fecha_accion,
       }));
       return {
-        filename: `viatik-workflow-${tab}-${filtros.anio}`,
+        filename: `viatiq-workflow-${tab}-${filtros.anio}`,
         title: tab === "aprobadores" ? "Aprobadores" : "Cuellos de Botella",
         empresa: empresaNombre,
         filtros: { Periodo: periodo },
@@ -241,7 +241,7 @@ export function WorkflowReportLayout() {
       dias: r.dias_en_estado,
     }));
     return {
-      filename: `viatik-workflow-${tab}-${filtros.anio}`,
+      filename: `viatiq-workflow-${tab}-${filtros.anio}`,
       title: tab === "estados" ? "Estados de Rendiciones" : "SLA Workflow",
       empresa: empresaNombre,
       filtros: { Periodo: periodo },

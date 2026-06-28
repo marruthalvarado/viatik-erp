@@ -7,6 +7,11 @@
  */
 import type { UserOptions } from "jspdf-autotable";
 import { type ExportConfig, type ExportResult, formatCell } from "./export-utils";
+import {
+  LOGO_VIATIQ_PNG_B64,
+  LOGO_VIATIQ_W,
+  LOGO_VIATIQ_H,
+} from "@/assets/branding/logo-viatiq-b64";
 
 const PDF_BLUE = [30, 64, 175] as const;
 const PDF_GRAY_LIGHT = [248, 250, 252] as const;
@@ -24,11 +29,18 @@ export async function exportToPdf(config: ExportConfig): Promise<ExportResult> {
     // ── Cabecera primera página ────────────────────────────────────────────────
     let y = 16;
 
-    // Título
-    doc.setFontSize(15);
+    // Logo VIATIQ
+    (
+      doc as unknown as {
+        addImage: (img: string, fmt: string, x: number, y: number, w: number, h: number) => void;
+      }
+    ).addImage(LOGO_VIATIQ_PNG_B64, "PNG", 14, y - 3, LOGO_VIATIQ_W, LOGO_VIATIQ_H);
+
+    // Título (junto al logo, a la derecha)
+    doc.setFontSize(13);
     doc.setFont("helvetica", "bold");
-    doc.text(config.title, 14, y);
-    y += 7;
+    doc.text(config.title, 14 + LOGO_VIATIQ_W + 6, y + 5);
+    y += 11;
 
     // Empresa / subtítulo
     doc.setFontSize(9);
@@ -111,7 +123,7 @@ export async function exportToPdf(config: ExportConfig): Promise<ExportResult> {
         doc.text(config.title, 14, pageH - 9);
         // Pie central: aviso legal
         doc.text(
-          "Viatik ERP · © 2026 Nuclearpet S.A.S. Todos los derechos reservados. · Software propietario.",
+          "VIATIQ · © 2026 Nuclearpet S.A.S. Todos los derechos reservados. · Software propietario.",
           pageW / 2,
           pageH - 9,
           { align: "center" },

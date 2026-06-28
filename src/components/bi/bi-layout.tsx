@@ -176,7 +176,7 @@ export function BiLayout() {
       dias: r.dias_en_estado,
     }));
     return {
-      filename: `viatik-dashboard-bi-${filtros.anio}`,
+      filename: `viatiq-dashboard-bi-${filtros.anio}`,
       title: "Dashboard BI — Rendiciones",
       empresa: empresaNombre,
       filtros: { Año: String(filtros.anio) },

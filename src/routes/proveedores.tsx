@@ -38,7 +38,7 @@ import { EMPTY_PROVEEDOR, proveedorToForm } from "@/components/proveedores/prove
 import type { ProveedorFormValues } from "@/components/proveedores/proveedor-types";
 
 export const Route = createFileRoute("/proveedores")({
-  head: () => ({ meta: [{ title: "Proveedores · Viatik" }] }),
+  head: () => ({ meta: [{ title: "Proveedores · VIATIQ" }] }),
   component: ProveedoresPage,
 });
 

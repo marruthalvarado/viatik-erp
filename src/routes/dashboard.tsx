@@ -37,7 +37,7 @@ import {
 import { Building2 } from "lucide-react";
 
 export const Route = createFileRoute("/dashboard")({
-  head: () => ({ meta: [{ title: "Dashboard · Viatik" }] }),
+  head: () => ({ meta: [{ title: "Dashboard · VIATIQ" }] }),
   component: DashboardPage,
 });
 

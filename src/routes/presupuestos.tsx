@@ -39,7 +39,7 @@ import { EMPTY_PRESUPUESTO, presupuestoToForm } from "@/components/presupuestos/
 import type { PresupuestoFormValues } from "@/components/presupuestos/presupuesto-types";
 
 export const Route = createFileRoute("/presupuestos")({
-  head: () => ({ meta: [{ title: "Presupuestos · Viatik" }] }),
+  head: () => ({ meta: [{ title: "Presupuestos · VIATIQ" }] }),
   component: PresupuestosPage,
 });
 

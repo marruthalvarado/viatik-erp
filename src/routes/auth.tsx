@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2 } from "lucide-react";
+import { BrandLogo } from "@/components/layout/brand-logo";
 
 export const Route = createFileRoute("/auth")({
   validateSearch: (search) => ({
@@ -16,8 +17,8 @@ export const Route = createFileRoute("/auth")({
   }),
   head: () => ({
     meta: [
-      { title: "Acceso · Viatik ERP" },
-      { name: "description", content: "Inicia sesión en Viatik ERP." },
+      { title: "Acceso · VIATIQ" },
+      { name: "description", content: "Inicia sesión en VIATIQ." },
     ],
   }),
   component: AuthPage,
@@ -37,11 +38,14 @@ function AuthPage() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-muted/30 px-4 py-12">
       <div className="w-full max-w-md space-y-6">
-        <div className="text-center">
-          <h1 className="font-display text-3xl font-semibold tracking-tight">Viatik ERP</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Sistema Inteligente de Gestión de Viáticos y Rendiciones de Gastos.
-          </p>
+        <div className="flex flex-col items-center gap-3 text-center">
+          <BrandLogo className="h-10 w-auto" alt="VIATIQ" />
+          <div>
+            <h1 className="font-display text-2xl font-bold tracking-tight">VIATIQ</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Plataforma Inteligente para Gestión de Viáticos y Gastos.
+            </p>
+          </div>
         </div>
 
         <div className="rounded-xl border bg-card p-6 shadow-sm">
@@ -59,9 +63,12 @@ function AuthPage() {
           </Tabs>
         </div>
 
-        <p className="text-center text-[11px] text-muted-foreground">
-          Diseñado y desarrollado por <span className="font-medium">Nuclearpet S.A.S.</span>
-        </p>
+        <div className="space-y-0.5 text-center text-[11px] text-muted-foreground">
+          <p>
+            Diseñado y desarrollado por <span className="font-medium">Nuclearpet S.A.S.</span>
+          </p>
+          <p>© 2026 Nuclearpet S.A.S. Todos los derechos reservados.</p>
+        </div>
       </div>
     </div>
   );

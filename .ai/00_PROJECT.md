@@ -6,7 +6,7 @@ Version: 1.0
 
 # Objetivo
 
-Viatik es un ERP SaaS multiempresa para la gestión integral de viajes corporativos, gastos, anticipos, presupuestos, documentos, rendiciones y procesos administrativos.
+VIATIQ es un ERP SaaS multiempresa para la gestión integral de viajes corporativos, gastos, anticipos, presupuestos, documentos, rendiciones y procesos administrativos.
 
 La aplicación está construida sobre React + TypeScript + Supabase y debe mantener una arquitectura limpia, reutilizable y escalable.
 

@@ -1,4 +1,4 @@
-# DEPLOY — Viatik ERP
+# DEPLOY — VIATIQ
 
 Guía completa de despliegue en producción.  
 Stack: **React + TanStack Start · Supabase · Vercel**
@@ -516,4 +516,4 @@ supabase secrets list
 
 ---
 
-*Generado: Sprint Deploy 1 — Viatik ERP*
+*Generado: Sprint Deploy 1 — VIATIQ*

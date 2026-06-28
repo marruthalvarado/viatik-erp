@@ -22,7 +22,7 @@ import {
 } from "@/components/admin/catalog-crud";
 
 export const Route = createFileRoute("/administracion")({
-  head: () => ({ meta: [{ title: "Administración · Viatik" }] }),
+  head: () => ({ meta: [{ title: "Administración · VIATIQ" }] }),
   component: AdministracionPage,
 });
 

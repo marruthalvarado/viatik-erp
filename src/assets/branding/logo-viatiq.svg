@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 56" role="img" aria-label="VIATIQ">
+  <!-- Icono cuadrado -->
+  <rect x="0" y="0" width="56" height="56" rx="10" fill="#1e40af"/>
+  <polyline points="14,16 28,40 42,16" fill="none" stroke="white" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Wordmark -->
+  <text x="70" y="39" font-family="'Geist','Inter',system-ui,sans-serif" font-weight="700" font-size="30" letter-spacing="-0.5" fill="#0f172a">VIATIQ</text>
+</svg>
