@@ -112,8 +112,15 @@ export function AiExpenseWizard({
     if (upload.estado === "completado" && upload.resultado?.documentoId) {
       const docId = upload.resultado.documentoId;
       setDocumentoId(docId);
-      setWizardEstado("ai_procesando");
-      ai.extraer({ documentoId: docId });
+      // Los PDFs quedan en estado "requiere_backend" (sin OCR client-side).
+      // En ese caso saltamos la IA y vamos directo al formulario vacío.
+      const esPdf = upload.archivoActual?.type === "application/pdf";
+      if (esPdf) {
+        setWizardEstado("revision");
+      } else {
+        setWizardEstado("ai_procesando");
+        ai.extraer({ documentoId: docId });
+      }
     }
     if (upload.estado === "error") {
       setErrorMsg(upload.error ?? "Error durante la subida");
@@ -122,7 +129,7 @@ export function AiExpenseWizard({
     if (upload.estado === "cancelado") {
       setWizardEstado("idle");
     }
-  }, [upload.estado, upload.resultado, upload.error]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [upload.estado, upload.resultado, upload.error, upload.archivoActual]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Cuando la IA termina → pasar a revisión ────────────────────────
   useEffect(() => {
@@ -257,10 +264,17 @@ export function AiExpenseWizard({
     );
   }
 
-  if (wizardEstado === "revision" && propuesta) {
+  if (wizardEstado === "revision") {
     return (
-      <AiExpenseReview
-        propuesta={propuesta}
+      <div className="flex flex-col gap-3">
+        {!propuesta && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            El PDF fue guardado correctamente. La extracción IA no está disponible para PDFs
+            (requiere procesamiento en servidor). Completa los datos manualmente.
+          </div>
+        )}
+        <AiExpenseReview
+          propuesta={propuesta}
         defaultValues={buildDefaultValues()}
         onConfirm={handleConfirmar}
         onCancel={onCancel}
@@ -287,7 +301,8 @@ export function AiExpenseWizard({
           nombre: m.nombre,
           simbolo: m.simbolo ?? null,
         }))}
-      />
+        />
+      </div>
     );
   }
 
