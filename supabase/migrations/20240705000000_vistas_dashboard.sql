@@ -12,6 +12,14 @@
 --   · El filtro empresa_id en el SELECT del cliente garantiza el scoping.
 -- =============================================================================
 
+-- DROP previo necesario: CREATE OR REPLACE VIEW no puede renombrar columnas.
+-- Las vistas son recreadas desde cero; CASCADE elimina dependencias en cadena.
+DROP VIEW IF EXISTS vw_dashboard_ia CASCADE;
+DROP VIEW IF EXISTS vw_dashboard_proveedores CASCADE;
+DROP VIEW IF EXISTS vw_dashboard_clientes CASCADE;
+DROP VIEW IF EXISTS vw_dashboard_proyectos CASCADE;
+DROP VIEW IF EXISTS vw_dashboard_ejecutivo CASCADE;
+
 -- =============================================================================
 -- vw_dashboard_ejecutivo
 -- KPIs globales de la empresa: totales de gastos, rendiciones, anticipos,
@@ -115,13 +123,4 @@ GROUP BY pv.empresa_id, pv.id, pv.nombre;
 
 -- =============================================================================
 -- vw_dashboard_ia
--- Score promedio y total de auditorías IA por empresa.
--- Columnas: empresa_id, score_promedio, total_auditorias
--- =============================================================================
-CREATE OR REPLACE VIEW vw_dashboard_ia AS
-SELECT
-  ai.empresa_id,
-  ROUND(AVG(ai.score)::numeric, 1) AS score_promedio,
-  COUNT(ai.id)                      AS total_auditorias
-FROM auditorias_ia ai
-GROUP BY ai.empresa_id;
+-- Sc

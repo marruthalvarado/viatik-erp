@@ -272,7 +272,7 @@ DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='usuarios' 
   CREATE POLICY "usr_select" ON usuarios FOR SELECT TO authenticated
     USING (
       -- Propio perfil siempre visible
-      id = auth.uid()
+      usuarios.id = auth.uid()
       OR
       -- Compañeros de empresa
       EXISTS (
@@ -280,17 +280,17 @@ DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='usuarios' 
         JOIN   empresas_usuarios eu2 ON eu2.empresa_id = eu1.empresa_id
         WHERE  eu1.usuario_id = auth.uid()
           AND  eu1.activo     = true
-          AND  eu2.usuario_id = id
+          AND  eu2.usuario_id = usuarios.id
           AND  eu2.activo     = true
       )
     ); END IF; END $$;
 
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='usuarios' AND policyname='usr_update_own') THEN
   CREATE POLICY "usr_update_own" ON usuarios FOR UPDATE TO authenticated
-    USING  (id = auth.uid())
-    WITH CHECK (id = auth.uid()); END IF; END $$;
+    USING  (usuarios.id = auth.uid())
+    WITH CHECK (usuarios.id = auth.uid()); END IF; END $$;
 
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='usuarios' AND policyname='usr_insert') THEN
   -- INSERT lo maneja Supabase Auth (trigger) — bloqueado para authenticated directo
   -- pero service_role puede insertar
-  CREATE POLICY "usr_insert" ON usuarios FOR INSERT TO authenticated WITH CHECK (id = auth.uid()); END IF; END $$;
+  CREATE POLICY "usr_insert" ON usuarios FOR INSERT TO authenticated WITH CHECK
