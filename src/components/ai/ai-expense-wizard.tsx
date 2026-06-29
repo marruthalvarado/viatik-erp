@@ -87,7 +87,7 @@ export function AiExpenseWizard({
   // ─── Hooks ─────────────────────────────────────────────────────────────
   const upload = useUploadDocument({
     empresaId: empresaActivaId ?? "",
-    rendicionId: rendicionIdInicial || "sin-rendicion",
+    rendicionId: rendicionIdInicial || null,
     onSuccess: (res) => {
       setDocumentoId(res.documentoId);
       // Upload + OCR completados → iniciar IA

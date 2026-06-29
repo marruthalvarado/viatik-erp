@@ -26,7 +26,7 @@ import { activeOcrProvider, type IOcrProvider } from "./ocr-provider";
 export interface OcrPipelineInput {
   file: File;
   empresaId: string;
-  rendicionId: string;
+  rendicionId: string | null;
   /** ID del registro `documentos` ya existente, o null para crear uno nuevo. */
   documentoId?: string;
   /** Categoría del documento (referencia a cat_documentos). */
@@ -141,7 +141,7 @@ async function crearRegistroDocumento(input: OcrPipelineInput): Promise<string> 
     .from("documentos")
     .insert({
       empresa_id: empresaId,
-      rendicion_id: rendicionId,
+      rendicion_id: rendicionId ?? null,
       nombre_archivo: file.name,
       storage_path: "", // Se actualiza tras el upload
       tamano: file.size,
@@ -258,5 +258,5 @@ export async function getExtraccionByDocumentoId(
     throw new Error(`[ocr-service] Error al obtener extracción: ${error.message}`);
   }
 
-  return data;
+    return data;
 }

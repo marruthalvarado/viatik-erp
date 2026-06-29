@@ -66,13 +66,16 @@ function safePath(
 export async function uploadDocumento(
   file: File,
   empresaId: string,
-  rendicionId: string,
+  rendicionId: string | null,
   documentoId: string,
   options: StorageUploadOptions = {},
 ): Promise<StorageUploadResult> {
   const { onProgress, signal } = options;
 
-  const path = safePath(empresaId, rendicionId, documentoId, file.name);
+  // Para el path de Storage usamos "sin_rendicion" cuando no hay rendición asignada.
+  // Este valor es solo para organizar carpetas en el bucket, no se guarda en BD.
+  const pathRendicionId = rendicionId ?? "sin_rendicion";
+  const path = safePath(empresaId, pathRendicionId, documentoId, file.name);
 
   // Crear URL de upload firmada para poder usar XHR con progreso
   const { data: signedData, error: signedError } = await supabase.storage

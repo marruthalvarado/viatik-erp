@@ -32,7 +32,7 @@ export type EstadoUpload =
 
 export interface UseUploadDocumentOptions {
   empresaId: string;
-  rendicionId: string;
+  rendicionId: string | null;
   /** Callback cuando el proceso completo termina con éxito. */
   onSuccess?: (resultado: OcrPipelineResult) => void;
   /** Callback cuando ocurre un error. */
