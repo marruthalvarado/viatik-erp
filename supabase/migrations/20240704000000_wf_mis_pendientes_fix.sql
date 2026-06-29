@@ -2,9 +2,11 @@
 -- FIX: wf_mis_pendientes — "structure of query does not match function result type"
 -- Causa: la función en la BD fue modificada manualmente (Dashboard) y su
 --   RETURNS TABLE quedó inconsistente con el SELECT interno.
--- Solución: recrear la función exactamente como en la migración original
---   (20240626000000_workflow_rpcs.sql) para forzar la sincronización.
+-- Solución: DROP + CREATE para forzar la sincronización del tipo de retorno.
+--   CREATE OR REPLACE no puede cambiar el RETURNS TABLE de una función existente.
 -- =============================================================================
+
+DROP FUNCTION IF EXISTS wf_mis_pendientes(uuid, uuid);
 
 CREATE OR REPLACE FUNCTION wf_mis_pendientes(
   p_usuario_id  uuid,
@@ -104,7 +106,4 @@ BEGIN
     )
   ORDER BY r.fecha_envio ASC NULLS LAST;
 
-EXCEPTION WHEN OTHERS THEN
-  RAISE EXCEPTION 'wf_mis_pendientes error: %', SQLERRM;
-END;
-$$;
+EXCEPTION WHEN OTHERS 
