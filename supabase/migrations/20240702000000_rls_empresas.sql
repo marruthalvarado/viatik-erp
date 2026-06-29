@@ -39,11 +39,13 @@ $$;
 -- =============================================================================
 
 -- SELECT: solo las filas donde el propio usuario es el miembro
-CREATE POLICY "eu_select_own"
-  ON empresas_usuarios
-  FOR SELECT
-  TO authenticated
-  USING (usuario_id = auth.uid());
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='empresas_usuarios' AND policyname='eu_select_own') THEN
+    CREATE POLICY "eu_select_own"
+      ON empresas_usuarios FOR SELECT TO authenticated
+      USING (usuario_id = auth.uid());
+  END IF;
+END $$;
 
 -- INSERT / UPDATE / DELETE: denegado para 'authenticated'.
 -- Las altas/bajas/cambios de membresía solo se hacen desde el Dashboard
@@ -57,24 +59,17 @@ CREATE POLICY "eu_select_own"
 -- SELECT: solo empresas donde el usuario tiene membresía activa.
 -- Usa la función SECURITY DEFINER para evitar cruce con la política de
 -- empresas_usuarios al evaluar el EXISTS.
-CREATE POLICY "empresas_select_member"
-  ON empresas
-  FOR SELECT
-  TO authenticated
-  USING (auth_es_miembro_activo(id));
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='empresas' AND policyname='empresas_select_member') THEN
+    CREATE POLICY "empresas_select_member"
+      ON empresas FOR SELECT TO authenticated
+      USING (auth_es_miembro_activo(id));
+  END IF;
+END $$;
 
 -- UPDATE: cualquier miembro activo puede modificar los datos de su empresa.
 -- Cubre el caso de empresa-section.tsx (actualizar nombre, logo, moneda, etc.).
 -- La USING verifica que el usuario pertenece a la empresa antes de mostrársela;
 -- el WITH CHECK confirma que no puede trasladarse a otra empresa.
-CREATE POLICY "empresas_update_member"
-  ON empresas
-  FOR UPDATE
-  TO authenticated
-  USING  (auth_es_miembro_activo(id))
-  WITH CHECK (auth_es_miembro_activo(id));
-
--- INSERT / DELETE: denegado para 'authenticated'.
--- La creación de empresas y el soft-delete se hacen desde el Dashboard
--- (service_role) o scripts de onboarding.
--- (Sin políticas FOR INSERT/DELETE → deny-by-default)
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='empresas' AN
