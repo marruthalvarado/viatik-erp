@@ -56,10 +56,12 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     // Lee empresas a las que pertenece el usuario vía empresas_usuarios.
     // RLS restringe filas; el join trae los datos de la empresa.
     const { data, error: err } = await supabase
-      .from("empresas_usuarios")
-      .select("empresa_id, activo, empresa:empresas(id, nombre, codigo, logo_url, deleted_at)")
-      .eq("usuario_id", user.id)
-      .eq("activo", true);
+    .from("empresas_usuarios")
+    .select("*");
+
+      console.log("USER:", user.id);
+      console.log("DATA:", data);
+      console.log("ERROR:", err);
 
     if (err) {
       setError(new Error(err.message));
