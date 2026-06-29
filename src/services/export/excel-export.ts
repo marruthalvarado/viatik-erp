@@ -5,14 +5,13 @@
  * Características: formatos numéricos, fechas, encabezado, autofiltro, ancho automático.
  * No accede a Supabase. Solo transforma ExportConfig → archivo descargado.
  */
-import type { CellValue } from "xlsx";
 import { type ExportConfig, type ExportResult, formatCell, buildHeaderLines } from "./export-utils";
 
 export async function exportToExcel(config: ExportConfig): Promise<ExportResult> {
   try {
     const XLSX = await import("xlsx");
 
-    const aoa: CellValue[][] = [];
+    const aoa: (string | number | boolean | null)[][] = [];
 
     // Cabecera de metadatos
     for (const line of buildHeaderLines(config)) {
