@@ -106,4 +106,7 @@ BEGIN
     )
   ORDER BY r.fecha_envio ASC NULLS LAST;
 
-EXCEPTION WHEN OTHERS 
+EXCEPTION WHEN OTHERS THEN
+  RAISE EXCEPTION 'wf_mis_pendientes error: %', SQLERRM;
+END;
+$$;
