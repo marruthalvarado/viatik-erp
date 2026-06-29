@@ -58,20 +58,20 @@ BEGIN
 
   RETURN QUERY
   SELECT
-    r.id                                                    AS rendicion_id,
-    r.numero                                                AS numero,
-    r.descripcion                                           AS descripcion,
-    r.proyecto_id                                           AS proyecto_id,
-    r.total_facturado                                       AS total_facturado,
-    r.total_reembolsable                                    AS total_reembolsable,
-    r.fecha_rendicion::date                                 AS fecha_rendicion,
-    r.fecha_envio                                           AS fecha_envio,
-    er.codigo                                               AS estado_codigo,
-    er.nombre                                               AS estado_nombre,
-    wp.nombre::text                                         AS paso_nombre,
-    wp.orden                                                AS paso_orden,
-    TRIM(u.nombres || ' ' || COALESCE(u.apellidos, ''))    AS usuario_nombre,
-    wp.id                                                   AS workflow_paso_id
+    r.id                                                           AS rendicion_id,
+    r.numero::text                                                 AS numero,
+    r.descripcion                                                  AS descripcion,
+    r.proyecto_id                                                  AS proyecto_id,
+    r.total_facturado                                              AS total_facturado,
+    r.total_reembolsable                                           AS total_reembolsable,
+    r.fecha_rendicion::date                                        AS fecha_rendicion,
+    r.fecha_envio                                                  AS fecha_envio,
+    er.codigo::text                                                AS estado_codigo,
+    er.nombre::text                                                AS estado_nombre,
+    wp.nombre::text                                                AS paso_nombre,
+    wp.orden                                                       AS paso_orden,
+    TRIM(u.nombres::text || ' ' || COALESCE(u.apellidos::text, '')) AS usuario_nombre,
+    wp.id                                                          AS workflow_paso_id
   FROM rendiciones r
   JOIN estados_rendicion er    ON er.id = r.estado_rendicion_id
   JOIN usuarios u              ON u.id  = r.usuario_id
@@ -101,12 +101,4 @@ BEGIN
              JOIN acciones_aprobacion aa2 ON aa2.id = a2.accion_id
             WHERE a2.rendicion_id     = r.id
               AND a2.workflow_paso_id = wp_prev.id
-              AND aa2.codigo          = 'aprobar'
-         )
-    )
-  ORDER BY r.fecha_envio ASC NULLS LAST;
-
-EXCEPTION WHEN OTHERS THEN
-  RAISE EXCEPTION 'wf_mis_pendientes error: %', SQLERRM;
-END;
-$$;
+              AND aa2.codigo   
