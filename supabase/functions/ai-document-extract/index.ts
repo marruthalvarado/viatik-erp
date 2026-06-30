@@ -174,4 +174,61 @@ function appendContext(lines: string[], context: unknown): void {
   if (!context || typeof context !== "object") return;
   const ctx = context as Record<string, unknown>;
   if (typeof ctx["pais"] === "string") lines.push(`País: ${ctx["pais"]}`);
-  if (typeof ctx["monedaPre
+  if (typeof ctx["monedaPredeterminada"] === "string")
+    lines.push(`Moneda habitual: ${ctx["monedaPredeterminada"]}`);
+  if (Array.isArray(ctx["categoriasDisponibles"]))
+    lines.push(`Categorías disponibles: ${(ctx["categoriasDisponibles"] as string[]).join(", ")}`);
+  if (typeof ctx["nombreArchivo"] === "string")
+    lines.push(`Archivo: ${ctx["nombreArchivo"]}`);
+}
+
+async function callOpenAI(
+  apiKey: string,
+  model: string,
+  messages: unknown[],
+): Promise<Response> {
+  let openAiRes: Response;
+  try {
+    openAiRes = await fetch(OPENAI_URL, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model,
+        response_format: { type: "json_object" },
+        messages,
+        temperature: 0.1,
+        max_tokens: 1000,
+      }),
+    });
+  } catch (err) {
+    return json({ error: `Error de red hacia OpenAI: ${String(err)}` }, 502);
+  }
+
+  const openAiData = await openAiRes.json();
+
+  if (!openAiRes.ok) {
+    const status = openAiRes.status === 429 ? 429 : 502;
+    return json({ error: openAiData?.error?.message ?? "Error de OpenAI" }, status);
+  }
+
+  const rawJson: string = openAiData?.choices?.[0]?.message?.content ?? "{}";
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawJson);
+  } catch {
+    return json({ error: "OpenAI devolvió JSON inválido", raw: rawJson }, 502);
+  }
+
+  return new Response(JSON.stringify(parsed), {
+    status: 200,
+    headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+  });
+}
+
+function json(body: unknown, status: number): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+  });
+}

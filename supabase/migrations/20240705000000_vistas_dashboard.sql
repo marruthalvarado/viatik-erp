@@ -123,4 +123,13 @@ GROUP BY pv.empresa_id, pv.id, pv.nombre;
 
 -- =============================================================================
 -- vw_dashboard_ia
--- Sc
+-- Score promedio y total de auditorías IA por empresa.
+-- Columnas: empresa_id, score_promedio, total_auditorias
+-- =============================================================================
+CREATE OR REPLACE VIEW vw_dashboard_ia AS
+SELECT
+  ai.empresa_id,
+  ROUND(AVG(ai.score)::numeric, 1) AS score_promedio,
+  COUNT(ai.id)                      AS total_auditorias
+FROM auditorias_ia ai
+GROUP BY ai.empresa_id;
