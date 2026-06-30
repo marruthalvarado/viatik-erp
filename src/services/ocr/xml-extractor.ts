@@ -36,6 +36,10 @@ export interface XmlDatosFactura {
   numeroFactura?: string;
   serie?: string;
   folio?: string;
+  /** Items del detalle (SRI). Usado para inferir categoria y descripcion. */
+  items?: string[];
+  /** Categoria inferida desde los items. */
+  categoriaInferida?: string;
 }
 
 // ─── API pública ──────────────────────────────────────────────────────────────
@@ -165,6 +169,16 @@ function parseSri(doc: Document, rawText: string): XmlExtractionResult {
     }
   }
 
+  // Extraer items del detalle para inferir categoria
+  const items: string[] = [];
+  const detalles = doc.getElementsByTagName("detalle");
+  for (const det of Array.from(detalles)) {
+    const desc = det.getElementsByTagName("descripcion")[0]?.textContent?.trim();
+    if (desc) items.push(desc);
+  }
+
+  const categoriaInferida = inferirCategoriaDesdeItems(items);
+
   const datos: XmlDatosFactura = {
     emisor: razonSocial,
     rfc: ruc,
@@ -174,6 +188,8 @@ function parseSri(doc: Document, rawText: string): XmlExtractionResult {
     iva,
     total: importeTotalStr ? parseFloat(importeTotalStr) : null,
     numeroFactura,
+    items,
+    categoriaInferida,
   };
 
   const textoParaIA = buildTextoParaIA(datos, "SRI-Ecuador");
@@ -181,7 +197,33 @@ function parseSri(doc: Document, rawText: string): XmlExtractionResult {
 
   return { textoParaIA, datos, formato: "ubl", confianza };
 
-  void rawText; // fallback no necesario para SRI estructurado
+  void rawText;
+}
+
+// --- Inferencia de categoria desde items ----------------------------------------
+
+function inferirCategoriaDesdeItems(items: string[]): string {
+  if (!items.length) return "Miscelaneos";
+  const texto = items.join(" ").toLowerCase();
+
+  if (/coca|cola|bebida|agua|jugo|jucy|mandarina|naranja|manzana|yogur|leche|mineral|snack|empacado|sandwich|sanduche|pan|comida|almuerzo|desayuno|cafe|restaurant|soda|energy|refresco/.test(texto))
+    return "Alimentacion";
+  if (/gasolina|diesel|combustible|fuel|petroleo|galones/.test(texto))
+    return "Combustible";
+  if (/hotel|hospedaje|habitacion|alojamiento|suite|inn/.test(texto))
+    return "Hospedaje";
+  if (/taxi|uber|bus|pasaje|transporte|moviliz|transfer/.test(texto))
+    return "Movilizacion";
+  if (/peaje|toll/.test(texto))
+    return "Peaje";
+  if (/farmacia|medicamento|medicina|clinica|hospital|doctor/.test(texto))
+    return "Salud";
+  if (/oficina|papeleria|resma|toner|cartucho|papel|utiles/.test(texto))
+    return "Material de Oficina";
+  if (/internet|telefono|celular|plan|datos|telecomunicacion/.test(texto))
+    return "Telecomunicaciones";
+
+  return "Miscelaneos";
 }
 
 // ─── Parser CFDI (México) ─────────────────────────────────────────────────────

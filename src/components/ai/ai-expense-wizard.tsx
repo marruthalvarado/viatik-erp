@@ -28,7 +28,8 @@ import { useUploadDocument } from "@/hooks/use-upload-document";
 import { useAiExpense } from "@/hooks/use-ai-expense";
 import { useCrearGasto } from "@/hooks/entities/use-gastos";
 import { useRendiciones } from "@/hooks/entities/use-rendiciones";
-import { useProveedores } from "@/hooks/entities/use-proveedores";
+import { useProveedores, useCrearProveedor } from "@/hooks/entities/use-proveedores";
+import { supabase } from "@/integrations/supabase/client";
 import { useCategoriasGasto, useEstadosGasto, useMonedas } from "@/hooks/entities/use-catalogs";
 import { useCompany } from "@/contexts/company-context";
 import { toast } from "@/components/common/toast";
@@ -73,7 +74,8 @@ export function AiExpenseWizard({
 
   // ─── Catálogos ─────────────────────────────────────────────────────────
   const { data: rendicionesData } = useRendiciones({ pageSize: 200 });
-  const { data: proveedoresData } = useProveedores({ pageSize: 200 });
+  const { data: proveedoresData, refetch: refetchProveedores } = useProveedores({ pageSize: 200 });
+  const crearProveedor = useCrearProveedor();
   const { data: categoriasData } = useCategoriasGasto({ pageSize: 200 });
   const { data: estadosData } = useEstadosGasto({ pageSize: 200 });
   const { data: monedasData } = useMonedas({ pageSize: 200 });
@@ -131,12 +133,36 @@ export function AiExpenseWizard({
     if (ai.propuesta) {
       setPropuesta(ai.propuesta);
       setWizardEstado("revision");
+      // Auto-crear proveedor si tiene RUC y no existe en la lista
+      void autoCrearProveedor(ai.propuesta.proveedor, ai.propuesta.ruc);
     }
     if (ai.error && wizardEstado === "ai_procesando") {
       setErrorMsg(ai.error);
       setWizardEstado("error");
     }
   }, [ai.propuesta, ai.procesando, ai.error, wizardEstado]);
+
+  // ─── Auto-crear proveedor desde datos XML ────────────────────────────
+  async function autoCrearProveedor(nombre: string | null, identificacion: string | null) {
+    if (!nombre || !empresaActivaId) return;
+    const normaliza = (s: string) => s.trim().toLowerCase();
+    const yaExiste = proveedores.some(
+      (p) =>
+        normaliza(p.nombre) === normaliza(nombre) ||
+        (identificacion && p.identificacion && normaliza(p.identificacion) === normaliza(identificacion)),
+    );
+    if (yaExiste) return;
+    try {
+      await crearProveedor.mutateAsync({
+        empresa_id: empresaActivaId,
+        nombre: nombre.trim(),
+        identificacion: identificacion?.trim() ?? null,
+      } as Parameters<typeof crearProveedor.mutateAsync>[0]);
+      void refetchProveedores();
+    } catch {
+      // Silencioso: si falla no bloquea el flujo
+    }
+  }
 
   // ─── Construir defaultValues para el formulario ──────────────────────
   function buildDefaultValues(): GastoFormValues {
@@ -154,12 +180,21 @@ export function AiExpenseWizard({
 
     return {
       rendicion_id: rendicionIdInicial,
-      descripcion: propuesta.proveedor ?? "",
+      descripcion: propuesta.categoriasSugeridas[0] ?? propuesta.proveedor ?? "",
       numero_documento: propuesta.numeroFactura ?? "",
       fecha: propuesta.fecha ?? "",
       categoria_gasto_id: catSugerida?.id ?? null,
       estado_gasto_id: null,
-      proveedor_id: null,
+      proveedor_id: (() => {
+        if (!propuesta.proveedor) return null;
+        const normaliza = (s: string) => s.trim().toLowerCase();
+        const match = proveedores.find(
+          (p) =>
+            normaliza(p.nombre) === normaliza(propuesta.proveedor!) ||
+            (propuesta.ruc && p.identificacion && normaliza(p.identificacion) === normaliza(propuesta.ruc)),
+        );
+        return match?.id ?? null;
+      })(),
       moneda_codigo: propuesta.moneda ?? null,
       valor_factura: propuesta.total ?? null,
       valor_moneda_origen: propuesta.total ?? null,

@@ -96,6 +96,10 @@ export async function extractExpenseFromDocumento(
   // Caso especial: XML parseado directamente — usar json_ocr sin llamar a OpenAI
   if (ocrData.ocr_proveedor === "xml_parser" && ocrData.json_ocr) {
     const d = ocrData.json_ocr as Record<string, unknown>;
+    const items = Array.isArray(d["items"]) ? (d["items"] as string[]) : [];
+    const catInferida = typeof d["categoriaInferida"] === "string" ? d["categoriaInferida"] : null;
+    const cats = catInferida ? [catInferida] : [];
+    const obs = items.length ? items.join(", ") : null;
     return postProcess({
       proveedor: typeof d["emisor"] === "string" ? d["emisor"] : null,
       ruc: typeof d["rfc"] === "string" ? d["rfc"] : null,
@@ -105,9 +109,9 @@ export async function extractExpenseFromDocumento(
       subtotal: typeof d["subtotal"] === "number" ? d["subtotal"] : null,
       iva: typeof d["iva"] === "number" ? d["iva"] : null,
       total: typeof d["total"] === "number" ? d["total"] : null,
-      categoriasSugeridas: [],
+      categoriasSugeridas: cats,
       confianza: 90,
-      observaciones: null,
+      observaciones: obs,
       inconsistencias: [],
     });
   }
