@@ -168,8 +168,10 @@ export function AiExpenseWizard({
   function buildDefaultValues(): GastoFormValues {
     if (!propuesta) return { ...EMPTY_FORM, rendicion_id: rendicionIdInicial };
 
+    const normalize = (s: string) =>
+      s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
     const catSugerida = categorias.find(
-      (c) => c.nombre.toLowerCase() === propuesta.categoriasSugeridas[0]?.toLowerCase(),
+      (c) => normalize(c.nombre) === normalize(propuesta.categoriasSugeridas[0] ?? ""),
     );
 
     const notas: string[] = [];
@@ -180,7 +182,7 @@ export function AiExpenseWizard({
 
     return {
       rendicion_id: rendicionIdInicial,
-      descripcion: propuesta.categoriasSugeridas[0] ?? propuesta.proveedor ?? "",
+      descripcion: catSugerida?.nombre ?? propuesta.categoriasSugeridas[0] ?? propuesta.proveedor ?? "",
       numero_documento: propuesta.numeroFactura ?? "",
       fecha: propuesta.fecha ?? "",
       categoria_gasto_id: catSugerida?.id ?? null,

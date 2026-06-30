@@ -56,7 +56,7 @@ export async function extractExpenseFromDocumento(
   // 1. Obtener extracción OCR
   const { data: ocrData, error: ocrError } = await supabase
     .from("ocr_extracciones")
-    .select("texto_extraido, estado, documento_id, ocr_proveedor, json_ocr")
+    .select("texto_extraido, estado, documento_id, ocr_proveedor, json_ocr, error_mensaje")
     .eq("documento_id", documentoId)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -77,8 +77,10 @@ export async function extractExpenseFromDocumento(
   }
 
   if (ocrData.estado !== "completado" || !ocrData.texto_extraido?.trim()) {
+    const extra = (ocrData as Record<string, unknown>)["error_mensaje"];
+    const detalle = typeof extra === "string" && extra ? `: ${extra}` : "";
     throw new DocumentAIError(
-      `El OCR aún no está disponible (estado: ${ocrData.estado}). Espera a que finalice.`,
+      `El documento no pudo procesarse (estado: ${ocrData.estado})${detalle}. Verifica que la Edge Function y la API Key de OpenAI estén configuradas.`,
       "TEXT_TOO_SHORT",
     );
   }

@@ -206,7 +206,7 @@ function inferirCategoriaDesdeItems(items: string[]): string {
   if (!items.length) return "Miscelaneos";
   const texto = items.join(" ").toLowerCase();
 
-  if (/coca|cola|bebida|agua|jugo|jucy|mandarina|naranja|manzana|yogur|leche|mineral|snack|empacado|sandwich|sanduche|pan|comida|almuerzo|desayuno|cafe|restaurant|soda|energy|refresco/.test(texto))
+  if (/coca|cola|bebida|agua|jugo|jucy|mandarina|naranja|manzana|yogur|leche|mineral|snack|empacado|sandwich|sanduche|pan|comida|almuerzo|desayuno|cafe|restaurant|soda|energy|refresco|pollo|carne|res|cerdo|chancho|fritada|seco|arroz|ensalada|hamburguesa|burger|pizza|helado|postre|empanada|tamal|taco|sushi|mariscos|ceviche|chifa|broster|alimento|comedor|cafeteria|tienda|minimarket|supermercad|panaderia|pasteleria|confiter|bocadillo|merienda|lonchera|desayun|brunch|lunch|dinner|meal|food|snack|lunch|fiambre|choclo|mote|humita|menestra|lenteja|sopa|caldo|chupe|locro|aguado|encebollado|guatita|hornado|pernil|chicha|limonada|limon|pina|mora|tomate|papas|yuca|platano|verde|maduro|sango|tigrillo|bolon|pan de yuca|pan de bono|queso|quesillo|mantequilla|mermelada|granola|cereal|avena/.test(texto))
     return "Alimentacion";
   if (/gasolina|diesel|combustible|fuel|petroleo|galones/.test(texto))
     return "Combustible";

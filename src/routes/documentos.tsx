@@ -339,7 +339,7 @@ function DocumentosContent() {
 
       {/* Wizard IA: subida de factura → OCR → IA → gasto */}
       <Dialog open={wizardOpen} onOpenChange={setWizardOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto" onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>Subir factura con IA</DialogTitle>
             <DialogDescription>
