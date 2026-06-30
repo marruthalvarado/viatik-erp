@@ -77,7 +77,24 @@ export async function extractFromXml(file: File): Promise<XmlExtractionResult> {
     return parseUbl(doc);
   }
 
-  // SRI Ecuador (factura, nota de credito, liquidacion)
+  // SRI Ecuador - wrapper autorizacion con CDATA
+  // El XML autorizado por SRI tiene <autorizacion><comprobante><!CDATA[<factura...>]></comprobante></autorizacion>
+  if (rootName === "autorizacion") {
+    const comprobanteEl = doc.getElementsByTagName("comprobante")[0];
+    if (comprobanteEl?.textContent) {
+      // El textContent ya decodifica el CDATA
+      const innerXml = comprobanteEl.textContent.trim();
+      if (innerXml.length > 10) {
+        const parser2 = new DOMParser();
+        const innerDoc = parser2.parseFromString(innerXml, "application/xml");
+        if (!innerDoc.querySelector("parsererror")) {
+          return parseSri(innerDoc, innerXml);
+        }
+      }
+    }
+  }
+
+  // SRI Ecuador directo (sin wrapper autorizacion)
   const SRI_ROOTS = ["factura", "notacredito", "notadebito", "liquidacion", "comprobanteRetencion"];
   if (SRI_ROOTS.includes(rootName) || doc.getElementsByTagName("infoTributaria").length > 0) {
     return parseSri(doc, text);
