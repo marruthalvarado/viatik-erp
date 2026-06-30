@@ -77,7 +77,82 @@ export async function extractFromXml(file: File): Promise<XmlExtractionResult> {
     return parseUbl(doc);
   }
 
+  // SRI Ecuador (factura, nota de credito, liquidacion)
+  const SRI_ROOTS = ["factura", "notacredito", "notadebito", "liquidacion", "comprobanteRetencion"];
+  if (SRI_ROOTS.includes(rootName) || doc.getElementsByTagName("infoTributaria").length > 0) {
+    return parseSri(doc, text);
+  }
+
   return parseGenerico(doc, text);
+}
+
+// --- Parser SRI Ecuador -------------------------------------------------------
+
+function parseSri(doc: Document, rawText: string): XmlExtractionResult {
+  const getTag = (tag: string): string | undefined =>
+    doc.getElementsByTagName(tag)[0]?.textContent?.trim() ?? undefined;
+
+  const razonSocial = getTag("razonSocial");
+  const ruc = getTag("ruc");
+  const estab = getTag("estab");
+  const ptoEmi = getTag("ptoEmi");
+  const secuencial = getTag("secuencial");
+  const fechaRaw = getTag("fechaEmision"); // DD/MM/YYYY en SRI
+  const monedaRaw = getTag("moneda"); // "DOLAR", "USD", etc.
+  const totalSinImpuestosStr = getTag("totalSinImpuestos");
+  const importeTotalStr = getTag("importeTotal");
+
+  // IVA: buscar en totalConImpuestos > totalImpuesto > valor
+  let iva: number | null = null;
+  const impuestos = doc.getElementsByTagName("totalImpuesto");
+  for (const imp of Array.from(impuestos)) {
+    const codigo = imp.getElementsByTagName("codigo")[0]?.textContent?.trim();
+    if (codigo === "2") {
+      // IVA
+      const valor = imp.getElementsByTagName("valor")[0]?.textContent?.trim();
+      if (valor) iva = parseFloat(valor);
+    }
+  }
+
+  // Numero de factura: estab-ptoEmi-secuencial
+  const numeroFactura =
+    estab && ptoEmi && secuencial ? estab + "-" + ptoEmi + "-" + secuencial : undefined;
+
+  // Normalizar moneda SRI: "DOLAR" -> "USD"
+  const monedaMap: Record<string, string> = {
+    DOLAR: "USD", USD: "USD", SOLES: "PEN", PEN: "PEN",
+    PESOS: "COP", COP: "COP", EUR: "EUR",
+  };
+  const moneda = monedaRaw ? (monedaMap[monedaRaw.toUpperCase()] ?? monedaRaw) : undefined;
+
+  // Fecha SRI viene como DD/MM/YYYY -> normalizar
+  let fecha: string | undefined;
+  if (fechaRaw) {
+    const parts = fechaRaw.split("/");
+    if (parts.length === 3) {
+      fecha = parts[2] + "-" + parts[1].padStart(2, "0") + "-" + parts[0].padStart(2, "0");
+    } else {
+      fecha = normalizarFecha(fechaRaw);
+    }
+  }
+
+  const datos: XmlDatosFactura = {
+    emisor: razonSocial,
+    rfc: ruc,
+    fecha,
+    moneda,
+    subtotal: totalSinImpuestosStr ? parseFloat(totalSinImpuestosStr) : null,
+    iva,
+    total: importeTotalStr ? parseFloat(importeTotalStr) : null,
+    numeroFactura,
+  };
+
+  const textoParaIA = buildTextoParaIA(datos, "SRI-Ecuador");
+  const confianza = calcularConfianza(datos);
+
+  return { textoParaIA, datos, formato: "ubl", confianza };
+
+  void rawText; // fallback no necesario para SRI estructurado
 }
 
 // ─── Parser CFDI (México) ─────────────────────────────────────────────────────
