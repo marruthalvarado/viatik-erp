@@ -24,14 +24,15 @@ export interface OcrUploadProps {
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
-const TIPOS_ACEPTADOS = ["image/jpeg", "image/png", "application/pdf"];
-const EXTENSIONES_LABEL = "JPG, PNG, PDF";
+const TIPOS_ACEPTADOS = ["image/jpeg", "image/png", "application/pdf", "application/xml", "text/xml"];
+const EXTENSIONES_LABEL = "JPG, PNG, PDF, XML";
 const MAX_MB = 20;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function esArchivoValido(file: File): boolean {
-  return TIPOS_ACEPTADOS.includes(file.type) && file.size <= MAX_MB * 1024 * 1024;
+  const esXml = file.name.toLowerCase().endsWith(".xml");
+  return (TIPOS_ACEPTADOS.includes(file.type) || esXml) && file.size <= MAX_MB * 1024 * 1024;
 }
 
 function iconoPorTipo(tipo: string) {
@@ -154,7 +155,7 @@ export function OcrUpload({ onFileSelected, disabled = false, className }: OcrUp
       <input
         ref={inputRef}
         type="file"
-        accept=".jpg,.jpeg,.png,.pdf"
+        accept=".jpg,.jpeg,.png,.pdf,.xml"
         className="sr-only"
         aria-hidden="true"
         tabIndex={-1}

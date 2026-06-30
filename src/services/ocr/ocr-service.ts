@@ -20,6 +20,9 @@ import type { Json } from "@/types/database";
 import type { OcrExtraccion, OcrExtraccionInsert } from "@/types/entities";
 import { uploadDocumento, type StorageUploadOptions } from "./ocr-storage";
 import { activeOcrProvider, type IOcrProvider } from "./ocr-provider";
+import { extractFromXml } from "./xml-extractor";
+import { readPdfAsBase64 } from "./pdf-extractor";
+import { EdgeFunctionDocumentProvider } from "@/services/ai/edge-function-provider";
 
 // ─── Tipos de entrada/salida ──────────────────────────────────────────────────
 
@@ -49,15 +52,20 @@ export interface OcrPipelineResult {
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
 const TIPOS_IMAGEN = ["image/jpeg", "image/png", "image/bmp", "image/webp"];
-const TIPOS_ACEPTADOS = [...TIPOS_IMAGEN, "application/pdf"];
+const TIPOS_ACEPTADOS = [...TIPOS_IMAGEN, "application/pdf", "application/xml", "text/xml"];
 
 // ─── Validación de archivo ────────────────────────────────────────────────────
 
 export function validarArchivo(file: File): { valido: boolean; error?: string } {
-  if (!TIPOS_ACEPTADOS.includes(file.type)) {
+  // .xml files may report as application/xml, text/xml or empty MIME — accept by extension too
+  const esXml =
+    file.type === "application/xml" ||
+    file.type === "text/xml" ||
+    file.name.toLowerCase().endsWith(".xml");
+  if (!TIPOS_ACEPTADOS.includes(file.type) && !esXml) {
     return {
       valido: false,
-      error: `Tipo de archivo no soportado: ${file.type}. Se aceptan JPG, PNG y PDF.`,
+      error: `Tipo de archivo no soportado: ${file.type}. Se aceptan JPG, PNG, PDF y XML.`,
     };
   }
   if (file.size > 20 * 1024 * 1024) {
@@ -112,11 +120,17 @@ export async function procesarDocumentoOcr(
   // 5. Insertar extracción con estado inicial
   const extraccionBase = await insertarExtraccionPendiente(documentoId, provider.name);
 
-  // 6. Ejecutar OCR (solo para imágenes)
+  // 6. Ejecutar extracción según tipo de archivo
   let extraccion: OcrExtraccion;
+  const esXml =
+    file.type === "application/xml" ||
+    file.type === "text/xml" ||
+    file.name.toLowerCase().endsWith(".xml");
 
-  if (file.type === "application/pdf") {
-    extraccion = await marcarRequiereBackend(extraccionBase.id);
+  if (esXml) {
+    extraccion = await ejecutarExtraccionXml(file, extraccionBase.id);
+  } else if (file.type === "application/pdf") {
+    extraccion = await ejecutarExtraccionPdf(file, extraccionBase.id);
   } else {
     extraccion = await ejecutarOcr(file, extraccionBase.id, provider);
   }
@@ -221,22 +235,89 @@ async function ejecutarOcr(
   return data;
 }
 
-async function marcarRequiereBackend(extraccionId: string): Promise<OcrExtraccion> {
+/**
+ * Extrae texto de un XML (CFDI/UBL/genérico) y lo guarda en ocr_extracciones.
+ */
+async function ejecutarExtraccionXml(
+  file: File,
+  extraccionId: string,
+): Promise<OcrExtraccion> {
+  let textoExtraido: string | null = null;
+  let estado = "completado";
+  let errorMensaje: string | null = null;
+  let confianza: number | null = null;
+  const t0 = Date.now();
+
+  try {
+    const resultado = await extractFromXml(file);
+    textoExtraido = resultado.textoParaIA;
+    confianza = resultado.confianza;
+  } catch (err) {
+    estado = "error";
+    errorMensaje = err instanceof Error ? err.message : String(err);
+  }
+
   const { data, error } = await supabase
     .from("ocr_extracciones")
     .update({
-      estado: "requiere_backend",
-      error_mensaje:
-        "Los PDFs requieren procesamiento en servidor (Edge Function). Pendiente IA-2.",
+      estado,
+      texto_extraido: textoExtraido,
+      confianza,
+      error_mensaje: errorMensaje,
+      ocr_proveedor: "xml_parser",
+      tiempo_procesamiento_ms: Date.now() - t0,
     })
     .eq("id", extraccionId)
     .select()
     .single();
 
   if (error || !data) {
-    throw new Error(`[ocr-service] Error al marcar PDF: ${error?.message}`);
+    throw new Error(`[ocr-service] Error al actualizar extracción XML: ${error?.message}`);
+  }
+  return data;
+}
+
+/**
+ * Envía el PDF como base64 a la Edge Function (OpenAI Vision) y guarda el texto.
+ */
+async function ejecutarExtraccionPdf(
+  file: File,
+  extraccionId: string,
+): Promise<OcrExtraccion> {
+  let textoExtraido: string | null = null;
+  let estado = "completado";
+  let errorMensaje: string | null = null;
+  const t0 = Date.now();
+
+  try {
+    const { base64 } = await readPdfAsBase64(file);
+    // Llamamos directamente al provider para obtener la extracción IA
+    // y guardamos la representación textual del resultado como texto_extraido
+    const edgeProvider = new EdgeFunctionDocumentProvider();
+    const extraccion = await edgeProvider.extractExpenseFromPdf(base64);
+    // Serializar la extracción como texto estructurado para reutilizarla luego
+    textoExtraido = JSON.stringify(extraccion);
+  } catch (err) {
+    estado = "error";
+    errorMensaje = err instanceof Error ? err.message : String(err);
   }
 
+  const { data, error } = await supabase
+    .from("ocr_extracciones")
+    .update({
+      estado,
+      texto_extraido: textoExtraido,
+      error_mensaje: errorMensaje,
+      ocr_proveedor: "openai_vision_pdf",
+      tiempo_procesamiento_ms: Date.now() - t0,
+    })
+    .eq("id", extraccionId)
+    .select()
+    .single();
+
+  if (error || !data) {
+    throw new Error(`[ocr-service] Error al actualizar extracción PDF: ${error?.message}`);
+  }
   return data;
 }
 

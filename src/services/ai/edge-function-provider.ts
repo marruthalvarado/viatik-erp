@@ -1,21 +1,12 @@
 /**
- * edge-function-provider.ts — IA-3
+ * edge-function-provider.ts — IA-3/IA-4
  *
- * Implementación `DocumentAIProvider` que delega la llamada a OpenAI
- * a través de la Supabase Edge Function `ai-document-extract`.
+ * Implementacion DocumentAIProvider que delega a la Supabase Edge Function
+ * ai-document-extract. La API key de OpenAI NUNCA se expone en el cliente.
  *
- * Ventaja de seguridad: La API key de OpenAI NUNCA se expone en el bundle
- * del cliente. Solo vive como Supabase Secret en el servidor.
- *
- * Flujo:
- *   Frontend → supabase.functions.invoke('ai-document-extract') → Edge Function → OpenAI
- *
- * Para activar: en ai-service.ts, reemplazar OpenAIDocumentProvider por
- * EdgeFunctionDocumentProvider. El resto del código no cambia.
- *
- * Para deployar la Edge Function:
- *   supabase functions deploy ai-document-extract
- *   supabase secrets set OPENAI_API_KEY=sk-...
+ * Modos:
+ *   - extractExpense(text)          → texto OCR / XML → gpt-4o-mini
+ *   - extractExpenseFromPdf(base64) → PDF base64 → gpt-4o (vision)
  */
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -25,7 +16,7 @@ import {
   type ExtractionContext,
 } from "./document-ai-provider";
 
-// ─── Validación del response ──────────────────────────────────────────────────
+// ─── Validacion del response ──────────────────────────────────────────────────
 
 interface RawEdgeExtraction {
   proveedor?: unknown;
@@ -93,10 +84,26 @@ export class EdgeFunctionDocumentProvider implements DocumentAIProvider {
         this.name,
       );
     }
+    return this._invokeEdge({ text, context });
+  }
 
+  /**
+   * Envia un PDF como base64 a la Edge Function para que OpenAI Vision lo lea.
+   */
+  async extractExpenseFromPdf(
+    fileBase64: string,
+    context?: ExtractionContext,
+  ): Promise<ExpenseExtraction> {
+    if (!fileBase64 || fileBase64.length < 100) {
+      throw new DocumentAIError("PDF base64 vacio o invalido.", "TEXT_TOO_SHORT", this.name);
+    }
+    return this._invokeEdge({ fileBase64, mimeType: "application/pdf", context });
+  }
+
+  private async _invokeEdge(body: Record<string, unknown>): Promise<ExpenseExtraction> {
     const { data, error } = await supabase.functions.invoke<RawEdgeExtraction>(
       "ai-document-extract",
-      { body: { text, context } },
+      { body },
     );
 
     if (error) {
@@ -108,7 +115,7 @@ export class EdgeFunctionDocumentProvider implements DocumentAIProvider {
 
     if (!data) {
       throw new DocumentAIError(
-        "La Edge Function no devolvió datos",
+        "La Edge Function no devolvio datos",
         "INVALID_RESPONSE",
         this.name,
       );

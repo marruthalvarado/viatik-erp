@@ -56,7 +56,7 @@ export async function extractExpenseFromDocumento(
   // 1. Obtener extracción OCR
   const { data: ocrData, error: ocrError } = await supabase
     .from("ocr_extracciones")
-    .select("texto_extraido, estado, documento_id")
+    .select("texto_extraido, estado, documento_id, ocr_proveedor")
     .eq("documento_id", documentoId)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -81,6 +81,16 @@ export async function extractExpenseFromDocumento(
       `El OCR aún no está disponible (estado: ${ocrData.estado}). Espera a que finalice.`,
       "TEXT_TOO_SHORT",
     );
+  }
+
+  // Caso especial: PDF procesado por OpenAI Vision — el texto_extraido ya ES el JSON de extracción
+  if (ocrData.ocr_proveedor === "openai_vision_pdf") {
+    try {
+      const parsed = JSON.parse(ocrData.texto_extraido) as ExpenseExtraction;
+      return postProcess(parsed);
+    } catch {
+      // Si falla el parse, cae al flujo normal de IA
+    }
   }
 
   // 2. Obtener metadatos del documento

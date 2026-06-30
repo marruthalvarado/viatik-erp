@@ -1,28 +1,31 @@
 /**
- * ai-document-extract — Supabase Edge Function — IA-3
+ * ai-document-extract — Supabase Edge Function — IA-3/IA-4
  *
  * Proxy seguro entre el frontend y la API de OpenAI.
  * La API key NUNCA sale del servidor (Supabase Secret: OPENAI_API_KEY).
  *
- * Requisito de seguridad:
- *   - Frontend → esta Edge Function → OpenAI
- *   - `OPENAI_API_KEY` se configura como secret: `supabase secrets set OPENAI_API_KEY=sk-...`
- *   - El frontend solo usa el JWT de Supabase (no necesita la API key de OpenAI)
+ * Modos de operación:
+ *   1. Texto (imágenes OCR, XML): body.text → OpenAI Chat Completions
+ *   2. PDF base64:  body.fileBase64 + body.mimeType → OpenAI Vision (GPT-4o)
  *
- * Request body: { text: string, context?: ExtractionContext }
- * Response:     ExpenseExtraction (JSON)
+ * Request body:
+ *   { text: string, context?: ExtractionContext }
+ *   { fileBase64: string, mimeType: "application/pdf", context?: ExtractionContext }
+ *
+ * Response: ExpenseExtraction (JSON)
  *
  * Errores manejados:
  *   - 401: No autenticado
- *   - 400: Texto vacío o demasiado corto
- *   - 502: Error de OpenAI (se reenvía el detalle)
+ *   - 400: Payload vacío o inválido
+ *   - 502: Error de OpenAI
  *   - 429: Rate limit de OpenAI
  */
 
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const OPENAI_URL = "https://api.openai.com/v1/chat/completions";
-const MODEL = "gpt-4o-mini";
+const MODEL = "gpt-4o";          // gpt-4o soporta visión + PDFs
+const MODEL_TEXT = "gpt-4o-mini"; // para texto puro (más barato)
 const MIN_TEXT_LENGTH = 20;
 
 const CORS_HEADERS = {
@@ -35,11 +38,11 @@ const CORS_HEADERS = {
 
 const SYSTEM_PROMPT = `Eres un asistente especializado en extracción de datos de documentos financieros (facturas, recibos, notas de crédito) para un sistema ERP de gestión de gastos corporativos.
 
-Dado el texto extraído por OCR de un documento, extrae la información y devuelve ÚNICAMENTE un objeto JSON con esta estructura exacta:
+Dado el documento proporcionado (texto OCR, XML o imagen/PDF), extrae la información y devuelve ÚNICAMENTE un objeto JSON con esta estructura exacta:
 
 {
   "proveedor": "Nombre del emisor/proveedor o null",
-  "ruc": "RUC, NIF, CUIT u otro número fiscal del emisor, o null",
+  "ruc": "RUC, NIF, CUIT, RFC u otro número fiscal del emisor, o null",
   "numero_factura": "Número de factura, recibo o comprobante, o null",
   "fecha": "Fecha en formato YYYY-MM-DD o null si no se puede determinar",
   "moneda": "Código ISO 4217 (USD, PEN, EUR, COP, ARS, MXN, CLP...) o null",
@@ -94,86 +97,81 @@ Deno.serve(async (req: Request) => {
   }
 
   // 2. Leer body
-  let body: { text?: unknown; context?: unknown };
+  let body: {
+    text?: unknown;
+    fileBase64?: unknown;
+    mimeType?: unknown;
+    context?: unknown;
+  };
   try {
     body = await req.json();
   } catch {
     return json({ error: "Body inválido" }, 400);
   }
 
-  const text = typeof body.text === "string" ? body.text.trim() : "";
-  if (text.length < MIN_TEXT_LENGTH) {
-    return json({ error: `Texto demasiado corto (mínimo ${MIN_TEXT_LENGTH} chars)` }, 400);
-  }
-
-  // 3. Construir mensaje al usuario con contexto opcional
-  const userLines: string[] = [`Texto OCR:\n---\n${text}\n---`];
-  if (body.context && typeof body.context === "object") {
-    const ctx = body.context as Record<string, unknown>;
-    if (typeof ctx["pais"] === "string") userLines.push(`País: ${ctx["pais"]}`);
-    if (typeof ctx["monedaPredeterminada"] === "string")
-      userLines.push(`Moneda habitual: ${ctx["monedaPredeterminada"]}`);
-    if (Array.isArray(ctx["categoriasDisponibles"]))
-      userLines.push(
-        `Categorías disponibles: ${(ctx["categoriasDisponibles"] as string[]).join(", ")}`,
-      );
-    if (typeof ctx["nombreArchivo"] === "string")
-      userLines.push(`Archivo: ${ctx["nombreArchivo"]}`);
-  }
-
-  // 4. Llamar a OpenAI
   const apiKey = Deno.env.get("OPENAI_API_KEY");
   if (!apiKey) {
     return json({ error: "OPENAI_API_KEY no configurada en el servidor" }, 500);
   }
 
-  let openAiRes: Response;
-  try {
-    openAiRes = await fetch(OPENAI_URL, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: MODEL,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: userLines.join("\n") },
+  // ─── Modo 1: Texto (imágenes OCR o XML) ───────────────────────────────────
+  if (typeof body.text === "string") {
+    const text = body.text.trim();
+    if (text.length < MIN_TEXT_LENGTH) {
+      return json({ error: `Texto demasiado corto (mínimo ${MIN_TEXT_LENGTH} chars)` }, 400);
+    }
+
+    const userLines: string[] = [`Texto del documento:\n---\n${text}\n---`];
+    appendContext(userLines, body.context);
+
+    return await callOpenAI(apiKey, MODEL_TEXT, [
+      { role: "system", content: SYSTEM_PROMPT },
+      { role: "user", content: userLines.join("\n") },
+    ]);
+  }
+
+  // ─── Modo 2: PDF en base64 ─────────────────────────────────────────────────
+  if (typeof body.fileBase64 === "string" && body.mimeType === "application/pdf") {
+    const base64 = body.fileBase64;
+    if (!base64 || base64.length < 100) {
+      return json({ error: "PDF base64 vacío o inválido" }, 400);
+    }
+
+    const contextLines: string[] = [];
+    appendContext(contextLines, body.context);
+    const contextText = contextLines.length ? "\n" + contextLines.join("\n") : "";
+
+    // GPT-4o acepta PDFs como image_url con data URI
+    const messages = [
+      { role: "system", content: SYSTEM_PROMPT },
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: `Extrae los datos de esta factura/documento.${contextText}`,
+          },
+          {
+            type: "image_url",
+            image_url: {
+              url: `data:application/pdf;base64,${base64}`,
+              detail: "high",
+            },
+          },
         ],
-        temperature: 0.1,
-        max_tokens: 800,
-      }),
-    });
-  } catch (err) {
-    return json({ error: `Error de red hacia OpenAI: ${String(err)}` }, 502);
+      },
+    ];
+
+    return await callOpenAI(apiKey, MODEL, messages);
   }
 
-  const openAiData = await openAiRes.json();
-
-  if (!openAiRes.ok) {
-    const status = openAiRes.status === 429 ? 429 : 502;
-    return json({ error: openAiData?.error?.message ?? "Error de OpenAI" }, status);
-  }
-
-  const rawJson: string = openAiData?.choices?.[0]?.message?.content ?? "{}";
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(rawJson);
-  } catch {
-    return json({ error: "OpenAI devolvió JSON inválido", raw: rawJson }, 502);
-  }
-
-  return new Response(JSON.stringify(parsed), {
-    status: 200,
-    headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-  });
+  return json({ error: "Body debe contener 'text' o 'fileBase64' + 'mimeType'" }, 400);
 });
 
-// ─── Helper ───────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function json(body: unknown, status: number): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
-  });
-}
+function appendContext(lines: string[], context: unknown): void {
+  if (!context || typeof context !== "object") return;
+  const ctx = context as Record<string, unknown>;
+  if (typeof ctx["pais"] === "string") lines.push(`País: ${ctx["pais"]}`);
+  if (typeof ctx["monedaPre

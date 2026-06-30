@@ -101,12 +101,4 @@ BEGIN
              JOIN acciones_aprobacion aa2 ON aa2.id = a2.accion_id
             WHERE a2.rendicion_id     = r.id
               AND a2.workflow_paso_id = wp_prev.id
-              AND aa2.codigo          = 'aprobar'
-         )
-    )
-  ORDER BY r.fecha_envio ASC NULLS LAST;
-
-EXCEPTION WHEN OTHERS THEN
-  RAISE EXCEPTION 'wf_mis_pendientes error: %', SQLERRM;
-END;
-$$;
+              AND aa2.codigo   

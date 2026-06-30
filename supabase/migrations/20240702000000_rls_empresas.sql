@@ -72,15 +72,4 @@ END $$;
 -- La USING verifica que el usuario pertenece a la empresa antes de mostrársela;
 -- el WITH CHECK confirma que no puede trasladarse a otra empresa.
 DO $$ BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='empresas' AND policyname='empresas_update_member') THEN
-    CREATE POLICY "empresas_update_member"
-      ON empresas FOR UPDATE TO authenticated
-      USING  (auth_es_miembro_activo(id))
-      WITH CHECK (auth_es_miembro_activo(id));
-  END IF;
-END $$;
-
--- INSERT / DELETE: denegado para 'authenticated'.
--- La creación de empresas y el soft-delete se hacen desde el Dashboard
--- (service_role) o scripts de onboarding.
--- (Sin políticas FOR INSERT/DELETE → deny-by-default)
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='empresas' AN

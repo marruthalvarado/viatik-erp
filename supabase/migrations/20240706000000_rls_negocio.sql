@@ -293,4 +293,4 @@ DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='usuarios' 
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='usuarios' AND policyname='usr_insert') THEN
   -- INSERT lo maneja Supabase Auth (trigger) — bloqueado para authenticated directo
   -- pero service_role puede insertar
-  CREATE POLICY "usr_insert" ON usuarios FOR INSERT TO authenticated WITH CHECK (usuarios.id = auth.uid()); END IF; END $$;
+  CREATE POLICY "usr_insert" ON usuarios FOR INSERT TO authenticated WITH CHECK
