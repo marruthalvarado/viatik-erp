@@ -248,10 +248,14 @@ async function ejecutarExtraccionXml(
   let confianza: number | null = null;
   const t0 = Date.now();
 
+  let jsonOcr: Record<string, unknown> | null = null;
+
   try {
     const resultado = await extractFromXml(file);
     textoExtraido = resultado.textoParaIA;
     confianza = resultado.confianza;
+    // Guardar datos estructurados para evitar llamar a OpenAI en el paso IA
+    jsonOcr = resultado.datos as unknown as Record<string, unknown>;
   } catch (err) {
     estado = "error";
     errorMensaje = err instanceof Error ? err.message : String(err);
@@ -262,6 +266,7 @@ async function ejecutarExtraccionXml(
     .update({
       estado,
       texto_extraido: textoExtraido,
+      json_ocr: jsonOcr,
       confianza,
       error_mensaje: errorMensaje,
       ocr_proveedor: "xml_parser",
@@ -336,8 +341,8 @@ export async function getExtraccionByDocumentoId(
     .maybeSingle();
 
   if (error) {
-    throw new Error(`[ocr-service] Error al obtener extracción: ${error.message}`);
+    throw new Error(`[ocr-service] Error al obtener extraccion: ${error.message}`);
   }
 
-    return data;
+  return data;
 }

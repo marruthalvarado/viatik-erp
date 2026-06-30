@@ -56,7 +56,7 @@ export async function extractExpenseFromDocumento(
   // 1. Obtener extracción OCR
   const { data: ocrData, error: ocrError } = await supabase
     .from("ocr_extracciones")
-    .select("texto_extraido, estado, documento_id, ocr_proveedor")
+    .select("texto_extraido, estado, documento_id, ocr_proveedor, json_ocr")
     .eq("documento_id", documentoId)
     .order("created_at", { ascending: false })
     .limit(1)
@@ -91,6 +91,25 @@ export async function extractExpenseFromDocumento(
     } catch {
       // Si falla el parse, cae al flujo normal de IA
     }
+  }
+
+  // Caso especial: XML parseado directamente — usar json_ocr sin llamar a OpenAI
+  if (ocrData.ocr_proveedor === "xml_parser" && ocrData.json_ocr) {
+    const d = ocrData.json_ocr as Record<string, unknown>;
+    return postProcess({
+      proveedor: typeof d["emisor"] === "string" ? d["emisor"] : null,
+      ruc: typeof d["rfc"] === "string" ? d["rfc"] : null,
+      numeroFactura: typeof d["numeroFactura"] === "string" ? d["numeroFactura"] : null,
+      fecha: typeof d["fecha"] === "string" ? d["fecha"] : null,
+      moneda: typeof d["moneda"] === "string" ? d["moneda"] : null,
+      subtotal: typeof d["subtotal"] === "number" ? d["subtotal"] : null,
+      iva: typeof d["iva"] === "number" ? d["iva"] : null,
+      total: typeof d["total"] === "number" ? d["total"] : null,
+      categoriasSugeridas: [],
+      confianza: 90,
+      observaciones: null,
+      inconsistencias: [],
+    });
   }
 
   // 2. Obtener metadatos del documento
@@ -218,8 +237,7 @@ function postProcess(raw: ExpenseExtraction): ExpenseExtraction {
 
   return result;
 }
-
-/** Normaliza múltiples formatos de fecha a YYYY-MM-DD. */
+/** Normaliza multiples formatos de fecha a YYYY-MM-DD. */
 function normalizeDate(raw: string): string | null {
   const iso = /^\d{4}-\d{2}-\d{2}$/;
   if (iso.test(raw)) return raw;
@@ -237,7 +255,7 @@ function normalizeDate(raw: string): string | null {
   const mdyMatch = mdy.exec(raw);
   if (mdyMatch) {
     const [, m, d, y] = mdyMatch;
-    // Heurística: si el primer número > 12, es DD/MM
+    // Heuristica: si el primer numero > 12, es DD/MM
     const firstNum = parseInt(m, 10);
     if (firstNum > 12) {
       return `${y}-${d.padStart(2, "0")}-${m.padStart(2, "0")}`;
