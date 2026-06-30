@@ -78,11 +78,23 @@ export async function extractFromXml(file: File): Promise<XmlExtractionResult> {
   }
 
   // SRI Ecuador - wrapper autorizacion con CDATA
-  // El XML autorizado por SRI tiene <autorizacion><comprobante><!CDATA[<factura...>]></comprobante></autorizacion>
+  // El XML autorizado por SRI tiene <autorizacion><comprobante><!CDATA[<factura...>]]></comprobante></autorizacion>
   if (rootName === "autorizacion") {
+    // Usar regex sobre el texto crudo: mas confiable que textContent en el DOM
+    const cdataMatch = /<!\[CDATA\[([\s\S]*?)\]\]>/.exec(text);
+    if (cdataMatch) {
+      const innerXml = cdataMatch[1].trim();
+      if (innerXml.length > 10) {
+        const parser2 = new DOMParser();
+        const innerDoc = parser2.parseFromString(innerXml, "application/xml");
+        if (!innerDoc.querySelector("parsererror")) {
+          return parseSri(innerDoc, innerXml);
+        }
+      }
+    }
+    // Fallback: textContent del elemento comprobante
     const comprobanteEl = doc.getElementsByTagName("comprobante")[0];
     if (comprobanteEl?.textContent) {
-      // El textContent ya decodifica el CDATA
       const innerXml = comprobanteEl.textContent.trim();
       if (innerXml.length > 10) {
         const parser2 = new DOMParser();
