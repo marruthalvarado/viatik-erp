@@ -15,14 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 // ---------------------------------------------------------------------------
 
 export type NotificacionTipo =
-  | "workflow"
-  | "presupuesto"
-  | "ocr"
-  | "politica"
-  | "ia"
-  | "sistema"
-  | "viajes"
-  | "rendiciones";
+  "workflow" | "presupuesto" | "ocr" | "politica" | "ia" | "sistema" | "viajes" | "rendiciones";
 
 export type NotificacionPrioridad = "alta" | "media" | "baja";
 
