@@ -136,6 +136,7 @@ function SignInForm() {
 function SignUpForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [codigoEmpresa, setCodigoEmpresa] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
@@ -145,14 +146,37 @@ function SignUpForm() {
     setError(null);
     setInfo(null);
     setSubmitting(true);
-    const { error: err } = await supabase.auth.signUp({
+
+    const { data, error: err } = await supabase.auth.signUp({
       email,
       password,
       options: { emailRedirectTo: window.location.origin },
     });
+
+    if (err) {
+      setSubmitting(false);
+      setError(err.message);
+      return;
+    }
+
+    // Si hay sesión inmediata y se proporcionó código, unirse a la empresa
+    if (data.session && codigoEmpresa.trim()) {
+      const { error: rpcErr } = await supabase.rpc("unirse_empresa_por_codigo", {
+        p_codigo: codigoEmpresa.trim(),
+      });
+      if (rpcErr) {
+        setSubmitting(false);
+        setInfo("Cuenta creada. " + rpcErr.message);
+        return;
+      }
+    }
+
     setSubmitting(false);
-    if (err) setError(err.message);
-    else setInfo("Cuenta creada. Revisa tu correo si se requiere confirmación.");
+    setInfo(
+      data.session
+        ? "Cuenta creada correctamente."
+        : "Cuenta creada. Revisa tu correo para confirmar y luego inicia sesión.",
+    );
   }
 
   return (
@@ -179,6 +203,23 @@ function SignUpForm() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="signup-codigo">
+          Código de empresa <span className="font-normal text-muted-foreground">(opcional)</span>
+        </Label>
+        <Input
+          id="signup-codigo"
+          type="text"
+          placeholder="Ej: NUCLEARPET"
+          autoComplete="off"
+          value={codigoEmpresa}
+          onChange={(e) => setCodigoEmpresa(e.target.value.toUpperCase())}
+          className="font-mono tracking-widest uppercase"
+        />
+        <p className="text-xs text-muted-foreground">
+          Si tu administrador ya creó la empresa, ingresa su código para unirte.
+        </p>
       </div>
       {error && (
         <Alert variant="destructive">

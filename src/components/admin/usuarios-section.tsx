@@ -2,14 +2,16 @@
  * usuarios-section.tsx
  * Gestión de usuarios de la empresa — visible sólo para administradores.
  * Permite ver, cambiar rol y activar/desactivar miembros.
+ * También permite invitar nuevos usuarios por email.
  */
 import { useState } from "react";
-import { UserCheck, UserX, ShieldCheck, User } from "lucide-react";
+import { UserCheck, UserX, ShieldCheck, User, UserPlus } from "lucide-react";
 
 import { DataTable } from "@/components/common/data-table";
 import { StatusBadge } from "@/components/common/status-badge";
 import { toast } from "@/components/common/toast";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -17,27 +19,45 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 import {
   useEmpresaUsuarios,
   useCambiarRolUsuario,
   useDesactivarUsuario,
   useReactivarUsuario,
+  useInvitarUsuarioPorEmail,
 } from "@/hooks/entities/use-empresa-usuarios";
 import { useRoles } from "@/hooks/entities/use-roles";
+import { useCompany } from "@/contexts/company-context";
 
 import type { DataTableColumn } from "@/components/common/data-table";
 import type { EmpresaUsuario } from "@/hooks/entities/use-empresa-usuarios";
 
 export function UsuariosSection() {
+  const { empresaActiva } = useCompany();
   const { data: miembros = [], isLoading } = useEmpresaUsuarios();
   const { data: rolesData } = useRoles({ pageSize: 20 });
   const cambiarRol = useCambiarRolUsuario();
   const desactivar = useDesactivarUsuario();
   const reactivar = useReactivarUsuario();
+  const invitar = useInvitarUsuarioPorEmail();
 
   const roles = rolesData?.rows ?? [];
   const [changingRol, setChangingRol] = useState<string | null>(null);
+
+  // Dialogo invitar
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [emailInvite, setEmailInvite] = useState("");
+  const [inviteError, setInviteError] = useState<string | null>(null);
 
   async function handleCambiarRol(miembroId: string, rolId: string) {
     setChangingRol(miembroId);
@@ -62,6 +82,23 @@ export function UsuariosSection() {
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error al cambiar estado.");
+    }
+  }
+
+  async function handleInvitar() {
+    if (!emailInvite.trim()) return;
+    setInviteError(null);
+    try {
+      const res = await invitar.mutateAsync(emailInvite.trim());
+      toast.success(
+        res.ya_miembro
+          ? "El usuario ya era miembro. Se reactivó su acceso."
+          : "Usuario agregado correctamente.",
+      );
+      setDialogOpen(false);
+      setEmailInvite("");
+    } catch (err) {
+      setInviteError(err instanceof Error ? err.message : "Error al agregar usuario.");
     }
   }
 
@@ -142,12 +179,27 @@ export function UsuariosSection() {
 
   return (
     <div>
-      <div className="mb-4">
-        <h3 className="text-base font-semibold">Usuarios de la empresa</h3>
-        <p className="text-sm text-muted-foreground">
-          Gestiona los miembros y sus roles. El primer usuario registrado es administrador
-          automáticamente.
-        </p>
+      <div className="mb-4 flex items-start justify-between gap-4">
+        <div>
+          <h3 className="text-base font-semibold">Usuarios de la empresa</h3>
+          <p className="text-sm text-muted-foreground">
+            Gestiona los miembros y sus roles. El primer usuario registrado es administrador
+            automáticamente.
+          </p>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          className="shrink-0 gap-1.5"
+          onClick={() => {
+            setInviteError(null);
+            setEmailInvite("");
+            setDialogOpen(true);
+          }}
+        >
+          <UserPlus className="size-4" />
+          Agregar usuario
+        </Button>
       </div>
 
       <DataTable
@@ -159,10 +211,64 @@ export function UsuariosSection() {
         emptyDescription="No hay usuarios registrados en esta empresa."
       />
 
-      <p className="mt-3 text-xs text-muted-foreground">
-        Para agregar usuarios: comparte el enlace de registro de la aplicación. Al registrarse, el
-        nuevo usuario deberá unirse a tu empresa usando el nombre o ID de empresa.
-      </p>
+      {empresaActiva && (
+        <div className="mt-3 rounded-md border bg-muted/40 px-3 py-2">
+          <p className="text-xs text-muted-foreground">
+            Código de empresa:{" "}
+            <span className="font-mono font-semibold text-foreground">{empresaActiva.codigo}</span>
+            {" — "}
+            Comparte este código con los nuevos usuarios para que se unan al registrarse.
+          </p>
+        </div>
+      )}
+
+      {/* Dialog: invitar por email */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Agregar usuario</DialogTitle>
+            <DialogDescription>
+              El usuario debe tener una cuenta en VIATIQ. Ingresa su correo y quedará vinculado a
+              esta empresa con rol "Usuario".
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 py-2">
+            <Input
+              type="email"
+              placeholder="correo@ejemplo.com"
+              value={emailInvite}
+              onChange={(e) => setEmailInvite(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void handleInvitar();
+              }}
+              autoFocus
+            />
+            {inviteError && (
+              <Alert variant="destructive">
+                <AlertDescription>{inviteError}</AlertDescription>
+              </Alert>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDialogOpen(false);
+                setEmailInvite("");
+                setInviteError(null);
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              disabled={!emailInvite.trim() || invitar.isPending}
+              onClick={() => void handleInvitar()}
+            >
+              {invitar.isPending ? "Agregando..." : "Agregar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

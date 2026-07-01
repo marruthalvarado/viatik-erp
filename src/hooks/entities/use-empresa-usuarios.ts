@@ -127,3 +127,39 @@ export function useReactivarUsuario() {
     },
   });
 }
+
+// ─── Hook: admin invita usuario por email ────────────────────────────────────
+
+export function useInvitarUsuarioPorEmail() {
+  const qc = useQueryClient();
+  const { empresaActivaId } = useCompany();
+
+  return useMutation({
+    mutationFn: async (email: string) => {
+      if (!empresaActivaId) throw new Error("Sin empresa activa");
+      const { data, error } = await supabase.rpc("admin_invitar_usuario_por_email", {
+        p_email: email,
+        p_empresa_id: empresaActivaId,
+      });
+      if (error) throw error;
+      return data as { ok: boolean; ya_miembro: boolean };
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["empresa_usuarios", empresaActivaId] });
+    },
+  });
+}
+
+// ─── Hook: usuario se une a empresa por código ───────────────────────────────
+
+export function useUnirseEmpresaPorCodigo() {
+  return useMutation({
+    mutationFn: async (codigo: string) => {
+      const { data, error } = await supabase.rpc("unirse_empresa_por_codigo", {
+        p_codigo: codigo,
+      });
+      if (error) throw error;
+      return data as { ok: boolean; empresa: string; ya_miembro: boolean };
+    },
+  });
+}

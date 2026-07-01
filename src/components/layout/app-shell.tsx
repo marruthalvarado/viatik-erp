@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from "@tanstack/react-router";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "./app-sidebar";
 import { Topbar } from "./topbar";
+import { UnirseEmpresaDialog } from "./unirse-empresa-dialog";
 import { useAuth } from "@/contexts/auth-context";
 import { LoadingState } from "@/components/common/loading-state";
 
@@ -34,6 +35,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <SidebarProvider>
+      <UnirseEmpresaDialog />
       <AppSidebar />
       <SidebarInset className="flex flex-col min-h-screen">
         <Topbar />
