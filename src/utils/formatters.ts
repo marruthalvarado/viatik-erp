@@ -1,13 +1,14 @@
 export function formatCurrency(
   value: number | null | undefined,
-  currency = "CLP",
-  locale = "es-CL",
+  currency = "USD",
+  locale = "es-EC",
 ) {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";
   return new Intl.NumberFormat(locale, {
     style: "currency",
     currency,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(value);
 }
 

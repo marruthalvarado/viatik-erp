@@ -1,3 +1,4 @@
+import { formatCurrency } from "@/utils/formatters";
 /**
  * ai-expense-review.tsx — IA-3
  *
@@ -87,7 +88,7 @@ export function AiExpenseReview({
             <Campo label="N° Factura" valor={propuesta.numeroFactura} />
             <Campo label="Fecha" valor={propuesta.fecha} />
             <Campo label="Moneda" valor={propuesta.moneda} />
-            <Campo label="Total" valor={propuesta.total !== null ? String(propuesta.total) : null} />
+            <Campo label="Total" valor={propuesta.total !== null ? formatCurrency(propuesta.total, propuesta.moneda ?? "USD") : null} />
             {propuesta.categoriasSugeridas.length > 0 && (
               <Campo label="Categoría sugerida" valor={propuesta.categoriasSugeridas[0]} />
             )}
