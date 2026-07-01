@@ -133,17 +133,24 @@ BEGIN
     LIMIT p_limite
   ),
   cat_principal AS (
-    SELECT DISTINCT ON (g.proveedor_id)
-      g.proveedor_id,
-      cg.nombre AS categoria_nombre
-    FROM gastos g
-    INNER JOIN rendiciones      r  ON r.id  = g.rendicion_id
-    LEFT  JOIN categorias_gasto cg ON cg.id = g.categoria_gasto_id
-    WHERE r.empresa_id = p_empresa_id
-      AND g.fecha BETWEEN p_fecha_desde AND p_fecha_hasta
-      AND g.deleted_at IS NULL AND r.deleted_at IS NULL
-      AND g.proveedor_id IS NOT NULL
-    ORDER BY g.proveedor_id, COUNT(*) DESC
+    SELECT DISTINCT ON (sub.proveedor_id)
+      sub.proveedor_id,
+      sub.categoria_nombre
+    FROM (
+      SELECT
+        g.proveedor_id,
+        cg.nombre AS categoria_nombre,
+        COUNT(*)  AS cnt
+      FROM gastos g
+      INNER JOIN rendiciones      r  ON r.id  = g.rendicion_id
+      LEFT  JOIN categorias_gasto cg ON cg.id = g.categoria_gasto_id
+      WHERE r.empresa_id = p_empresa_id
+        AND g.fecha BETWEEN p_fecha_desde AND p_fecha_hasta
+        AND g.deleted_at IS NULL AND r.deleted_at IS NULL
+        AND g.proveedor_id IS NOT NULL
+      GROUP BY g.proveedor_id, cg.nombre
+    ) sub
+    ORDER BY sub.proveedor_id, sub.cnt DESC
   )
   SELECT
     pp.proveedor_id,
