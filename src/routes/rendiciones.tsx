@@ -243,9 +243,12 @@ function RendicionesList({ onSelect }: RendicionesListProps) {
           numero: values.numero,
           proyecto_id: values.proyecto_id,
           descripcion: emptyToNull(values.descripcion),
+          motivo: emptyToNull(values.motivo),
           fecha_rendicion: emptyToNull(values.fecha_rendicion),
           estado_rendicion_id: values.estado_rendicion_id ?? null,
           tipo_rendicion_id: values.tipo_rendicion_id ?? null,
+          anticipo_efectivo: values.anticipo_efectivo ?? null,
+          anticipo_credito: values.anticipo_credito ?? null,
         };
         await actualizar.mutateAsync({ id: editingRendicion.id, payload });
         toast.success("Rendición actualizada correctamente.");
@@ -256,9 +259,12 @@ function RendicionesList({ onSelect }: RendicionesListProps) {
           numero: values.numero,
           proyecto_id: values.proyecto_id,
           descripcion: emptyToNull(values.descripcion),
+          motivo: emptyToNull(values.motivo),
           fecha_rendicion: emptyToNull(values.fecha_rendicion),
           estado_rendicion_id: values.estado_rendicion_id ?? null,
           tipo_rendicion_id: values.tipo_rendicion_id ?? null,
+          anticipo_efectivo: values.anticipo_efectivo ?? null,
+          anticipo_credito: values.anticipo_credito ?? null,
         };
         await crear.mutateAsync(payload);
         toast.success("Rendición creada correctamente.");
