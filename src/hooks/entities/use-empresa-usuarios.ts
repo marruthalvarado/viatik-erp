@@ -76,10 +76,10 @@ export function useCambiarRolUsuario() {
 
   return useMutation({
     mutationFn: async ({ miembroId, rolId }: { miembroId: string; rolId: string }) => {
-      const { error } = await supabase
-        .from("empresas_usuarios")
-        .update({ rol_id: rolId })
-        .eq("id", miembroId);
+      const { error } = await supabase.rpc("admin_cambiar_rol_usuario", {
+        p_eu_id: miembroId,
+        p_rol_id: rolId,
+      });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -96,10 +96,9 @@ export function useDesactivarUsuario() {
 
   return useMutation({
     mutationFn: async (miembroId: string) => {
-      const { error } = await supabase
-        .from("empresas_usuarios")
-        .update({ activo: false })
-        .eq("id", miembroId);
+      const { error } = await supabase.rpc("admin_desactivar_usuario", {
+        p_eu_id: miembroId,
+      });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -116,10 +115,9 @@ export function useReactivarUsuario() {
 
   return useMutation({
     mutationFn: async (miembroId: string) => {
-      const { error } = await supabase
-        .from("empresas_usuarios")
-        .update({ activo: true })
-        .eq("id", miembroId);
+      const { error } = await supabase.rpc("admin_reactivar_usuario", {
+        p_eu_id: miembroId,
+      });
       if (error) throw error;
     },
     onSuccess: () => {

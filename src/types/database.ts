@@ -2494,6 +2494,19 @@ export type Database = {
       };
     };
     Functions: {
+      // Admin mutations para empresas_usuarios (SECURITY DEFINER, evitan RLS)
+      admin_cambiar_rol_usuario: {
+        Args: { p_eu_id: string; p_rol_id: string };
+        Returns: void;
+      };
+      admin_desactivar_usuario: {
+        Args: { p_eu_id: string };
+        Returns: void;
+      };
+      admin_reactivar_usuario: {
+        Args: { p_eu_id: string };
+        Returns: void;
+      };
       // Onboarding de usuarios
       unirse_empresa_por_codigo: {
         Args: { p_codigo: string };

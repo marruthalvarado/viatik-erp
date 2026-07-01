@@ -59,13 +59,20 @@ export function UsuariosSection() {
   const [emailInvite, setEmailInvite] = useState("");
   const [inviteError, setInviteError] = useState<string | null>(null);
 
+  function extractMsg(err: unknown, fallback: string): string {
+    if (err instanceof Error) return err.message;
+    if (typeof err === "object" && err !== null && "message" in err)
+      return String((err as { message: unknown }).message);
+    return fallback;
+  }
+
   async function handleCambiarRol(miembroId: string, rolId: string) {
     setChangingRol(miembroId);
     try {
       await cambiarRol.mutateAsync({ miembroId, rolId });
       toast.success("Rol actualizado.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al cambiar rol.");
+      toast.error(extractMsg(err, "Error al cambiar rol."));
     } finally {
       setChangingRol(null);
     }
@@ -81,7 +88,7 @@ export function UsuariosSection() {
         toast.success("Usuario reactivado.");
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al cambiar estado.");
+      toast.error(extractMsg(err, "Error al cambiar estado."));
     }
   }
 
@@ -98,7 +105,7 @@ export function UsuariosSection() {
       setDialogOpen(false);
       setEmailInvite("");
     } catch (err) {
-      setInviteError(err instanceof Error ? err.message : "Error al agregar usuario.");
+      setInviteError(extractMsg(err, "Error al agregar usuario."));
     }
   }
 
