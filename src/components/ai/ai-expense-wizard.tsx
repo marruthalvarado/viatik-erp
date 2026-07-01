@@ -15,7 +15,7 @@
  * Arquitectura: Componente → Hook (upload + AI) → Service → Provider → API
  * No accede a Supabase ni a OpenAI directamente.
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Loader2, Sparkles } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -49,13 +49,7 @@ export interface AiExpenseWizardProps {
 }
 
 type WizardEstado =
-  | "idle"
-  | "subiendo"
-  | "ai_procesando"
-  | "revision"
-  | "guardando"
-  | "completado"
-  | "error";
+  "idle" | "subiendo" | "ai_procesando" | "revision" | "guardando" | "completado" | "error";
 
 // ─── Componente ───────────────────────────────────────────────────────────────
 
@@ -142,16 +136,25 @@ export function AiExpenseWizard({
     }
   }, [ai.propuesta, ai.procesando, ai.error, wizardEstado]);
 
+  // Dedup guard: evita crear el mismo proveedor dos veces cuando el array
+  // de proveedores todavia no reflejo la creacion anterior (race condition).
+  const creandoProveedores = useRef<Set<string>>(new Set());
+
   // ─── Auto-crear proveedor desde datos XML ────────────────────────────
   async function autoCrearProveedor(nombre: string | null, identificacion: string | null) {
     if (!nombre || !empresaActivaId) return;
     const normaliza = (s: string) => s.trim().toLowerCase();
+    const key = identificacion ? normaliza(identificacion) : normaliza(nombre);
+    if (creandoProveedores.current.has(key)) return;
     const yaExiste = proveedores.some(
       (p) =>
         normaliza(p.nombre) === normaliza(nombre) ||
-        (identificacion && p.identificacion && normaliza(p.identificacion) === normaliza(identificacion)),
+        (identificacion &&
+          p.identificacion &&
+          normaliza(p.identificacion) === normaliza(identificacion)),
     );
     if (yaExiste) return;
+    creandoProveedores.current.add(key);
     try {
       await crearProveedor.mutateAsync({
         empresa_id: empresaActivaId,
@@ -161,6 +164,7 @@ export function AiExpenseWizard({
       void refetchProveedores();
     } catch {
       // Silencioso: si falla no bloquea el flujo
+      creandoProveedores.current.delete(key);
     }
   }
 
@@ -168,8 +172,7 @@ export function AiExpenseWizard({
   function buildDefaultValues(): GastoFormValues {
     if (!propuesta) return { ...EMPTY_FORM, rendicion_id: rendicionIdInicial };
 
-    const normalize = (s: string) =>
-      s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+    const normalize = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
     const catSugerida = categorias.find(
       (c) => normalize(c.nombre) === normalize(propuesta.categoriasSugeridas[0] ?? ""),
     );
@@ -182,7 +185,8 @@ export function AiExpenseWizard({
 
     return {
       rendicion_id: rendicionIdInicial,
-      descripcion: catSugerida?.nombre ?? propuesta.categoriasSugeridas[0] ?? propuesta.proveedor ?? "",
+      descripcion:
+        catSugerida?.nombre ?? propuesta.categoriasSugeridas[0] ?? propuesta.proveedor ?? "",
       numero_documento: propuesta.numeroFactura ?? "",
       fecha: propuesta.fecha ?? "",
       categoria_gasto_id: catSugerida?.id ?? null,
@@ -193,7 +197,9 @@ export function AiExpenseWizard({
         const match = proveedores.find(
           (p) =>
             normaliza(p.nombre) === normaliza(propuesta.proveedor!) ||
-            (propuesta.ruc && p.identificacion && normaliza(p.identificacion) === normaliza(propuesta.ruc)),
+            (propuesta.ruc &&
+              p.identificacion &&
+              normaliza(p.identificacion) === normaliza(propuesta.ruc)),
         );
         return match?.id ?? null;
       })(),
@@ -298,35 +304,34 @@ export function AiExpenseWizard({
   if (wizardEstado === "revision") {
     return (
       <div className="flex flex-col gap-3">
-
         <AiExpenseReview
           propuesta={propuesta}
-        defaultValues={buildDefaultValues()}
-        onConfirm={handleConfirmar}
-        onCancel={onCancel}
-        loading={crearGasto.isPending}
-        rendiciones={rendiciones.map((r) => ({
-          id: r.id,
-          numero: r.numero ?? r.id,
-        }))}
-        proveedores={proveedores.map((p) => ({
-          id: p.id,
-          nombre: p.nombre,
-        }))}
-        categorias={categorias.map((c) => ({
-          id: c.id,
-          nombre: c.nombre,
-        }))}
-        estados={estados.map((e) => ({
-          id: e.id,
-          nombre: e.nombre,
-          codigo: e.codigo,
-        }))}
-        monedas={monedas.map((m) => ({
-          codigo: m.codigo,
-          nombre: m.nombre,
-          simbolo: m.simbolo ?? null,
-        }))}
+          defaultValues={buildDefaultValues()}
+          onConfirm={handleConfirmar}
+          onCancel={onCancel}
+          loading={crearGasto.isPending}
+          rendiciones={rendiciones.map((r) => ({
+            id: r.id,
+            numero: r.numero ?? r.id,
+          }))}
+          proveedores={proveedores.map((p) => ({
+            id: p.id,
+            nombre: p.nombre,
+          }))}
+          categorias={categorias.map((c) => ({
+            id: c.id,
+            nombre: c.nombre,
+          }))}
+          estados={estados.map((e) => ({
+            id: e.id,
+            nombre: e.nombre,
+            codigo: e.codigo,
+          }))}
+          monedas={monedas.map((m) => ({
+            codigo: m.codigo,
+            nombre: m.nombre,
+            simbolo: m.simbolo ?? null,
+          }))}
         />
       </div>
     );

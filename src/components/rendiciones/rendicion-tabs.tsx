@@ -1,23 +1,131 @@
 /**
  * rendicion-tabs.tsx
- * Componentes de pestaña para Gastos y Documentos de una rendición.
+ * Componentes de pestaña para Gastos y Documentos de una rendicion.
  * Consumidos por RendicionDetail (rendicion-detail.tsx).
  */
 import { DataTable } from "@/components/common/data-table";
 import { StatusBadge } from "@/components/common/status-badge";
 import { useGastos } from "@/hooks/entities/use-gastos";
 import { useDocumentos } from "@/hooks/entities/use-documentos";
+import { useViajes } from "@/hooks/entities/use-viajes";
+import { usePoliticas } from "@/hooks/entities/use-politicas";
+import { useCompany } from "@/contexts/company-context";
 import { formatCurrency, formatDate } from "@/utils/formatters";
 import type { DataTableColumn } from "@/components/common/data-table";
-import type { Gasto, Documento } from "@/types/entities";
+import type { Gasto, Documento, Viaje } from "@/types/entities";
+
+// --- KmVehiculoPropioTable ---------------------------------------------------
+
+interface KmRow {
+  id: string;
+  trayecto: string;
+  fecha: string | null;
+  km: number;
+  valorKm: number;
+  total: number;
+}
+
+function KmVehiculoPropioTable({ viajes, valorKm }: { viajes: Viaje[]; valorKm: number }) {
+  const rows: KmRow[] = viajes
+    .filter((v) => v.vehiculo_propio && (v.distancia_km ?? 0) > 0)
+    .map((v) => ({
+      id: v.id,
+      trayecto: v.origen ? `${v.origen} → ${v.destino}` : v.destino,
+      fecha: v.fecha_inicio,
+      km: v.distancia_km ?? 0,
+      valorKm,
+      total: (v.distancia_km ?? 0) * valorKm,
+    }));
+
+  if (rows.length === 0) return null;
+
+  const totalKm = rows.reduce((s, r) => s + r.km, 0);
+  const totalValor = rows.reduce((s, r) => s + r.total, 0);
+
+  const columns: DataTableColumn<KmRow>[] = [
+    {
+      key: "trayecto",
+      header: "Trayecto",
+      cell: (row) => <span className="text-sm">{row.trayecto}</span>,
+    },
+    {
+      key: "fecha",
+      header: "Fecha",
+      className: "w-28",
+      cell: (row) => (
+        <span className="text-sm tabular-nums">{row.fecha ? formatDate(row.fecha) : "—"}</span>
+      ),
+    },
+    {
+      key: "km",
+      header: "Km",
+      align: "right",
+      className: "w-20",
+      cell: (row) => <span className="tabular-nums text-sm">{row.km} km</span>,
+    },
+    {
+      key: "valorKm",
+      header: "$/km",
+      align: "right",
+      className: "w-24",
+      cell: (row) => <span className="tabular-nums text-sm">{formatCurrency(row.valorKm)}</span>,
+    },
+    {
+      key: "total",
+      header: "Total",
+      align: "right",
+      className: "w-28",
+      cell: (row) => (
+        <span className="tabular-nums text-sm font-medium">{formatCurrency(row.total)}</span>
+      ),
+    },
+  ];
+
+  return (
+    <div className="mt-6">
+      <div className="mb-2 flex items-center gap-2">
+        <h3 className="text-sm font-semibold text-foreground">Vehiculo propio</h3>
+        <span className="text-xs text-muted-foreground">
+          {totalKm} km · {formatCurrency(totalValor)}
+        </span>
+      </div>
+      <DataTable
+        columns={columns}
+        data={rows}
+        isLoading={false}
+        getRowId={(row) => row.id}
+        emptyTitle=""
+        emptyDescription=""
+      />
+    </div>
+  );
+}
+
+// --- GastosTab ---------------------------------------------------------------
 
 export function GastosTab({ rendicionId }: { rendicionId: string }) {
+  const { empresaActivaId } = useCompany();
+  void empresaActivaId; // usePoliticas reads empresa from context internally
+
   const { data, isLoading } = useGastos({
     pageSize: 50,
     filters: { rendicion_id: rendicionId },
   });
 
+  const { data: viajesData } = useViajes({
+    pageSize: 50,
+    filters: { rendicion_id: rendicionId },
+  });
+
+  const { data: politicasData } = usePoliticas({ pageSize: 1 });
+
   const gastos = data?.rows ?? [];
+  const viajes = viajesData?.rows ?? [];
+  const valorKm = politicasData?.rows?.[0]?.valor_km ?? 0;
+
+  const viajesConVehiculoPropio = viajes.filter(
+    (v) => v.vehiculo_propio && (v.distancia_km ?? 0) > 0,
+  );
 
   const columns: DataTableColumn<Gasto>[] = [
     {
@@ -28,7 +136,7 @@ export function GastosTab({ rendicionId }: { rendicionId: string }) {
     },
     {
       key: "descripcion",
-      header: "Descripción",
+      header: "Descripcion",
       cell: (row) => <span className="text-sm">{row.descripcion ?? "—"}</span>,
     },
     {
@@ -65,7 +173,7 @@ export function GastosTab({ rendicionId }: { rendicionId: string }) {
           {(data?.total ?? 0) !== 1 ? "s" : ""}
         </p>
         <p className="text-xs text-muted-foreground">
-          Para agregar gastos usa el módulo{" "}
+          Para agregar gastos usa el modulo{" "}
           <span className="font-medium text-foreground">Gastos</span>
         </p>
       </div>
@@ -75,15 +183,22 @@ export function GastosTab({ rendicionId }: { rendicionId: string }) {
         isLoading={isLoading}
         getRowId={(row) => row.id}
         emptyTitle="Sin gastos"
-        emptyDescription="Esta rendición no tiene gastos registrados."
+        emptyDescription="Esta rendicion no tiene gastos registrados."
       />
+      {viajesConVehiculoPropio.length > 0 && (
+        <KmVehiculoPropioTable viajes={viajesConVehiculoPropio} valorKm={valorKm} />
+      )}
+      {viajesConVehiculoPropio.length > 0 && valorKm === 0 && (
+        <p className="mt-2 text-xs text-amber-600">
+          Configura el valor por km en{" "}
+          <span className="font-medium">Administracion → Politicas</span> para ver el costo total.
+        </p>
+      )}
     </div>
   );
 }
 
-// ─── DocumentosTab ────────────────────────────────────────────────────────────
-
-// ─── DocumentosTab ────────────────────────────────────────────────────────────
+// --- DocumentosTab -----------------------------------------------------------
 
 export function DocumentosTab({ rendicionId }: { rendicionId: string }) {
   const { data, isLoading } = useDocumentos({
@@ -129,7 +244,7 @@ export function DocumentosTab({ rendicionId }: { rendicionId: string }) {
           {(data?.total ?? 0) !== 1 ? "s" : ""}
         </p>
         <p className="text-xs text-muted-foreground">
-          Para adjuntar documentos usa el módulo{" "}
+          Para adjuntar documentos usa el modulo{" "}
           <span className="font-medium text-foreground">Documentos</span>
         </p>
       </div>
@@ -139,10 +254,8 @@ export function DocumentosTab({ rendicionId }: { rendicionId: string }) {
         isLoading={isLoading}
         getRowId={(row) => row.id}
         emptyTitle="Sin documentos"
-        emptyDescription="Esta rendición no tiene documentos adjuntos."
+        emptyDescription="Esta rendicion no tiene documentos adjuntos."
       />
     </div>
   );
 }
-
-// ─── RendicionDetail (exportado) ──────────────────────────────────────────────
