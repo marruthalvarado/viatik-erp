@@ -206,22 +206,41 @@ function inferirCategoriaDesdeItems(items: string[]): string {
   if (!items.length) return "Miscelaneos";
   const texto = items.join(" ").toLowerCase();
 
-  if (/coca|cola|bebida|agua|jugo|jucy|mandarina|naranja|manzana|yogur|leche|mineral|snack|empacado|sandwich|sanduche|pan|comida|almuerzo|desayuno|cafe|restaurant|soda|energy|refresco|pollo|carne|res|cerdo|chancho|fritada|seco|arroz|ensalada|hamburguesa|burger|pizza|helado|postre|empanada|tamal|taco|sushi|mariscos|ceviche|chifa|broster|alimento|comedor|cafeteria|tienda|minimarket|supermercad|panaderia|pasteleria|confiter|bocadillo|merienda|lonchera|desayun|brunch|lunch|dinner|meal|food|snack|lunch|fiambre|choclo|mote|humita|menestra|lenteja|sopa|caldo|chupe|locro|aguado|encebollado|guatita|hornado|pernil|chicha|limonada|limon|pina|mora|tomate|papas|yuca|platano|verde|maduro|sango|tigrillo|bolon|pan de yuca|pan de bono|queso|quesillo|mantequilla|mermelada|granola|cereal|avena/.test(texto))
-    return "Alimentacion";
-  if (/gasolina|diesel|combustible|fuel|petroleo|galones/.test(texto))
+  // COMBUSTIBLE: tipos de gasolina Ecuador (Extra, Super, Eco, Diesel) + marcas
+  if (/\bextra\b|\bsuper\b|\bdiesel\b|\beco\b|ecopais|etanol|gasolina|combustible|fuel|petroleo|galones|nafta|gasolinera|estacion de servicio|primax|terpel|repsol|petroecuador|ep petro|gulf|texaco|puma energia|biomax/.test(texto))
     return "Combustible";
-  if (/hotel|hospedaje|habitacion|alojamiento|suite|inn/.test(texto))
+
+  // HOSPEDAJE
+  if (/hotel|hostal|hosteria|hospedaje|habitacion|alojamiento|suite|inn|lodge|resort|airbnb|cabana|apartamento|apart|motel|pensione|posada|glamping/.test(texto))
     return "Hospedaje";
-  if (/taxi|uber|bus|pasaje|transporte|moviliz|transfer/.test(texto))
+
+  // MOVILIZACION: transporte terrestre, alquiler de vehículos
+  if (/taxi|uber|indriver|cabify|bus\b|buseta|camioneta|alquiler.*vehic|vehic.*alquiler|rent.?a.?car|rental|estacionamiento|parqueadero|parqueo|pasaje|transporte|moviliz|transfer|autobus|microbas|tren|metro|mototaxi/.test(texto))
     return "Movilizacion";
-  if (/peaje|toll/.test(texto))
+
+  // PEAJE
+  if (/\bpeaje\b|\btoll\b/.test(texto))
     return "Peaje";
-  if (/farmacia|medicamento|medicina|clinica|hospital|doctor/.test(texto))
+
+  // SALUD
+  if (/farmacia|medicamento|medicina|clinica|hospital|doctor|consulta medica|laboratorio|odontolog|dental|optometria|optica|enfermeria|ambulancia|seguro medico|salud/.test(texto))
     return "Salud";
-  if (/oficina|papeleria|resma|toner|cartucho|papel|utiles/.test(texto))
+
+  // ALIMENTACION: comidas, bebidas, supermercados
+  if (/coca|cola|bebida|agua|jugo|jucy|mandarina|naranja|manzana|yogur|leche|mineral|snack|empacado|sandwich|sanduche|pan\b|comida|almuerzo|desayuno|cafe|restaurant|soda|energy|refresco|pollo|carne|\bres\b|cerdo|chancho|fritada|seco de|arroz|ensalada|hamburguesa|burger|pizza|helado|postre|empanada|tamal|taco|sushi|mariscos|ceviche|chifa|broster|alimento|comedor|cafeteria|tienda\b|minimarket|supermercad|panaderia|pasteleria|confiter|bocadillo|merienda|lonchera|brunch|lunch|dinner|meal|food|fiambre|choclo|mote|humita|menestra|lenteja|sopa|caldo|chupe|locro|aguado|encebollado|guatita|hornado|pernil|chicha|limonada|limon|pina|mora|tomate|papas|yuca|platano|verde|maduro|sango|tigrillo|bolon|queso|quesillo|mantequilla|mermelada|granola|cereal|avena/.test(texto))
+    return "Alimentacion";
+
+  // MATERIAL DE OFICINA
+  if (/papeleria|resma|toner|cartucho|impresora|cuaderno|lapiz|boligrafo|carpeta|archivador|grapadora|tijeras|marcador|pizarra|material de oficina|utiles de oficina|suministro/.test(texto))
     return "Material de Oficina";
-  if (/internet|telefono|celular|plan|datos|telecomunicacion/.test(texto))
+
+  // TELECOMUNICACIONES
+  if (/internet|fibra optica|plan datos|plan movil|recarga|telefono|celular|claro|movistar|cnt|tuenti|telecomunicacion|cable|streaming/.test(texto))
     return "Telecomunicaciones";
+
+  // REPRESENTACION / ENTRETENIMIENTO
+  if (/evento|conferencia|seminario|capacitacion|curso|taller|congreso|inscripcion|membresia|suscripcion|teatro|cine|concierto/.test(texto))
+    return "Representacion";
 
   return "Miscelaneos";
 }
