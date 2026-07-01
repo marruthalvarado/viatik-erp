@@ -6,6 +6,7 @@ import { z } from "zod";
 import type { Viaje } from "@/types/entities";
 
 export const viajeSchema = z.object({
+  origen: z.string().nullable().optional(),
   destino: z.string().min(1, "El destino es requerido"),
   numero: z.string().nullable().optional(),
   fecha_inicio: z.string().nullable().optional(),
@@ -18,6 +19,7 @@ export const viajeSchema = z.object({
 export type ViajeFormValues = z.infer<typeof viajeSchema>;
 
 export const EMPTY_VIAJE: ViajeFormValues = {
+  origen: "",
   destino: "",
   numero: "",
   fecha_inicio: "",
@@ -29,6 +31,7 @@ export const EMPTY_VIAJE: ViajeFormValues = {
 
 export function viajeToForm(v: Viaje): ViajeFormValues {
   return {
+    origen: v.origen ?? "",
     destino: v.destino,
     numero: v.numero ?? "",
     fecha_inicio: v.fecha_inicio ?? "",

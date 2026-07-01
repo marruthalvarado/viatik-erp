@@ -59,12 +59,25 @@ function ViajeForm({ defaultValues, onSubmit, onCancel, loading, submitLabel }: 
         <div className="grid grid-cols-2 gap-4">
           <FormField
             control={form.control}
+            name="origen"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Ciudad origen</FormLabel>
+                <FormControl>
+                  <Input placeholder="Ej: Guayaquil" {...field} value={field.value ?? ""} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
             name="destino"
             render={({ field }) => (
-              <FormItem className="col-span-2">
-                <FormLabel>Destino *</FormLabel>
+              <FormItem>
+                <FormLabel>Ciudad destino *</FormLabel>
                 <FormControl>
-                  <Input placeholder="Ciudad, País" {...field} />
+                  <Input placeholder="Ej: Quito" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -214,6 +227,7 @@ export function ViajesTab({ rendicionId }: { rendicionId: string }) {
     try {
       if (editingViaje) {
         const payload: ViajeUpdate = {
+          origen: emptyToNull(values.origen),
           destino: values.destino,
           numero: emptyToNull(values.numero),
           fecha_inicio: emptyToNull(values.fecha_inicio),
@@ -227,6 +241,7 @@ export function ViajesTab({ rendicionId }: { rendicionId: string }) {
       } else {
         const payload: ViajeInsert = {
           rendicion_id: rendicionId,
+          origen: emptyToNull(values.origen),
           destino: values.destino,
           numero: emptyToNull(values.numero),
           fecha_inicio: emptyToNull(values.fecha_inicio),
@@ -259,10 +274,12 @@ export function ViajesTab({ rendicionId }: { rendicionId: string }) {
   const columns: DataTableColumn<Viaje>[] = [
     {
       key: "destino",
-      header: "Destino",
+      header: "Trayecto",
       cell: (row) => (
         <div>
-          <p className="text-sm font-medium">{row.destino}</p>
+          <p className="text-sm font-medium">
+            {row.origen ? `${row.origen} → ${row.destino}` : row.destino}
+          </p>
           {row.numero && <p className="text-xs text-muted-foreground">#{row.numero}</p>}
         </div>
       ),

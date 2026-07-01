@@ -1311,6 +1311,7 @@ export type Database = {
           descripcion: string | null;
           empresa_id: string;
           id: string;
+          km_ciudad_por_dia: number | null;
           nombre: string;
           paga_combustible: boolean | null;
           paga_peajes: boolean | null;
@@ -1329,6 +1330,7 @@ export type Database = {
           descripcion?: string | null;
           empresa_id: string;
           id?: string;
+          km_ciudad_por_dia?: number | null;
           nombre: string;
           paga_combustible?: boolean | null;
           paga_peajes?: boolean | null;
@@ -1347,6 +1349,7 @@ export type Database = {
           descripcion?: string | null;
           empresa_id?: string;
           id?: string;
+          km_ciudad_por_dia?: number | null;
           nombre?: string;
           paga_combustible?: boolean | null;
           paga_peajes?: boolean | null;
@@ -1675,6 +1678,8 @@ export type Database = {
       };
       rendiciones: {
         Row: {
+          anticipo_credito: number | null;
+          anticipo_efectivo: number | null;
           created_at: string | null;
           deleted_at: string | null;
           descripcion: string | null;
@@ -1684,6 +1689,7 @@ export type Database = {
           fecha_envio: string | null;
           fecha_rendicion: string | null;
           id: string;
+          motivo: string | null;
           numero: string;
           politica_id: string | null;
           proyecto_id: string;
@@ -1698,6 +1704,8 @@ export type Database = {
           workflow_id: string | null;
         };
         Insert: {
+          anticipo_credito?: number | null;
+          anticipo_efectivo?: number | null;
           created_at?: string | null;
           deleted_at?: string | null;
           descripcion?: string | null;
@@ -1707,6 +1715,7 @@ export type Database = {
           fecha_envio?: string | null;
           fecha_rendicion?: string | null;
           id?: string;
+          motivo?: string | null;
           numero: string;
           politica_id?: string | null;
           proyecto_id: string;
@@ -1721,6 +1730,8 @@ export type Database = {
           workflow_id?: string | null;
         };
         Update: {
+          anticipo_credito?: number | null;
+          anticipo_efectivo?: number | null;
           created_at?: string | null;
           deleted_at?: string | null;
           descripcion?: string | null;
@@ -1730,6 +1741,7 @@ export type Database = {
           fecha_envio?: string | null;
           fecha_rendicion?: string | null;
           id?: string;
+          motivo?: string | null;
           numero?: string;
           politica_id?: string | null;
           proyecto_id?: string;
@@ -2041,6 +2053,7 @@ export type Database = {
           id: string;
           numero: string | null;
           observaciones: string | null;
+          origen: string | null;
           pais_id: string | null;
           rendicion_id: string;
           updated_at: string | null;
@@ -2055,6 +2068,7 @@ export type Database = {
           id?: string;
           numero?: string | null;
           observaciones?: string | null;
+          origen?: string | null;
           pais_id?: string | null;
           rendicion_id: string;
           updated_at?: string | null;
@@ -2069,6 +2083,7 @@ export type Database = {
           id?: string;
           numero?: string | null;
           observaciones?: string | null;
+          origen?: string | null;
           pais_id?: string | null;
           rendicion_id?: string;
           updated_at?: string | null;
@@ -2252,7 +2267,55 @@ export type Database = {
           },
         ];
       };
-      vw_dashboard_proyectos: {
+      vw_empresa_usuarios: {
+        Row: {
+          id: string;
+          empresa_id: string;
+          usuario_id: string;
+          rol_id: string;
+          activo: boolean | null;
+          fecha_inicio: string | null;
+          fecha_fin: string | null;
+          nombres: string;
+          apellidos: string | null;
+          cargo: string | null;
+          estado: string | null;
+          rol_codigo: string;
+          rol_nombre: string;
+        };
+        Insert: {
+          id?: string;
+          empresa_id: string;
+          usuario_id: string;
+          rol_id: string;
+          activo?: boolean | null;
+          fecha_inicio?: string | null;
+          fecha_fin?: string | null;
+          nombres: string;
+          apellidos?: string | null;
+          cargo?: string | null;
+          estado?: string | null;
+          rol_codigo: string;
+          rol_nombre: string;
+        };
+        Update: {
+          id?: string;
+          empresa_id?: string;
+          usuario_id?: string;
+          rol_id?: string;
+          activo?: boolean | null;
+          fecha_inicio?: string | null;
+          fecha_fin?: string | null;
+          nombres?: string;
+          apellidos?: string | null;
+          cargo?: string | null;
+          estado?: string | null;
+          rol_codigo?: string;
+          rol_nombre?: string;
+        };
+        Relationships: [];
+      };
+            vw_dashboard_proyectos: {
         Row: {
           empresa_id: string | null;
           gasto_real: number | null;
@@ -2431,6 +2494,10 @@ export type Database = {
       };
     };
     Functions: {
+      es_admin_empresa: {
+        Args: { p_empresa_id: string };
+        Returns: boolean;
+      };
       // FASE 9A: RPCs de notificaciones
       marcar_todas_notificaciones_leidas: {
         Args: { p_usuario_id: string; p_empresa_id: string };

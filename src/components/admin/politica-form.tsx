@@ -36,7 +36,7 @@ const TOPE_LABELS: Record<string, string> = {
   tope_desayuno: "Desayuno",
   tope_almuerzo: "Almuerzo",
   tope_cena: "Cena",
-  tope_hospedaje: "Hospedaje",
+  tope_hospedaje: "Hospedaje (por noche)",
   tope_miscelaneo: "Misceláneo",
 };
 
@@ -109,7 +109,32 @@ export function PoliticaFormDrawer({
                   name="valor_km"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Valor por km</FormLabel>
+                      <FormLabel>Valor por km (viaje)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="0.00"
+                          value={field.value ?? ""}
+                          onChange={(e) =>
+                            field.onChange(e.target.value === "" ? null : Number(e.target.value))
+                          }
+                          onBlur={field.onBlur}
+                          name={field.name}
+                          ref={field.ref}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="km_ciudad_por_dia"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Km ciudad / día</FormLabel>
                       <FormControl>
                         <Input
                           type="number"

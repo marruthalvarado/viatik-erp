@@ -12,6 +12,7 @@ import {
   Plane,
   GitBranch,
   Clock,
+  Download,
 } from "lucide-react";
 
 import { PageHeader } from "@/components/common/page-header";
@@ -41,6 +42,7 @@ import { RendicionForm } from "./rendicion-form";
 import { rendicionToForm, emptyToNull, estadoTone } from "./rendicion-types";
 import type { RendicionFormValues } from "./rendicion-types";
 import { ViajesTab } from "./viajes-tab";
+import { exportarLiquidacion } from "@/services/liquidacion-export";
 import { WorkflowTab } from "./workflow-tab";
 import { useWorkflows } from "@/hooks/entities/use-workflow";
 
@@ -83,6 +85,7 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [deletingRendicion, setDeletingRendicion] = useState(false);
+  const [exportando, setExportando] = useState(false);
 
   const { data: proyectosData } = useProyectos({ pageSize: 200 });
   const { data: estadosData } = useEstadosRendicion({ pageSize: 100 });
@@ -111,9 +114,12 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
         numero: values.numero,
         proyecto_id: values.proyecto_id,
         descripcion: emptyToNull(values.descripcion),
+        motivo: emptyToNull(values.motivo),
         fecha_rendicion: emptyToNull(values.fecha_rendicion),
         estado_rendicion_id: values.estado_rendicion_id ?? null,
         tipo_rendicion_id: values.tipo_rendicion_id ?? null,
+        anticipo_efectivo: values.anticipo_efectivo ?? null,
+        anticipo_credito: values.anticipo_credito ?? null,
       };
       const updated = await actualizar.mutateAsync({ id: rendicion.id, payload });
       onUpdated(updated);
@@ -133,6 +139,17 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
       toast.error(err instanceof Error ? err.message : "Error al eliminar.");
     } finally {
       setDeletingRendicion(false);
+    }
+  }
+
+  async function handleExportarLiquidacion() {
+    setExportando(true);
+    try {
+      await exportarLiquidacion(rendicion);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al generar la liquidación.");
+    } finally {
+      setExportando(false);
     }
   }
 
@@ -158,6 +175,18 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
         actions={
           <div className="flex items-center gap-2">
             <StatusBadge tone={estadoTone(estadoCodigo)}>{estadoNombre}</StatusBadge>
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              aria-label="Exportar liquidación de viáticos"
+              disabled={exportando}
+              onClick={() => void handleExportarLiquidacion()}
+            >
+              <Download className="size-4" />
+              {exportando ? "Generando…" : "Liquidación"}
+            </Button>
 
             {/* El botón de envío ahora vive en el tab Workflow — acceso directo aquí */}
             <Button
