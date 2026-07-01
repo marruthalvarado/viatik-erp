@@ -161,3 +161,18 @@ export function useUnirseEmpresaPorCodigo() {
     },
   });
 }
+
+// ─── Hook: crear empresa nueva y unirse como admin ───────────────────────────
+
+export function useCrearEmpresaYUnirse() {
+  return useMutation({
+    mutationFn: async ({ nombre, codigo }: { nombre: string; codigo?: string }) => {
+      const { data, error } = await supabase.rpc("crear_empresa_y_unirse", {
+        p_nombre: nombre,
+        p_codigo: codigo ?? null,
+      });
+      if (error) throw error;
+      return data as { ok: boolean; empresa_id: string; empresa: string; codigo: string };
+    },
+  });
+}

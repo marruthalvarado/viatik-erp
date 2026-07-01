@@ -2494,6 +2494,10 @@ export type Database = {
       };
     };
     Functions: {
+      crear_empresa_y_unirse: {
+        Args: { p_nombre: string; p_codigo?: string };
+        Returns: Json;
+      };
       // Admin mutations para empresas_usuarios (SECURITY DEFINER, evitan RLS)
       admin_cambiar_rol_usuario: {
         Args: { p_eu_id: string; p_rol_id: string };
