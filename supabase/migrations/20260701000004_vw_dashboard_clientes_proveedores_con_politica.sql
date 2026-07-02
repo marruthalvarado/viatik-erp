@@ -1,18 +1,15 @@
--- =============================================================================
--- MIGRATION: aplicar filtro de política en vw_dashboard_clientes y
+-- MIGRATION: aplicar filtro de politica en vw_dashboard_clientes y
 -- vw_dashboard_proveedores, igual que fn_actualizar_totales_rendicion.
 --
--- vw_dashboard_clientes  → usa SUM(r.total_facturado) por cliente
+-- vw_dashboard_clientes  -> usa SUM(r.total_facturado) por cliente
 --   (rendicion.total_facturado ya incluye: gastos filtrados + km propio + km ciudad)
 --
--- vw_dashboard_proveedores → aplica CASE combustible/peajes por gasto,
---   usando la política de la rendición (o la primera política de la empresa
+-- vw_dashboard_proveedores -> aplica CASE combustible/peajes por gasto,
+--   usando la politica de la rendicion (o la primera politica de la empresa
 --   como fallback, igual que el trigger).
--- =============================================================================
 
--- ─── 1. vw_dashboard_clientes ─────────────────────────────────────────────────
+-- 1. vw_dashboard_clientes
 -- Usa total_facturado de rendiciones en lugar de SUM(gastos.valor_factura)
--- para que incluya km vehículo propio y el filtro de política.
 CREATE OR REPLACE VIEW vw_dashboard_clientes AS
 SELECT
   p.empresa_id,
@@ -28,30 +25,27 @@ LEFT JOIN rendiciones r ON r.proyecto_id = p.id
 WHERE c.deleted_at IS NULL
 GROUP BY p.empresa_id, c.id, c.nombre;
 
--- ─── 2. vw_dashboard_proveedores ──────────────────────────────────────────────
--- Aplica la misma lógica de política que fn_actualizar_totales_rendicion:
---   - paga_combustible = false  →  valor 0 para gastos de categoría Combustible
---   - paga_peajes = false       →  valor 0 para gastos de categoría Peaje
--- Usa la política de la rendición; si no tiene, la primera política de la empresa.
+-- 2. vw_dashboard_proveedores
+-- Aplica la misma logica de politica que fn_actualizar_totales_rendicion:
+--   paga_combustible = false -> valor 0 para gastos de categoria Combustible
+--   paga_peajes = false      -> valor 0 para gastos de categoria Peaje
+-- Usa la politica de la rendicion; si no tiene, la primera politica de la empresa.
+-- NOTA: la tabla politicas no tiene deleted_at.
 CREATE OR REPLACE VIEW vw_dashboard_proveedores AS
 WITH empresa_politica AS (
-  -- Política por defecto de cada empresa (la más antigua, igual que el trigger)
   SELECT DISTINCT ON (empresa_id)
     empresa_id,
     paga_combustible,
     paga_peajes
   FROM politicas
-  WHERE deleted_at IS NULL
   ORDER BY empresa_id, created_at
 ),
 gasto_politica AS (
-  -- Resolver la política efectiva de cada gasto
   SELECT
     g.id            AS gasto_id,
     g.proveedor_id,
     g.empresa_id,
     g.deleted_at,
-    COALESCE(cg.nombre, '') AS categoria_nombre,
     CASE
       WHEN g.deleted_at IS NOT NULL THEN 0
       WHEN COALESCE(pol_r.paga_combustible, ep.paga_combustible) = false
@@ -70,8 +64,8 @@ SELECT
   pv.empresa_id,
   pv.id,
   pv.nombre,
-  COALESCE(SUM(gp.valor_efectivo), 0)             AS total_gastado,
-  COUNT(gp.gasto_id) FILTER (WHERE gp.deleted_at IS NULL) AS cantidad_gastos
+  COALESCE(SUM(gp.valor_efectivo), 0)                          AS total_gastado,
+  COUNT(gp.gasto_id) FILTER (WHERE gp.deleted_at IS NULL)      AS cantidad_gastos
 FROM proveedores pv
 LEFT JOIN gasto_politica gp ON gp.proveedor_id = pv.id
                             AND gp.empresa_id  = pv.empresa_id
