@@ -29,9 +29,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { useProyectos } from "@/hooks/entities/use-proyectos";
 import { useEstadosRendicion, useTiposRendicion } from "@/hooks/entities/use-catalogs";
 import { useActualizarRendicion, useEliminarRendicion } from "@/hooks/entities/use-rendiciones";
+import { useViajes } from "@/hooks/entities/use-viajes";
+import { usePoliticas } from "@/hooks/entities/use-politicas";
 import { useCompany } from "@/contexts/company-context";
 import { useAuth } from "@/contexts/auth-context";
 import { formatCurrency, formatDate } from "@/utils/formatters";
@@ -94,6 +98,62 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
 
   const actualizar = useActualizarRendicion();
   const eliminar = useEliminarRendicion();
+
+  // --- Computo de total efectivo (gastos filtrados + vehiculo propio + km ciudad) ---
+  const { data: viajesData } = useViajes({
+    pageSize: 50,
+    filters: { rendicion_id: rendicion.id },
+  });
+  const { data: politicasData } = usePoliticas({ pageSize: 1 });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: gastosRaw = [], isSuccess: gastosLoaded } = useQuery<any[]>({
+    queryKey: ["gastos-enriquecidos", rendicion.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("gastos")
+        .select("*, categorias_gasto(nombre)")
+        .eq("rendicion_id", rendicion.id)
+        .is("deleted_at", null);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (data ?? []) as any[];
+    },
+  });
+  const viajesLoaded = viajesData !== undefined;
+
+  const politica = politicasData?.rows?.[0] ?? null;
+  const valorKm = Number(politica?.valor_km ?? 0);
+  const kmCiudadDia = Number(politica?.km_ciudad_por_dia ?? 0);
+  const viajes = viajesData?.rows ?? [];
+
+  const viajePropio = viajes.find((v) => v.vehiculo_propio) ?? viajes[0] ?? null;
+  const diasViaje =
+    viajePropio?.fecha_inicio && viajePropio?.fecha_fin
+      ? Math.ceil(
+          (new Date(viajePropio.fecha_fin).getTime() -
+            new Date(viajePropio.fecha_inicio).getTime()) /
+            (1000 * 60 * 60 * 24),
+        ) + 1
+      : 0;
+  const kmPropio = viajes
+    .filter((v) => v.vehiculo_propio && (v.distancia_km ?? 0) > 0)
+    .reduce((s, v) => s + Number(v.distancia_km ?? 0) * 2 * valorKm, 0);
+  const kmCiudad = diasViaje > 0 && kmCiudadDia > 0 ? diasViaje * kmCiudadDia * valorKm : 0;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const gastosSum = (gastosRaw as any[]).reduce((s: number, g: any) => {
+    const catNombre: string = g.categorias_gasto?.nombre ?? "";
+
+    let val: number = Number(g.valor_factura ?? 0);
+    if (politica?.paga_combustible === false && catNombre === "Combustible") val = 0;
+    if (politica?.paga_peajes === false && catNombre === "Peaje") val = 0;
+    return s + val;
+  }, 0);
+
+  const totalEfectivo = gastosSum + kmPropio + kmCiudad;
+  const dataReady = gastosLoaded && viajesLoaded;
+  const displayTotal = dataReady ? totalEfectivo : Number(rendicion.total_facturado ?? 0);
+  const displaySaldo = displayTotal - Number(rendicion.total_anticipos ?? 0);
+  // -------------------------------------------------------------------------------
 
   const proyectos = proyectosData?.rows ?? [];
   const estados = estadosData?.rows ?? [];
@@ -227,13 +287,13 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
 
       {/* Resumen financiero */}
       <div className="mb-6 mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <FinancialCard label="Total facturado" value={formatCurrency(rendicion.total_facturado)} />
+        <FinancialCard label="Total facturado" value={formatCurrency(displayTotal)} />
         <FinancialCard label="Reembolsable" value={formatCurrency(rendicion.total_reembolsable)} />
         <FinancialCard label="Anticipos" value={formatCurrency(rendicion.total_anticipos)} />
         <FinancialCard
           label="Saldo"
-          value={formatCurrency(rendicion.saldo)}
-          highlight={(rendicion.saldo ?? 0) < 0 ? "danger" : "normal"}
+          value={formatCurrency(displaySaldo)}
+          highlight={displaySaldo < 0 ? "danger" : "normal"}
         />
       </div>
 

@@ -5,7 +5,8 @@
  */
 import { DataTable } from "@/components/common/data-table";
 import { StatusBadge } from "@/components/common/status-badge";
-import { useGastos } from "@/hooks/entities/use-gastos";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { useDocumentos } from "@/hooks/entities/use-documentos";
 import { useViajes } from "@/hooks/entities/use-viajes";
 import { usePoliticas } from "@/hooks/entities/use-politicas";
@@ -124,9 +125,20 @@ export function GastosTab({ rendicionId }: { rendicionId: string }) {
   const { empresaActivaId } = useCompany();
   void empresaActivaId; // usePoliticas reads empresa from context internally
 
-  const { data, isLoading } = useGastos({
-    pageSize: 50,
-    filters: { rendicion_id: rendicionId },
+  // Fetch gastos enriched with category name for policy filtering
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: gastosRaw = [], isLoading } = useQuery<any[]>({
+    queryKey: ["gastos-enriquecidos", rendicionId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("gastos")
+        .select("*, categorias_gasto(nombre)")
+        .eq("rendicion_id", rendicionId)
+        .is("deleted_at", null)
+        .order("fecha");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (data ?? []) as any[];
+    },
   });
 
   const { data: viajesData } = useViajes({
@@ -136,9 +148,22 @@ export function GastosTab({ rendicionId }: { rendicionId: string }) {
 
   const { data: politicasData } = usePoliticas({ pageSize: 1 });
 
-  const gastos = data?.rows ?? [];
+  const politica = politicasData?.rows?.[0] ?? null;
+  const valorKm = Number(politica?.valor_km ?? 0);
+
+  // Apply policy filter: zero out excluded categories
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const gastos: Gasto[] = (gastosRaw as any[]).map((g) => {
+    const catNombre: string = g.categorias_gasto?.nombre ?? "";
+
+    let valorFactura: number = Number(g.valor_factura ?? 0);
+    if (politica?.paga_combustible === false && catNombre === "Combustible") valorFactura = 0;
+    if (politica?.paga_peajes === false && catNombre === "Peaje") valorFactura = 0;
+
+    return { ...g, valor_factura: valorFactura } as Gasto;
+  });
+
   const viajes = viajesData?.rows ?? [];
-  const valorKm = politicasData?.rows?.[0]?.valor_km ?? 0;
 
   const viajesConVehiculoPropio = viajes.filter(
     (v) => v.vehiculo_propio && (v.distancia_km ?? 0) > 0,
@@ -186,8 +211,8 @@ export function GastosTab({ rendicionId }: { rendicionId: string }) {
     <div>
       <div className="mb-3 flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          {data?.total ?? 0} gasto{(data?.total ?? 0) !== 1 ? "s" : ""} registrado
-          {(data?.total ?? 0) !== 1 ? "s" : ""}
+          {gastosRaw.length} gasto{gastosRaw.length !== 1 ? "s" : ""} registrado
+          {gastosRaw.length !== 1 ? "s" : ""}
         </p>
         <p className="text-xs text-muted-foreground">
           Para agregar gastos usa el modulo{" "}

@@ -9,7 +9,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Gasto, Viaje, Politica, Rendicion } from "@/types/entities";
 
-// --- Helpers -----------------------------------------------------------------
+// --- Helpers ---------------------------------------------------------------
 
 type Cell = string | number;
 type AoaRow = Cell[];
