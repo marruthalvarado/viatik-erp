@@ -28,14 +28,31 @@ interface KmRow {
 function KmVehiculoPropioTable({ viajes, valorKm }: { viajes: Viaje[]; valorKm: number }) {
   const rows: KmRow[] = viajes
     .filter((v) => v.vehiculo_propio && (v.distancia_km ?? 0) > 0)
-    .map((v) => ({
-      id: v.id,
-      trayecto: v.origen ? `${v.origen} → ${v.destino}` : v.destino,
-      fecha: v.fecha_inicio,
-      km: v.distancia_km ?? 0,
-      valorKm,
-      total: (v.distancia_km ?? 0) * valorKm,
-    }));
+    .flatMap((v) => {
+      const km = v.distancia_km ?? 0;
+      const idaTrayecto = v.origen ? `${v.origen} → ${v.destino}` : v.destino;
+      const retornoTrayecto = v.origen
+        ? `${v.destino} → ${v.origen} (retorno)`
+        : `${v.destino} (retorno)`;
+      return [
+        {
+          id: `${v.id}_ida`,
+          trayecto: idaTrayecto,
+          fecha: v.fecha_inicio,
+          km,
+          valorKm,
+          total: km * valorKm,
+        },
+        {
+          id: `${v.id}_retorno`,
+          trayecto: retornoTrayecto,
+          fecha: v.fecha_inicio,
+          km,
+          valorKm,
+          total: km * valorKm,
+        },
+      ];
+    });
 
   if (rows.length === 0) return null;
 

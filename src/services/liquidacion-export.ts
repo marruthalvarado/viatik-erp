@@ -2,6 +2,8 @@
  * liquidacion-export.ts
  * Genera el Excel de Liquidacion de Viaticos para una rendicion.
  * Usa SheetJS (xlsx) - 7 columnas: A(spacer) B(Concepto) C(N°Doc) D(Empresa) E(RUC) F(Km) G(Valor)
+ * - Subtotales y totales son formulas =SUM(...) editables en Excel.
+ * - Gastos de Combustible/Peaje se zeroan si la politica lo indica.
  */
 
 import { supabase } from "@/integrations/supabase/client";
@@ -26,10 +28,7 @@ function fmtDate(d: string | null | undefined): string {
 }
 
 function normalizar(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+  return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 }
 
 function categoriaSeccion(
@@ -145,6 +144,19 @@ async function fetchProyectoNombre(proyectoId: string): Promise<string> {
   return (data as unknown as { nombre: string })?.nombre ?? "-";
 }
 
+// --- Aplicar politica de pagos -----------------------------------------------
+
+function aplicarPolitica(gastos: GastoEnriquecido[], pol: Politica | null): GastoEnriquecido[] {
+  if (!pol) return gastos;
+  return gastos.map((g) => {
+    if (pol.paga_combustible === false && g.categoria_nombre === "Combustible")
+      return { ...g, valor_factura: 0 };
+    if (pol.paga_peajes === false && g.categoria_nombre === "Peaje")
+      return { ...g, valor_factura: 0 };
+    return g;
+  });
+}
+
 // --- Main export -------------------------------------------------------------
 
 export async function exportarLiquidacion(rendicion: Rendicion): Promise<void> {
@@ -159,6 +171,9 @@ export async function exportarLiquidacion(rendicion: Rendicion): Promise<void> {
       fetchEmpresaNombre(rendicion.empresa_id),
       fetchProyectoNombre(rendicion.proyecto_id),
     ]);
+
+  // Aplicar politica de pagos: zeroa combustible/peaje si corresponde
+  const gastosEfectivos = aplicarPolitica(gastos, politica);
 
   const valorKm = n(politica?.valor_km);
   const kmCiudadDia = n(politica?.km_ciudad_por_dia);
@@ -178,10 +193,18 @@ export async function exportarLiquidacion(rendicion: Rendicion): Promise<void> {
         ) + 1
       : 0;
 
-  const hospedajeG = gastos.filter((g) => categoriaSeccion(g.categoria_nombre) === "hospedaje");
-  const movG = gastos.filter((g) => categoriaSeccion(g.categoria_nombre) === "movilizacion");
-  const alimentG = gastos.filter((g) => categoriaSeccion(g.categoria_nombre) === "alimentacion");
-  const miscG = gastos.filter((g) => categoriaSeccion(g.categoria_nombre) === "miscelaneos");
+  const hospedajeG = gastosEfectivos.filter(
+    (g) => categoriaSeccion(g.categoria_nombre) === "hospedaje",
+  );
+  const movG = gastosEfectivos.filter(
+    (g) => categoriaSeccion(g.categoria_nombre) === "movilizacion",
+  );
+  const alimentG = gastosEfectivos.filter(
+    (g) => categoriaSeccion(g.categoria_nombre) === "alimentacion",
+  );
+  const miscG = gastosEfectivos.filter(
+    (g) => categoriaSeccion(g.categoria_nombre) === "miscelaneos",
+  );
 
   type KmRow = { label: string; km: number; valor: number };
   const kmRows: KmRow[] = viajes
@@ -211,6 +234,59 @@ export async function exportarLiquidacion(rendicion: Rendicion): Promise<void> {
   const totalAnticipos = antEfectivo + antCredito;
   const diferencia = totalGeneral - totalAnticipos;
 
+  // --- Pre-calcular indices de filas (0-based) para referencias de formulas --
+  //
+  // Estructura AOA:
+  //  0       : titulo
+  //  1-10    : filas de cabecera (11 filas)
+  //  11      : blank
+  //  12      : "A. HOSPEDAJE" header
+  //  13      : COL_HDR
+  //  14..    : datos hospedaje (hosDataCount filas)
+  //  hosSubtotalIdx     : SUBTOTAL A
+  //  hosSubtotalIdx+1   : blank
+  //  hosSubtotalIdx+2   : "B. MOVILIZACION" header
+  //  hosSubtotalIdx+3   : COL_HDR
+  //  hosSubtotalIdx+4.. : datos movilizacion (movDataCount filas)
+  //  movSubtotalIdx     : SUBTOTAL B
+  //  ... same pattern for C y D
+
+  const hosDataCount = Math.max(hospedajeG.length, 1);
+  const movActualCount = kmRows.length + (kmCiudadValor > 0 ? 1 : 0) + movG.length;
+  const movDataCount = movActualCount === 0 ? 1 : movActualCount;
+  const alimentDataCount = Math.max(alimentG.length, 1);
+  const miscDataCount = Math.max(miscG.length, 1);
+
+  const hosDataStartIdx = 14;
+  const hosDataEndIdx = hosDataStartIdx + hosDataCount - 1;
+  const hosSubtotalIdx = hosDataEndIdx + 1;
+
+  const movDataStartIdx = hosSubtotalIdx + 4;
+  const movDataEndIdx = movDataStartIdx + movDataCount - 1;
+  const movSubtotalIdx = movDataEndIdx + 1;
+
+  const alimentDataStartIdx = movSubtotalIdx + 4;
+  const alimentDataEndIdx = alimentDataStartIdx + alimentDataCount - 1;
+  const alimentSubtotalIdx = alimentDataEndIdx + 1;
+
+  const miscDataStartIdx = alimentSubtotalIdx + 4;
+  const miscDataEndIdx = miscDataStartIdx + miscDataCount - 1;
+  const miscSubtotalIdx = miscDataEndIdx + 1;
+
+  // Indices del bloque de resumen final
+  const rFinalHeader = miscSubtotalIdx + 2;
+  const rA = rFinalHeader + 1;
+  const rB = rA + 1;
+  const rC = rA + 2;
+  const rD = rA + 3;
+  const rTotal = rA + 4;
+  const rAnt1 = rA + 5;
+  const rAnt2 = rA + 6;
+  const rDif = rA + 7;
+
+  // Convierte indice 0-based a numero de fila Excel (1-based)
+  const ex = (idx: number) => idx + 1;
+
   // --- Build AoA -------------------------------------------------------------
 
   const aoa: AoaRow[] = [];
@@ -224,7 +300,7 @@ export async function exportarLiquidacion(rendicion: Rendicion): Promise<void> {
   aoa.push(r("LIQUIDACION DE GASTOS DE VIAJE, HOSPEDAJE Y ALIMENTACION"));
   mergeFullRow();
 
-  // Filas 1-10: info izquierda + resumen derecha
+  // Filas 1-10: cabecera izquierda + resumen derecha
   function headerRow(labelL: string, valL: Cell, labelR: string, valR: Cell) {
     const idx = aoa.length;
     aoa.push(r("", labelL, "", valL, labelR, "", valR));
@@ -232,20 +308,20 @@ export async function exportarLiquidacion(rendicion: Rendicion): Promise<void> {
     merges.push({ s: { r: idx, c: 4 }, e: { r: idx, c: 5 } });
   }
 
-  headerRow("EMPRESA:", empresaNombre, "RESUMEN DE ANTICIPOS", "");
-  headerRow("EMPLEADO:", empleadoNombre, "Anticipo efectivo:", antEfectivo);
-  headerRow("PROYECTO:", proyectoNombre, "Anticipo tarjeta:", antCredito);
-  headerRow("PERIODO:", periodo, "TOTAL ANTICIPOS:", totalAnticipos);
-  headerRow("DESTINO:", destino, "RESUMEN POR CATEGORIA", "");
-  headerRow("MOTIVO:", rendicion.motivo ?? rendicion.descripcion ?? "-", "A. Hospedaje:", totA);
-  headerRow(`RENDICION N: ${rendicion.numero}`, "", "B. Movilizacion:", totB);
-  headerRow(`FECHA: ${fmtDate(rendicion.fecha_rendicion)}`, "", "C. Alimentacion:", totC);
-  headerRow("", "", "D. Miscelaneos:", totD);
-  headerRow("", "", "TOTAL GENERAL:", totalGeneral);
+  headerRow("EMPRESA:", empresaNombre, "RESUMEN DE ANTICIPOS", ""); // row 1
+  headerRow("EMPLEADO:", empleadoNombre, "Anticipo efectivo:", antEfectivo); // row 2
+  headerRow("PROYECTO:", proyectoNombre, "Anticipo tarjeta:", antCredito); // row 3
+  headerRow("PERIODO:", periodo, "TOTAL ANTICIPOS:", totalAnticipos); // row 4
+  headerRow("DESTINO:", destino, "RESUMEN POR CATEGORIA", ""); // row 5
+  headerRow("MOTIVO:", rendicion.motivo ?? rendicion.descripcion ?? "-", "A. Hospedaje:", totA); // row 6
+  headerRow(`RENDICION N: ${rendicion.numero}`, "", "B. Movilizacion:", totB); // row 7
+  headerRow(`FECHA: ${fmtDate(rendicion.fecha_rendicion)}`, "", "C. Alimentacion:", totC); // row 8
+  headerRow("", "", "D. Miscelaneos:", totD); // row 9
+  headerRow("", "", "TOTAL GENERAL:", totalGeneral); // row 10
 
-  aoa.push(r()); // blank
+  aoa.push(r()); // row 11 blank
 
-  // Column header row (reusable)
+  // Column header row (reutilizable)
   const COL_HDR = r(
     "",
     "CONCEPTO / DETALLE",
@@ -275,7 +351,7 @@ export async function exportarLiquidacion(rendicion: Rendicion): Promise<void> {
     return r("", "", "", "", label, "", value);
   }
 
-  // --- Seccion A: Hospedaje --------------------------------------------------
+  // --- Seccion A: Hospedaje (row 12+) ----------------------------------------
   aoa.push(r("A. HOSPEDAJE"));
   mergeFullRow();
   aoa.push(COL_HDR);
@@ -388,7 +464,8 @@ export async function exportarLiquidacion(rendicion: Rendicion): Promise<void> {
 
   // --- Worksheet -------------------------------------------------------------
 
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const ws: any = XLSX.utils.aoa_to_sheet(aoa);
 
   ws["!merges"] = merges;
   ws["!cols"] = [
@@ -401,13 +478,46 @@ export async function exportarLiquidacion(rendicion: Rendicion): Promise<void> {
     { wch: 13 },
   ];
 
-  // Formato moneda columna G
+  // Formato moneda columna G para celdas con valor numerico
   for (let rowIdx = 0; rowIdx < aoa.length; rowIdx++) {
     const cellAddr = XLSX.utils.encode_cell({ r: rowIdx, c: 6 });
     if (ws[cellAddr] && typeof ws[cellAddr].v === "number") {
       ws[cellAddr].z = '"$"#,##0.00';
     }
   }
+
+  // --- Parchear celdas con formulas =SUM(...) --------------------------------
+
+  function setGFormula(rowIdx: number, formula: string, value: number) {
+    const addr = XLSX.utils.encode_cell({ r: rowIdx, c: 6 });
+    ws[addr] = { t: "n", f: formula, v: value, z: '"$"#,##0.00' };
+  }
+
+  // Subtotales de secciones (referencias a rangos de datos)
+  setGFormula(hosSubtotalIdx, `SUM(G${ex(hosDataStartIdx)}:G${ex(hosDataEndIdx)})`, totA);
+  setGFormula(movSubtotalIdx, `SUM(G${ex(movDataStartIdx)}:G${ex(movDataEndIdx)})`, totB);
+  setGFormula(
+    alimentSubtotalIdx,
+    `SUM(G${ex(alimentDataStartIdx)}:G${ex(alimentDataEndIdx)})`,
+    totC,
+  );
+  setGFormula(miscSubtotalIdx, `SUM(G${ex(miscDataStartIdx)}:G${ex(miscDataEndIdx)})`, totD);
+
+  // Cabecera derecha: referencias a los subtotales de seccion
+  setGFormula(4, "G3+G4", totalAnticipos);
+  setGFormula(6, `G${ex(hosSubtotalIdx)}`, totA);
+  setGFormula(7, `G${ex(movSubtotalIdx)}`, totB);
+  setGFormula(8, `G${ex(alimentSubtotalIdx)}`, totC);
+  setGFormula(9, `G${ex(miscSubtotalIdx)}`, totD);
+  setGFormula(10, "G7+G8+G9+G10", totalGeneral);
+
+  // Resumen final: referencias cruzadas a subtotales y anticipos
+  setGFormula(rA, `G${ex(hosSubtotalIdx)}`, totA);
+  setGFormula(rB, `G${ex(movSubtotalIdx)}`, totB);
+  setGFormula(rC, `G${ex(alimentSubtotalIdx)}`, totC);
+  setGFormula(rD, `G${ex(miscSubtotalIdx)}`, totD);
+  setGFormula(rTotal, `G${ex(rA)}+G${ex(rB)}+G${ex(rC)}+G${ex(rD)}`, totalGeneral);
+  setGFormula(rDif, `G${ex(rTotal)}-G${ex(rAnt1)}-G${ex(rAnt2)}`, diferencia);
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Liquidacion Viaje");
