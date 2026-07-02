@@ -1,8 +1,8 @@
 /**
- * Gráficos del Dashboard Ejecutivo:
- * - Evolución mensual de gastos (BarChart)
+ * Graficos del Dashboard Ejecutivo:
+ * - Evolucion mensual de gastos (BarChart)
  * - Presupuesto vs ejecutado por proyecto (BarChart horizontal)
- * - Gastos por categoría (PieChart)
+ * - Gastos por categoria (PieChart)
  * - Gastos por cliente (BarChart horizontal)
  */
 import {
@@ -29,22 +29,22 @@ import type {
   DashboardCliente,
 } from "@/services/dashboard";
 
-// ─── Paleta ────────────────────────────────────────────────────────────────────
+// Paleta de colores (hex para evitar dependencia de CSS vars indefinidas)
 
 const COLORS = [
-  "hsl(var(--chart-1))",
-  "hsl(var(--chart-2))",
-  "hsl(var(--chart-3))",
-  "hsl(var(--chart-4))",
-  "hsl(var(--chart-5))",
-  "#6366f1",
-  "#f59e0b",
-  "#10b981",
-  "#ef4444",
-  "#8b5cf6",
+  "#6366f1", // indigo
+  "#10b981", // emerald
+  "#f59e0b", // amber
+  "#ef4444", // red
+  "#8b5cf6", // violet
+  "#ec4899", // pink
+  "#0ea5e9", // sky
+  "#84cc16", // lime
+  "#f97316", // orange
+  "#06b6d4", // cyan
 ];
 
-// ─── Helpers ───────────────────────────────────────────────────────────────────
+// Helpers
 
 function ChartPanel({
   title,
@@ -77,7 +77,7 @@ function currencyTick(value: number) {
   return `$${value}`;
 }
 
-// ─── Evolución mensual ─────────────────────────────────────────────────────────
+// Evolucion mensual
 
 interface EvolucionChartProps {
   data: EvolucionMensual[];
@@ -88,7 +88,7 @@ interface EvolucionChartProps {
 export function EvolucionMensualChart({ data, loading, anio }: EvolucionChartProps) {
   return (
     <ChartPanel
-      title={`Evolución mensual ${anio > 0 ? anio : "— todos los años"}`}
+      title={`Evolucion mensual ${anio > 0 ? anio : "- todos los anos"}`}
       loading={loading}
       empty={!loading && data.every((d) => d.total_facturado === 0)}
     >
@@ -115,7 +115,7 @@ export function EvolucionMensualChart({ data, loading, anio }: EvolucionChartPro
   );
 }
 
-// ─── Presupuesto vs Ejecutado ──────────────────────────────────────────────────
+// Presupuesto vs Ejecutado
 
 interface PresupuestoChartProps {
   data: DashboardProyecto[];
@@ -127,7 +127,7 @@ export function PresupuestoEjecutadoChart({ data, loading }: PresupuestoChartPro
     .filter((p) => (p.presupuesto ?? 0) > 0 || (p.gasto_real ?? 0) > 0)
     .slice(0, 8)
     .map((p) => ({
-      nombre: p.nombre ? (p.nombre.length > 18 ? p.nombre.slice(0, 16) + "…" : p.nombre) : "—",
+      nombre: p.nombre ? (p.nombre.length > 18 ? p.nombre.slice(0, 16) + "..." : p.nombre) : "-",
       presupuesto: p.presupuesto ?? 0,
       ejecutado: p.gasto_real ?? 0,
     }));
@@ -157,7 +157,7 @@ export function PresupuestoEjecutadoChart({ data, loading }: PresupuestoChartPro
   );
 }
 
-// ─── Gastos por categoría ──────────────────────────────────────────────────────
+// Gastos por categoria
 
 interface CategoriaChartProps {
   data: GastoCategoria[];
@@ -197,7 +197,7 @@ function PieLabel({
 export function GastosCategoriaChart({ data, loading }: CategoriaChartProps) {
   const top = data.slice(0, 8);
   return (
-    <ChartPanel title="Gastos por categoría" loading={loading} empty={!loading && top.length === 0}>
+    <ChartPanel title="Gastos por categoria" loading={loading} empty={!loading && top.length === 0}>
       <div className="flex items-center gap-4">
         <ResponsiveContainer width="55%" height={200}>
           <PieChart>
@@ -235,7 +235,7 @@ export function GastosCategoriaChart({ data, loading }: CategoriaChartProps) {
   );
 }
 
-// ─── Gastos por cliente ────────────────────────────────────────────────────────
+// Gastos por cliente
 
 interface ClienteChartProps {
   data: DashboardCliente[];
@@ -244,7 +244,7 @@ interface ClienteChartProps {
 
 export function GastosClienteChart({ data, loading }: ClienteChartProps) {
   const chartData = data.slice(0, 8).map((c) => ({
-    nombre: c.cliente ? (c.cliente.length > 18 ? c.cliente.slice(0, 16) + "…" : c.cliente) : "—",
+    nombre: c.cliente ? (c.cliente.length > 18 ? c.cliente.slice(0, 16) + "..." : c.cliente) : "-",
     total: c.total_gastado ?? 0,
   }));
 

@@ -123,13 +123,12 @@ export async function getGastosPorCategoria(
   const { data, error } = await q;
   if (error) throw new Error(error.message);
 
-  // Agregar en cliente
   const map = new Map<string, { nombre: string; total: number }>();
   for (const row of data ?? []) {
     const key = row.categoria_gasto_id ?? "__sin_categoria__";
     const nombre =
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (row as any).categorias_gasto?.nombre ?? "Sin categoría";
+      (row as any).categorias_gasto?.nombre ?? "Sin categoria";
     const existing = map.get(key);
     if (existing) {
       existing.total += Number(row.valor_factura) || 0;
@@ -138,13 +137,76 @@ export async function getGastosPorCategoria(
     }
   }
 
-  return Array.from(map.entries())
+  const result = Array.from(map.entries())
     .map(([id, { nombre, total }]) => ({
       categoria_id: id === "__sin_categoria__" ? null : id,
       categoria_nombre: nombre,
       total,
     }))
     .sort((a, b) => b.total - a.total);
+
+  // Agregar "Vehiculo propio" sumando km desde viajes + politica
+  try {
+    let rQuery = supabase
+      .from("rendiciones")
+      .select("id")
+      .eq("empresa_id", empresaId)
+      .is("deleted_at", null);
+    if (anio) {
+      rQuery = rQuery
+        .gte("fecha_rendicion", `${anio}-01-01`)
+        .lte("fecha_rendicion", `${anio}-12-31`);
+    }
+    const { data: rendData } = await rQuery;
+    const rendIds = (rendData ?? []).map((r: { id: string }) => r.id);
+
+    if (rendIds.length > 0) {
+      const [politicaRes, viajesRes] = await Promise.all([
+        supabase
+          .from("politicas")
+          .select("valor_km, km_ciudad_por_dia")
+          .eq("empresa_id", empresaId)
+          .order("created_at")
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from("viajes")
+          .select("distancia_km, fecha_inicio, fecha_fin")
+          .in("rendicion_id", rendIds)
+          .eq("vehiculo_propio", true)
+          .gt("distancia_km", 0),
+      ]);
+
+      const valorKm = Number(politicaRes.data?.valor_km ?? 0);
+      const kmCiudadDia = Number(politicaRes.data?.km_ciudad_por_dia ?? 0);
+
+      let totalVehiculo = 0;
+      for (const v of viajesRes.data ?? []) {
+        totalVehiculo += Number(v.distancia_km ?? 0) * 2 * valorKm;
+        if (v.fecha_inicio && v.fecha_fin && kmCiudadDia > 0) {
+          const dias =
+            Math.ceil(
+              (new Date(v.fecha_fin).getTime() - new Date(v.fecha_inicio).getTime()) /
+                (1000 * 60 * 60 * 24),
+            ) + 1;
+          totalVehiculo += dias * kmCiudadDia * valorKm;
+        }
+      }
+
+      if (totalVehiculo > 0) {
+        result.push({
+          categoria_id: "__vehiculo_propio__",
+          categoria_nombre: "Vehiculo propio",
+          total: totalVehiculo,
+        });
+        result.sort((a, b) => b.total - a.total);
+      }
+    }
+  } catch {
+    // No fatal: si falla km propio, retorna solo gastos por categoria
+  }
+
+  return result;
 }
 
 const MES_LABELS: Record<string, string> = {
@@ -166,26 +228,26 @@ export async function getEvolucionMensual(
   empresaId: string,
   anio: number,
 ): Promise<EvolucionMensual[]> {
+  // Leer de rendiciones.total_facturado (incluye km vehiculo propio y filtro politica)
   const { data, error } = await supabase
-    .from("gastos")
-    .select("fecha, valor_factura, valor_reembolsable")
+    .from("rendiciones")
+    .select("fecha_rendicion, total_facturado, total_reembolsable")
     .eq("empresa_id", empresaId)
     .is("deleted_at", null)
-    .gte("fecha", `${anio}-01-01`)
-    .lte("fecha", `${anio}-12-31`);
+    .gte("fecha_rendicion", `${anio}-01-01`)
+    .lte("fecha_rendicion", `${anio}-12-31`);
   if (error) throw new Error(error.message);
 
   const map = new Map<string, { total_facturado: number; total_reembolsable: number }>();
   for (const row of data ?? []) {
-    if (!row.fecha) continue;
-    const mes = row.fecha.slice(0, 7); // "YYYY-MM"
+    if (!row.fecha_rendicion) continue;
+    const mes = row.fecha_rendicion.slice(0, 7); // "YYYY-MM"
     const existing = map.get(mes) ?? { total_facturado: 0, total_reembolsable: 0 };
-    existing.total_facturado += Number(row.valor_factura) || 0;
-    existing.total_reembolsable += Number(row.valor_reembolsable) || 0;
+    existing.total_facturado += Number(row.total_facturado) || 0;
+    existing.total_reembolsable += Number(row.total_reembolsable) || 0;
     map.set(mes, existing);
   }
 
-  // Generar los 12 meses del año (para que el gráfico muestre meses vacíos)
   const result: EvolucionMensual[] = [];
   for (let m = 1; m <= 12; m++) {
     const mm = String(m).padStart(2, "0");
