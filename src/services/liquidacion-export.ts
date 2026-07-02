@@ -1,177 +1,39 @@
 /**
  * liquidacion-export.ts
- * Excel de Liquidacion de Viaticos con colores y fuentes completos.
- * Usa xlsx-js-style (fork browser-compatible de SheetJS con soporte de estilos).
- * Columnas: A(spacer) B(Concepto) C(N Doc) D(Proveedor) E(RUC) F(Km) G(Valor)
+ * Genera el Excel de liquidacion usando un template pre-formateado.
+ * Solo escribe valores en celdas fijas  - estilos vienen del template.
+ *
+ * Estructura del template (public/liquidacion-template.xlsx):
+ *   Rows  1-11 : Titulo + bloque info
+ *   Rows 15-34 : A. Hospedaje data (20 filas)
+ *   Row  35    : SUBTOTAL A
+ *   Rows 39-58 : B. Movilizacion data (20 filas)
+ *   Row  59    : SUBTOTAL B
+ *   Rows 63-82 : C. Alimentacion data (20 filas)
+ *   Row  83    : SUBTOTAL C
+ *   Rows 87-106: D. Miscelaneos data (20 filas)
+ *   Row  107   : SUBTOTAL D
+ *   Row  109   : RESUMEN FINAL header
+ *   Rows 110-117: Resumen final + anticipos + diferencia
+ *   Rows 120-126: Firmas
  */
 
 import { supabase } from "@/integrations/supabase/client";
 import type { Gasto, Viaje, Politica, Rendicion } from "@/types/entities";
 
-// ---------------------------------------------------------------------------
-// Colores RGB (6 hex, sin # ni alpha)
-// ---------------------------------------------------------------------------
-const C_TEAL   = "0D4B60";
-const C_TEAL2  = "2C4C66";
-const C_GRAY_H = "BFC9D0";
-const C_LIGHT  = "F6FAFB";
-const C_WHITE  = "FFFFFF";
-const C_DARK   = "1F2933";
-const C_LABEL  = "0D4B60";
+// Posiciones fijas del template (1-indexed, identicas al xlsx generado por openpyxl)
+const RA1 = 15;  // A. Hospedaje data start (end: 34)
+const RB1 = 39;  // B. Movilizacion data start (end: 58)
+const RC1 = 63;  // C. Alimentacion data start (end: 82)
+const RD1 = 87;  // D. Miscelaneos data start (end: 106)
+const MAX_ROWS = 20;  // filas maximas por seccion
+
+const ROW_RF_AE = 115;   // Menos anticipo efectivo (Resumen Final)
+const ROW_RF_AC = 116;   // Menos anticipo tarjeta  (Resumen Final)
+const ROW_SIG   = 121;   // Nombre empleado en firma
 
 // ---------------------------------------------------------------------------
-// Definiciones de estilo (xlsx-js-style usa patternType, sz, rgb)
-// ---------------------------------------------------------------------------
-function makeFill(rgb: string) {
-  return { patternType: "solid" as const, fgColor: { rgb }, bgColor: { rgb } };
-}
-function makeFont(rgb: string, sz: number, bold = false) {
-  return { name: "Arial", sz, bold, color: { rgb } };
-}
-function makeAlign(h: "left" | "center" | "right") {
-  return { horizontal: h, vertical: "center" as const, wrapText: false };
-}
-const THIN = (rgb = "D0D7DE") => ({ style: "thin" as const, color: { rgb } });
-
-type XStyle = Record<string, unknown>;
-
-const S: Record<string, XStyle> = {
-  title: {
-    fill: makeFill(C_TEAL),
-    font: makeFont(C_WHITE, 12, true),
-    alignment: makeAlign("center"),
-  },
-  secHdr: {
-    fill: makeFill(C_TEAL),
-    font: makeFont(C_WHITE, 9, true),
-    alignment: makeAlign("left"),
-  },
-  colHdrL: {
-    fill: makeFill(C_GRAY_H),
-    font: makeFont("12313F", 8, true),
-    alignment: makeAlign("left"),
-    border: { top: THIN(), bottom: THIN(), left: THIN(), right: THIN() },
-  },
-  colHdrR: {
-    fill: makeFill(C_GRAY_H),
-    font: makeFont("12313F", 8, true),
-    alignment: makeAlign("right"),
-    border: { top: THIN(), bottom: THIN(), left: THIN(), right: THIN() },
-  },
-  infoLbl: {
-    fill: makeFill(C_LIGHT),
-    font: makeFont(C_LABEL, 9, true),
-    alignment: makeAlign("left"),
-  },
-  infoVal: {
-    fill: makeFill(C_LIGHT),
-    font: makeFont(C_DARK, 9),
-    alignment: makeAlign("left"),
-  },
-  infoRHdr: {
-    fill: makeFill(C_TEAL2),
-    font: makeFont(C_WHITE, 9, true),
-    alignment: makeAlign("left"),
-  },
-  infoRLbl: {
-    fill: makeFill(C_LIGHT),
-    font: makeFont(C_LABEL, 9),
-    alignment: makeAlign("left"),
-  },
-  infoRLblBold: {
-    fill: makeFill(C_LIGHT),
-    font: makeFont(C_LABEL, 9, true),
-    alignment: makeAlign("left"),
-  },
-  infoRVal: {
-    fill: makeFill(C_LIGHT),
-    font: makeFont(C_DARK, 9),
-    alignment: makeAlign("right"),
-  },
-  infoRValBold: {
-    fill: makeFill(C_LIGHT),
-    font: makeFont(C_DARK, 9, true),
-    alignment: makeAlign("right"),
-  },
-  dataL: {
-    font: makeFont(C_DARK, 8),
-    alignment: makeAlign("left"),
-    border: { top: THIN(), bottom: THIN(), left: THIN(), right: THIN() },
-  },
-  dataR: {
-    font: makeFont(C_DARK, 8),
-    alignment: makeAlign("right"),
-    border: { top: THIN(), bottom: THIN(), left: THIN(), right: THIN() },
-  },
-  subtLbl: {
-    fill: makeFill(C_LIGHT),
-    font: makeFont(C_LABEL, 8, true),
-    alignment: makeAlign("right"),
-    border: { top: THIN(), bottom: THIN(), left: THIN(), right: THIN() },
-  },
-  subtVal: {
-    fill: makeFill(C_LIGHT),
-    font: makeFont(C_DARK, 8, true),
-    alignment: makeAlign("right"),
-    border: { top: THIN(), bottom: THIN(), left: THIN(), right: THIN() },
-  },
-  rfLbl: {
-    fill: makeFill(C_LIGHT),
-    font: makeFont(C_LABEL, 9),
-    alignment: makeAlign("right"),
-    border: { top: THIN(), bottom: THIN(), left: THIN(), right: THIN() },
-  },
-  rfVal: {
-    fill: makeFill(C_LIGHT),
-    font: makeFont(C_DARK, 9),
-    alignment: makeAlign("right"),
-    border: { top: THIN(), bottom: THIN(), left: THIN(), right: THIN() },
-  },
-  rfTotLbl: {
-    fill: makeFill(C_TEAL),
-    font: makeFont(C_WHITE, 9, true),
-    alignment: makeAlign("right"),
-    border: { top: THIN(), bottom: THIN(), left: THIN(), right: THIN() },
-  },
-  rfTotVal: {
-    fill: makeFill(C_TEAL),
-    font: makeFont(C_WHITE, 9, true),
-    alignment: makeAlign("right"),
-    border: { top: THIN(), bottom: THIN(), left: THIN(), right: THIN() },
-  },
-  rfTotFill: {
-    fill: makeFill(C_TEAL),
-  },
-};
-
-// ---------------------------------------------------------------------------
-// Helpers de worksheet
-// ---------------------------------------------------------------------------
-type WS = Record<string, unknown>;
-
-function sc(ws: WS, col: string, row: number, style: XStyle) {
-  const addr = `${col}${row}`;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const cell = ws[addr] as any;
-  if (cell) cell.s = style;
-}
-
-function scEmpty(ws: WS, col: string, row: number, style: XStyle) {
-  const addr = `${col}${row}`;
-  if (!ws[addr]) ws[addr] = { t: "s", v: "" };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (ws[addr] as any).s = style;
-}
-
-function scNum(ws: WS, col: string, row: number, style: XStyle, fmt = '"$"#,##0.00') {
-  const addr = `${col}${row}`;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const cell = ws[addr] as any;
-  if (cell) { cell.s = style; cell.z = fmt; }
-}
-
-// ---------------------------------------------------------------------------
-// Fetch helpers
+// Tipos y helpers
 // ---------------------------------------------------------------------------
 type GastoEnriquecido = Gasto & {
   categoria_nombre: string;
@@ -179,6 +41,38 @@ type GastoEnriquecido = Gasto & {
   proveedor_ruc:    string;
 };
 
+function n(v: number | null | undefined) { return Number(v ?? 0); }
+
+function fmtDate(d: string | null | undefined): string {
+  if (!d) return "-";
+  return new Date(d).toLocaleDateString("es-EC", {
+    day: "2-digit", month: "2-digit", year: "numeric",
+  });
+}
+
+function normalizar(s: string) {
+  return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function categoriaSeccion(
+  nombre: string,
+): "hospedaje" | "movilizacion" | "alimentacion" | "miscelaneos" {
+  const s = normalizar(nombre);
+  if (s.includes("hospedaje") || s.includes("alojamiento")) return "hospedaje";
+  if (
+    s.includes("combustible") || s.includes("movilizacion") ||
+    s.includes("taxi") || s.includes("peaje") || s.includes("transporte")
+  ) return "movilizacion";
+  if (
+    s.includes("desayuno") || s.includes("almuerzo") ||
+    s.includes("cena") || s.includes("alimentacion")
+  ) return "alimentacion";
+  return "miscelaneos";
+}
+
+// ---------------------------------------------------------------------------
+// Fetch helpers
+// ---------------------------------------------------------------------------
 async function fetchGastos(rendicionId: string): Promise<GastoEnriquecido[]> {
   const { data } = await supabase
     .from("gastos")
@@ -211,7 +105,8 @@ async function fetchPolitica(
   empresaId: string,
 ): Promise<Politica | null> {
   if (politicaId) {
-    const { data } = await supabase.from("politicas").select("*").eq("id", politicaId).single();
+    const { data } = await supabase
+      .from("politicas").select("*").eq("id", politicaId).single();
     if (data) return data as unknown as Politica;
   }
   const { data } = await supabase
@@ -220,25 +115,29 @@ async function fetchPolitica(
   return (data as unknown as Politica) ?? null;
 }
 
-async function fetchUsuarioNombre(usuarioId: string): Promise<string> {
+async function fetchUsuarioNombre(uid: string): Promise<string> {
   const { data } = await supabase
-    .from("usuarios").select("nombres, apellidos").eq("id", usuarioId).single();
-  if (!data) return usuarioId;
+    .from("usuarios").select("nombres, apellidos").eq("id", uid).single();
+  if (!data) return uid;
   const d = data as unknown as { nombres: string; apellidos: string | null };
   return `${d.nombres} ${d.apellidos ?? ""}`.trim();
 }
 
-async function fetchEmpresaNombre(empresaId: string): Promise<string> {
-  const { data } = await supabase.from("empresas").select("nombre").eq("id", empresaId).single();
+async function fetchEmpresaNombre(eid: string): Promise<string> {
+  const { data } = await supabase
+    .from("empresas").select("nombre").eq("id", eid).single();
   return (data as unknown as { nombre: string })?.nombre ?? "Empresa";
 }
 
-async function fetchProyectoNombre(proyectoId: string): Promise<string> {
-  const { data } = await supabase.from("proyectos").select("nombre").eq("id", proyectoId).single();
+async function fetchProyectoNombre(pid: string): Promise<string> {
+  const { data } = await supabase
+    .from("proyectos").select("nombre").eq("id", pid).single();
   return (data as unknown as { nombre: string })?.nombre ?? "-";
 }
 
-function aplicarPolitica(gastos: GastoEnriquecido[], pol: Politica | null): GastoEnriquecido[] {
+function aplicarPolitica(
+  gastos: GastoEnriquecido[], pol: Politica | null,
+): GastoEnriquecido[] {
   if (!pol) return gastos;
   return gastos.map((g) => {
     if (pol.paga_combustible === false && g.categoria_nombre === "Combustible")
@@ -250,44 +149,21 @@ function aplicarPolitica(gastos: GastoEnriquecido[], pol: Politica | null): Gast
 }
 
 // ---------------------------------------------------------------------------
-// Utilitarios
-// ---------------------------------------------------------------------------
-function n(v: number | null | undefined) { return Number(v ?? 0); }
-
-function fmtDate(d: string | null | undefined): string {
-  if (!d) return "-";
-  return new Date(d).toLocaleDateString("es-EC", {
-    day: "2-digit", month: "2-digit", year: "numeric",
-  });
-}
-
-function normalizar(s: string) {
-  return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-}
-
-function categoriaSeccion(nombre: string): "hospedaje" | "movilizacion" | "alimentacion" | "miscelaneos" {
-  const s = normalizar(nombre);
-  if (s.includes("hospedaje") || s.includes("alojamiento")) return "hospedaje";
-  if (s.includes("combustible") || s.includes("movilizacion") || s.includes("taxi") ||
-      s.includes("peaje") || s.includes("transporte")) return "movilizacion";
-  if (s.includes("desayuno") || s.includes("almuerzo") || s.includes("cena") ||
-      s.includes("alimentacion")) return "alimentacion";
-  return "miscelaneos";
-}
-
-type Cell = string | number;
-type AoaRow = Cell[];
-
-function row(...cells: Cell[]): AoaRow { return cells; }
-
-// ---------------------------------------------------------------------------
 // Export principal
 // ---------------------------------------------------------------------------
 export async function exportarLiquidacion(rendicion: Rendicion): Promise<void> {
-  // Importacion dinamica para no inflar el bundle principal
+  // 1. Cargar xlsx-js-style y template
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const XLSX: any = await import("xlsx-js-style").then((m) => (m as any).default ?? m);
 
+  const tplRes = await fetch("/liquidacion-template.xlsx");
+  if (!tplRes.ok) throw new Error("No se pudo cargar el template de liquidacion");
+  const tplBuf = await tplRes.arrayBuffer();
+  const wb = XLSX.read(new Uint8Array(tplBuf), { type: "array", cellStyles: true });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const ws: Record<string, any> = wb.Sheets["Liquidacion Viaje"];
+
+  // 2. Fetch de datos
   const [gastos, viajes, politica, empleadoNombre, empresaNombre, proyectoNombre] =
     await Promise.all([
       fetchGastos(rendicion.id),
@@ -298,361 +174,142 @@ export async function exportarLiquidacion(rendicion: Rendicion): Promise<void> {
       fetchProyectoNombre(rendicion.proyecto_id),
     ]);
 
-  const gastosEf     = aplicarPolitica(gastos, politica);
-  const valorKm      = n(politica?.valor_km);
-  const kmCiudadDia  = n(politica?.km_ciudad_por_dia);
+  const gastosEf    = aplicarPolitica(gastos, politica);
+  const valorKm     = n(politica?.valor_km);
+  const kmCiudadDia = n(politica?.km_ciudad_por_dia);
 
-  const viajePropio  = viajes.find((v) => v.vehiculo_propio) ?? viajes[0] ?? null;
-  const destino      = viajePropio?.destino ?? "-";
-  const periodo      = viajePropio?.fecha_inicio
+  const viajePropio = viajes.find((v) => v.vehiculo_propio) ?? viajes[0] ?? null;
+  const destino     = viajePropio?.destino ?? "-";
+  const periodo     = viajePropio?.fecha_inicio
     ? `${fmtDate(viajePropio.fecha_inicio)} al ${fmtDate(viajePropio.fecha_fin)}`
     : "-";
-  const diasViaje    = viajePropio?.fecha_inicio && viajePropio?.fecha_fin
-    ? Math.ceil((new Date(viajePropio.fecha_fin).getTime() -
-        new Date(viajePropio.fecha_inicio).getTime()) / 86400000) + 1
+  const diasViaje   = viajePropio?.fecha_inicio && viajePropio?.fecha_fin
+    ? Math.ceil(
+        (new Date(viajePropio.fecha_fin).getTime() -
+         new Date(viajePropio.fecha_inicio).getTime()) / 86400000,
+      ) + 1
     : 0;
 
-  const hospedajeG   = gastosEf.filter((g) => categoriaSeccion(g.categoria_nombre) === "hospedaje");
-  const movG         = gastosEf.filter((g) => categoriaSeccion(g.categoria_nombre) === "movilizacion");
-  const alimentG     = gastosEf.filter((g) => categoriaSeccion(g.categoria_nombre) === "alimentacion");
-  const miscG        = gastosEf.filter((g) => categoriaSeccion(g.categoria_nombre) === "miscelaneos");
+  const hospedajeG = gastosEf.filter((g) => categoriaSeccion(g.categoria_nombre) === "hospedaje");
+  const movG       = gastosEf.filter((g) => categoriaSeccion(g.categoria_nombre) === "movilizacion");
+  const alimentG   = gastosEf.filter((g) => categoriaSeccion(g.categoria_nombre) === "alimentacion");
+  const miscG      = gastosEf.filter((g) => categoriaSeccion(g.categoria_nombre) === "miscelaneos");
 
-  type KmRow = { label: string; km: number; valor: number };
+  // Filas de km propio
+  type KmRow = { concepto: string; km: number; valor: number };
   const kmRows: KmRow[] = viajes
     .filter((v) => v.vehiculo_propio && (v.distancia_km ?? 0) > 0)
     .map((v) => {
-      const kmIda = n(v.distancia_km);
+      const kmIda   = n(v.distancia_km);
       const kmTotal = kmIda * 2;
-      const trayecto = v.origen ? `${v.origen} - ${v.destino}` : String(v.destino);
-      return { label: `Vehiculo propio - ${trayecto} (${kmIda}km x2 x $${valorKm})`, km: kmTotal, valor: kmTotal * valorKm };
+      const tray    = v.origen ? `${v.origen} - ${v.destino}` : String(v.destino);
+      return {
+        concepto: `Vehiculo propio - ${tray} (${kmIda}km x2 x $${valorKm})`,
+        km: kmTotal,
+        valor: kmTotal * valorKm,
+      };
     });
 
-  const kmCiudadValor = diasViaje > 0 && kmCiudadDia > 0 ? diasViaje * kmCiudadDia * valorKm : 0;
+  const kmCiudadValor =
+    diasViaje > 0 && kmCiudadDia > 0 ? diasViaje * kmCiudadDia * valorKm : 0;
 
-  const toRow = (g: GastoEnriquecido): AoaRow =>
-    row("", g.descripcion ?? g.categoria_nombre ?? "-", g.numero_documento ?? "-",
-        g.proveedor_nombre, g.proveedor_ruc, "", n(g.valor_factura));
+  // Construir array de filas para seccion B
+  type BRow = { concepto: string; ndoc: string; proveedor: string; ruc: string; km: number | ""; valor: number };
+  const movRows: BRow[] = [
+    ...kmRows.map((kr) => ({
+      concepto: kr.concepto, ndoc: "-", proveedor: "Vehiculo propio",
+      ruc: "-", km: kr.km, valor: kr.valor,
+    })),
+    ...(kmCiudadValor > 0
+      ? [{
+          concepto: `Movilizacion en ciudad (${diasViaje} dias x ${kmCiudadDia} km x $${valorKm})`,
+          ndoc: "-", proveedor: "Vehiculo propio",
+          ruc: "-", km: diasViaje * kmCiudadDia, valor: kmCiudadValor,
+        }]
+      : []),
+    ...movG.map((g) => ({
+      concepto: g.descripcion ?? g.categoria_nombre ?? "-",
+      ndoc: g.numero_documento ?? "-",
+      proveedor: g.proveedor_nombre,
+      ruc: g.proveedor_ruc,
+      km: "" as "",
+      valor: n(g.valor_factura),
+    })),
+  ];
 
-  const hosData: AoaRow[]  = hospedajeG.length > 0 ? hospedajeG.map(toRow)
-    : [row("", "Sin gastos de hospedaje", "", "", "", "", 0)];
-  const movData: AoaRow[]  = (() => {
-    const rows: AoaRow[] = [];
-    kmRows.forEach((km) => rows.push(row("", km.label, "-", "Vehiculo propio", "-", km.km, km.valor)));
-    if (kmCiudadValor > 0)
-      rows.push(row("", `Movilizacion en ciudad (${diasViaje} dias x ${kmCiudadDia} km x $${valorKm})`,
-                    "-", "Vehiculo propio", "-", diasViaje * kmCiudadDia, kmCiudadValor));
-    movG.forEach((g) => rows.push(toRow(g)));
-    if (rows.length === 0) rows.push(row("", "Sin gastos de movilizacion", "", "", "", "", 0));
-    return rows;
-  })();
-  const alimentData: AoaRow[] = alimentG.length > 0 ? alimentG.map(toRow)
-    : [row("", "Sin gastos de alimentacion", "", "", "", "", 0)];
-  const miscData: AoaRow[]    = miscG.length > 0 ? miscG.map(toRow)
-    : [row("", "Sin gastos miscelaneos", "", "", "", "", 0)];
-
-  const totA = hosData.reduce((s, r) => s + n(r[6] as number), 0);
-  const totB = movData.reduce((s, r) => s + n(r[6] as number), 0);
-  const totC = alimentData.reduce((s, r) => s + n(r[6] as number), 0);
-  const totD = miscData.reduce((s, r) => s + n(r[6] as number), 0);
-  const totalGeneral   = totA + totB + totC + totD;
   const antEfectivo    = n(rendicion.anticipo_efectivo);
   const antCredito     = n(rendicion.anticipo_credito);
-  const totalAnticipos = antEfectivo + antCredito;
-  const diferencia     = totalGeneral - totalAnticipos;
 
-  // ---------------------------------------------------------------------------
-  // Pre-calcular numeros de fila (1-indexed para formulas)
-  // ---------------------------------------------------------------------------
-  const hosLen    = hosData.length;
-  const movLen    = movData.length;
-  const alimentLen = alimentData.length;
-  const miscLen   = miscData.length;
-
-  const R_TITLE    = 1;
-  const R_INFO_1   = 2;                        // filas 2..11 (10 filas)
-  const R_SPACER_1 = 12;
-
-  const R_A_HDR   = 13;
-  const R_A_COL   = 14;
-  const R_A_DATA  = 15;
-  const R_A_SUBT  = R_A_DATA + hosLen;
-  const R_A_SPC   = R_A_SUBT + 1;
-
-  const R_B_HDR   = R_A_SPC + 1;
-  const R_B_COL   = R_B_HDR + 1;
-  const R_B_DATA  = R_B_COL + 1;
-  const R_B_SUBT  = R_B_DATA + movLen;
-  const R_B_SPC   = R_B_SUBT + 1;
-
-  const R_C_HDR   = R_B_SPC + 1;
-  const R_C_COL   = R_C_HDR + 1;
-  const R_C_DATA  = R_C_COL + 1;
-  const R_C_SUBT  = R_C_DATA + alimentLen;
-  const R_C_SPC   = R_C_SUBT + 1;
-
-  const R_D_HDR   = R_C_SPC + 1;
-  const R_D_COL   = R_D_HDR + 1;
-  const R_D_DATA  = R_D_COL + 1;
-  const R_D_SUBT  = R_D_DATA + miscLen;
-  const R_D_SPC   = R_D_SUBT + 1;
-
-  const R_RF_HDR  = R_D_SPC + 1;
-  const R_RF_A    = R_RF_HDR + 1;
-  const R_RF_B    = R_RF_A + 1;
-  const R_RF_C    = R_RF_A + 2;
-  const R_RF_D    = R_RF_A + 3;
-  const R_RF_TOT  = R_RF_A + 4;
-  const R_RF_AE   = R_RF_A + 5;
-  const R_RF_AC   = R_RF_A + 6;
-  const R_RF_DIF  = R_RF_A + 7;
-
-  // Filas fijas del bloque de info
-  const R_I_ANT_EF  = 3;
-  const R_I_ANT_CR  = 4;
-  const R_I_TOT_ANT = 5;
-  const R_I_RES_A   = 7;
-  const R_I_RES_B   = 8;
-  const R_I_RES_C   = 9;
-  const R_I_RES_D   = 10;
-  const R_I_RES_T   = 11;
-
-  // ---------------------------------------------------------------------------
-  // Construir AOA
-  // ---------------------------------------------------------------------------
-  const aoa: AoaRow[] = [];
-  const merges: { s: { r: number; c: number }; e: { r: number; c: number } }[] = [];
-  const rowHeights: { hpt?: number }[] = [];
-
-  function pushRow(r: AoaRow, hpt: number) {
-    aoa.push(r);
-    rowHeights.push({ hpt });
+  // 3. Helper: escribir valor en celda preservando estilo existente
+  function set(col: string, row: number, val: string | number) {
+    const addr = `${col}${row}`;
+    const existing = ws[addr] ?? {};
+    ws[addr] =
+      typeof val === "number"
+        ? { ...existing, v: val, t: "n", z: '"$"#,##0.00' }
+        : { ...existing, v: val, t: val === "" ? "z" : "s" };
   }
 
-  function mergeRange(r: number, c1: number, c2: number) {
-    merges.push({ s: { r: r - 1, c: c1 }, e: { r: r - 1, c: c2 } });
-  }
+  // 4. Llenar bloque de info
+  set("D", 2, empresaNombre);
+  set("D", 3, empleadoNombre);
+  set("D", 4, proyectoNombre);
+  set("D", 5, periodo);
+  set("D", 6, destino);
+  set("D", 7, rendicion.motivo ?? (rendicion.descripcion ?? "-"));
+  set("B", 8, `RENDICION N: ${rendicion.numero}`);
+  set("B", 9, `FECHA: ${fmtDate(rendicion.fecha_rendicion)}`);
+  set("G", 3, antEfectivo);
+  set("G", 4, antCredito);
 
-  const COL_HDR: AoaRow = row("", "CONCEPTO / DETALLE", "N FACTURA",
-                               "EMPRESA / PROVEEDOR", "RUC", "KM", "VALOR ($)");
-
-  // Fila 1: titulo
-  pushRow(row("LIQUIDACION DE GASTOS DE VIAJE, HOSPEDAJE Y ALIMENTACION"), 24);
-  mergeRange(R_TITLE, 0, 6);
-
-  // Info block: filas 2..11
-  type InfoDef = { lbl: string; val: string; rLbl: string; rVal: number | ""; rHdr?: boolean; rBold?: boolean };
-  const infoBlock: InfoDef[] = [
-    { lbl: "EMPRESA:",   val: empresaNombre,       rLbl: "RESUMEN DE ANTICIPOS",  rVal: "", rHdr: true },
-    { lbl: "EMPLEADO:",  val: empleadoNombre,       rLbl: "Anticipo efectivo:",    rVal: antEfectivo },
-    { lbl: "PROYECTO:",  val: proyectoNombre,       rLbl: "Anticipo tarjeta:",     rVal: antCredito },
-    { lbl: "PERIODO:",   val: periodo,              rLbl: "TOTAL ANTICIPOS:",      rVal: totalAnticipos, rBold: true },
-    { lbl: "DESTINO:",   val: destino,              rLbl: "RESUMEN POR CATEGORIA", rVal: "", rHdr: true },
-    { lbl: "MOTIVO:",    val: rendicion.motivo ?? (rendicion.descripcion ?? "-"),
-                                                    rLbl: "A. Hospedaje:",         rVal: totA },
-    { lbl: `RENDICION N: ${rendicion.numero}`, val: "",
-                                                    rLbl: "B. Movilizacion:",      rVal: totB },
-    { lbl: `FECHA: ${fmtDate(rendicion.fecha_rendicion)}`, val: "",
-                                                    rLbl: "C. Alimentacion:",      rVal: totC },
-    { lbl: "",           val: "",                   rLbl: "D. Miscelaneos:",       rVal: totD },
-    { lbl: "",           val: "",                   rLbl: "TOTAL GENERAL:",        rVal: totalGeneral, rBold: true },
-  ];
-  for (const info of infoBlock) {
-    const exRow = aoa.length + 1;
-    pushRow(row("", info.lbl, "", info.val, info.rLbl, "", typeof info.rVal === "number" ? info.rVal : ""), 16.05);
-    mergeRange(exRow, 1, 2);   // B:C
-    mergeRange(exRow, 4, 5);   // E:F
-  }
-
-  // Fila 12: espaciador
-  pushRow(row(), 6);
-
-  // ---- Helper para secciones ----
-  function addSection(
-    title: string, data: AoaRow[],
-    rHdr: number, rCol: number, rData: number, rSubt: number, rSpc: number,
-    subtLabel: string, total: number,
-  ) {
-    pushRow(row(title), 18);             // header
-    mergeRange(rHdr, 0, 6);
-    pushRow(COL_HDR, 22);                // col headers
-    data.forEach((dr) => pushRow(dr, 14.25));
-    // Subtotal
-    const idx = aoa.length;
-    pushRow(row("", "", "", "", subtLabel, "", total), 16.05);
-    mergeRange(rSubt, 1, 3);
-    mergeRange(rSubt, 4, 5);
-    void idx;
-    pushRow(row(), 6);                   // spacer
-  }
-
-  addSection("A. HOSPEDAJE", hosData,  R_A_HDR, R_A_COL, R_A_DATA, R_A_SUBT, R_A_SPC, "SUBTOTAL A - HOSPEDAJE", totA);
-  addSection("B. MOVILIZACION", movData, R_B_HDR, R_B_COL, R_B_DATA, R_B_SUBT, R_B_SPC, "SUBTOTAL B - MOVILIZACION", totB);
-  addSection("C. ALIMENTACION", alimentData, R_C_HDR, R_C_COL, R_C_DATA, R_C_SUBT, R_C_SPC, "SUBTOTAL C - ALIMENTACION", totC);
-  addSection("D. MISCELANEOS", miscData, R_D_HDR, R_D_COL, R_D_DATA, R_D_SUBT, R_D_SPC, "SUBTOTAL D - MISCELANEOS", totD);
-
-  // Resumen final
-  pushRow(row("RESUMEN FINAL"), 18);
-  mergeRange(R_RF_HDR, 0, 6);
-  const rfItems: [string, number, boolean][] = [
-    ["A. Hospedaje",                totA,         false],
-    ["B. Movilizacion",             totB,         false],
-    ["C. Alimentacion",             totC,         false],
-    ["D. Miscelaneos",              totD,         false],
-    ["TOTAL GENERAL",               totalGeneral, true],
-    ["Menos anticipo efectivo",     antEfectivo,  false],
-    ["Menos anticipo tarjeta",      antCredito,   false],
-    ["DIFERENCIA A PAGAR / DEVOLVER", diferencia, true],
-  ];
-  for (const [lbl, val] of rfItems) {
-    const exRow = aoa.length + 1;
-    pushRow(row("", "", "", "", lbl, "", val), 16.05);
-    mergeRange(exRow, 1, 3);
-    mergeRange(exRow, 4, 5);
-  }
-
-  // Espaciadores y firmas
-  pushRow(row(), 8);
-  pushRow(row(), 8);
-  const LINE = "___________________________________";
-  type FirmaBlock = { left: string[]; right: string[] };
-  const firmaBlocks: FirmaBlock[] = [
-    { left: [LINE, empleadoNombre, "Empleado / Viajante"],
-      right: [LINE, "Jefe inmediato", "Aprobado por / Firma"] },
-    { left: [LINE, "Aprobado por Cliente", "Firma / Sello"],
-      right: [LINE, "Contabilidad", "Revisado / Firma"] },
-  ];
-  for (const fb of firmaBlocks) {
-    for (let li = 0; li < 3; li++) {
-      const exRow = aoa.length + 1;
-      pushRow(row("", fb.left[li], "", "", fb.right[li]), li === 0 ? 20 : 13);
-      mergeRange(exRow, 1, 3);
-      mergeRange(exRow, 4, 6);
+  // 5. Llenar secciones A / C / D (gastos simples)
+  function fillGastos(data: GastoEnriquecido[], r1: number) {
+    for (let i = 0; i < MAX_ROWS; i++) {
+      const r = r1 + i;
+      if (i < data.length) {
+        const g = data[i];
+        set("B", r, g.descripcion ?? g.categoria_nombre ?? "-");
+        set("C", r, g.numero_documento ?? "-");
+        set("D", r, g.proveedor_nombre);
+        set("E", r, g.proveedor_ruc);
+        set("F", r, "");
+        set("G", r, n(g.valor_factura));
+      } else {
+        ["B","C","D","E","F"].forEach((col) => set(col, r, ""));
+        set("G", r, 0);
+      }
     }
-    pushRow(row(), 10);
   }
 
-  // ---------------------------------------------------------------------------
-  // Crear worksheet y aplicar estilos
-  // ---------------------------------------------------------------------------
-  const ws: WS = XLSX.utils.aoa_to_sheet(aoa) as WS;
+  fillGastos(hospedajeG, RA1);
+  fillGastos(alimentG, RC1);
+  fillGastos(miscG, RD1);
 
-  ws["!merges"]  = merges;
-  ws["!cols"]    = [
-    { wch: 1.7 }, { wch: 26.8 }, { wch: 14.5 }, { wch: 18.7 },
-    { wch: 12.9 }, { wch: 7.3 }, { wch: 6.6 },
-  ];
-  ws["!rows"] = rowHeights;
-
-  // Ajustar ref del rango si es necesario (xlsx-js-style lo necesita)
-  const lastRow = aoa.length;
-  ws["!ref"] = `A1:G${lastRow}`;
-
-  const COLS = ["A","B","C","D","E","F","G"];
-
-  // ROW 1: Titulo
-  COLS.forEach((col) => scEmpty(ws, col, R_TITLE, S.title));
-
-  // Rows 2-11: Bloque de info
-  infoBlock.forEach((info, i) => {
-    const r = R_INFO_1 + i;
-    scEmpty(ws, "A", r, S.infoVal);
-    sc(ws, "B", r, S.infoLbl);
-    scEmpty(ws, "C", r, S.infoLbl);
-    sc(ws, "D", r, S.infoVal);
-    const rStyle = info.rHdr ? S.infoRHdr : (info.rBold ? S.infoRLblBold : S.infoRLbl);
-    sc(ws, "E", r, rStyle);
-    scEmpty(ws, "F", r, rStyle);
-    if (info.rHdr) {
-      scEmpty(ws, "G", r, S.infoRHdr);
+  // 6. Llenar seccion B (movilizacion con km)
+  for (let i = 0; i < MAX_ROWS; i++) {
+    const r = RB1 + i;
+    if (i < movRows.length) {
+      const m = movRows[i];
+      set("B", r, m.concepto);
+      set("C", r, m.ndoc);
+      set("D", r, m.proveedor);
+      set("E", r, m.ruc);
+      set("F", r, m.km === "" ? "" : m.km);
+      set("G", r, m.valor);
     } else {
-      scNum(ws, "G", r, info.rBold ? S.infoRValBold : S.infoRVal);
+      ["B","C","D","E","F"].forEach((col) => set(col, r, ""));
+      set("G", r, 0);
     }
-  });
-
-  // Formulas para bloque de info
-  function setF(col: string, row2: number, formula: string, v: number) {
-    const addr = `${col}${row2}`;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const cell = ws[addr] as any;
-    if (cell) { cell.t = "n"; cell.f = formula; cell.v = v; cell.z = '"$"#,##0.00'; }
-  }
-  setF("G", R_I_TOT_ANT, `G${R_I_ANT_EF}+G${R_I_ANT_CR}`, totalAnticipos);
-  setF("G", R_I_RES_A, `G${R_A_SUBT}`, totA);
-  setF("G", R_I_RES_B, `G${R_B_SUBT}`, totB);
-  setF("G", R_I_RES_C, `G${R_C_SUBT}`, totC);
-  setF("G", R_I_RES_D, `G${R_D_SUBT}`, totD);
-  setF("G", R_I_RES_T, `G${R_A_SUBT}+G${R_B_SUBT}+G${R_C_SUBT}+G${R_D_SUBT}`, totalGeneral);
-
-  // Espaciador row 12
-  COLS.forEach((col) => scEmpty(ws, col, R_SPACER_1, {}));
-
-  // Helper: estilar una seccion completa
-  function stySec(
-    rHdr: number, rCol: number, rData: number, dataLen: number,
-    rSubt: number, total: number, subtFml: string,
-  ) {
-    // Section header
-    COLS.forEach((col) => scEmpty(ws, col, rHdr, S.secHdr));
-    // Column headers
-    COLS.forEach((col, i) => sc(ws, col, rCol, i === 6 ? S.colHdrR : S.colHdrL));
-    // Data rows
-    for (let d = 0; d < dataLen; d++) {
-      const dr = rData + d;
-      sc(ws, "A", dr, S.dataL);
-      ["B","C","D","E"].forEach((col) => sc(ws, col, dr, S.dataL));
-      sc(ws, "F", dr, S.dataR);
-      scNum(ws, "G", dr, S.dataR);
-    }
-    // Subtotal
-    scEmpty(ws, "A", rSubt, {});
-    scEmpty(ws, "B", rSubt, S.subtLbl);
-    scEmpty(ws, "C", rSubt, S.subtLbl);
-    scEmpty(ws, "D", rSubt, S.subtLbl);
-    sc(ws, "E", rSubt, S.subtLbl);
-    scEmpty(ws, "F", rSubt, S.subtLbl);
-    scNum(ws, "G", rSubt, S.subtVal);
-    // Formula para subtotal
-    setF("G", rSubt, subtFml, total);
   }
 
-  stySec(R_A_HDR, R_A_COL, R_A_DATA, hosLen, R_A_SUBT, totA,
-    `SUM(G${R_A_DATA}:G${R_A_DATA + hosLen - 1})`);
-  stySec(R_B_HDR, R_B_COL, R_B_DATA, movLen, R_B_SUBT, totB,
-    `SUM(G${R_B_DATA}:G${R_B_DATA + movLen - 1})`);
-  stySec(R_C_HDR, R_C_COL, R_C_DATA, alimentLen, R_C_SUBT, totC,
-    `SUM(G${R_C_DATA}:G${R_C_DATA + alimentLen - 1})`);
-  stySec(R_D_HDR, R_D_COL, R_D_DATA, miscLen, R_D_SUBT, totD,
-    `SUM(G${R_D_DATA}:G${R_D_DATA + miscLen - 1})`);
+  // 7. Resumen final  - anticipos (las formulas ya estan en el template)
+  set("G", ROW_RF_AE, antEfectivo);
+  set("G", ROW_RF_AC, antCredito);
 
-  // Resumen Final: header
-  COLS.forEach((col) => scEmpty(ws, col, R_RF_HDR, S.secHdr));
+  // 8. Firma empleado
+  set("B", ROW_SIG, empleadoNombre);
 
-  // Resumen Final: items
-  rfItems.forEach(([, , isDark], i) => {
-    const r = R_RF_A + i;
-    scEmpty(ws, "A", r, isDark ? S.rfTotFill : {});
-    scEmpty(ws, "B", r, isDark ? S.rfTotFill : {});
-    scEmpty(ws, "C", r, isDark ? S.rfTotFill : {});
-    scEmpty(ws, "D", r, isDark ? S.rfTotFill : {});
-    sc(ws, "E", r, isDark ? S.rfTotLbl : S.rfLbl);
-    scEmpty(ws, "F", r, isDark ? S.rfTotLbl : S.rfLbl);
-    scNum(ws, "G", r, isDark ? S.rfTotVal : S.rfVal);
-  });
-
-  // Formulas resumen final
-  setF("G", R_RF_A, `G${R_A_SUBT}`, totA);
-  setF("G", R_RF_B, `G${R_B_SUBT}`, totB);
-  setF("G", R_RF_C, `G${R_C_SUBT}`, totC);
-  setF("G", R_RF_D, `G${R_D_SUBT}`, totD);
-  setF("G", R_RF_TOT, `G${R_RF_A}+G${R_RF_B}+G${R_RF_C}+G${R_RF_D}`, totalGeneral);
-  setF("G", R_RF_DIF, `G${R_RF_TOT}-G${R_RF_AE}-G${R_RF_AC}`, diferencia);
-
-  // ---------------------------------------------------------------------------
-  // Generar y descargar
-  // ---------------------------------------------------------------------------
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Liquidacion Viaje");
-
+  // 9. Generar y descargar
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const buf: ArrayBuffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
   const blob = new Blob([buf], {
