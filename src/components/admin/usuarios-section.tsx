@@ -1,17 +1,16 @@
 /**
  * usuarios-section.tsx
- * Gestión de usuarios de la empresa — visible sólo para administradores.
- * Permite ver, cambiar rol y activar/desactivar miembros.
- * También permite invitar nuevos usuarios por email.
+ * Gestion de usuarios de la empresa — visible solo para administradores.
  */
 import { useState } from "react";
-import { UserCheck, UserX, ShieldCheck, User, UserPlus } from "lucide-react";
+import { UserCheck, UserX, ShieldCheck, User, UserPlus, Pencil } from "lucide-react";
 
 import { DataTable } from "@/components/common/data-table";
 import { StatusBadge } from "@/components/common/status-badge";
 import { toast } from "@/components/common/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -36,6 +35,7 @@ import {
   useReactivarUsuario,
   useInvitarUsuarioPorEmail,
 } from "@/hooks/entities/use-empresa-usuarios";
+import { useAdminActualizarPerfil } from "@/hooks/entities/use-perfil";
 import { useRoles } from "@/hooks/entities/use-roles";
 import { useCompany } from "@/contexts/company-context";
 
@@ -50,14 +50,30 @@ export function UsuariosSection() {
   const desactivar = useDesactivarUsuario();
   const reactivar = useReactivarUsuario();
   const invitar = useInvitarUsuarioPorEmail();
+  const actualizarPerfil = useAdminActualizarPerfil();
 
   const roles = rolesData?.rows ?? [];
   const [changingRol, setChangingRol] = useState<string | null>(null);
 
-  // Dialogo invitar
+  // Dialog: invitar
   const [dialogOpen, setDialogOpen] = useState(false);
   const [emailInvite, setEmailInvite] = useState("");
   const [inviteError, setInviteError] = useState<string | null>(null);
+
+  // Dialog: editar perfil de usuario
+  const [editTarget, setEditTarget] = useState<EmpresaUsuario | null>(null);
+  const [editNombres, setEditNombres] = useState("");
+  const [editApellidos, setEditApellidos] = useState("");
+  const [editCargo, setEditCargo] = useState("");
+  const [editError, setEditError] = useState<string | null>(null);
+
+  function openEditDialog(m: EmpresaUsuario) {
+    setEditTarget(m);
+    setEditNombres(m.nombres ?? "");
+    setEditApellidos(m.apellidos ?? "");
+    setEditCargo(m.cargo ?? "");
+    setEditError(null);
+  }
 
   function extractMsg(err: unknown, fallback: string): string {
     if (err instanceof Error) return err.message;
@@ -99,13 +115,31 @@ export function UsuariosSection() {
       const res = await invitar.mutateAsync(emailInvite.trim());
       toast.success(
         res.ya_miembro
-          ? "El usuario ya era miembro. Se reactivó su acceso."
+          ? "El usuario ya era miembro. Se reactivo su acceso."
           : "Usuario agregado correctamente.",
       );
       setDialogOpen(false);
       setEmailInvite("");
     } catch (err) {
       setInviteError(extractMsg(err, "Error al agregar usuario."));
+    }
+  }
+
+  async function handleGuardarPerfil() {
+    if (!editTarget || !editNombres.trim()) {
+      setEditError("El nombre es requerido.");
+      return;
+    }
+    setEditError(null);
+    try {
+      await actualizarPerfil.mutateAsync({
+        usuarioId: editTarget.usuario_id,
+        data: { nombres: editNombres.trim(), apellidos: editApellidos.trim(), cargo: editCargo.trim() },
+      });
+      toast.success("Perfil actualizado.");
+      setEditTarget(null);
+    } catch (err) {
+      setEditError(extractMsg(err, "Error al guardar perfil."));
     }
   }
 
@@ -167,19 +201,30 @@ export function UsuariosSection() {
       header: "",
       className: "w-20",
       cell: (row) => (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8"
-          title={row.activo ? "Desactivar" : "Reactivar"}
-          onClick={() => void handleToggleActivo(row)}
-        >
-          {row.activo ? (
-            <UserX className="size-3.5 text-destructive" />
-          ) : (
-            <UserCheck className="size-3.5 text-success" />
-          )}
-        </Button>
+        <div className="flex gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            title="Editar perfil"
+            onClick={() => openEditDialog(row)}
+          >
+            <Pencil className="size-3.5 text-muted-foreground" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            title={row.activo ? "Desactivar" : "Reactivar"}
+            onClick={() => void handleToggleActivo(row)}
+          >
+            {row.activo ? (
+              <UserX className="size-3.5 text-destructive" />
+            ) : (
+              <UserCheck className="size-3.5 text-success" />
+            )}
+          </Button>
+        </div>
       ),
     },
   ];
@@ -191,7 +236,7 @@ export function UsuariosSection() {
           <h3 className="text-base font-semibold">Usuarios de la empresa</h3>
           <p className="text-sm text-muted-foreground">
             Gestiona los miembros y sus roles. El primer usuario registrado es administrador
-            automáticamente.
+            automaticamente.
           </p>
         </div>
         <Button
@@ -221,10 +266,10 @@ export function UsuariosSection() {
       {empresaActiva && (
         <div className="mt-3 rounded-md border bg-muted/40 px-3 py-2">
           <p className="text-xs text-muted-foreground">
-            Código de empresa:{" "}
+            Codigo de empresa:{" "}
             <span className="font-mono font-semibold text-foreground">{empresaActiva.codigo}</span>
             {" — "}
-            Comparte este código con los nuevos usuarios para que se unan al registrarse.
+            Comparte este codigo con los nuevos usuarios para que se unan al registrarse.
           </p>
         </div>
       )}
@@ -235,7 +280,7 @@ export function UsuariosSection() {
           <DialogHeader>
             <DialogTitle>Agregar usuario</DialogTitle>
             <DialogDescription>
-              El usuario debe tener una cuenta en VIATIQ. Ingresa su correo y quedará vinculado a
+              El usuario debe tener una cuenta en VIATIQ. Ingresa su correo y quedara vinculado a
               esta empresa con rol "Usuario".
             </DialogDescription>
           </DialogHeader>
@@ -272,6 +317,64 @@ export function UsuariosSection() {
               onClick={() => void handleInvitar()}
             >
               {invitar.isPending ? "Agregando..." : "Agregar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: editar perfil de usuario */}
+      <Dialog open={!!editTarget} onOpenChange={(v) => { if (!v) setEditTarget(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Editar perfil</DialogTitle>
+            <DialogDescription>
+              El nombre aparece en las liquidaciones de gastos como "Empleado".
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 py-2">
+            <div className="grid gap-1.5">
+              <Label htmlFor="edit-nombres">Nombre(s) *</Label>
+              <Input
+                id="edit-nombres"
+                value={editNombres}
+                onChange={(e) => setEditNombres(e.target.value)}
+                placeholder="Daniel"
+                autoFocus
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="edit-apellidos">Apellido(s)</Label>
+              <Input
+                id="edit-apellidos"
+                value={editApellidos}
+                onChange={(e) => setEditApellidos(e.target.value)}
+                placeholder="Zhunio"
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="edit-cargo">Cargo</Label>
+              <Input
+                id="edit-cargo"
+                value={editCargo}
+                onChange={(e) => setEditCargo(e.target.value)}
+                placeholder="Gerente de Operaciones"
+              />
+            </div>
+            {editError && (
+              <Alert variant="destructive">
+                <AlertDescription>{editError}</AlertDescription>
+              </Alert>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditTarget(null)}>
+              Cancelar
+            </Button>
+            <Button
+              disabled={!editNombres.trim() || actualizarPerfil.isPending}
+              onClick={() => void handleGuardarPerfil()}
+            >
+              {actualizarPerfil.isPending ? "Guardando..." : "Guardar"}
             </Button>
           </DialogFooter>
         </DialogContent>

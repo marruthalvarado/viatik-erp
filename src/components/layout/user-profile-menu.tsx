@@ -14,10 +14,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/use-auth";
 import { AboutDialog } from "./about-dialog";
+import { EditProfileDialog } from "./edit-profile-dialog";
 
 export function UserProfileMenu() {
   const { user, signOut } = useAuth();
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const email = user?.email ?? "Invitado";
   const initials = (user?.email ?? "VT").split("@")[0].slice(0, 2).toUpperCase();
 
@@ -38,20 +40,20 @@ export function UserProfileMenu() {
             <div className="flex flex-col">
               <span className="text-sm font-medium truncate">{email}</span>
               <span className="text-xs text-muted-foreground">
-                {user ? "Sesión activa" : "Conecta tu cuenta"}
+                {user ? "Sesion activa" : "Conecta tu cuenta"}
               </span>
             </div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
-            <DropdownMenuItem disabled aria-disabled="true">
-              <User className="mr-2 size-4" /> Perfil
+            <DropdownMenuItem onClick={() => setProfileOpen(true)}>
+              <User className="mr-2 size-4" /> Editar perfil
             </DropdownMenuItem>
             <DropdownMenuItem disabled aria-disabled="true">
-              <Settings className="mr-2 size-4" /> Configuración
+              <Settings className="mr-2 size-4" /> Configuracion
             </DropdownMenuItem>
             <DropdownMenuItem disabled aria-disabled="true">
-              <CreditCard className="mr-2 size-4" /> Facturación
+              <CreditCard className="mr-2 size-4" /> Facturacion
             </DropdownMenuItem>
           </DropdownMenuGroup>
           <DropdownMenuSeparator />
@@ -63,12 +65,13 @@ export function UserProfileMenu() {
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem disabled={!user} onClick={() => void signOut()}>
-            <LogOut className="mr-2 size-4" /> Cerrar sesión
+            <LogOut className="mr-2 size-4" /> Cerrar sesion
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
       <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
+      <EditProfileDialog open={profileOpen} onOpenChange={setProfileOpen} />
     </>
   );
 }

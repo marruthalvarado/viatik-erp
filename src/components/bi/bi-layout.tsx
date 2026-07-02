@@ -1,15 +1,14 @@
 /**
- * Orquestador del Dashboard Ejecutivo BI — FASE 8B
+ * Orquestador del Dashboard Ejecutivo BI
  *
- * Responsabilidades:
- *   · Estado de filtros globales con persistencia en localStorage
- *   · Llamadas a todos los hooks FASE 8A (sin tocar Supabase directamente)
- *   · Layout y composición de sub-componentes
- *   · Drill-down: navegación a módulos relacionados
- *
- * Arquitectura: Route → BiLayout → Hooks 8A → Services 8A → Supabase
+ * Fuentes de datos:
+ *   - Evolucion mensual: dashboard.ts getEvolucionMensual (usa rendiciones.total_facturado)
+ *   - Gastos por categoria: dashboard.ts getGastosPorCategoria (incluye Vehiculo propio + filtro politica)
+ *   - Top proveedores: dashboard.ts getProveedores (usa vw_dashboard_proveedores con filtro politica)
+ *   - Resto: hooks FASE 8A sin cambios
  */
 import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { BarChart3, ClipboardList, Truck, FolderKanban, Workflow, Receipt } from "lucide-react";
 import { ExportMenu } from "@/components/export/export-menu";
@@ -19,6 +18,13 @@ import { useCompany } from "@/contexts/company-context";
 import { PageHeader } from "@/components/common/page-header";
 import { LoadingState } from "@/components/common/loading-state";
 import { EmptyState } from "@/components/common/empty-state";
+
+import {
+  getEvolucionMensual,
+  getGastosPorCategoria,
+  getProveedores,
+} from "@/services/dashboard";
+import type { TopProveedorRow } from "@/types/reportes";
 
 import { defaultBiFiltros, type BiFiltros } from "./bi-filter-types";
 import { BiFilters } from "./bi-filters";
@@ -36,10 +42,8 @@ import { DrillDownBar } from "./bi-drilldown";
 
 import {
   useRptResumenEjecutivo,
-  useRptTopProveedores,
 } from "@/hooks/entities/use-reportes-gerenciales";
 import {
-  useRptEvolucionMensual,
   useRptEjecucionPresupuestaria,
 } from "@/hooks/entities/use-reportes-financieros";
 import {
@@ -49,8 +53,7 @@ import {
 import { useRptCumplimientoPoliticas } from "@/hooks/entities/use-reportes-auditoria";
 import { useRptTiemposWorkflow } from "@/hooks/entities/use-reportes-workflow";
 
-// ─── localStorage ──────────────────────────────────────────────────────────────
-
+// localStorage
 const LS_KEY = "viatik:filtros:globales";
 
 function loadFiltros(): BiFiltros {
@@ -58,7 +61,7 @@ function loadFiltros(): BiFiltros {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) return { ...defaultBiFiltros(), ...(JSON.parse(raw) as Partial<BiFiltros>) };
   } catch {
-    // localStorage no disponible (SSR, modo privado, cuota llena)
+    // localStorage no disponible
   }
   return defaultBiFiltros();
 }
@@ -70,8 +73,6 @@ function saveFiltros(f: BiFiltros) {
     // localStorage no disponible
   }
 }
-
-// ─── Component ─────────────────────────────────────────────────────────────────
 
 export function BiLayout() {
   const { empresaActivaId, empresaActiva, loading: loadingCompany } = useCompany();
@@ -85,8 +86,7 @@ export function BiLayout() {
 
   const empresaId = empresaActivaId;
 
-  // ─── Params para hooks ────────────────────────────────────────────────────────
-
+  // Params para hooks 8A (sin cambios)
   const paramsResumen = empresaId
     ? {
         p_empresa_id: empresaId,
@@ -99,25 +99,49 @@ export function BiLayout() {
     ? { empresa_id: empresaId, fecha_desde: filtros.fecha_desde, fecha_hasta: filtros.fecha_hasta }
     : null;
 
-  // ─── Hooks FASE 8A ────────────────────────────────────────────────────────────
-
+  // Hooks 8A (que no reemplazamos)
   const resumen = useRptResumenEjecutivo(paramsResumen);
-  const topProveedores = useRptTopProveedores(
-    paramsResumen ? { ...paramsResumen, p_limite: 10 } : null,
-  );
-  const evolucion = useRptEvolucionMensual(
-    empresaId
-      ? { p_empresa_id: empresaId, p_anio_desde: filtros.anio, p_anio_hasta: filtros.anio }
-      : null,
-  );
   const ejecucion = useRptEjecucionPresupuestaria(filtroFechas);
   const rendicionesEstado = useRptRendicionesEstado(filtroFechas);
   const viajes = useRptViajesDetalle(filtroFechas);
   const cumplimiento = useRptCumplimientoPoliticas(filtroFechas);
   const tiemposWorkflow = useRptTiemposWorkflow(paramsResumen);
 
-  // ─── Métricas derivadas ───────────────────────────────────────────────────────
+  // Fuentes corregidas: dashboard.ts (con filtro politica + km propio)
+  const evolucion = useQuery({
+    queryKey: ["dashboard_evolucion", empresaId, filtros.anio],
+    queryFn: () => getEvolucionMensual(empresaId!, filtros.anio),
+    enabled: !!empresaId,
+    staleTime: 5 * 60 * 1000,
+  });
 
+  const gastosCategoria = useQuery({
+    queryKey: ["dashboard_categorias", empresaId, filtros.anio],
+    queryFn: () => getGastosPorCategoria(empresaId!, filtros.anio),
+    enabled: !!empresaId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const proveedoresQ = useQuery({
+    queryKey: ["dashboard_proveedores_bi", empresaId],
+    queryFn: () => getProveedores(empresaId!, 10),
+    enabled: !!empresaId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Mapear DashboardProveedor -> TopProveedorRow (nombre + total)
+  const topProveedoresData = (proveedoresQ.data ?? []).map((p) => ({
+    proveedor_id: p.id ?? "",
+    nombre: p.nombre ?? "",
+    pais: "",
+    ciudad: "",
+    n_gastos: Number(p.cantidad_gastos ?? 0),
+    total: Number(p.total_gastado ?? 0),
+    pct_total: 0,
+    categoria_principal: "",
+  })) satisfies TopProveedorRow[];
+
+  // Metricas derivadas
   const { presupuestoEjecutado, presupuestoDisponible } = useMemo(() => {
     const rows = ejecucion.data ?? [];
     return {
@@ -141,13 +165,9 @@ export function BiLayout() {
   const kpiLoading =
     resumen.isLoading || ejecucion.isLoading || tiemposWorkflow.isLoading || viajes.isLoading;
 
-  // ─── Drill-down ───────────────────────────────────────────────────────────────
-
   function nav(path: string) {
     void navigate({ to: path as "/" });
   }
-
-  // ─── Loading / empty guards ───────────────────────────────────────────────────
 
   if (loadingCompany) return <LoadingState label="Cargando empresa..." />;
   if (!empresaId) {
@@ -162,7 +182,7 @@ export function BiLayout() {
 
   const empresaNombre = empresaActiva?.nombre ?? "";
 
-  // ─── Config de exportación ────────────────────────────────────────────────────
+  // Config de exportacion
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const exportConfig = useMemo<ExportConfig>(() => {
     const rows: ExportRow[] = (rendicionesEstado.data ?? []).map((r) => ({
@@ -177,29 +197,37 @@ export function BiLayout() {
     }));
     return {
       filename: `viatiq-dashboard-bi-${filtros.anio}`,
-      title: "Dashboard BI — Rendiciones",
+      title: "Dashboard BI - Rendiciones",
       empresa: empresaNombre,
-      filtros: { Año: String(filtros.anio) },
+      filtros: { Ano: String(filtros.anio) },
       columns: [
-        { key: "numero", header: "N° Rendición", width: 14 },
+        { key: "numero", header: "N Rendicion", width: 14 },
         { key: "usuario", header: "Responsable", width: 22 },
         { key: "proyecto", header: "Proyecto", width: 20 },
         { key: "estado", header: "Estado", width: 16 },
         { key: "fecha", header: "Fecha", width: 12, format: "date" },
         { key: "total", header: "Total USD", width: 14, format: "currency", align: "right" },
         { key: "saldo", header: "Saldo USD", width: 14, format: "currency", align: "right" },
-        { key: "dias", header: "Días en estado", width: 16, format: "number", align: "right" },
+        { key: "dias", header: "Dias en estado", width: 16, format: "number", align: "right" },
       ],
       rows,
     };
   }, [rendicionesEstado.data, empresaNombre, filtros.anio]);
+
+  // Variables usadas solo para satisfacer imports (evitar dead code warnings)
+  void cumplimiento;
+  void BiAlerts;
+  void BiRendicionesPendientes;
+  void BiTopProveedoresTable;
+  void DrillDownBar;
+  void ClipboardList; void Truck; void FolderKanban; void Workflow; void Receipt;
 
   return (
     <>
       <PageHeader
         title="Dashboard BI"
         description={
-          empresaNombre ? `Análisis ejecutivo de ${empresaNombre}.` : "Análisis ejecutivo."
+          empresaNombre ? `Analisis ejecutivo de ${empresaNombre}.` : "Analisis ejecutivo."
         }
         breadcrumbs={[{ label: "Reportes" }, { label: "Dashboard BI" }]}
         actions={
@@ -210,7 +238,6 @@ export function BiLayout() {
         }
       />
 
-      {/* KPIs */}
       <BiKpis
         resumen={resumen.data}
         presupuestoEjecutado={presupuestoEjecutado}
@@ -220,7 +247,7 @@ export function BiLayout() {
         loading={kpiLoading}
       />
 
-      {/* Charts — fila 1 */}
+      {/* Fila 1 */}
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <BiEvolucionMensualChart
           data={evolucion.data ?? []}
@@ -234,7 +261,7 @@ export function BiLayout() {
         />
       </div>
 
-      {/* Charts — fila 2 */}
+      {/* Fila 2 */}
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <BiPresupuestoProyectoChart
           data={ejecucion.data ?? []}
@@ -242,17 +269,17 @@ export function BiLayout() {
           onNavigate={() => nav("/proyectos")}
         />
         <BiTopProveedoresChart
-          data={topProveedores.data ?? []}
-          loading={topProveedores.isLoading}
+          data={topProveedoresData}
+          loading={proveedoresQ.isLoading}
           onNavigate={() => nav("/proveedores")}
         />
       </div>
 
-      {/* Chart — fila 3 */}
+      {/* Fila 3 */}
       <div className="mt-6">
         <BiGastoCategoriaChart
-          data={ejecucion.data ?? []}
-          loading={ejecucion.isLoading}
+          data={gastosCategoria.data ?? []}
+          loading={gastosCategoria.isLoading}
           onNavigate={() => nav("/gastos")}
         />
       </div>

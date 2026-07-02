@@ -1,12 +1,6 @@
 /**
- * Gráficos del Dashboard Ejecutivo BI.
- *
- * Charts implementados:
- *   · Evolución mensual de gastos (BarChart)
- *   · Estado de rendiciones (PieChart / donut)
- *   · Distribución presupuestaria por proyecto (BarChart horizontal)
- *   · Top proveedores por gasto (BarChart horizontal)
- *   · Gasto por categoría — derivado de ejecución presupuestaria (PieChart)
+ * Graficos del Dashboard Ejecutivo BI.
+ * Usa colores hex solidos (no CSS vars --chart-* que no estan definidas).
  */
 import {
   BarChart,
@@ -26,28 +20,25 @@ import { LoadingState } from "@/components/common/loading-state";
 import { EmptyState } from "@/components/common/empty-state";
 import { formatCurrency } from "@/utils/formatters";
 import type {
-  EvolucionMensualRow,
   EjecucionPresupuestariaRow,
   TopProveedorRow,
   RendicionEstadoRow,
 } from "@/types/reportes";
+import type { EvolucionMensual, GastoCategoria } from "@/services/dashboard";
 
-// ─── Paleta ────────────────────────────────────────────────────────────────────
-
+// Paleta hex (misma que dashboard-charts.tsx para consistencia)
 const COLORS = [
-  "hsl(var(--chart-1))",
-  "hsl(var(--chart-2))",
-  "hsl(var(--chart-3))",
-  "hsl(var(--chart-4))",
-  "hsl(var(--chart-5))",
-  "#6366f1",
-  "#f59e0b",
-  "#10b981",
-  "#ef4444",
-  "#8b5cf6",
+  "#6366f1", // indigo
+  "#10b981", // emerald
+  "#f59e0b", // amber
+  "#ef4444", // red
+  "#8b5cf6", // violet
+  "#ec4899", // pink
+  "#0ea5e9", // sky
+  "#84cc16", // lime
+  "#f97316", // orange
+  "#06b6d4", // cyan
 ];
-
-// ─── Helpers ───────────────────────────────────────────────────────────────────
 
 function ChartPanel({
   title,
@@ -77,7 +68,7 @@ function ChartPanel({
       {loading ? (
         <LoadingState label="Cargando..." />
       ) : empty ? (
-        <EmptyState title="Sin datos para el período" />
+        <EmptyState title="Sin datos para el periodo" />
       ) : (
         children
       )}
@@ -91,10 +82,9 @@ function tick(value: number) {
   return `$${value}`;
 }
 
-// ─── 1. Evolución mensual ──────────────────────────────────────────────────────
-
+// 1. Evolucion mensual — usa EvolucionMensual[] de dashboard.ts
 interface EvolucionProps {
-  data: EvolucionMensualRow[];
+  data: EvolucionMensual[];
   loading: boolean;
   anio: number;
 }
@@ -102,27 +92,35 @@ interface EvolucionProps {
 export function BiEvolucionMensualChart({ data, loading, anio }: EvolucionProps) {
   return (
     <ChartPanel
-      title={`Evolución mensual ${anio}`}
+      title={`Evolucion mensual ${anio}`}
       loading={loading}
-      empty={!loading && data.length === 0}
+      empty={!loading && data.every((d) => d.total_facturado === 0)}
     >
       <ResponsiveContainer width="100%" height={220}>
         <BarChart data={data} margin={{ top: 4, right: 12, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
           <XAxis dataKey="label" tick={{ fontSize: 10 }} />
           <YAxis tickFormatter={tick} tick={{ fontSize: 10 }} width={56} />
-          <Tooltip formatter={(v: number) => formatCurrency(v)} />
-          <Legend iconType="rect" iconSize={10} />
-          <Bar dataKey="facturado" name="Facturado" fill={COLORS[0]} radius={[3, 3, 0, 0]} />
-          <Bar dataKey="reembolsable" name="Reembolsable" fill={COLORS[1]} radius={[3, 3, 0, 0]} />
+          <Tooltip
+            formatter={(value: number, name: string) => [
+              formatCurrency(value),
+              name === "total_facturado" ? "Facturado" : "Reembolsable",
+            ]}
+          />
+          <Legend
+            formatter={(v) => (v === "total_facturado" ? "Facturado" : "Reembolsable")}
+            iconType="rect"
+            iconSize={10}
+          />
+          <Bar dataKey="total_facturado" fill={COLORS[0]} radius={[3, 3, 0, 0]} />
+          <Bar dataKey="total_reembolsable" fill={COLORS[1]} radius={[3, 3, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </ChartPanel>
   );
 }
 
-// ─── 2. Estado de rendiciones (donut) ─────────────────────────────────────────
-
+// 2. Estado de rendiciones
 interface EstadoRendicionesProps {
   data: RendicionEstadoRow[];
   loading: boolean;
@@ -170,8 +168,7 @@ export function BiEstadoRendicionesChart({ data, loading, onNavigate }: EstadoRe
   );
 }
 
-// ─── 3. Distribución presupuestaria por proyecto ──────────────────────────────
-
+// 3. Distribucion presupuestaria por proyecto
 interface PresupuestoProyectoProps {
   data: EjecucionPresupuestariaRow[];
   loading: boolean;
@@ -217,7 +214,7 @@ export function BiPresupuestoProyectoChart({
           <Bar
             dataKey="presupuestado"
             name="Presupuesto"
-            fill={COLORS[1]}
+            fill={COLORS[2]}
             radius={[0, 3, 3, 0]}
             onClick={onNavigate}
             style={{ cursor: "pointer" }}
@@ -236,8 +233,7 @@ export function BiPresupuestoProyectoChart({
   );
 }
 
-// ─── 4. Top proveedores ────────────────────────────────────────────────────────
-
+// 4. Top proveedores — acepta TopProveedorRow[] (campo total)
 interface TopProveedoresProps {
   data: TopProveedorRow[];
   loading: boolean;
@@ -245,7 +241,10 @@ interface TopProveedoresProps {
 }
 
 export function BiTopProveedoresChart({ data, loading, onNavigate }: TopProveedoresProps) {
-  const chartData = data.slice(0, 8).map((p) => ({ nombre: p.nombre, total: p.total }));
+  const chartData = data.slice(0, 8).map((p) => ({
+    nombre: p.nombre && p.nombre.length > 22 ? p.nombre.slice(0, 20) + "..." : (p.nombre ?? "-"),
+    total: p.total ?? 0,
+  }));
 
   return (
     <ChartPanel
@@ -258,16 +257,16 @@ export function BiTopProveedoresChart({ data, loading, onNavigate }: TopProveedo
         <BarChart
           data={chartData}
           layout="vertical"
-          margin={{ top: 4, right: 16, left: 4, bottom: 0 }}
+          margin={{ top: 4, right: 40, left: 4, bottom: 0 }}
         >
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-          <XAxis type="number" tickFormatter={tick} tick={{ fontSize: 10 }} width={56} />
+          <XAxis type="number" tickFormatter={tick} tick={{ fontSize: 10 }} />
           <YAxis type="category" dataKey="nombre" tick={{ fontSize: 9 }} width={90} />
           <Tooltip formatter={(v: number) => formatCurrency(v)} />
           <Bar
             dataKey="total"
             name="Total"
-            fill={COLORS[2]}
+            fill={COLORS[3]}
             radius={[0, 3, 3, 0]}
             onClick={onNavigate}
             style={{ cursor: "pointer" }}
@@ -278,54 +277,78 @@ export function BiTopProveedoresChart({ data, loading, onNavigate }: TopProveedo
   );
 }
 
-// ─── 5. Gasto por categoría ───────────────────────────────────────────────────
+// 5. Gasto por categoria — usa GastoCategoria[] de dashboard.ts
+// Incluye "Vehiculo propio" y aplica filtro de politica
+const RADIAN = Math.PI / 180;
+
+function PieLabel({
+  cx, cy, midAngle, innerRadius, outerRadius, percent,
+}: {
+  cx: number; cy: number; midAngle: number;
+  innerRadius: number; outerRadius: number; percent: number; name: string;
+}) {
+  if (percent < 0.05) return null;
+  const radius = innerRadius + (outerRadius - innerRadius) * 0.55;
+  const x = cx + radius * Math.cos(-midAngle * RADIAN);
+  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+  return (
+    <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={9}>
+      {`${(percent * 100).toFixed(0)}%`}
+    </text>
+  );
+}
 
 interface GastoCategoriaProps {
-  data: EjecucionPresupuestariaRow[];
+  data: GastoCategoria[];
   loading: boolean;
   onNavigate: () => void;
 }
 
 export function BiGastoCategoriaChart({ data, loading, onNavigate }: GastoCategoriaProps) {
-  const grouped = Object.entries(
-    data.reduce<Record<string, number>>((acc, r) => {
-      const k = r.categoria_nombre ?? "Sin categoría";
-      acc[k] = (acc[k] ?? 0) + (r.ejecutado ?? 0);
-      return acc;
-    }, {}),
-  )
-    .map(([name, value]) => ({ name, value }))
-    .filter((d) => d.value > 0)
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 8);
+  const top = data.filter((d) => d.total > 0).slice(0, 8);
 
   return (
     <ChartPanel
-      title="Gasto por categoría"
+      title="Gasto por categoria"
       loading={loading}
-      empty={!loading && grouped.length === 0}
+      empty={!loading && top.length === 0}
       onTitleClick={onNavigate}
     >
-      <ResponsiveContainer width="100%" height={220}>
-        <PieChart>
-          <Pie
-            data={grouped}
-            cx="50%"
-            cy="50%"
-            outerRadius={85}
-            paddingAngle={2}
-            dataKey="value"
-            onClick={onNavigate}
-            style={{ cursor: "pointer" }}
-          >
-            {grouped.map((_, i) => (
-              <Cell key={i} fill={COLORS[i % COLORS.length]} />
-            ))}
-          </Pie>
-          <Tooltip formatter={(v: number) => formatCurrency(v)} />
-          <Legend iconType="circle" iconSize={9} />
-        </PieChart>
-      </ResponsiveContainer>
+      <div className="flex items-center gap-4">
+        <ResponsiveContainer width="55%" height={200}>
+          <PieChart>
+            <Pie
+              data={top}
+              dataKey="total"
+              nameKey="categoria_nombre"
+              cx="50%"
+              cy="50%"
+              outerRadius={90}
+              labelLine={false}
+              label={(p) => <PieLabel {...p} name={p.categoria_nombre} />}
+              onClick={onNavigate}
+              style={{ cursor: "pointer" }}
+            >
+              {top.map((_, i) => (
+                <Cell key={i} fill={COLORS[i % COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip formatter={(v: number) => formatCurrency(v)} />
+          </PieChart>
+        </ResponsiveContainer>
+        <ul className="flex-1 space-y-1.5 text-xs">
+          {top.map((cat, i) => (
+            <li key={cat.categoria_id ?? i} className="flex items-center gap-2">
+              <span
+                className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+                style={{ background: COLORS[i % COLORS.length] }}
+              />
+              <span className="truncate flex-1">{cat.categoria_nombre}</span>
+              <span className="tabular-nums font-medium">{formatCurrency(cat.total)}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
     </ChartPanel>
   );
 }
