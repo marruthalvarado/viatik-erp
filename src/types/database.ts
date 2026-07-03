@@ -1680,6 +1680,8 @@ export type Database = {
         Row: {
           anticipo_credito: number | null;
           anticipo_efectivo: number | null;
+          aprobador_id: string | null;
+          comentario_rechazo: string | null;
           created_at: string | null;
           deleted_at: string | null;
           descripcion: string | null;
@@ -1706,6 +1708,8 @@ export type Database = {
         Insert: {
           anticipo_credito?: number | null;
           anticipo_efectivo?: number | null;
+          aprobador_id?: string | null;
+          comentario_rechazo?: string | null;
           created_at?: string | null;
           deleted_at?: string | null;
           descripcion?: string | null;
@@ -1732,6 +1736,8 @@ export type Database = {
         Update: {
           anticipo_credito?: number | null;
           anticipo_efectivo?: number | null;
+          aprobador_id?: string | null;
+          comentario_rechazo?: string | null;
           created_at?: string | null;
           deleted_at?: string | null;
           descripcion?: string | null;
@@ -2567,6 +2573,33 @@ export type Database = {
           workflow_paso_id: string;
         }[];
       };
+      // Opcion B: aprobador directo por rendicion
+      rendir_enviar: {
+        Args: { p_rendicion_id: string; p_aprobador_id: string };
+        Returns: undefined;
+      };
+      rendir_aprobar: {
+        Args: { p_rendicion_id: string; p_comentario?: string | null };
+        Returns: undefined;
+      };
+      rendir_rechazar: {
+        Args: { p_rendicion_id: string; p_motivo: string };
+        Returns: undefined;
+      };
+      rendir_mis_pendientes: {
+        Args: Record<string, never>;
+        Returns: {
+          id: string;
+          numero: string;
+          proyecto_id: string;
+          empresa_id: string;
+          usuario_id: string;
+          fecha_envio: string | null;
+          total_facturado: number;
+          anticipo_efectivo: number;
+          anticipo_credito: number;
+        }[];
+      };
       wf_enviar_aprobacion: {
         Args: {
           p_rendicion_id: string;
@@ -2766,9 +2799,3 @@ export type CompositeTypes<
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
     ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never;
-
-export const Constants = {
-  public: {
-    Enums: {},
-  },
-} as const;

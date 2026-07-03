@@ -358,6 +358,7 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
           <WorkflowTab
             rendicion={rendicion}
             estadoCodigo={estadoCodigo}
+            estadoNombre={estadoNombre}
             tieneWorkflowActivo={tieneWorkflowActivo}
           />
         </TabsContent>

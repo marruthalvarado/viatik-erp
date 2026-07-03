@@ -1,17 +1,22 @@
-import { useState } from "react";
+/**
+ * workflow.tsx
+ * Bandeja de aprobaciones directas (Opcion B).
+ * Muestra las rendiciones donde el usuario actual es el aprobador asignado
+ * y el estado es "enviada".
+ */
+
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ClipboardCheck, Inbox } from "lucide-react";
+import { Inbox } from "lucide-react";
 
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/common/page-header";
 import { EmptyState } from "@/components/common/empty-state";
-import { toast } from "@/components/common/toast";
 
-import { useMisAprobacionesPendientes } from "@/hooks/entities/use-workflow";
-import { MisAprobacionesTable } from "@/components/workflow/mis-aprobaciones-table";
+import { useMisRendicionesPendientes } from "@/hooks/entities/use-rendicion-aprobacion";
+import { RendicionesPendientesTable } from "@/components/workflow/rendiciones-pendientes-table";
 
 export const Route = createFileRoute("/workflow")({
-  head: () => ({ meta: [{ title: "Workflow · VIATIQ" }] }),
+  head: () => ({ meta: [{ title: "Aprobaciones - VIATIQ" }] }),
   component: WorkflowPage,
 });
 
@@ -25,82 +30,40 @@ function WorkflowPage() {
 
 function WorkflowContent() {
   const navigate = useNavigate();
-  const [tab, setTab] = useState<"pendientes" | "todas">("pendientes");
+
+  function irARendicion(rendicionId: string) {
+    void navigate({ to: "/rendiciones", search: { detalle: rendicionId } as never });
+  }
 
   return (
     <>
       <PageHeader
-        title="Workflow de aprobaciones"
-        description="Bandeja de rendiciones pendientes de revisión."
-        breadcrumbs={[{ label: "Workflow" }]}
+        title="Aprobaciones pendientes"
+        description="Rendiciones asignadas a ti para revision y aprobacion."
+        breadcrumbs={[{ label: "Aprobaciones" }]}
       />
 
-      {/* Tabs simples */}
-      <div className="mb-5 flex gap-1 border-b border-border">
-        <TabButton
-          active={tab === "pendientes"}
-          onClick={() => setTab("pendientes")}
-          icon={<Inbox className="size-4" />}
-          label="Mis pendientes"
-        />
-        <TabButton
-          active={tab === "todas"}
-          onClick={() => setTab("todas")}
-          icon={<ClipboardCheck className="size-4" />}
-          label="Todas en proceso"
-        />
-      </div>
-
-      {tab === "pendientes" && (
-        <MisPendientesTab
-          onVerDetalle={(id) =>
-            void navigate({ to: "/rendiciones", search: { detalle: id } as never })
-          }
-        />
-      )}
-      {tab === "todas" && <TodasEnProcesoTab />}
+      <BandejaTab onVerDetalle={irARendicion} />
     </>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Tab: Mis pendientes
+// Tabla de pendientes
 // ---------------------------------------------------------------------------
 
-interface MisPendientesTabProps {
+interface BandejaTabProps {
   onVerDetalle: (rendicionId: string) => void;
 }
 
-function MisPendientesTab({ onVerDetalle }: MisPendientesTabProps) {
-  const { data, isLoading, error } = useMisAprobacionesPendientes();
+function BandejaTab({ onVerDetalle }: BandejaTabProps) {
+  const { data, isLoading, error } = useMisRendicionesPendientes();
 
   if (error) {
     return (
       <EmptyState
         title="Error al cargar aprobaciones"
-        description={error instanceof Error ? error.message : "Ocurrió un error inesperado."}
-      />
-    );
-  }
-
-  return <MisAprobacionesTable data={data ?? []} loading={isLoading} onVerDetalle={onVerDetalle} />;
-}
-
-// ---------------------------------------------------------------------------
-// Tab: Todas en proceso (pendientes de cualquier aprobador en la empresa)
-// ---------------------------------------------------------------------------
-
-function TodasEnProcesoTab() {
-  // Esta vista muestra TODAS las rendiciones en estado 'enviada' o 'en_revision'
-  // para roles administrador. Por ahora reutiliza el mismo hook — en FASE 8
-  // se puede agregar un query por empresa que no filtre por rol.
-  const { data, isLoading, error } = useMisAprobacionesPendientes();
-
-  if (error) {
-    return (
-      <EmptyState
-        title="Error al cargar rendiciones en proceso"
-        description={error instanceof Error ? error.message : "Ocurrió un error inesperado."}
+        description={error instanceof Error ? error.message : "Error inesperado."}
       />
     );
   }
@@ -108,43 +71,14 @@ function TodasEnProcesoTab() {
   if (!isLoading && (!data || data.length === 0)) {
     return (
       <EmptyState
-        title="Sin rendiciones en proceso"
-        description="No hay rendiciones en estado de revisión en este momento."
+        icon={Inbox}
+        title="Sin pendientes"
+        description="No tienes rendiciones asignadas para aprobar en este momento."
       />
     );
   }
 
-  return <MisAprobacionesTable data={data ?? []} loading={isLoading} />;
-}
-
-// ---------------------------------------------------------------------------
-// TabButton — interno, no exportado (react-refresh compliant)
-// ---------------------------------------------------------------------------
-
-interface TabButtonProps {
-  active: boolean;
-  onClick: () => void;
-  icon: React.ReactNode;
-  label: string;
-}
-
-function TabButton({ active, onClick, icon, label }: TabButtonProps) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={[
-        "flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors",
-        active
-          ? "border-b-2 border-primary text-primary"
-          : "text-muted-foreground hover:text-foreground",
-      ].join(" ")}
-    >
-      {icon}
-      {label}
-    </button>
+    <RendicionesPendientesTable data={data ?? []} loading={isLoading} onVerDetalle={onVerDetalle} />
   );
 }
-
-// Suprimir warning de import no utilizado (toast disponible para acciones futuras)
-void toast;

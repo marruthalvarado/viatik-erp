@@ -1,7 +1,12 @@
 /**
  * workflow-tab.tsx
- * Tab de workflow integrada en el detalle de rendición.
- * Orquesta permisos, pasos, timeline y acciones — sin lógica de permisos inline.
+ * Tab de workflow en el detalle de rendicion.
+ *
+ * Si la rendicion NO tiene workflow_id (mayoria de los casos):
+ *   → muestra AprobacionPanel (Opcion B: aprobador directo)
+ *
+ * Si tiene workflow_id configurado:
+ *   → muestra el WorkflowPanel complejo (rol-based, multi-paso)
  */
 
 import { useAuth } from "@/contexts/auth-context";
@@ -25,18 +30,60 @@ import { WorkflowPanel } from "@/components/workflow/workflow-actions";
 import { WorkflowTimeline } from "@/components/workflow/workflow-timeline";
 import { buildTimeline, type PasoConEstado } from "@/components/workflow/workflow-types";
 import type { AprobacionConDetalle } from "@/services/workflow-read";
+
+import { AprobacionPanel } from "./aprobacion-panel";
 import type { Rendicion } from "@/types/entities";
 
 interface WorkflowTabProps {
   rendicion: Rendicion;
   estadoCodigo: string | null;
+  estadoNombre: string;
   tieneWorkflowActivo: boolean;
 }
 
-export function WorkflowTab({ rendicion, estadoCodigo, tieneWorkflowActivo }: WorkflowTabProps) {
+export function WorkflowTab({
+  rendicion,
+  estadoCodigo,
+  estadoNombre,
+  tieneWorkflowActivo,
+}: WorkflowTabProps) {
+  // Si no hay workflow configurado → usar aprobacion directa (Opcion B)
+  if (!rendicion.workflow_id) {
+    return (
+      <AprobacionPanel
+        rendicion={rendicion}
+        estadoCodigo={estadoCodigo}
+        estadoNombre={estadoNombre}
+      />
+    );
+  }
+
+  // Con workflow_id → sistema complejo rol-based
+  return (
+    <WorkflowTabComplejo
+      rendicion={rendicion}
+      estadoCodigo={estadoCodigo}
+      tieneWorkflowActivo={tieneWorkflowActivo}
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sistema complejo (solo se usa si hay workflow_id)
+// ---------------------------------------------------------------------------
+interface WorkflowTabComplejoProps {
+  rendicion: Rendicion;
+  estadoCodigo: string | null;
+  tieneWorkflowActivo: boolean;
+}
+
+function WorkflowTabComplejo({
+  rendicion,
+  estadoCodigo,
+  tieneWorkflowActivo,
+}: WorkflowTabComplejoProps) {
   const { user } = useAuth();
 
-  // Datos del workflow
   const { data: pasoActual, isLoading: loadingPaso } = usePasoActual(rendicion.id);
   const { data: aprobaciones = [], isLoading: loadingAprobaciones } = useAprobacionesRendicion(
     rendicion.id,
@@ -48,12 +95,10 @@ export function WorkflowTab({ rendicion, estadoCodigo, tieneWorkflowActivo }: Wo
   const { data: pasosDef = [] } = useWorkflowPasos(rendicion.workflow_id);
   const { data: rolUsuario } = useRolUsuarioEnEmpresa();
 
-  // Mutaciones
   const enviarMut = useEnviarAprobacion();
   const accionMut = useRegistrarAccion();
   const comentarioMut = useAgregarComentario();
 
-  // Permisos — centralizados en permissions.ts, nunca inline en UI
   const puedeEnviar = canEnviarAprobacion({
     estadoCodigo,
     rendicionUsuarioId: rendicion.usuario_id,
@@ -76,23 +121,17 @@ export function WorkflowTab({ rendicion, estadoCodigo, tieneWorkflowActivo }: Wo
     esAprobadorEnEmpresa: !!rolUsuario,
   });
 
-  // Construir pasos con estado para el stepper
   const aprobacionesByPaso = new Map<string, AprobacionConDetalle>();
   for (const ap of aprobaciones) {
-    if (ap.accion_codigo === "aprobar") {
-      aprobacionesByPaso.set(ap.workflow_paso_id, ap);
-    }
+    if (ap.accion_codigo === "aprobar") aprobacionesByPaso.set(ap.workflow_paso_id, ap);
   }
 
   const pasosConEstado: PasoConEstado[] = pasosDef.map((paso) => {
     const aprobacion = aprobacionesByPaso.get(paso.id);
     const esPasoActivo = pasoActual?.paso_id === paso.id;
-
-    // Verificar si hay un rechazo en este paso
     const tieneRechazo = aprobaciones.some(
       (a) => a.workflow_paso_id === paso.id && a.accion_codigo === "rechazar",
     );
-
     let estado: PasoConEstado["estado"] = "pendiente";
     if (aprobacion) estado = "aprobado";
     else if (tieneRechazo) estado = "rechazado";
@@ -109,20 +148,16 @@ export function WorkflowTab({ rendicion, estadoCodigo, tieneWorkflowActivo }: Wo
     };
   });
 
-  // Construir timeline combinado
   const timeline = buildTimeline(historial, comentarios, aprobaciones);
-
   const loadingAll = loadingPaso || loadingAprobaciones || loadingHistorial || loadingComentarios;
-
-  // Paso activo como PasoConEstado (para el panel del aprobador)
   const pasoActivoConEstado = pasosConEstado.find((p) => p.estado === "activo") ?? null;
 
   async function handleEnviar() {
     try {
       await enviarMut.mutateAsync(rendicion.id);
-      toast.success("Rendición enviada a aprobación.");
+      toast.success("Rendicion enviada a aprobacion.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al enviar la rendición.");
+      toast.error(err instanceof Error ? err.message : "Error al enviar la rendicion.");
     }
   }
 
@@ -139,9 +174,9 @@ export function WorkflowTab({ rendicion, estadoCodigo, tieneWorkflowActivo }: Wo
         comentario,
       });
       const labels = { aprobar: "aprobada", rechazar: "rechazada", devolver: "devuelta" };
-      toast.success(`Rendición ${labels[accion]}.`);
+      toast.success(`Rendicion ${labels[accion]}.`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al procesar la acción.");
+      toast.error(err instanceof Error ? err.message : "Error al procesar la accion.");
     }
   }
 
@@ -156,7 +191,6 @@ export function WorkflowTab({ rendicion, estadoCodigo, tieneWorkflowActivo }: Wo
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-      {/* Panel de acciones (izquierda) */}
       <div>
         <h3 className="mb-3 text-sm font-semibold">Estado del workflow</h3>
         <WorkflowPanel
@@ -175,8 +209,6 @@ export function WorkflowTab({ rendicion, estadoCodigo, tieneWorkflowActivo }: Wo
           loading={loadingAll}
         />
       </div>
-
-      {/* Timeline (derecha) */}
       <div>
         <h3 className="mb-3 text-sm font-semibold">Historial</h3>
         <WorkflowTimeline entradas={timeline} loading={loadingHistorial || loadingComentarios} />
