@@ -82,31 +82,10 @@ export async function getMisRendicionesPendientes(): Promise<RendicionPendiente[
 /**
  * Devuelve todos los usuarios activos de la empresa (excepto el actual)
  * como candidatos a aprobador.
+ * Usa RPC SECURITY DEFINER para bypassear RLS de empresas_usuarios.
  */
-export async function getAprobadoresDisponibles(
-  empresaId: string,
-  excluirUserId: string,
-): Promise<UsuarioAprobador[]> {
-  const { data, error } = await supabase
-    .from("empresas_usuarios")
-    .select("usuario_id, usuarios!inner(nombres, apellidos, email)")
-    .eq("empresa_id", empresaId)
-    .eq("activo", true)
-    .neq("usuario_id", excluirUserId);
-
+export async function getAprobadoresDisponibles(): Promise<UsuarioAprobador[]> {
+  const { data, error } = await supabase.rpc("rendir_aprobadores_disponibles");
   if (error) throw new Error(error.message);
-
-  return (data ?? []).map((eu) => {
-    const u = eu.usuarios as unknown as {
-      nombres: string;
-      apellidos: string | null;
-      email: string | null;
-    };
-    return {
-      usuario_id: eu.usuario_id,
-      nombres: u.nombres,
-      apellidos: u.apellidos,
-      email: u.email,
-    };
-  });
+  return (data ?? []) as UsuarioAprobador[];
 }

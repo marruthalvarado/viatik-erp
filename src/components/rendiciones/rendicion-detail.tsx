@@ -90,6 +90,7 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [deletingRendicion, setDeletingRendicion] = useState(false);
   const [exportando, setExportando] = useState(false);
+  const [activeTab, setActiveTab] = useState("gastos");
 
   const { data: proyectosData } = useProyectos({ pageSize: 200 });
   const { data: estadosData } = useEstadosRendicion({ pageSize: 100 });
@@ -248,16 +249,12 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
               {exportando ? "Generando…" : "Liquidación"}
             </Button>
 
-            {/* El botón de envío ahora vive en el tab Workflow — acceso directo aquí */}
             <Button
               variant="outline"
               size="sm"
               className="gap-1.5"
               aria-label="Ir al tab Workflow"
-              onClick={() => {
-                const tab = document.querySelector<HTMLButtonElement>('[data-tab="workflow"]');
-                tab?.click();
-              }}
+              onClick={() => setActiveTab("workflow")}
             >
               <GitBranch className="size-4" />
               Workflow
@@ -322,7 +319,7 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="gastos">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="mb-4">
           <TabsTrigger value="gastos" className="gap-1.5">
             <Receipt className="size-4" />
@@ -336,7 +333,7 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
             <Plane className="size-4" />
             Viajes
           </TabsTrigger>
-          <TabsTrigger value="workflow" data-tab="workflow" className="gap-1.5">
+          <TabsTrigger value="workflow" className="gap-1.5">
             <GitBranch className="size-4" />
             Workflow
           </TabsTrigger>

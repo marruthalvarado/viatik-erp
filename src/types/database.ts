@@ -2600,6 +2600,15 @@ export type Database = {
           anticipo_credito: number;
         }[];
       };
+      rendir_aprobadores_disponibles: {
+        Args: Record<string, never>;
+        Returns: {
+          usuario_id: string;
+          nombres: string;
+          apellidos: string | null;
+          email: string | null;
+        }[];
+      };
       wf_enviar_aprobacion: {
         Args: {
           p_rendicion_id: string;

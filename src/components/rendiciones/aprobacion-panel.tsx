@@ -182,7 +182,7 @@ function EnviarDialog({ rendicionId, empresaId }: { rendicionId: string; empresa
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="sm:max-w-sm" onInteractOutside={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>Enviar para aprobacion</DialogTitle>
             <DialogDescription>Selecciona quien debe aprobar esta rendicion.</DialogDescription>
@@ -284,7 +284,7 @@ function AccionesAprobador({ rendicionId }: { rendicionId: string }) {
 
       {/* Dialog: Aprobar */}
       <Dialog open={openAprobar} onOpenChange={setOpenAprobar}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="sm:max-w-sm" onInteractOutside={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>Aprobar rendicion</DialogTitle>
             <DialogDescription>
@@ -305,7 +305,7 @@ function AccionesAprobador({ rendicionId }: { rendicionId: string }) {
 
       {/* Dialog: Rechazar */}
       <Dialog open={openRechazar} onOpenChange={setOpenRechazar}>
-        <DialogContent className="sm:max-w-sm">
+        <DialogContent className="sm:max-w-sm" onInteractOutside={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>Rechazar rendicion</DialogTitle>
             <DialogDescription>

@@ -6,7 +6,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useAuth } from "@/contexts/auth-context";
-import { useCompany } from "@/contexts/company-context";
 
 import {
   enviarRendicion,
@@ -21,12 +20,11 @@ import {
 // ---------------------------------------------------------------------------
 export function useAprobadoresDisponibles() {
   const { user } = useAuth();
-  const { empresaActivaId } = useCompany();
 
   return useQuery({
-    queryKey: ["aprobadores-disponibles", empresaActivaId, user?.id],
-    queryFn: () => getAprobadoresDisponibles(empresaActivaId!, user!.id),
-    enabled: !!empresaActivaId && !!user?.id,
+    queryKey: ["aprobadores-disponibles", user?.id],
+    queryFn: () => getAprobadoresDisponibles(),
+    enabled: !!user?.id,
     staleTime: 60_000,
   });
 }
