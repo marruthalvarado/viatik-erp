@@ -166,11 +166,9 @@ async function fetchPolitica(
 }
 
 async function fetchUsuarioNombre(uid: string): Promise<string> {
-  const { data } = await supabase
-    .from("usuarios").select("nombres, apellidos").eq("id", uid).single();
-  if (!data) return uid;
-  const d = data as unknown as { nombres: string; apellidos: string | null };
-  return `${d.nombres} ${d.apellidos ?? ""}`.trim();
+  const { data, error } = await supabase.rpc("rendir_nombre_usuario", { p_usuario_id: uid });
+  if (error || !data) return uid;
+  return data as string;
 }
 
 async function fetchEmpresaNombre(eid: string): Promise<string> {

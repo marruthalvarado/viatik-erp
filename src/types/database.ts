@@ -2609,6 +2609,10 @@ export type Database = {
           email: string | null;
         }[];
       };
+      rendir_nombre_usuario: {
+        Args: { p_usuario_id: string };
+        Returns: string | null;
+      };
       wf_enviar_aprobacion: {
         Args: {
           p_rendicion_id: string;
@@ -2805,6 +2809,6 @@ export type CompositeTypes<
   schema: keyof DatabaseWithoutInternals;
 }
   ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
-  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : PublicCompositeTypeNameOrOptions extends keyof DatabaseWithoutInternals["public"]["CompositeTypes"]
+    ? DatabaseWithoutInternals["public"]["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never;
