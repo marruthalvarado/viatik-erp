@@ -1,21 +1,19 @@
 /**
  * Servicio de Dashboard Ejecutivo.
- * Consume vistas vw_dashboard_* para KPIs agregados.
- * Para datos no cubiertos por vistas (evolución mensual, por categoría,
- * top viajeros, rendiciones pendientes) consulta tablas directamente.
+ * KPIs y charts filtran por anio cuando se proporciona.
+ * Datos sin vista (evolucion mensual, categorias, top viajeros)
+ * consultan tablas directamente.
  */
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/types/database";
 
-// ─── Tipos derivados de vistas ─────────────────────────────────────────────────
+// ─── Tipos ────────────────────────────────────────────────────────────────────
 
 export type DashboardEjecutivo = Tables<"vw_dashboard_ejecutivo">;
-export type DashboardProyecto = Tables<"vw_dashboard_proyectos">;
-export type DashboardCliente = Tables<"vw_dashboard_clientes">;
+export type DashboardProyecto  = Tables<"vw_dashboard_proyectos">;
+export type DashboardCliente   = Tables<"vw_dashboard_clientes">;
 export type DashboardProveedor = Tables<"vw_dashboard_proveedores">;
-export type DashboardIA = Tables<"vw_dashboard_ia">;
-
-// ─── Tipos para datos sin vista ────────────────────────────────────────────────
+export type DashboardIA        = Tables<"vw_dashboard_ia">;
 
 export interface GastoCategoria {
   categoria_id: string | null;
@@ -24,8 +22,8 @@ export interface GastoCategoria {
 }
 
 export interface EvolucionMensual {
-  mes: string; // "YYYY-MM"
-  label: string; // "Ene", "Feb", …
+  mes: string;
+  label: string;
   total_facturado: number;
   total_reembolsable: number;
 }
@@ -49,50 +47,256 @@ export interface TopViajero {
   total_gastado: number;
 }
 
-// ─── Vistas ────────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-export async function getEjecutivo(empresaId: string): Promise<DashboardEjecutivo | null> {
-  const { data, error } = await supabase
-    .from("vw_dashboard_ejecutivo")
-    .select("*")
-    .eq("empresa_id", empresaId)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  return data;
+function dateRange(anio: number) {
+  return { gte: `${anio}-01-01`, lte: `${anio}-12-31` };
 }
 
-export async function getProyectos(empresaId: string, limit = 10): Promise<DashboardProyecto[]> {
-  const { data, error } = await supabase
-    .from("vw_dashboard_proyectos")
-    .select("*")
+// ─── KPIs ejecutivo (filtrable por año) ───────────────────────────────────────
+
+export async function getEjecutivo(
+  empresaId: string,
+  anio?: number,
+): Promise<DashboardEjecutivo | null> {
+  let q = supabase
+    .from("rendiciones")
+    .select("total_facturado, total_reembolsable, proyecto_id, usuario_id")
     .eq("empresa_id", empresaId)
-    .order("gasto_real", { ascending: false })
-    .limit(limit);
+    .is("deleted_at", null);
+
+  if (anio) {
+    const { gte, lte } = dateRange(anio);
+    q = q.gte("fecha_rendicion", gte).lte("fecha_rendicion", lte);
+  }
+
+  const [{ data: rends, error }, { data: anticipos }] = await Promise.all([
+    q,
+    supabase.from("anticipos").select("valor").eq("empresa_id", empresaId),
+  ]);
   if (error) throw new Error(error.message);
-  return data ?? [];
+
+  const rows = rends ?? [];
+  return {
+    empresa_id: empresaId,
+    total_gastado:                   rows.reduce((s, r) => s + (Number(r.total_facturado)    || 0), 0),
+    total_reembolsable:              rows.reduce((s, r) => s + (Number(r.total_reembolsable) || 0), 0),
+    total_rendiciones:               rows.length,
+    total_proyectos_con_movimiento:  new Set(rows.filter(r => r.proyecto_id).map(r => r.proyecto_id)).size,
+    total_usuarios_con_movimiento:   new Set(rows.filter(r => r.usuario_id).map(r => r.usuario_id)).size,
+    total_anticipos:                 (anticipos ?? []).reduce((s, a) => s + (Number(a.valor) || 0), 0),
+  };
 }
 
-export async function getClientes(empresaId: string, limit = 10): Promise<DashboardCliente[]> {
-  const { data, error } = await supabase
-    .from("vw_dashboard_clientes")
-    .select("*")
-    .eq("empresa_id", empresaId)
-    .order("total_gastado", { ascending: false })
-    .limit(limit);
-  if (error) throw new Error(error.message);
-  return data ?? [];
+// ─── Proyectos (filtrable por año) ────────────────────────────────────────────
+
+export async function getProyectos(
+  empresaId: string,
+  limit  = 10,
+  anio?: number,
+): Promise<DashboardProyecto[]> {
+  if (!anio) {
+    const { data, error } = await supabase
+      .from("vw_dashboard_proyectos")
+      .select("*")
+      .eq("empresa_id", empresaId)
+      .order("gasto_real", { ascending: false })
+      .limit(limit);
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  }
+
+  const { gte, lte } = dateRange(anio);
+
+  const [rendRes, proyRes] = await Promise.all([
+    supabase
+      .from("rendiciones")
+      .select("proyecto_id, total_facturado")
+      .eq("empresa_id", empresaId)
+      .is("deleted_at", null)
+      .not("proyecto_id", "is", null)
+      .gte("fecha_rendicion", gte)
+      .lte("fecha_rendicion", lte),
+    supabase
+      .from("proyectos")
+      .select("id, nombre, presupuesto, valor_contrato")
+      .eq("empresa_id", empresaId)
+      .is("deleted_at", null),
+  ]);
+  if (rendRes.error) throw new Error(rendRes.error.message);
+
+  const proyMap = new Map((proyRes.data ?? []).map(p => [p.id, p]));
+  const gastoMap = new Map<string, number>();
+
+  for (const r of rendRes.data ?? []) {
+    if (!r.proyecto_id) continue;
+    gastoMap.set(r.proyecto_id, (gastoMap.get(r.proyecto_id) ?? 0) + (Number(r.total_facturado) || 0));
+  }
+
+  return Array.from(gastoMap.entries())
+    .map(([proyecto_id, gasto_real]) => {
+      const p = proyMap.get(proyecto_id);
+      const presupuesto    = Number(p?.presupuesto    ?? 0);
+      const valor_contrato = Number(p?.valor_contrato ?? 0);
+      return {
+        empresa_id:        empresaId,
+        proyecto_id,
+        nombre:            p?.nombre ?? proyecto_id,
+        presupuesto,
+        valor_contrato,
+        gasto_real,
+        saldo_presupuesto: presupuesto - gasto_real,
+        margen_estimado:
+          valor_contrato > 0
+            ? Math.round(((valor_contrato - gasto_real) / valor_contrato) * 100)
+            : null,
+      };
+    })
+    .sort((a, b) => b.gasto_real - a.gasto_real)
+    .slice(0, limit);
 }
 
-export async function getProveedores(empresaId: string, limit = 10): Promise<DashboardProveedor[]> {
-  const { data, error } = await supabase
-    .from("vw_dashboard_proveedores")
-    .select("*")
-    .eq("empresa_id", empresaId)
-    .order("total_gastado", { ascending: false })
-    .limit(limit);
-  if (error) throw new Error(error.message);
-  return data ?? [];
+// ─── Clientes (filtrable por año) ─────────────────────────────────────────────
+
+export async function getClientes(
+  empresaId: string,
+  limit  = 10,
+  anio?: number,
+): Promise<DashboardCliente[]> {
+  if (!anio) {
+    const { data, error } = await supabase
+      .from("vw_dashboard_clientes")
+      .select("*")
+      .eq("empresa_id", empresaId)
+      .order("total_gastado", { ascending: false })
+      .limit(limit);
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  }
+
+  const { gte, lte } = dateRange(anio);
+
+  // rendiciones del año → proyecto_id → cliente_id
+  const [rendRes, proyRes, cliRes] = await Promise.all([
+    supabase
+      .from("rendiciones")
+      .select("proyecto_id, total_facturado, id")
+      .eq("empresa_id", empresaId)
+      .is("deleted_at", null)
+      .not("proyecto_id", "is", null)
+      .gte("fecha_rendicion", gte)
+      .lte("fecha_rendicion", lte),
+    supabase
+      .from("proyectos")
+      .select("id, cliente_id")
+      .eq("empresa_id", empresaId)
+      .is("deleted_at", null),
+    supabase
+      .from("clientes")
+      .select("id, nombre")
+      .eq("empresa_id", empresaId)
+      .is("deleted_at", null),
+  ]);
+  if (rendRes.error) throw new Error(rendRes.error.message);
+
+  const proyToCliente = new Map((proyRes.data ?? []).map(p => [p.id, p.cliente_id]));
+  const clienteMap    = new Map((cliRes.data  ?? []).map(c => [c.id, c.nombre]));
+  const totales       = new Map<string, { total: number; rendIds: Set<string> }>();
+
+  for (const r of rendRes.data ?? []) {
+    if (!r.proyecto_id) continue;
+    const clienteId = proyToCliente.get(r.proyecto_id);
+    if (!clienteId) continue;
+    const entry = totales.get(clienteId) ?? { total: 0, rendIds: new Set() };
+    entry.total += Number(r.total_facturado) || 0;
+    entry.rendIds.add(r.id);
+    totales.set(clienteId, entry);
+  }
+
+  return Array.from(totales.entries())
+    .map(([cliente_id, { total, rendIds }]) => ({
+      empresa_id:        empresaId,
+      cliente_id,
+      cliente:           clienteMap.get(cliente_id) ?? cliente_id,
+      total_gastado:     total,
+      total_rendiciones: rendIds.size,
+      total_proyectos:   null,
+    }))
+    .sort((a, b) => b.total_gastado - a.total_gastado)
+    .slice(0, limit);
 }
+
+// ─── Proveedores (filtrable por año) ──────────────────────────────────────────
+
+export async function getProveedores(
+  empresaId: string,
+  limit  = 10,
+  anio?: number,
+): Promise<DashboardProveedor[]> {
+  if (!anio) {
+    const { data, error } = await supabase
+      .from("vw_dashboard_proveedores")
+      .select("*")
+      .eq("empresa_id", empresaId)
+      .order("total_gastado", { ascending: false })
+      .limit(limit);
+    if (error) throw new Error(error.message);
+    return data ?? [];
+  }
+
+  const { gte, lte } = dateRange(anio);
+
+  // IDs de rendiciones del año
+  const rendRes = await supabase
+    .from("rendiciones")
+    .select("id")
+    .eq("empresa_id", empresaId)
+    .is("deleted_at", null)
+    .gte("fecha_rendicion", gte)
+    .lte("fecha_rendicion", lte);
+  if (rendRes.error) throw new Error(rendRes.error.message);
+  const rendIds = (rendRes.data ?? []).map(r => r.id);
+  if (rendIds.length === 0) return [];
+
+  const [gastosRes, provRes] = await Promise.all([
+    supabase
+      .from("gastos")
+      .select("proveedor_id, valor_factura")
+      .eq("empresa_id", empresaId)
+      .is("deleted_at", null)
+      .in("rendicion_id", rendIds),
+    supabase
+      .from("proveedores")
+      .select("id, nombre")
+      .eq("empresa_id", empresaId)
+      .is("deleted_at", null),
+  ]);
+  if (gastosRes.error) throw new Error(gastosRes.error.message);
+
+  const provMap = new Map((provRes.data ?? []).map(p => [p.id, p.nombre]));
+  const totales = new Map<string, { total: number; count: number }>();
+
+  for (const g of gastosRes.data ?? []) {
+    if (!g.proveedor_id) continue;
+    const entry = totales.get(g.proveedor_id) ?? { total: 0, count: 0 };
+    entry.total += Number(g.valor_factura) || 0;
+    entry.count += 1;
+    totales.set(g.proveedor_id, entry);
+  }
+
+  return Array.from(totales.entries())
+    .map(([id, { total, count }]) => ({
+      empresa_id:      empresaId,
+      id,
+      nombre:          provMap.get(id) ?? id,
+      total_gastado:   total,
+      cantidad_gastos: count,
+    }))
+    .sort((a, b) => b.total_gastado - a.total_gastado)
+    .slice(0, limit);
+}
+
+// ─── IA (sin filtro de año) ───────────────────────────────────────────────────
 
 export async function getIA(empresaId: string): Promise<DashboardIA | null> {
   const { data, error } = await supabase
@@ -104,7 +308,7 @@ export async function getIA(empresaId: string): Promise<DashboardIA | null> {
   return data;
 }
 
-// ─── Datos sin vista ───────────────────────────────────────────────────────────
+// ─── Gastos por categoría (filtrable por año) ─────────────────────────────────
 
 export async function getGastosPorCategoria(
   empresaId: string,
@@ -125,21 +329,17 @@ export async function getGastosPorCategoria(
 
   const map = new Map<string, { nombre: string; total: number }>();
   for (const row of data ?? []) {
-    const key = row.categoria_gasto_id ?? "__sin_categoria__";
-    const nombre =
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (row as any).categorias_gasto?.nombre ?? "Sin categoria";
-    const existing = map.get(key);
-    if (existing) {
-      existing.total += Number(row.valor_factura) || 0;
-    } else {
-      map.set(key, { nombre, total: Number(row.valor_factura) || 0 });
-    }
+    const key    = row.categoria_gasto_id ?? "__sin_categoria__";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const nombre = (row as any).categorias_gasto?.nombre ?? "Sin categoria";
+    const ex     = map.get(key);
+    if (ex) { ex.total += Number(row.valor_factura) || 0; }
+    else    { map.set(key, { nombre, total: Number(row.valor_factura) || 0 }); }
   }
 
   const result = Array.from(map.entries())
     .map(([id, { nombre, total }]) => ({
-      categoria_id: id === "__sin_categoria__" ? null : id,
+      categoria_id:     id === "__sin_categoria__" ? null : id,
       categoria_nombre: nombre,
       total,
     }))
@@ -153,9 +353,8 @@ export async function getGastosPorCategoria(
       .eq("empresa_id", empresaId)
       .is("deleted_at", null);
     if (anio) {
-      rQuery = rQuery
-        .gte("fecha_rendicion", `${anio}-01-01`)
-        .lte("fecha_rendicion", `${anio}-12-31`);
+      const { gte, lte } = dateRange(anio);
+      rQuery = rQuery.gte("fecha_rendicion", gte).lte("fecha_rendicion", lte);
     }
     const { data: rendData } = await rQuery;
     const rendIds = (rendData ?? []).map((r: { id: string }) => r.id);
@@ -177,10 +376,10 @@ export async function getGastosPorCategoria(
           .gt("distancia_km", 0),
       ]);
 
-      const valorKm = Number(politicaRes.data?.valor_km ?? 0);
-      const kmCiudadDia = Number(politicaRes.data?.km_ciudad_por_dia ?? 0);
+      const valorKm      = Number(politicaRes.data?.valor_km          ?? 0);
+      const kmCiudadDia  = Number(politicaRes.data?.km_ciudad_por_dia ?? 0);
+      let   totalVehiculo = 0;
 
-      let totalVehiculo = 0;
       for (const v of viajesRes.data ?? []) {
         totalVehiculo += Number(v.distancia_km ?? 0) * 2 * valorKm;
         if (v.fecha_inicio && v.fecha_fin && kmCiudadDia > 0) {
@@ -194,69 +393,60 @@ export async function getGastosPorCategoria(
       }
 
       if (totalVehiculo > 0) {
-        result.push({
-          categoria_id: "__vehiculo_propio__",
-          categoria_nombre: "Vehiculo propio",
-          total: totalVehiculo,
-        });
+        result.push({ categoria_id: "__vehiculo_propio__", categoria_nombre: "Vehiculo propio", total: totalVehiculo });
         result.sort((a, b) => b.total - a.total);
       }
     }
   } catch {
-    // No fatal: si falla km propio, retorna solo gastos por categoria
+    // no fatal
   }
 
   return result;
 }
 
+// ─── Evolución mensual ────────────────────────────────────────────────────────
+
 const MES_LABELS: Record<string, string> = {
-  "01": "Ene",
-  "02": "Feb",
-  "03": "Mar",
-  "04": "Abr",
-  "05": "May",
-  "06": "Jun",
-  "07": "Jul",
-  "08": "Ago",
-  "09": "Sep",
-  "10": "Oct",
-  "11": "Nov",
-  "12": "Dic",
+  "01": "Ene", "02": "Feb", "03": "Mar", "04": "Abr",
+  "05": "May", "06": "Jun", "07": "Jul", "08": "Ago",
+  "09": "Sep", "10": "Oct", "11": "Nov", "12": "Dic",
 };
 
 export async function getEvolucionMensual(
   empresaId: string,
   anio: number,
 ): Promise<EvolucionMensual[]> {
-  // Leer de rendiciones.total_facturado (incluye km vehiculo propio y filtro politica)
+  const { gte, lte } = dateRange(anio);
   const { data, error } = await supabase
     .from("rendiciones")
     .select("fecha_rendicion, total_facturado, total_reembolsable")
     .eq("empresa_id", empresaId)
     .is("deleted_at", null)
-    .gte("fecha_rendicion", `${anio}-01-01`)
-    .lte("fecha_rendicion", `${anio}-12-31`);
+    .gte("fecha_rendicion", gte)
+    .lte("fecha_rendicion", lte);
   if (error) throw new Error(error.message);
 
   const map = new Map<string, { total_facturado: number; total_reembolsable: number }>();
   for (const row of data ?? []) {
     if (!row.fecha_rendicion) continue;
-    const mes = row.fecha_rendicion.slice(0, 7); // "YYYY-MM"
-    const existing = map.get(mes) ?? { total_facturado: 0, total_reembolsable: 0 };
-    existing.total_facturado += Number(row.total_facturado) || 0;
-    existing.total_reembolsable += Number(row.total_reembolsable) || 0;
-    map.set(mes, existing);
+    const mes = row.fecha_rendicion.slice(0, 7);
+    const ex  = map.get(mes) ?? { total_facturado: 0, total_reembolsable: 0 };
+    ex.total_facturado    += Number(row.total_facturado)    || 0;
+    ex.total_reembolsable += Number(row.total_reembolsable) || 0;
+    map.set(mes, ex);
   }
 
   const result: EvolucionMensual[] = [];
   for (let m = 1; m <= 12; m++) {
-    const mm = String(m).padStart(2, "0");
+    const mm  = String(m).padStart(2, "0");
     const mes = `${anio}-${mm}`;
     const val = map.get(mes) ?? { total_facturado: 0, total_reembolsable: 0 };
     result.push({ mes, label: MES_LABELS[mm] ?? mm, ...val });
   }
   return result;
 }
+
+// ─── Rendiciones pendientes ───────────────────────────────────────────────────
 
 export async function getRendicionesPendientes(
   empresaId: string,
@@ -282,20 +472,22 @@ export async function getRendicionesPendientes(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const ra = r as any;
     return {
-      id: r.id,
-      numero: r.numero,
-      descripcion: r.descripcion,
-      proyecto_nombre: ra.proyectos?.nombre ?? null,
-      fecha_rendicion: r.fecha_rendicion,
-      total_facturado: r.total_facturado,
-      estado_nombre: ra.estados_rendicion?.nombre ?? null,
-      estado_codigo: ra.estados_rendicion?.codigo ?? null,
-      usuario_nombre: ra.usuarios
+      id:               r.id,
+      numero:           r.numero,
+      descripcion:      r.descripcion,
+      proyecto_nombre:  ra.proyectos?.nombre        ?? null,
+      fecha_rendicion:  r.fecha_rendicion,
+      total_facturado:  r.total_facturado,
+      estado_nombre:    ra.estados_rendicion?.nombre ?? null,
+      estado_codigo:    ra.estados_rendicion?.codigo ?? null,
+      usuario_nombre:   ra.usuarios
         ? `${ra.usuarios.nombres ?? ""} ${ra.usuarios.apellidos ?? ""}`.trim()
         : null,
     };
   });
 }
+
+// ─── Top viajeros (filtrable por año) ────────────────────────────────────────
 
 export async function getTopViajeros(
   empresaId: string,
@@ -309,32 +501,25 @@ export async function getTopViajeros(
     .is("deleted_at", null);
 
   if (anio) {
-    q = q.gte("fecha_rendicion", `${anio}-01-01`).lte("fecha_rendicion", `${anio}-12-31`);
+    const { gte, lte } = dateRange(anio);
+    q = q.gte("fecha_rendicion", gte).lte("fecha_rendicion", lte);
   }
 
   const { data, error } = await q;
   if (error) throw new Error(error.message);
 
-  // Agregar por usuario
-  const map = new Map<
-    string,
-    { nombre: string; total_rendiciones: number; total_gastado: number }
-  >();
+  const map = new Map<string, { nombre: string; total_rendiciones: number; total_gastado: number }>();
   for (const row of data ?? []) {
     if (!row.usuario_id) continue;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const ra = row as any;
+    const ra     = row as any;
     const nombre = ra.usuarios
       ? `${ra.usuarios.nombres ?? ""} ${ra.usuarios.apellidos ?? ""}`.trim()
       : row.usuario_id;
-    const existing = map.get(row.usuario_id) ?? {
-      nombre,
-      total_rendiciones: 0,
-      total_gastado: 0,
-    };
-    existing.total_rendiciones += 1;
-    existing.total_gastado += Number(row.total_facturado) || 0;
-    map.set(row.usuario_id, existing);
+    const ex = map.get(row.usuario_id) ?? { nombre, total_rendiciones: 0, total_gastado: 0 };
+    ex.total_rendiciones += 1;
+    ex.total_gastado     += Number(row.total_facturado) || 0;
+    map.set(row.usuario_id, ex);
   }
 
   return Array.from(map.entries())
@@ -343,7 +528,7 @@ export async function getTopViajeros(
     .slice(0, limit);
 }
 
-// ─── Presupuesto activo total ──────────────────────────────────────────────────
+// ─── Presupuesto activo total (sin filtro de año) ────────────────────────────
 
 export async function getPresupuestoTotal(empresaId: string): Promise<number> {
   const { data, error } = await supabase

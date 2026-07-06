@@ -16,34 +16,34 @@ import {
   getPresupuestoTotal,
 } from "@/services/dashboard";
 
-export function useDashboardEjecutivo(empresaId: string | null) {
+export function useDashboardEjecutivo(empresaId: string | null, anio?: number) {
   return useQuery({
-    queryKey: ["dashboard", "ejecutivo", empresaId],
-    queryFn: () => getEjecutivo(empresaId!),
+    queryKey: ["dashboard", "ejecutivo", empresaId, anio],
+    queryFn: () => getEjecutivo(empresaId!, anio),
     enabled: !!empresaId,
   });
 }
 
-export function useDashboardProyectos(empresaId: string | null, limit = 10) {
+export function useDashboardProyectos(empresaId: string | null, limit = 10, anio?: number) {
   return useQuery({
-    queryKey: ["dashboard", "proyectos", empresaId, limit],
-    queryFn: () => getProyectos(empresaId!, limit),
+    queryKey: ["dashboard", "proyectos", empresaId, limit, anio],
+    queryFn: () => getProyectos(empresaId!, limit, anio),
     enabled: !!empresaId,
   });
 }
 
-export function useDashboardClientes(empresaId: string | null, limit = 10) {
+export function useDashboardClientes(empresaId: string | null, limit = 10, anio?: number) {
   return useQuery({
-    queryKey: ["dashboard", "clientes", empresaId, limit],
-    queryFn: () => getClientes(empresaId!, limit),
+    queryKey: ["dashboard", "clientes", empresaId, limit, anio],
+    queryFn: () => getClientes(empresaId!, limit, anio),
     enabled: !!empresaId,
   });
 }
 
-export function useDashboardProveedores(empresaId: string | null, limit = 10) {
+export function useDashboardProveedores(empresaId: string | null, limit = 10, anio?: number) {
   return useQuery({
-    queryKey: ["dashboard", "proveedores", empresaId, limit],
-    queryFn: () => getProveedores(empresaId!, limit),
+    queryKey: ["dashboard", "proveedores", empresaId, limit, anio],
+    queryFn: () => getProveedores(empresaId!, limit, anio),
     enabled: !!empresaId,
   });
 }

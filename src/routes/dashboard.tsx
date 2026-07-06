@@ -103,20 +103,22 @@ function DashboardMain({
   onAnioChange,
   onNavigate,
 }: DashboardMainProps) {
+  const anioFiltro = anio > 0 ? anio : undefined;
+
   // KPI data
-  const ejecutivo = useDashboardEjecutivo(empresaId);
+  const ejecutivo = useDashboardEjecutivo(empresaId, anioFiltro);
   const ia = useDashboardIA(empresaId);
   const presupuesto = usePresupuestoTotal(empresaId);
 
   // Charts
   const evolucion = useEvolucionMensual(empresaId, anio > 0 ? anio : new Date().getFullYear());
-  const proyectos = useDashboardProyectos(empresaId, 10);
-  const categorias = useGastosPorCategoria(empresaId, anio > 0 ? anio : undefined);
-  const clientes = useDashboardClientes(empresaId, 10);
+  const proyectos = useDashboardProyectos(empresaId, 10, anioFiltro);
+  const categorias = useGastosPorCategoria(empresaId, anioFiltro);
+  const clientes = useDashboardClientes(empresaId, 10, anioFiltro);
 
   // Rankings
-  const proveedores = useDashboardProveedores(empresaId, 8);
-  const viajeros = useTopViajeros(empresaId, anio > 0 ? anio : undefined, 8);
+  const proveedores = useDashboardProveedores(empresaId, 8, anioFiltro);
+  const viajeros = useTopViajeros(empresaId, anioFiltro, 8);
 
   // Rendiciones pendientes
   const rendiciones = useRendicionesPendientes(empresaId, 10);
