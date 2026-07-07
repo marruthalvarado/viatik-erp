@@ -250,8 +250,8 @@ export async function exportarLiquidacion(rendicion: Rendicion): Promise<void> {
   const valorKm     = n(politica?.valor_km);
   const kmCiudadDia = n(politica?.km_ciudad_por_dia);
 
-  const viajePropio = viajes.find((v) => v.vehiculo_propio) ?? viajes[0] ?? null;
-  const destino     = viajePropio?.destino ?? "-";
+  const viajePropio = viajes.find((v) => v.vehiculo_propio) ?? null;
+  const destino     = viajes[0]?.destino ?? "-";
   const periodo     = viajePropio?.fecha_inicio
     ? `${fmtDate(viajePropio.fecha_inicio)} al ${fmtDate(viajePropio.fecha_fin)}`
     : "-";

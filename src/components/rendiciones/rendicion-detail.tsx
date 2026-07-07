@@ -126,7 +126,7 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
   const kmCiudadDia = Number(politica?.km_ciudad_por_dia ?? 0);
   const viajes = viajesData?.rows ?? [];
 
-  const viajePropio = viajes.find((v) => v.vehiculo_propio) ?? viajes[0] ?? null;
+  const viajePropio = viajes.find((v) => v.vehiculo_propio) ?? null;
   const diasViaje =
     viajePropio?.fecha_inicio && viajePropio?.fecha_fin
       ? Math.ceil(
@@ -340,7 +340,7 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
         </TabsList>
 
         <TabsContent value="gastos">
-          <GastosTab rendicionId={rendicion.id} />
+          <GastosTab rendicionId={rendicion.id} rendicionNumero={rendicion.numero} />
         </TabsContent>
 
         <TabsContent value="documentos">

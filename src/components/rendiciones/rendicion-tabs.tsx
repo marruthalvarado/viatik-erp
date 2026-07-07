@@ -3,17 +3,34 @@
  * Componentes de pestaña para Gastos y Documentos de una rendicion.
  * Consumidos por RendicionDetail (rendicion-detail.tsx).
  */
+import { useState } from "react";
+import { Plus } from "lucide-react";
 import { DataTable } from "@/components/common/data-table";
 import { StatusBadge } from "@/components/common/status-badge";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useDocumentos } from "@/hooks/entities/use-documentos";
 import { useViajes } from "@/hooks/entities/use-viajes";
 import { usePoliticas } from "@/hooks/entities/use-politicas";
 import { useCompany } from "@/contexts/company-context";
-import { formatCurrency, formatDate } from "@/utils/formatters";
+import { formatCurrency, formatDate, emptyToNull } from "@/utils/formatters";
+import { Button } from "@/components/ui/button";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerDescription,
+} from "@/components/common/drawer";
+import { GastoForm } from "@/components/gastos/gasto-form";
+import { EMPTY_FORM } from "@/components/gastos/gasto-types";
+import type { GastoFormValues } from "@/components/gastos/gasto-types";
+import { useCrearGasto } from "@/hooks/entities/use-gastos";
+import { useProveedores } from "@/hooks/entities/use-proveedores";
+import { useCategoriasGasto, useEstadosGasto, useMonedas } from "@/hooks/entities/use-catalogs";
+import { toast } from "@/components/common/toast";
 import type { DataTableColumn } from "@/components/common/data-table";
-import type { Gasto, Documento, Viaje } from "@/types/entities";
+import type { Gasto, Documento, Viaje, GastoInsert } from "@/types/entities";
 
 // --- KmVehiculoPropioTable ---------------------------------------------------
 
@@ -121,9 +138,55 @@ function KmVehiculoPropioTable({ viajes, valorKm }: { viajes: Viaje[]; valorKm: 
 
 // --- GastosTab ---------------------------------------------------------------
 
-export function GastosTab({ rendicionId }: { rendicionId: string }) {
+export function GastosTab({
+  rendicionId,
+  rendicionNumero,
+}: {
+  rendicionId: string;
+  rendicionNumero: string;
+}) {
   const { empresaActivaId } = useCompany();
-  void empresaActivaId; // usePoliticas reads empresa from context internally
+  const queryClient = useQueryClient();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Catalog data for the gasto form
+  const { data: proveedoresData } = useProveedores({ pageSize: 200 });
+  const { data: categoriasData } = useCategoriasGasto({ pageSize: 200 });
+  const { data: estadosData } = useEstadosGasto({ pageSize: 200 });
+  const { data: monedasData } = useMonedas({ pageSize: 200 });
+  const crear = useCrearGasto();
+
+  const proveedores = proveedoresData?.rows ?? [];
+  const categorias = categoriasData?.rows ?? [];
+  const estados = estadosData?.rows ?? [];
+  const monedas = monedasData?.rows ?? [];
+
+  async function handleSaveGasto(values: GastoFormValues) {
+    if (!empresaActivaId) {
+      toast.error("Selecciona una empresa activa antes de continuar.");
+      return;
+    }
+    const payload: GastoInsert = {
+      empresa_id: empresaActivaId,
+      rendicion_id: rendicionId,
+      descripcion: emptyToNull(values.descripcion),
+      numero_documento: emptyToNull(values.numero_documento),
+      fecha: emptyToNull(values.fecha),
+      categoria_gasto_id: values.categoria_gasto_id ?? null,
+      estado_gasto_id: values.estado_gasto_id ?? null,
+      proveedor_id: values.proveedor_id ?? null,
+      moneda_codigo: values.moneda_codigo ?? null,
+      valor_factura: values.valor_factura ?? null,
+      valor_moneda_origen: values.valor_moneda_origen ?? null,
+      tipo_cambio: values.tipo_cambio ?? null,
+      valor_reembolsable: values.valor_reembolsable ?? null,
+      observaciones: emptyToNull(values.observaciones),
+    };
+    await crear.mutateAsync(payload);
+    await queryClient.invalidateQueries({ queryKey: ["gastos-enriquecidos", rendicionId] });
+    toast.success("Gasto registrado correctamente.");
+    setDrawerOpen(false);
+  }
 
   // Fetch gastos enriched with category name for policy filtering
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -208,35 +271,60 @@ export function GastosTab({ rendicionId }: { rendicionId: string }) {
   ];
 
   return (
-    <div>
-      <div className="mb-3 flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          {gastosRaw.length} gasto{gastosRaw.length !== 1 ? "s" : ""} registrado
-          {gastosRaw.length !== 1 ? "s" : ""}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          Para agregar gastos usa el modulo{" "}
-          <span className="font-medium text-foreground">Gastos</span>
-        </p>
+    <>
+      <div>
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            {gastosRaw.length} gasto{gastosRaw.length !== 1 ? "s" : ""} registrado
+            {gastosRaw.length !== 1 ? "s" : ""}
+          </p>
+          <Button size="sm" onClick={() => setDrawerOpen(true)}>
+            <Plus className="mr-1 size-3.5" />
+            Nuevo gasto
+          </Button>
+        </div>
+        <DataTable
+          columns={columns}
+          data={gastos}
+          isLoading={isLoading}
+          getRowId={(row) => row.id}
+          emptyTitle="Sin gastos"
+          emptyDescription="Esta rendicion no tiene gastos registrados."
+        />
+        {viajesConVehiculoPropio.length > 0 && (
+          <KmVehiculoPropioTable viajes={viajesConVehiculoPropio} valorKm={valorKm} />
+        )}
+        {viajesConVehiculoPropio.length > 0 && valorKm === 0 && (
+          <p className="mt-2 text-xs text-amber-600">
+            Configura el valor por km en{" "}
+            <span className="font-medium">Administracion → Politicas</span> para ver el costo total.
+          </p>
+        )}
       </div>
-      <DataTable
-        columns={columns}
-        data={gastos}
-        isLoading={isLoading}
-        getRowId={(row) => row.id}
-        emptyTitle="Sin gastos"
-        emptyDescription="Esta rendicion no tiene gastos registrados."
-      />
-      {viajesConVehiculoPropio.length > 0 && (
-        <KmVehiculoPropioTable viajes={viajesConVehiculoPropio} valorKm={valorKm} />
-      )}
-      {viajesConVehiculoPropio.length > 0 && valorKm === 0 && (
-        <p className="mt-2 text-xs text-amber-600">
-          Configura el valor por km en{" "}
-          <span className="font-medium">Administracion → Politicas</span> para ver el costo total.
-        </p>
-      )}
-    </div>
+
+      <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle>Nuevo gasto</DrawerTitle>
+            <DrawerDescription>Rendición: {rendicionNumero}</DrawerDescription>
+          </DrawerHeader>
+          <div className="overflow-y-auto px-4 pb-6">
+            <GastoForm
+              defaultValues={{ ...EMPTY_FORM, rendicion_id: rendicionId }}
+              onSubmit={handleSaveGasto}
+              onCancel={() => setDrawerOpen(false)}
+              loading={crear.isPending}
+              submitLabel="Registrar gasto"
+              rendiciones={[{ id: rendicionId, numero: rendicionNumero }]}
+              proveedores={proveedores}
+              categorias={categorias}
+              estados={estados}
+              monedas={monedas}
+            />
+          </div>
+        </DrawerContent>
+      </Drawer>
+    </>
   );
 }
 

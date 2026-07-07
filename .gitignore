@@ -32,3 +32,6 @@ dist-ssr
 *.sw?
 
 .vercel
+importar_gastos.py
+Plantilla_Importacion_Gastos.xlsx
+__pycache__/
