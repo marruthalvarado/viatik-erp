@@ -49,6 +49,7 @@ import { ViajesTab } from "./viajes-tab";
 import { exportarLiquidacion } from "@/services/liquidacion-export";
 import { WorkflowTab } from "./workflow-tab";
 import { useWorkflows } from "@/hooks/entities/use-workflow";
+import { useEnviarRendicion } from "@/hooks/entities/use-rendicion-aprobacion";
 
 // ─── FinancialCard ────────────────────────────────────────────────────────────
 
@@ -99,6 +100,7 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
 
   const actualizar = useActualizarRendicion();
   const eliminar = useEliminarRendicion();
+  const enviar = useEnviarRendicion(rendicion.id);
 
   // --- Computo de total efectivo (gastos filtrados + vehiculo propio + km ciudad) ---
   const { data: viajesData } = useViajes({
@@ -207,6 +209,24 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
     setExportando(true);
     try {
       await exportarLiquidacion(rendicion);
+
+      // Auto-envío al aprobador de la política si la rendición no está ya enviada
+      const aprobadorId = politica?.aprobador_id;
+      const yaEnviada = estadoCodigo === "enviada";
+
+      if (aprobadorId && !yaEnviada) {
+        try {
+          await enviar.mutateAsync(aprobadorId);
+          toast.success("Liquidación generada y enviada para aprobación.");
+        } catch {
+          toast.success("Liquidación generada.");
+          toast.error("No se pudo enviar automáticamente para aprobación.");
+        }
+      } else if (yaEnviada) {
+        toast.success("Liquidación generada. Ya estaba enviada para aprobación.");
+      } else {
+        toast.success("Liquidación generada.");
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error al generar la liquidación.");
     } finally {

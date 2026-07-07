@@ -12,9 +12,17 @@ import {
 import { EntityForm } from "@/components/common/entity-form";
 import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { politicaSchema, EMPTY_POLITICA, toPoliticaForm } from "./politica-types";
 import type { PoliticaFormValues } from "./politica-types";
 import type { Politica } from "@/types/entities";
+import { useAprobadoresDisponibles } from "@/hooks/entities/use-rendicion-aprobacion";
 
 interface PoliticaFormDrawerProps {
   open: boolean;
@@ -55,6 +63,8 @@ export function PoliticaFormDrawer({
   loading,
   onSubmit,
 }: PoliticaFormDrawerProps) {
+  const { data: aprobadores = [], isLoading: aprobadoresLoading } = useAprobadoresDisponibles();
+
   return (
     <Drawer
       open={open}
@@ -100,6 +110,39 @@ export function PoliticaFormDrawer({
                       <FormControl>
                         <Input placeholder="POL-001" {...field} value={field.value ?? ""} />
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="aprobador_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Aprobador predeterminado</FormLabel>
+                      <Select
+                        value={field.value ?? "__none__"}
+                        onValueChange={(v) => field.onChange(v === "__none__" ? null : v)}
+                        disabled={aprobadoresLoading}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue
+                              placeholder={aprobadoresLoading ? "Cargando..." : "Sin aprobador"}
+                            />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="__none__">Sin aprobador</SelectItem>
+                          {aprobadores.map((a) => (
+                            <SelectItem key={a.usuario_id} value={a.usuario_id}>
+                              {a.nombres}
+                              {a.apellidos ? ` ${a.apellidos}` : ""}
+                              {a.email ? ` (${a.email})` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}

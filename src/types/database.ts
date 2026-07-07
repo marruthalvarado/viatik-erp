@@ -1306,6 +1306,7 @@ export type Database = {
       politicas: {
         Row: {
           activo: boolean | null;
+          aprobador_id: string | null;
           codigo: string | null;
           created_at: string | null;
           descripcion: string | null;
@@ -1325,6 +1326,7 @@ export type Database = {
         };
         Insert: {
           activo?: boolean | null;
+          aprobador_id?: string | null;
           codigo?: string | null;
           created_at?: string | null;
           descripcion?: string | null;
@@ -1344,6 +1346,7 @@ export type Database = {
         };
         Update: {
           activo?: boolean | null;
+          aprobador_id?: string | null;
           codigo?: string | null;
           created_at?: string | null;
           descripcion?: string | null;
@@ -2809,6 +2812,6 @@ export type CompositeTypes<
   schema: keyof DatabaseWithoutInternals;
 }
   ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
-    : PublicCompositeTypeNameOrOptions extends keyof DatabaseWithoutInternals["public"]["CompositeTypes"]
+  : PublicCompositeTypeNameOrOptions extends keyof DatabaseWithoutInternals["public"]["CompositeTypes"]
     ? DatabaseWithoutInternals["public"]["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never;

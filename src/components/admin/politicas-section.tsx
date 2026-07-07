@@ -57,6 +57,7 @@ export function PoliticasSection() {
         codigo: emptyToNull(values.codigo),
         descripcion: emptyToNull(values.descripcion),
         activo: values.activo ?? true,
+        aprobador_id: values.aprobador_id ?? null,
         valor_km: values.valor_km ?? null,
         km_ciudad_por_dia: values.km_ciudad_por_dia ?? null,
         tope_desayuno: values.tope_desayuno ?? null,

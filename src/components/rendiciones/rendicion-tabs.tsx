@@ -30,7 +30,20 @@ import { useProveedores } from "@/hooks/entities/use-proveedores";
 import { useCategoriasGasto, useEstadosGasto, useMonedas } from "@/hooks/entities/use-catalogs";
 import { toast } from "@/components/common/toast";
 import type { DataTableColumn } from "@/components/common/data-table";
-import type { Gasto, Documento, Viaje, GastoInsert } from "@/types/entities";
+import type { Gasto, Documento, Viaje, GastoInsert, Politica } from "@/types/entities";
+
+// --- Helpers para violaciones de política ------------------------------------
+
+function getTope(catNombre: string, pol: Politica): number | null {
+  const n = catNombre.toLowerCase();
+  if (n.includes("desayuno")) return pol.tope_desayuno;
+  if (n.includes("almuerzo")) return pol.tope_almuerzo;
+  if (n.includes("cena")) return pol.tope_cena;
+  if (n.includes("hospedaje") || n.includes("hotel") || n.includes("alojamiento"))
+    return pol.tope_hospedaje;
+  if (n.includes("miscel")) return pol.tope_miscelaneo;
+  return null;
+}
 
 // --- KmVehiculoPropioTable ---------------------------------------------------
 
@@ -232,6 +245,12 @@ export function GastosTab({
     (v) => v.vehiculo_propio && (v.distancia_km ?? 0) > 0,
   );
 
+  // Mapa id → nombre de categoría (para badges de violación)
+  const gastoCategoriaMap = new Map<string, string>(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (gastosRaw as any[]).map((g) => [g.id as string, (g.categorias_gasto?.nombre ?? "") as string]),
+  );
+
   const columns: DataTableColumn<Gasto>[] = [
     {
       key: "fecha",
@@ -256,9 +275,21 @@ export function GastosTab({
       key: "valor_factura",
       header: "Valor",
       align: "right",
-      cell: (row) => (
-        <span className="tabular-nums text-sm">{formatCurrency(row.valor_factura)}</span>
-      ),
+      cell: (row) => {
+        const catNombre = gastoCategoriaMap.get(row.id) ?? "";
+        const tope = politica ? getTope(catNombre, politica) : null;
+        const excede = tope != null && tope > 0 && Number(row.valor_factura) > tope;
+        return (
+          <div className="flex items-center justify-end gap-2">
+            <span className="tabular-nums text-sm">{formatCurrency(row.valor_factura)}</span>
+            {excede && (
+              <span className="rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-700">
+                ⚠ Excede tope
+              </span>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: "valor_reembolsable",

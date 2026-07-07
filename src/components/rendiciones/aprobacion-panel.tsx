@@ -11,7 +11,15 @@
  */
 
 import { useState } from "react";
-import { Send, CheckCircle, XCircle, Clock, UserCheck, AlertCircle } from "lucide-react";
+import {
+  Send,
+  CheckCircle,
+  XCircle,
+  Clock,
+  UserCheck,
+  AlertCircle,
+  AlertTriangle,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -43,6 +51,11 @@ import {
   useRechazarRendicion,
 } from "@/hooks/entities/use-rendicion-aprobacion";
 
+import { usePoliticas } from "@/hooks/entities/use-politicas";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { formatCurrency } from "@/utils/formatters";
+
 import { estadoTone } from "./rendicion-types";
 import type { Rendicion } from "@/types/entities";
 
@@ -56,6 +69,92 @@ function formatDate(s: string | null | undefined): string {
 }
 
 // ---------------------------------------------------------------------------
+// Helper: obtener tope por categoría
+// ---------------------------------------------------------------------------
+function getTope(
+  catNombre: string,
+  pol: {
+    tope_desayuno: number | null;
+    tope_almuerzo: number | null;
+    tope_cena: number | null;
+    tope_hospedaje: number | null;
+    tope_miscelaneo: number | null;
+  },
+): number | null {
+  const n = catNombre.toLowerCase();
+  if (n.includes("desayuno")) return pol.tope_desayuno;
+  if (n.includes("almuerzo")) return pol.tope_almuerzo;
+  if (n.includes("cena")) return pol.tope_cena;
+  if (n.includes("hospedaje") || n.includes("hotel") || n.includes("alojamiento"))
+    return pol.tope_hospedaje;
+  if (n.includes("miscel")) return pol.tope_miscelaneo;
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Sub-componente: resumen de violaciones de política
+// ---------------------------------------------------------------------------
+function ViolacionesPolitica({ rendicionId }: { rendicionId: string }) {
+  const { data: politicasData } = usePoliticas({ pageSize: 1 });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: gastosRaw = [] } = useQuery<any[]>({
+    queryKey: ["gastos-enriquecidos", rendicionId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("gastos")
+        .select("*, categorias_gasto(nombre)")
+        .eq("rendicion_id", rendicionId)
+        .is("deleted_at", null);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (data ?? []) as any[];
+    },
+    staleTime: 30_000,
+  });
+
+  const politica = politicasData?.rows?.[0] ?? null;
+  if (!politica) return null;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const violaciones = (gastosRaw as any[]).filter((g) => {
+    const catNombre: string = g.categorias_gasto?.nombre ?? "";
+    const tope = getTope(catNombre, politica);
+    return tope != null && tope > 0 && Number(g.valor_factura ?? 0) > tope;
+  });
+
+  if (violaciones.length === 0) return null;
+
+  return (
+    <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
+      <div className="mb-2 flex items-center gap-2">
+        <AlertTriangle className="size-4 text-amber-600 shrink-0" />
+        <p className="text-xs font-medium text-amber-800">
+          {violaciones.length} gasto{violaciones.length !== 1 ? "s" : ""} excede
+          {violaciones.length === 1 ? "" : "n"} el tope de política
+        </p>
+      </div>
+      <ul className="space-y-1">
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        {(violaciones as any[]).map((g) => {
+          const catNombre: string = g.categorias_gasto?.nombre ?? "—";
+          const tope = getTope(catNombre, politica) ?? 0;
+          return (
+            <li
+              key={g.id as string}
+              className="flex items-center justify-between text-xs text-amber-700"
+            >
+              <span>
+                {catNombre}: {formatCurrency(Number(g.valor_factura ?? 0))}
+              </span>
+              <span className="text-amber-500">tope {formatCurrency(tope)}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 
 interface AprobacionPanelProps {
   rendicion: Rendicion;
@@ -66,6 +165,8 @@ interface AprobacionPanelProps {
 export function AprobacionPanel({ rendicion, estadoCodigo, estadoNombre }: AprobacionPanelProps) {
   const { user } = useAuth();
   const { empresaActivaId } = useCompany();
+  const { data: politicasData } = usePoliticas({ pageSize: 1 });
+  const politica = politicasData?.rows?.[0] ?? null;
 
   const esPropietario = user?.id === rendicion.usuario_id;
   const esAprobador = user?.id === rendicion.aprobador_id;
@@ -107,6 +208,9 @@ export function AprobacionPanel({ rendicion, estadoCodigo, estadoNombre }: Aprob
         )}
       </div>
 
+      {/* Violaciones de política */}
+      <ViolacionesPolitica rendicionId={rendicion.id} />
+
       {/* Comentario de rechazo */}
       {estadoCodigo === "rechazada" && rendicion.comentario_rechazo && (
         <div className="flex gap-2 rounded-md bg-destructive/10 border border-destructive/20 p-3">
@@ -119,7 +223,13 @@ export function AprobacionPanel({ rendicion, estadoCodigo, estadoNombre }: Aprob
       )}
 
       {/* Acciones */}
-      {puedeEnviar && <EnviarDialog rendicionId={rendicion.id} empresaId={empresaActivaId ?? ""} />}
+      {puedeEnviar && (
+        <EnviarDialog
+          rendicionId={rendicion.id}
+          empresaId={empresaActivaId ?? ""}
+          defaultAprobadorId={politica?.aprobador_id ?? null}
+        />
+      )}
       {puedeActuar && <AccionesAprobador rendicionId={rendicion.id} />}
 
       {/* Info estado enviada para el propietario */}
@@ -156,12 +266,26 @@ function AprobadorInfo({ aprobadorId, empresaId }: { aprobadorId: string; empres
 // ---------------------------------------------------------------------------
 // Dialogo: enviar para aprobacion
 // ---------------------------------------------------------------------------
-function EnviarDialog({ rendicionId, empresaId }: { rendicionId: string; empresaId: string }) {
+function EnviarDialog({
+  rendicionId,
+  empresaId,
+  defaultAprobadorId,
+}: {
+  rendicionId: string;
+  empresaId: string;
+  defaultAprobadorId: string | null;
+}) {
   const [open, setOpen] = useState(false);
-  const [aprobadorId, setAprobadorId] = useState("");
+  const [aprobadorId, setAprobadorId] = useState(defaultAprobadorId ?? "");
 
   const { data: aprobadores = [], isLoading } = useAprobadoresDisponibles();
   const enviar = useEnviarRendicion(rendicionId);
+
+  // Sync default when dialog opens
+  function handleOpen() {
+    setAprobadorId(defaultAprobadorId ?? "");
+    setOpen(true);
+  }
 
   async function handleEnviar() {
     if (!aprobadorId) return;
@@ -174,9 +298,12 @@ function EnviarDialog({ rendicionId, empresaId }: { rendicionId: string; empresa
     }
   }
 
+  // Silence unused warning
+  void empresaId;
+
   return (
     <>
-      <Button onClick={() => setOpen(true)} className="w-full gap-2" variant="default">
+      <Button onClick={handleOpen} className="w-full gap-2" variant="default">
         <Send className="size-4" />
         Enviar para aprobacion
       </Button>
@@ -216,7 +343,7 @@ function EnviarDialog({ rendicionId, empresaId }: { rendicionId: string; empresa
             </Button>
             <Button
               onClick={handleEnviar}
-              disabled={!aprobadorId || enviar.isPending}
+              disabled={!aprobadorId || aprobadorId === "__none__" || enviar.isPending}
               className="gap-2"
             >
               <Send className="size-4" />
