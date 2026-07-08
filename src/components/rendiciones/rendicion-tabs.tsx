@@ -304,7 +304,10 @@ export function GastosTab({
             (1000 * 60 * 60 * 24),
         ) + 1
       : 0;
-  const kmCiudadTotal = diasViaje > 0 && kmCiudadDia > 0 ? diasViaje * kmCiudadDia * valorKm : 0;
+  const kmCiudadTotal =
+    viajeMain?.vehiculo_propio && diasViaje > 0 && kmCiudadDia > 0
+      ? diasViaje * kmCiudadDia * valorKm
+      : 0;
 
   // Mapa id → nombre de categoría (para badges de violación)
   const gastoCategoriaMap = new Map<string, string>(

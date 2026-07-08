@@ -333,6 +333,7 @@ export function AprobacionPanel({ rendicion, estadoCodigo, estadoNombre }: Aprob
     esPropietario &&
     (estadoCodigo == null ||
       estadoCodigo === "borrador" ||
+      estadoCodigo === "registrada" ||
       estadoCodigo === "rechazada" ||
       estadoCodigo === "devuelta");
 
