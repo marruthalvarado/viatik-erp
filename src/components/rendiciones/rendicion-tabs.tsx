@@ -441,7 +441,7 @@ export function GastosTab({
             <DrawerTitle>Cargar Factura con IA</DrawerTitle>
             <DrawerDescription>Rendición: {rendicionNumero}</DrawerDescription>
           </DrawerHeader>
-          <div className="overflow-y-auto px-4 pb-6">
+          <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-6">
             <AiExpenseWizard
               rendicionIdInicial={rendicionId}
               onSuccess={async () => {
@@ -462,7 +462,7 @@ export function GastosTab({
             <DrawerTitle>Nuevo gasto</DrawerTitle>
             <DrawerDescription>Rendición: {rendicionNumero}</DrawerDescription>
           </DrawerHeader>
-          <div className="overflow-y-auto px-4 pb-6">
+          <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-6">
             <GastoForm
               defaultValues={{ ...EMPTY_FORM, rendicion_id: rendicionId }}
               onSubmit={handleSaveGasto}

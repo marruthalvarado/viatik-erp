@@ -421,7 +421,7 @@ function GastosContent() {
                 : "Completa los datos para registrar un gasto."}
             </DrawerDescription>
           </DrawerHeader>
-          <div className="overflow-y-auto px-6 pb-6">
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6">
             <GastoForm
               defaultValues={editingGasto ? gastoToForm(editingGasto) : EMPTY_FORM}
               onSubmit={handleSubmit}

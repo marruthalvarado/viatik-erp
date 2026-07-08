@@ -389,7 +389,7 @@ export function ViajesTab({ rendicionId }: { rendicionId: string }) {
                 : "Registra los datos del viaje para esta rendición."}
             </DrawerDescription>
           </DrawerHeader>
-          <div className="overflow-y-auto px-6 pb-6">
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6">
             <ViajeForm
               defaultValues={editingViaje ? viajeToForm(editingViaje) : EMPTY_VIAJE}
               onSubmit={handleSubmit}

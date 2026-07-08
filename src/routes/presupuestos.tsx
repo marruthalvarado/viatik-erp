@@ -279,7 +279,7 @@ function PresupuestosContent() {
                 : "Completa los datos para crear un presupuesto."}
             </DrawerDescription>
           </DrawerHeader>
-          <div className="overflow-y-auto px-6 pb-6">
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6">
             <PresupuestoForm
               defaultValues={
                 editingPresupuesto ? presupuestoToForm(editingPresupuesto) : EMPTY_PRESUPUESTO

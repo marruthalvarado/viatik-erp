@@ -313,7 +313,7 @@ function DocumentosContent() {
                 : "Registra los metadatos. La carga de archivos estará disponible al integrar Supabase Storage."}
             </DrawerDescription>
           </DrawerHeader>
-          <div className="overflow-y-auto px-6 pb-6">
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6">
             <DocumentoForm
               defaultValues={editingDocumento ? documentoToForm(editingDocumento) : EMPTY_DOCUMENTO}
               onSubmit={handleSubmit}

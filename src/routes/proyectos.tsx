@@ -313,7 +313,7 @@ function ProyectosContent() {
                 : "Completa los datos para agregar un nuevo proyecto."}
             </DrawerDescription>
           </DrawerHeader>
-          <div className="overflow-y-auto px-6 pb-6">
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6">
             <ProyectoForm
               defaultValues={editingProyecto ? proyectoToForm(editingProyecto) : EMPTY_PROYECTO}
               onSubmit={handleSubmit}

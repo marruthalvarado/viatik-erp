@@ -285,7 +285,7 @@ export function SimpleCatalogCrud<TRow extends SimpleCatalogRow>({
                 : "Agrega un nuevo registro al catálogo."}
             </DrawerDescription>
           </DrawerHeader>
-          <div className="overflow-y-auto px-6 pb-6">
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6">
             <EntityForm
               schema={catalogSchema}
               defaultValues={

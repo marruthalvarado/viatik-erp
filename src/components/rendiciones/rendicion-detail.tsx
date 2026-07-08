@@ -396,7 +396,7 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
             <DrawerTitle>Editar rendición</DrawerTitle>
             <DrawerDescription>Modifica los datos de la rendición.</DrawerDescription>
           </DrawerHeader>
-          <div className="overflow-y-auto px-6 pb-6">
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6">
             <RendicionForm
               defaultValues={rendicionToForm(rendicion)}
               onSubmit={handleSubmitEdit}
