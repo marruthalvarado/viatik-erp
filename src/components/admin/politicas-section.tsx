@@ -67,6 +67,7 @@ export function PoliticasSection() {
         tope_miscelaneo: values.tope_miscelaneo ?? null,
         paga_combustible: values.paga_combustible ?? false,
         paga_peajes: values.paga_peajes ?? false,
+        acepta_facturas_fuera_rango: values.acepta_facturas_fuera_rango ?? true,
       };
       if (editingPolitica) {
         await actualizar.mutateAsync({ id: editingPolitica.id, payload: common as PoliticaUpdate });

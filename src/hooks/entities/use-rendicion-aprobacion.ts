@@ -11,6 +11,8 @@ import {
   enviarRendicion,
   aprobarRendicion,
   rechazarRendicion,
+  devolverRendicion,
+  getRendirLog,
   getMisRendicionesPendientes,
   getAprobadoresDisponibles,
 } from "@/services/rendicion-aprobacion";
@@ -88,5 +90,33 @@ export function useRechazarRendicion(rendicionId: string) {
       void qc.invalidateQueries({ queryKey: ["rendiciones"] });
       void qc.invalidateQueries({ queryKey: ["rendiciones-pendientes-aprobacion"] });
     },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Mutation: devolver rendicion (V1.2)
+// ---------------------------------------------------------------------------
+export function useDevolverRendicion(rendicionId: string) {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: (observacion?: string | null) => devolverRendicion(rendicionId, observacion),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["rendicion", rendicionId] });
+      void qc.invalidateQueries({ queryKey: ["rendiciones"] });
+      void qc.invalidateQueries({ queryKey: ["rendiciones-pendientes-aprobacion"] });
+      void qc.invalidateQueries({ queryKey: ["rendir-log", rendicionId] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Query: historial de estados de una rendicion (V1.2)
+// ---------------------------------------------------------------------------
+export function useRendirLog(rendicionId: string) {
+  return useQuery({
+    queryKey: ["rendir-log", rendicionId],
+    queryFn: () => getRendirLog(rendicionId),
+    staleTime: 30_000,
   });
 }

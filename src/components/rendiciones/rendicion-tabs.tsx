@@ -275,6 +275,7 @@ export function GastosTab({
 
   const politica = politicasData?.rows?.[0] ?? null;
   const valorKm = Number(politica?.valor_km ?? 0);
+  const kmCiudadDia = Number(politica?.km_ciudad_por_dia ?? 0);
 
   // Apply policy filter: zero out excluded categories
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -294,18 +295,51 @@ export function GastosTab({
     (v) => v.vehiculo_propio && (v.distancia_km ?? 0) > 0,
   );
 
+  // Movilización en ciudad
+  const viajeMain = viajes[0] ?? null;
+  const diasViaje =
+    viajeMain?.fecha_inicio && viajeMain?.fecha_fin
+      ? Math.ceil(
+          (new Date(viajeMain.fecha_fin).getTime() - new Date(viajeMain.fecha_inicio).getTime()) /
+            (1000 * 60 * 60 * 24),
+        ) + 1
+      : 0;
+  const kmCiudadTotal = diasViaje > 0 && kmCiudadDia > 0 ? diasViaje * kmCiudadDia * valorKm : 0;
+
   // Mapa id → nombre de categoría (para badges de violación)
   const gastoCategoriaMap = new Map<string, string>(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (gastosRaw as any[]).map((g) => [g.id as string, (g.categorias_gasto?.nombre ?? "") as string]),
   );
 
+  // Rango de fechas del viaje para badge fuera de rango
+  const viajeInicio = viajeMain?.fecha_inicio ?? null;
+  const viajeFin = viajeMain?.fecha_fin ?? null;
+  const rechazaFueraRango = politica?.acepta_facturas_fuera_rango === false;
+
   const columns: DataTableColumn<Gasto>[] = [
     {
       key: "fecha",
       header: "Fecha",
-      className: "w-28",
-      cell: (row) => <span className="text-sm tabular-nums">{formatDate(row.fecha)}</span>,
+      className: "w-32",
+      cell: (row) => {
+        const fueraRango =
+          rechazaFueraRango &&
+          row.fecha &&
+          viajeInicio &&
+          viajeFin &&
+          (row.fecha < viajeInicio || row.fecha > viajeFin);
+        return (
+          <div className="flex flex-col gap-0.5">
+            <span className="text-sm tabular-nums">{formatDate(row.fecha)}</span>
+            {fueraRango && (
+              <span className="rounded border border-orange-300 bg-orange-50 px-1.5 py-0.5 text-xs font-medium text-orange-700">
+                Fuera de rango
+              </span>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: "descripcion",
@@ -385,6 +419,22 @@ export function GastosTab({
             Configura el valor por km en{" "}
             <span className="font-medium">Administracion → Politicas</span> para ver el costo total.
           </p>
+        )}
+        {kmCiudadTotal > 0 && (
+          <div className="mt-4 rounded-md border border-border bg-muted/30 px-4 py-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Movilización en ciudad</p>
+                <p className="text-xs text-muted-foreground">
+                  {diasViaje} día{diasViaje !== 1 ? "s" : ""} · {kmCiudadDia} km/día ·{" "}
+                  {formatCurrency(valorKm)}/km
+                </p>
+              </div>
+              <span className="text-sm font-semibold tabular-nums">
+                {formatCurrency(kmCiudadTotal)}
+              </span>
+            </div>
+          </div>
         )}
       </div>
 
@@ -474,6 +524,8 @@ export function GastosTab({
               categorias={categorias}
               estados={estados}
               monedas={monedas}
+              politica={politica}
+              viajeNoches={diasViaje}
             />
           </div>
         </DrawerContent>

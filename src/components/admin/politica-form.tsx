@@ -48,12 +48,13 @@ const TOPE_LABELS: Record<string, string> = {
   tope_miscelaneo: "Misceláneo",
 };
 
-const BOOLEANS = ["paga_combustible", "paga_peajes", "activo"] as const;
+const BOOLEANS = ["paga_combustible", "paga_peajes", "activo", "acepta_facturas_fuera_rango"] as const;
 
 const BOOL_LABELS: Record<string, string> = {
   paga_combustible: "Paga combustible",
   paga_peajes: "Paga peajes",
   activo: "Política activa",
+  acepta_facturas_fuera_rango: "Acepta facturas fuera del rango de fecha del viaje",
 };
 
 export function PoliticaFormDrawer({

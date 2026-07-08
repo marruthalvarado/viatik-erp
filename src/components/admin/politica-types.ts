@@ -20,6 +20,7 @@ export const politicaSchema = z.object({
   tope_miscelaneo: z.number().nonnegative().nullable().optional(),
   paga_combustible: z.boolean().nullable().optional(),
   paga_peajes: z.boolean().nullable().optional(),
+  acepta_facturas_fuera_rango: z.boolean().nullable().optional(),
 });
 
 export type PoliticaFormValues = z.infer<typeof politicaSchema>;
@@ -39,6 +40,7 @@ export const EMPTY_POLITICA: PoliticaFormValues = {
   tope_miscelaneo: null,
   paga_combustible: false,
   paga_peajes: false,
+  acepta_facturas_fuera_rango: true,
 };
 
 export function toPoliticaForm(p: Politica): PoliticaFormValues {
@@ -57,5 +59,6 @@ export function toPoliticaForm(p: Politica): PoliticaFormValues {
     tope_miscelaneo: p.tope_miscelaneo ?? null,
     paga_combustible: p.paga_combustible ?? false,
     paga_peajes: p.paga_peajes ?? false,
+    acepta_facturas_fuera_rango: p.acepta_facturas_fuera_rango ?? true,
   };
 }

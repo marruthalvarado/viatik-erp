@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Rendicion } from "@/types/entities";
+import type { Rendicion, Viaje } from "@/types/entities";
 import { emptyToNull } from "@/utils/formatters";
 
 // ---------------------------------------------------------------------------
@@ -47,7 +47,7 @@ export const EMPTY_RENDICION: RendicionFormValues = {
   viaje_distancia_km: null,
 };
 
-export function rendicionToForm(r: Rendicion): RendicionFormValues {
+export function rendicionToForm(r: Rendicion, viaje?: Viaje | null): RendicionFormValues {
   return {
     numero: r.numero,
     proyecto_id: r.proyecto_id,
@@ -58,13 +58,13 @@ export function rendicionToForm(r: Rendicion): RendicionFormValues {
     tipo_rendicion_id: r.tipo_rendicion_id ?? null,
     anticipo_efectivo: r.anticipo_efectivo ?? null,
     anticipo_credito: r.anticipo_credito ?? null,
-    // viaje fields come from the viajes table, not rendicion directly
-    viaje_origen: "",
-    viaje_destino: "",
-    viaje_fecha_inicio: "",
-    viaje_fecha_fin: "",
-    viaje_vehiculo_propio: false,
-    viaje_distancia_km: null,
+    // viaje fields come from the viajes table
+    viaje_origen: viaje?.origen ?? "",
+    viaje_destino: viaje?.destino ?? "",
+    viaje_fecha_inicio: viaje?.fecha_inicio ?? "",
+    viaje_fecha_fin: viaje?.fecha_fin ?? "",
+    viaje_vehiculo_propio: viaje?.vehiculo_propio ?? false,
+    viaje_distancia_km: viaje?.distancia_km ?? null,
   };
 }
 
@@ -81,6 +81,7 @@ export function estadoTone(
       return "danger";
     case "enviada":
     case "en_revision":
+    case "devuelta":
       return "warning";
     case "registrada":
     case "borrador":

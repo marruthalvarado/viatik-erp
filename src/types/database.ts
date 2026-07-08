@@ -1305,6 +1305,7 @@ export type Database = {
       };
       politicas: {
         Row: {
+          acepta_facturas_fuera_rango: boolean | null;
           activo: boolean | null;
           aprobador_id: string | null;
           codigo: string | null;
@@ -1325,6 +1326,7 @@ export type Database = {
           valor_km: number | null;
         };
         Insert: {
+          acepta_facturas_fuera_rango?: boolean | null;
           activo?: boolean | null;
           aprobador_id?: string | null;
           codigo?: string | null;
@@ -1345,6 +1347,7 @@ export type Database = {
           valor_km?: number | null;
         };
         Update: {
+          acepta_facturas_fuera_rango?: boolean | null;
           activo?: boolean | null;
           aprobador_id?: string | null;
           codigo?: string | null;
@@ -2207,6 +2210,51 @@ export type Database = {
           },
         ];
       };
+      rendir_log: {
+        Row: {
+          id: string;
+          rendicion_id: string;
+          empresa_id: string;
+          usuario_id: string | null;
+          estado_codigo: string;
+          observacion: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          rendicion_id: string;
+          empresa_id: string;
+          usuario_id?: string | null;
+          estado_codigo: string;
+          observacion?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          rendicion_id?: string;
+          empresa_id?: string;
+          usuario_id?: string | null;
+          estado_codigo?: string;
+          observacion?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "rendir_log_rendicion_id_fkey";
+            columns: ["rendicion_id"];
+            isOneToOne: false;
+            referencedRelation: "rendiciones";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "rendir_log_empresa_id_fkey";
+            columns: ["empresa_id"];
+            isOneToOne: false;
+            referencedRelation: "empresas";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Views: {
       vw_dashboard_clientes: {
@@ -2595,9 +2643,23 @@ export type Database = {
         Args: { p_rendicion_id: string; p_motivo: string };
         Returns: undefined;
       };
-      rendir_liquidar: {
-        Args: { p_rendicion_id: string };
+      rendir_devolver: {
+        Args: { p_rendicion_id: string; p_observacion?: string | null };
         Returns: undefined;
+      };
+      rendir_liquidar: {
+        Args: { p_rendicion_id: string; p_observacion?: string | null };
+        Returns: undefined;
+      };
+      rendir_log_rendicion: {
+        Args: { p_rendicion_id: string };
+        Returns: {
+          id: string;
+          created_at: string;
+          estado_codigo: string;
+          observacion: string | null;
+          usuario_nombre: string;
+        }[];
       };
       rendir_mis_pendientes: {
         Args: Record<string, never>;
@@ -2822,6 +2884,6 @@ export type CompositeTypes<
   schema: keyof DatabaseWithoutInternals;
 }
   ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
-  : PublicCompositeTypeNameOrOptions extends keyof DatabaseWithoutInternals["public"]["CompositeTypes"]
-    ? DatabaseWithoutInternals["public"]["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never;

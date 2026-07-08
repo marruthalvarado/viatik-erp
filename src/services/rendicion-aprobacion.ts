@@ -89,3 +89,46 @@ export async function getAprobadoresDisponibles(): Promise<UsuarioAprobador[]> {
   if (error) throw new Error(error.message);
   return (data ?? []) as UsuarioAprobador[];
 }
+
+// ---------------------------------------------------------------------------
+// Tipos log
+// ---------------------------------------------------------------------------
+
+export interface RendirLogEntry {
+  id: string;
+  created_at: string;
+  estado_codigo: string;
+  observacion: string | null;
+  usuario_nombre: string;
+}
+
+// ---------------------------------------------------------------------------
+// RPCs V1.2
+// ---------------------------------------------------------------------------
+
+/**
+ * Devuelve una rendición enviada o aprobada para que el empleado la corrija.
+ * Requiere rol aprobador | financiero | admin.
+ * Estado: enviada | aprobada → devuelta
+ */
+export async function devolverRendicion(
+  rendicionId: string,
+  observacion?: string | null,
+): Promise<void> {
+  const { error } = await supabase.rpc("rendir_devolver", {
+    p_rendicion_id: rendicionId,
+    p_observacion: observacion ?? null,
+  });
+  if (error) throw new Error(error.message);
+}
+
+/**
+ * Retorna el historial cronológico de estados de una rendición.
+ */
+export async function getRendirLog(rendicionId: string): Promise<RendirLogEntry[]> {
+  const { data, error } = await supabase.rpc("rendir_log_rendicion", {
+    p_rendicion_id: rendicionId,
+  });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as RendirLogEntry[];
+}

@@ -9,7 +9,6 @@ import {
   ArrowLeft,
   FileText,
   Receipt,
-  Plane,
   GitBranch,
   Clock,
   Download,
@@ -34,6 +33,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useProyectos } from "@/hooks/entities/use-proyectos";
 import { useEstadosRendicion, useTiposRendicion } from "@/hooks/entities/use-catalogs";
 import { useActualizarRendicion, useEliminarRendicion } from "@/hooks/entities/use-rendiciones";
+import { useActualizarViaje } from "@/hooks/entities/use-viajes";
 import { useRolUsuarioEnEmpresa } from "@/hooks/entities/use-workflow";
 import { useViajes } from "@/hooks/entities/use-viajes";
 import { usePoliticas } from "@/hooks/entities/use-politicas";
@@ -41,12 +41,11 @@ import { useCompany } from "@/contexts/company-context";
 import { useAuth } from "@/contexts/auth-context";
 import { formatCurrency, formatDate } from "@/utils/formatters";
 
-import type { Rendicion, RendicionUpdate } from "@/types/entities";
+import type { Rendicion, RendicionUpdate, ViajeUpdate } from "@/types/entities";
 
 import { RendicionForm } from "./rendicion-form";
 import { rendicionToForm, emptyToNull, estadoTone } from "./rendicion-types";
 import type { RendicionFormValues } from "./rendicion-types";
-import { ViajesTab } from "./viajes-tab";
 import { exportarLiquidacion } from "@/services/liquidacion-export";
 import { WorkflowTab } from "./workflow-tab";
 import { useWorkflows } from "@/hooks/entities/use-workflow";
@@ -102,6 +101,7 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
   const { data: workflowsData } = useWorkflows();
 
   const actualizar = useActualizarRendicion();
+  const actualizarViaje = useActualizarViaje();
   const eliminar = useEliminarRendicion();
   const enviar = useEnviarRendicion(rendicion.id);
 
@@ -173,6 +173,8 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
   const proyectoNombre =
     proyectos.find((p) => p.id === rendicion.proyecto_id)?.nombre ?? rendicion.proyecto_id;
 
+  const viajeExistente = viajes[0] ?? null;
+
   async function handleSubmitEdit(values: RendicionFormValues) {
     if (!empresaActivaId || !user?.id) return;
     try {
@@ -188,6 +190,20 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
         anticipo_credito: values.anticipo_credito ?? null,
       };
       const updated = await actualizar.mutateAsync({ id: rendicion.id, payload });
+
+      // Actualizar viaje si existe
+      if (viajeExistente?.id) {
+        const viajePayload: ViajeUpdate = {
+          origen: emptyToNull(values.viaje_origen),
+          destino: values.viaje_destino || undefined,
+          fecha_inicio: emptyToNull(values.viaje_fecha_inicio),
+          fecha_fin: emptyToNull(values.viaje_fecha_fin),
+          vehiculo_propio: values.viaje_vehiculo_propio ?? false,
+          distancia_km: values.viaje_vehiculo_propio ? (values.viaje_distancia_km ?? null) : null,
+        };
+        await actualizarViaje.mutateAsync({ id: viajeExistente.id, payload: viajePayload });
+      }
+
       onUpdated(updated);
       toast.success("Rendición actualizada.");
       setDrawerOpen(false);
@@ -352,10 +368,6 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
             <FileText className="size-4" />
             Documentos
           </TabsTrigger>
-          <TabsTrigger value="viajes" className="gap-1.5">
-            <Plane className="size-4" />
-            Viajes
-          </TabsTrigger>
           <TabsTrigger value="workflow" className="gap-1.5">
             <GitBranch className="size-4" />
             Workflow
@@ -373,10 +385,6 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
 
         <TabsContent value="documentos">
           <DocumentosTab rendicionId={rendicion.id} />
-        </TabsContent>
-
-        <TabsContent value="viajes">
-          <ViajesTab rendicionId={rendicion.id} />
         </TabsContent>
 
         <TabsContent value="workflow">
@@ -398,10 +406,10 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
           </DrawerHeader>
           <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6">
             <RendicionForm
-              defaultValues={rendicionToForm(rendicion)}
+              defaultValues={rendicionToForm(rendicion, viajeExistente)}
               onSubmit={handleSubmitEdit}
               onCancel={() => setDrawerOpen(false)}
-              loading={actualizar.isPending}
+              loading={actualizar.isPending || actualizarViaje.isPending}
               submitLabel="Guardar cambios"
               proyectos={proyectos}
               tipos={tipos}

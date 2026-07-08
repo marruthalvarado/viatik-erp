@@ -353,131 +353,123 @@ export function RendicionForm({
                 )}
               />
 
-              {/* ── Sección Viaje (solo al crear) ─────────────── */}
-              {!isEditing && (
-                <>
-                  <div className="col-span-2 mt-2 rounded-md border border-border bg-muted/30 px-4 py-3">
-                    <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Datos del Viaje
-                    </p>
-                    <p className="mb-4 text-xs text-muted-foreground">
-                      Registra los datos del viaje para esta rendición
-                    </p>
+              {/* ── Sección Viaje ─────────────────────────────── */}
+              <div className="col-span-2 mt-2 rounded-md border border-border bg-muted/30 px-4 py-3">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Datos del Viaje
+                </p>
+                {!isEditing && (
+                  <p className="mb-4 text-xs text-muted-foreground">
+                    Registra los datos del viaje para esta rendición
+                  </p>
+                )}
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="viaje_origen"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Ciudad Origen</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Ej: Quito" {...field} value={field.value ?? ""} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="viaje_origen"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Ciudad Origen</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Ej: Quito" {...field} value={field.value ?? ""} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                      <FormField
-                        control={form.control}
-                        name="viaje_destino"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Ciudad Destino</FormLabel>
-                            <FormControl>
-                              <Input
-                                placeholder="Ej: Guayaquil"
-                                {...field}
-                                value={field.value ?? ""}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                  <FormField
+                    control={form.control}
+                    name="viaje_destino"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Ciudad Destino</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Ej: Guayaquil" {...field} value={field.value ?? ""} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                      <FormField
-                        control={form.control}
-                        name="viaje_fecha_inicio"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Fecha Inicio</FormLabel>
-                            <FormControl>
-                              <Input type="date" {...field} value={field.value ?? ""} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                  <FormField
+                    control={form.control}
+                    name="viaje_fecha_inicio"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Fecha Inicio</FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} value={field.value ?? ""} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                      <FormField
-                        control={form.control}
-                        name="viaje_fecha_fin"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Fecha Fin</FormLabel>
-                            <FormControl>
-                              <Input type="date" {...field} value={field.value ?? ""} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
+                  <FormField
+                    control={form.control}
+                    name="viaje_fecha_fin"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Fecha Fin</FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} value={field.value ?? ""} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                      <FormField
-                        control={form.control}
-                        name="viaje_vehiculo_propio"
-                        render={({ field }) => (
-                          <FormItem className="col-span-2 flex flex-row items-center gap-3 space-y-0">
-                            <FormControl>
-                              <Checkbox
-                                checked={field.value ?? false}
-                                onCheckedChange={field.onChange}
-                              />
-                            </FormControl>
-                            <FormLabel className="cursor-pointer font-normal">
-                              Vehículo propio
-                            </FormLabel>
-                          </FormItem>
-                        )}
-                      />
+                  <FormField
+                    control={form.control}
+                    name="viaje_vehiculo_propio"
+                    render={({ field }) => (
+                      <FormItem className="col-span-2 flex flex-row items-center gap-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value ?? false}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <FormLabel className="cursor-pointer font-normal">
+                          Vehículo propio
+                        </FormLabel>
+                      </FormItem>
+                    )}
+                  />
 
-                      <FormField
-                        control={form.control}
-                        name="viaje_distancia_km"
-                        render={({ field }) => (
-                          <FormItem className="col-span-2">
-                            <FormLabel className={cn(!vehiculoPropio && "text-muted-foreground")}>
-                              Distancia (km)
-                            </FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                min="0"
-                                step="0.1"
-                                placeholder="0"
-                                disabled={!vehiculoPropio}
-                                className={cn(!vehiculoPropio && "bg-muted cursor-not-allowed")}
-                                value={field.value ?? ""}
-                                onChange={(e) =>
-                                  field.onChange(
-                                    e.target.value === "" ? null : Number(e.target.value),
-                                  )
-                                }
-                                onBlur={field.onBlur}
-                                name={field.name}
-                                ref={field.ref}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </div>
-                </>
-              )}
+                  <FormField
+                    control={form.control}
+                    name="viaje_distancia_km"
+                    render={({ field }) => (
+                      <FormItem className="col-span-2">
+                        <FormLabel className={cn(!vehiculoPropio && "text-muted-foreground")}>
+                          Distancia (km)
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            placeholder="0"
+                            disabled={!vehiculoPropio}
+                            className={cn(!vehiculoPropio && "bg-muted cursor-not-allowed")}
+                            value={field.value ?? ""}
+                            onChange={(e) =>
+                              field.onChange(e.target.value === "" ? null : Number(e.target.value))
+                            }
+                            onBlur={field.onBlur}
+                            name={field.name}
+                            ref={field.ref}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
             </div>
           );
         }}

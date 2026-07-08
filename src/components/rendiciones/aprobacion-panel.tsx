@@ -1,13 +1,7 @@
 /**
  * aprobacion-panel.tsx
- * Panel de aprobacion directa (Opcion B).
- * Muestra el estado actual y los botones de accion segun el rol del usuario.
- *
- * Logica:
- *   - Propietario + borrador/rechazada → boton "Enviar para aprobacion"
- *   - Propietario + enviada            → info "Pendiente de aprobacion"
- *   - Aprobador asignado + enviada     → botones "Aprobar" / "Rechazar"
- *   - Aprobada/rechazada               → muestra resultado y fecha
+ * Panel de aprobacion directa (Opcion B) — V1.2.
+ * Historial de estados (rendir_log) + acciones por rol.
  */
 
 import { useState } from "react";
@@ -19,6 +13,8 @@ import {
   UserCheck,
   AlertCircle,
   AlertTriangle,
+  RotateCcw,
+  History,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -49,6 +45,8 @@ import {
   useEnviarRendicion,
   useAprobarRendicion,
   useRechazarRendicion,
+  useDevolverRendicion,
+  useRendirLog,
 } from "@/hooks/entities/use-rendicion-aprobacion";
 
 import { usePoliticas } from "@/hooks/entities/use-politicas";
@@ -59,6 +57,10 @@ import { formatCurrency } from "@/utils/formatters";
 import { estadoTone } from "./rendicion-types";
 import type { Rendicion } from "@/types/entities";
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
 function formatDate(s: string | null | undefined): string {
   if (!s) return "-";
   return new Date(s).toLocaleDateString("es-EC", {
@@ -68,9 +70,16 @@ function formatDate(s: string | null | undefined): string {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Helper: obtener tope por categoría
-// ---------------------------------------------------------------------------
+function formatDateTime(s: string): string {
+  return new Date(s).toLocaleString("es-EC", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function getTope(
   catNombre: string,
   pol: {
@@ -91,8 +100,25 @@ function getTope(
   return null;
 }
 
+const ESTADO_LABEL: Record<string, string> = {
+  borrador: "Borrador",
+  enviada: "Enviada",
+  aprobada: "Aprobada",
+  rechazada: "Rechazada",
+  devuelta: "Devuelta",
+  liquidada: "Liquidada",
+  registrada: "Registrada",
+};
+
+const MENSAJES_DEVOLUCION = [
+  "Falta documentación de soporte",
+  "Los importes no coinciden con las facturas",
+  "Se requiere corrección de fechas",
+  "Categorías de gasto incorrectas",
+];
+
 // ---------------------------------------------------------------------------
-// Sub-componente: resumen de violaciones de política
+// ViolacionesPolitica
 // ---------------------------------------------------------------------------
 function ViolacionesPolitica({ rendicionId }: { rendicionId: string }) {
   const { data: politicasData } = usePoliticas({ pageSize: 1 });
@@ -155,7 +181,140 @@ function ViolacionesPolitica({ rendicionId }: { rendicionId: string }) {
 }
 
 // ---------------------------------------------------------------------------
+// HistorialWorkflow
+// ---------------------------------------------------------------------------
+function HistorialWorkflow({ rendicionId }: { rendicionId: string }) {
+  const { data: log = [], isLoading } = useRendirLog(rendicionId);
 
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-1.5">
+        <History className="size-3.5 text-muted-foreground" />
+        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Historial
+        </span>
+      </div>
+      {isLoading ? (
+        <p className="text-xs text-muted-foreground">Cargando historial...</p>
+      ) : log.length === 0 ? (
+        <p className="text-xs text-muted-foreground">Sin registros.</p>
+      ) : (
+        <div className="overflow-hidden rounded-md border border-border">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-border bg-muted/40">
+                <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Fecha</th>
+                <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Usuario</th>
+                <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">Estado</th>
+                <th className="px-2 py-1.5 text-left font-medium text-muted-foreground">
+                  Observación
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {log.map((entry, i) => (
+                <tr key={entry.id} className={i % 2 === 0 ? "bg-background" : "bg-muted/20"}>
+                  <td className="whitespace-nowrap px-2 py-1.5 text-muted-foreground">
+                    {formatDateTime(entry.created_at)}
+                  </td>
+                  <td className="px-2 py-1.5 font-medium text-foreground">
+                    {entry.usuario_nombre}
+                  </td>
+                  <td className="px-2 py-1.5">
+                    <StatusBadge tone={estadoTone(entry.estado_codigo)}>
+                      {ESTADO_LABEL[entry.estado_codigo] ?? entry.estado_codigo}
+                    </StatusBadge>
+                  </td>
+                  <td className="px-2 py-1.5 text-muted-foreground">
+                    {entry.observacion ?? <span className="text-muted-foreground/40">—</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// DevolverDialogContent (reutilizado)
+// ---------------------------------------------------------------------------
+interface DevolverDialogContentProps {
+  open: boolean;
+  observacion: string;
+  onObservacionChange: (v: string) => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+  isPending: boolean;
+}
+
+function DevolverDialogContent({
+  open,
+  observacion,
+  onObservacionChange,
+  onConfirm,
+  onCancel,
+  isPending,
+}: DevolverDialogContentProps) {
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) onCancel();
+      }}
+    >
+      <DialogContent className="sm:max-w-md" onInteractOutside={(e) => e.preventDefault()}>
+        <DialogHeader>
+          <DialogTitle>Devolver rendicion</DialogTitle>
+          <DialogDescription>
+            La rendicion regresará al empleado para que la corrija y reenvíe.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 py-2">
+          <div className="flex flex-wrap gap-1.5">
+            {MENSAJES_DEVOLUCION.map((msg) => (
+              <button
+                key={msg}
+                type="button"
+                onClick={() => onObservacionChange(msg)}
+                className="rounded-full border border-border bg-muted/50 px-2.5 py-0.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              >
+                {msg}
+              </button>
+            ))}
+          </div>
+          <Textarea
+            placeholder="Observación (opcional, máx. 500 caracteres)..."
+            value={observacion}
+            onChange={(e) => onObservacionChange(e.target.value.slice(0, 500))}
+            rows={4}
+          />
+          <p className="text-right text-xs text-muted-foreground">{observacion.length}/500</p>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel}>
+            Cancelar
+          </Button>
+          <Button
+            onClick={onConfirm}
+            disabled={isPending}
+            variant="outline"
+            className="gap-2 border-orange-300 text-orange-700 hover:bg-orange-50"
+          >
+            <RotateCcw className="size-4" />
+            {isPending ? "Devolviendo..." : "Confirmar devolución"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// AprobacionPanel (principal)
+// ---------------------------------------------------------------------------
 interface AprobacionPanelProps {
   rendicion: Rendicion;
   estadoCodigo: string | null;
@@ -166,19 +325,22 @@ export function AprobacionPanel({ rendicion, estadoCodigo, estadoNombre }: Aprob
   const { user } = useAuth();
   const { empresaActivaId } = useCompany();
   const { data: politicasData } = usePoliticas({ pageSize: 1 });
-  const politica = politicasData?.rows?.[0] ?? null;
 
   const esPropietario = user?.id === rendicion.usuario_id;
   const esAprobador = user?.id === rendicion.aprobador_id;
 
   const puedeEnviar =
     esPropietario &&
-    (estadoCodigo == null || estadoCodigo === "borrador" || estadoCodigo === "rechazada");
+    (estadoCodigo == null ||
+      estadoCodigo === "borrador" ||
+      estadoCodigo === "rechazada" ||
+      estadoCodigo === "devuelta");
+
   const puedeActuar = esAprobador && estadoCodigo === "enviada";
+  const puedeDevolver = esAprobador && (estadoCodigo === "enviada" || estadoCodigo === "aprobada");
 
   return (
     <div className="rounded-lg border border-border bg-card p-5 space-y-4">
-      {/* Cabecera */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <UserCheck className="size-4 text-muted-foreground" />
@@ -187,12 +349,10 @@ export function AprobacionPanel({ rendicion, estadoCodigo, estadoNombre }: Aprob
         <StatusBadge tone={estadoTone(estadoCodigo)}>{estadoNombre}</StatusBadge>
       </div>
 
-      {/* Info aprobador asignado */}
       {rendicion.aprobador_id && (
         <AprobadorInfo aprobadorId={rendicion.aprobador_id} empresaId={empresaActivaId ?? ""} />
       )}
 
-      {/* Fechas */}
       <div className="grid grid-cols-2 gap-3 text-xs text-muted-foreground">
         {rendicion.fecha_envio && (
           <div>
@@ -208,10 +368,12 @@ export function AprobacionPanel({ rendicion, estadoCodigo, estadoNombre }: Aprob
         )}
       </div>
 
-      {/* Violaciones de política */}
+      <HistorialWorkflow rendicionId={rendicion.id} />
+
       <ViolacionesPolitica rendicionId={rendicion.id} />
 
-      {/* Comentario de rechazo */}
+      {estadoCodigo === "devuelta" && <DevueltaBanner rendicionId={rendicion.id} />}
+
       {estadoCodigo === "rechazada" && rendicion.comentario_rechazo && (
         <div className="flex gap-2 rounded-md bg-destructive/10 border border-destructive/20 p-3">
           <AlertCircle className="size-4 text-destructive mt-0.5 shrink-0" />
@@ -222,17 +384,20 @@ export function AprobacionPanel({ rendicion, estadoCodigo, estadoNombre }: Aprob
         </div>
       )}
 
-      {/* Acciones */}
       {puedeEnviar && (
         <EnviarDialog
           rendicionId={rendicion.id}
           empresaId={empresaActivaId ?? ""}
-          defaultAprobadorId={politica?.aprobador_id ?? null}
+          defaultAprobadorId={politicasData?.rows?.[0]?.aprobador_id ?? null}
         />
       )}
-      {puedeActuar && <AccionesAprobador rendicionId={rendicion.id} />}
 
-      {/* Info estado enviada para el propietario */}
+      {puedeActuar && (
+        <AccionesAprobador rendicionId={rendicion.id} puedeDevolver={puedeDevolver} />
+      )}
+
+      {!puedeActuar && puedeDevolver && <DevolverSolo rendicionId={rendicion.id} />}
+
       {esPropietario && estadoCodigo === "enviada" && (
         <div className="flex items-center gap-2 text-xs text-warning bg-warning/10 rounded-md p-3 border border-warning/20">
           <Clock className="size-4 shrink-0" />
@@ -244,14 +409,32 @@ export function AprobacionPanel({ rendicion, estadoCodigo, estadoNombre }: Aprob
 }
 
 // ---------------------------------------------------------------------------
-// Sub-componente: nombre del aprobador
+// DevueltaBanner
+// ---------------------------------------------------------------------------
+function DevueltaBanner({ rendicionId }: { rendicionId: string }) {
+  const { data: log = [] } = useRendirLog(rendicionId);
+  const ultima = [...log].reverse().find((e) => e.estado_codigo === "devuelta");
+
+  return (
+    <div className="flex gap-2 rounded-md bg-orange-50 border border-orange-200 p-3">
+      <RotateCcw className="size-4 text-orange-600 mt-0.5 shrink-0" />
+      <div>
+        <p className="text-xs font-medium text-orange-700">Rendición devuelta para corrección</p>
+        {ultima?.observacion && (
+          <p className="text-xs text-foreground mt-1">{ultima.observacion}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// AprobadorInfo
 // ---------------------------------------------------------------------------
 function AprobadorInfo({ aprobadorId, empresaId }: { aprobadorId: string; empresaId: string }) {
   const { data: aprobadores = [] } = useAprobadoresDisponibles();
+  void empresaId;
   const aprobador = aprobadores.find((a) => a.usuario_id === aprobadorId);
-
-  if (!aprobador && !empresaId) return null;
-
   const nombre = aprobador
     ? `${aprobador.nombres}${aprobador.apellidos ? " " + aprobador.apellidos : ""}`
     : "Aprobador asignado";
@@ -264,7 +447,7 @@ function AprobadorInfo({ aprobadorId, empresaId }: { aprobadorId: string; empres
 }
 
 // ---------------------------------------------------------------------------
-// Dialogo: enviar para aprobacion
+// EnviarDialog
 // ---------------------------------------------------------------------------
 function EnviarDialog({
   rendicionId,
@@ -277,11 +460,10 @@ function EnviarDialog({
 }) {
   const [open, setOpen] = useState(false);
   const [aprobadorId, setAprobadorId] = useState(defaultAprobadorId ?? "");
-
   const { data: aprobadores = [], isLoading } = useAprobadoresDisponibles();
   const enviar = useEnviarRendicion(rendicionId);
+  void empresaId;
 
-  // Sync default when dialog opens
   function handleOpen() {
     setAprobadorId(defaultAprobadorId ?? "");
     setOpen(true);
@@ -298,23 +480,18 @@ function EnviarDialog({
     }
   }
 
-  // Silence unused warning
-  void empresaId;
-
   return (
     <>
       <Button onClick={handleOpen} className="w-full gap-2" variant="default">
         <Send className="size-4" />
         Enviar para aprobacion
       </Button>
-
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-sm" onInteractOutside={(e) => e.preventDefault()}>
           <DialogHeader>
             <DialogTitle>Enviar para aprobacion</DialogTitle>
             <DialogDescription>Selecciona quien debe aprobar esta rendicion.</DialogDescription>
           </DialogHeader>
-
           <div className="py-2">
             <Select value={aprobadorId} onValueChange={setAprobadorId} disabled={isLoading}>
               <SelectTrigger>
@@ -336,7 +513,6 @@ function EnviarDialog({
               </SelectContent>
             </Select>
           </div>
-
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>
               Cancelar
@@ -357,15 +533,68 @@ function EnviarDialog({
 }
 
 // ---------------------------------------------------------------------------
-// Sub-componente: acciones del aprobador
+// DevolverSolo (botón standalone para estado aprobada)
 // ---------------------------------------------------------------------------
-function AccionesAprobador({ rendicionId }: { rendicionId: string }) {
+function DevolverSolo({ rendicionId }: { rendicionId: string }) {
+  const [open, setOpen] = useState(false);
+  const [observacion, setObservacion] = useState("");
+  const devolver = useDevolverRendicion(rendicionId);
+
+  async function handleDevolver() {
+    try {
+      await devolver.mutateAsync(observacion.trim() || null);
+      toast.success("Rendicion devuelta para corrección.");
+      setOpen(false);
+      setObservacion("");
+    } catch (err) {
+      toast.error((err as Error).message ?? "Error al devolver.");
+    }
+  }
+
+  return (
+    <>
+      <Button
+        onClick={() => setOpen(true)}
+        className="w-full gap-2 border-orange-300 text-orange-700 hover:bg-orange-50"
+        variant="outline"
+      >
+        <RotateCcw className="size-4" />
+        Devolver para corrección
+      </Button>
+      <DevolverDialogContent
+        open={open}
+        observacion={observacion}
+        onObservacionChange={setObservacion}
+        onConfirm={handleDevolver}
+        onCancel={() => {
+          setOpen(false);
+          setObservacion("");
+        }}
+        isPending={devolver.isPending}
+      />
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// AccionesAprobador (estado: enviada)
+// ---------------------------------------------------------------------------
+function AccionesAprobador({
+  rendicionId,
+  puedeDevolver,
+}: {
+  rendicionId: string;
+  puedeDevolver: boolean;
+}) {
   const [openAprobar, setOpenAprobar] = useState(false);
   const [openRechazar, setOpenRechazar] = useState(false);
+  const [openDevolver, setOpenDevolver] = useState(false);
   const [motivo, setMotivo] = useState("");
+  const [observacion, setObservacion] = useState("");
 
   const aprobar = useAprobarRendicion(rendicionId);
   const rechazar = useRechazarRendicion(rendicionId);
+  const devolver = useDevolverRendicion(rendicionId);
 
   async function handleAprobar() {
     try {
@@ -392,9 +621,20 @@ function AccionesAprobador({ rendicionId }: { rendicionId: string }) {
     }
   }
 
+  async function handleDevolver() {
+    try {
+      await devolver.mutateAsync(observacion.trim() || null);
+      toast.success("Rendicion devuelta para corrección.");
+      setOpenDevolver(false);
+      setObservacion("");
+    } catch (err) {
+      toast.error((err as Error).message ?? "Error al devolver.");
+    }
+  }
+
   return (
     <>
-      <div className="flex gap-3">
+      <div className="flex gap-2">
         <Button onClick={() => setOpenAprobar(true)} className="flex-1 gap-2" variant="default">
           <CheckCircle className="size-4" />
           Aprobar
@@ -407,9 +647,18 @@ function AccionesAprobador({ rendicionId }: { rendicionId: string }) {
           <XCircle className="size-4" />
           Rechazar
         </Button>
+        {puedeDevolver && (
+          <Button
+            onClick={() => setOpenDevolver(true)}
+            className="gap-2 border-orange-300 text-orange-700 hover:bg-orange-50"
+            variant="outline"
+          >
+            <RotateCcw className="size-4" />
+            Devolver
+          </Button>
+        )}
       </div>
 
-      {/* Dialog: Aprobar */}
       <Dialog open={openAprobar} onOpenChange={setOpenAprobar}>
         <DialogContent className="sm:max-w-sm" onInteractOutside={(e) => e.preventDefault()}>
           <DialogHeader>
@@ -430,7 +679,6 @@ function AccionesAprobador({ rendicionId }: { rendicionId: string }) {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog: Rechazar */}
       <Dialog open={openRechazar} onOpenChange={setOpenRechazar}>
         <DialogContent className="sm:max-w-sm" onInteractOutside={(e) => e.preventDefault()}>
           <DialogHeader>
@@ -463,6 +711,18 @@ function AccionesAprobador({ rendicionId }: { rendicionId: string }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <DevolverDialogContent
+        open={openDevolver}
+        observacion={observacion}
+        onObservacionChange={setObservacion}
+        onConfirm={handleDevolver}
+        onCancel={() => {
+          setOpenDevolver(false);
+          setObservacion("");
+        }}
+        isPending={devolver.isPending}
+      />
     </>
   );
 }
