@@ -85,7 +85,8 @@ function DocumentosContent() {
   const categorias = categoriasData?.rows ?? [];
   const tipos = tiposData?.rows ?? [];
 
-  const rendicionLabel = (id: string) => rendiciones.find((r) => r.id === id)?.numero ?? id;
+  const rendicionLabel = (id: string | null) =>
+    id ? (rendiciones.find((r) => r.id === id)?.numero ?? id) : "—";
   const categoriaLabel = (id: string | null | undefined) =>
     id ? (categorias.find((c) => c.id === id)?.nombre ?? "—") : "—";
   const tipoLabel = (id: string | null | undefined) =>
@@ -189,7 +190,7 @@ function DocumentosContent() {
     try {
       if (editingDocumento) {
         const payload: DocumentoUpdate = {
-          rendicion_id: values.rendicion_id,
+          rendicion_id: values.rendicion_id ?? null,
           nombre_archivo: emptyToNull(values.nombre_archivo),
           categoria_documento_id: values.categoria_documento_id ?? null,
           tipo_documento_id: values.tipo_documento_id ?? null,
@@ -200,7 +201,7 @@ function DocumentosContent() {
       } else {
         const payload: DocumentoInsert = {
           empresa_id: empresaActivaId,
-          rendicion_id: values.rendicion_id,
+          rendicion_id: values.rendicion_id ?? null,
           nombre_archivo: emptyToNull(values.nombre_archivo),
           categoria_documento_id: values.categoria_documento_id ?? null,
           tipo_documento_id: values.tipo_documento_id ?? null,
@@ -339,7 +340,11 @@ function DocumentosContent() {
 
       {/* Wizard IA: subida de factura → OCR → IA → gasto */}
       <Dialog open={wizardOpen} onOpenChange={setWizardOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto" onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
+        <DialogContent
+          className="sm:max-w-2xl max-h-[90vh] overflow-y-auto"
+          onInteractOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+        >
           <DialogHeader>
             <DialogTitle>Subir factura con IA</DialogTitle>
             <DialogDescription>

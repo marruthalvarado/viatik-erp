@@ -14,6 +14,13 @@ export function formatCurrency(
 
 export function formatDate(value: string | Date | null | undefined, locale = "es-CL") {
   if (!value) return "—";
+  // Parse YYYY-MM-DD as local time to avoid UTC-to-local shift (e.g., July 7 → July 6 in UTC-5)
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [y, m, day] = value.split("-").map(Number);
+    const local = new Date(y, m - 1, day);
+    if (Number.isNaN(local.getTime())) return "—";
+    return new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(local);
+  }
   const d = typeof value === "string" ? new Date(value) : value;
   if (Number.isNaN(d.getTime())) return "—";
   return new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(d);

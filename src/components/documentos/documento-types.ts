@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { Documento } from "@/types/entities";
 
 export const documentoSchema = z.object({
-  rendicion_id: z.string().min(1, "La rendición es requerida"),
+  rendicion_id: z.string().nullable().optional(),
   nombre_archivo: z.string().nullable().optional(),
   categoria_documento_id: z.string().nullable().optional(),
   tipo_documento_id: z.string().nullable().optional(),
@@ -12,7 +12,7 @@ export const documentoSchema = z.object({
 export type DocumentoFormValues = z.infer<typeof documentoSchema>;
 
 export const EMPTY_DOCUMENTO: DocumentoFormValues = {
-  rendicion_id: "",
+  rendicion_id: null,
   nombre_archivo: "",
   categoria_documento_id: null,
   tipo_documento_id: null,
@@ -21,7 +21,7 @@ export const EMPTY_DOCUMENTO: DocumentoFormValues = {
 
 export function documentoToForm(d: Documento): DocumentoFormValues {
   return {
-    rendicion_id: d.rendicion_id,
+    rendicion_id: d.rendicion_id ?? null,
     nombre_archivo: d.nombre_archivo ?? "",
     categoria_documento_id: d.categoria_documento_id ?? null,
     tipo_documento_id: d.tipo_documento_id ?? null,

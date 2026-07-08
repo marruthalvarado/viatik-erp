@@ -551,7 +551,7 @@ export type Database = {
           ocr_confianza: number | null;
           pais_id: string | null;
           procesado: boolean | null;
-          rendicion_id: string;
+          rendicion_id: string | null;
           storage_path: string | null;
           tamano: number | null;
           tipo_documento_id: string | null;
@@ -568,7 +568,7 @@ export type Database = {
           ocr_confianza?: number | null;
           pais_id?: string | null;
           procesado?: boolean | null;
-          rendicion_id: string;
+          rendicion_id?: string | null;
           storage_path?: string | null;
           tamano?: number | null;
           tipo_documento_id?: string | null;
@@ -585,7 +585,7 @@ export type Database = {
           ocr_confianza?: number | null;
           pais_id?: string | null;
           procesado?: boolean | null;
-          rendicion_id?: string;
+          rendicion_id?: string | null;
           storage_path?: string | null;
           tamano?: number | null;
           tipo_documento_id?: string | null;

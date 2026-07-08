@@ -50,14 +50,18 @@ export function DocumentoForm({
             name="rendicion_id"
             render={({ field }) => (
               <FormItem className="col-span-2">
-                <FormLabel>Rendición *</FormLabel>
-                <Select value={field.value} onValueChange={field.onChange}>
+                <FormLabel>Rendición</FormLabel>
+                <Select
+                  value={field.value ?? "__none__"}
+                  onValueChange={(v) => field.onChange(v === "__none__" ? null : v)}
+                >
                   <FormControl>
                     <SelectTrigger>
-                      <SelectValue placeholder="Selecciona una rendición" />
+                      <SelectValue placeholder="Sin rendición asociada" />
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
+                    <SelectItem value="__none__">Sin rendición asociada</SelectItem>
                     {rendiciones.map((r) => (
                       <SelectItem key={r.id} value={r.id}>
                         {r.numero}
