@@ -134,7 +134,7 @@ export function AiExpenseWizard({
       setErrorMsg(ai.error);
       setWizardEstado("error");
     }
-  }, [ai.propuesta, ai.procesando, ai.error, wizardEstado]);
+  }, [ai.propuesta, ai.procesando, ai.error, wizardEstado]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Dedup guard: evita crear el mismo proveedor dos veces cuando el array
   // de proveedores todavia no reflejo la creacion anterior (race condition).
@@ -241,6 +241,15 @@ export function AiExpenseWizard({
 
     try {
       const nuevo = await crearGasto.mutateAsync(payload);
+
+      // Vincular el documento a la misma rendición del gasto (si aún no está vinculado)
+      if (documentoId && values.rendicion_id) {
+        await supabase
+          .from("documentos")
+          .update({ rendicion_id: values.rendicion_id })
+          .eq("id", documentoId);
+      }
+
       await queryClient.invalidateQueries({ queryKey: ["gastos"] });
       await queryClient.invalidateQueries({ queryKey: ["documentos"] });
       setWizardEstado("completado");
