@@ -4,7 +4,17 @@
  * Consumidos por RendicionDetail (rendicion-detail.tsx).
  */
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, ScanLine, Send } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { DataTable } from "@/components/common/data-table";
 import { StatusBadge } from "@/components/common/status-badge";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -29,6 +39,8 @@ import { useCrearGasto } from "@/hooks/entities/use-gastos";
 import { useProveedores } from "@/hooks/entities/use-proveedores";
 import { useCategoriasGasto, useEstadosGasto, useMonedas } from "@/hooks/entities/use-catalogs";
 import { toast } from "@/components/common/toast";
+import { AiExpenseWizard } from "@/components/ai/ai-expense-wizard";
+import { useEnviarAprobacion } from "@/hooks/entities/use-workflow";
 import type { DataTableColumn } from "@/components/common/data-table";
 import type { Gasto, Documento, Viaje, GastoInsert, Politica } from "@/types/entities";
 
@@ -154,13 +166,21 @@ function KmVehiculoPropioTable({ viajes, valorKm }: { viajes: Viaje[]; valorKm: 
 export function GastosTab({
   rendicionId,
   rendicionNumero,
+  rendicionEstadoCodigo,
+  rendicionProyectoId,
 }: {
   rendicionId: string;
   rendicionNumero: string;
+  rendicionEstadoCodigo: string | null;
+  rendicionProyectoId: string | null;
 }) {
   const { empresaActivaId } = useCompany();
   const queryClient = useQueryClient();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [alertMsg, setAlertMsg] = useState<string | null>(null);
+  const [confirmarEnvio, setConfirmarEnvio] = useState(false);
+  const enviarAprobacion = useEnviarAprobacion();
 
   // Catalog data for the gasto form
   const { data: proveedoresData } = useProveedores({ pageSize: 200 });
@@ -199,6 +219,35 @@ export function GastosTab({
     await queryClient.invalidateQueries({ queryKey: ["gastos-enriquecidos", rendicionId] });
     toast.success("Gasto registrado correctamente.");
     setDrawerOpen(false);
+  }
+
+  async function handleEnviar() {
+    if (gastosRaw.length === 0) {
+      setAlertMsg("Debes registrar al menos un gasto antes de enviar la rendición.");
+      return;
+    }
+    if (!rendicionProyectoId) {
+      setAlertMsg("La rendición debe tener un proyecto asignado antes de enviarse.");
+      return;
+    }
+    if (rendicionEstadoCodigo !== "registrada") {
+      setAlertMsg(
+        `Esta rendición está en estado "${rendicionEstadoCodigo ?? "desconocido"}" y no puede enviarse nuevamente.`,
+      );
+      return;
+    }
+    setConfirmarEnvio(true);
+  }
+
+  async function handleConfirmarEnvio() {
+    try {
+      await enviarAprobacion.mutateAsync(rendicionId);
+      toast.success("Rendición enviada a aprobación correctamente.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al enviar la rendición.");
+    } finally {
+      setConfirmarEnvio(false);
+    }
   }
 
   // Fetch gastos enriched with category name for policy filtering
@@ -309,10 +358,16 @@ export function GastosTab({
             {gastosRaw.length} gasto{gastosRaw.length !== 1 ? "s" : ""} registrado
             {gastosRaw.length !== 1 ? "s" : ""}
           </p>
-          <Button size="sm" onClick={() => setDrawerOpen(true)}>
-            <Plus className="mr-1 size-3.5" />
-            Nuevo gasto
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => setWizardOpen(true)}>
+              <ScanLine className="mr-1 size-3.5" />
+              Cargar Factura
+            </Button>
+            <Button size="sm" onClick={() => setDrawerOpen(true)}>
+              <Plus className="mr-1 size-3.5" />
+              +Nuevo Gasto Manual
+            </Button>
+          </div>
         </div>
         <DataTable
           columns={columns}
@@ -332,6 +387,74 @@ export function GastosTab({
           </p>
         )}
       </div>
+
+      <div className="mt-4 flex justify-end border-t pt-4">
+        <Button
+          variant="default"
+          onClick={() => void handleEnviar()}
+          disabled={enviarAprobacion.isPending}
+        >
+          <Send className="mr-1.5 size-4" />
+          {enviarAprobacion.isPending ? "Enviando..." : "Enviar rendición"}
+        </Button>
+      </div>
+
+      {/* Alert: validación fallida */}
+      <AlertDialog open={!!alertMsg} onOpenChange={() => setAlertMsg(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>No se puede enviar</AlertDialogTitle>
+            <AlertDialogDescription>{alertMsg}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setAlertMsg(null)}>Entendido</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirmación de envío */}
+      <AlertDialog open={confirmarEnvio} onOpenChange={setConfirmarEnvio}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Enviar rendición a aprobación?</AlertDialogTitle>
+            <AlertDialogDescription>
+              La rendición <strong>{rendicionNumero}</strong> será enviada al aprobador. Una vez
+              enviada no podrás modificar los gastos.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => void handleConfirmarEnvio()}
+              disabled={enviarAprobacion.isPending}
+            >
+              {enviarAprobacion.isPending ? "Enviando..." : "Confirmar envío"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Wizard IA: Cargar Factura */}
+      <Drawer open={wizardOpen} onOpenChange={setWizardOpen}>
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle>Cargar Factura con IA</DrawerTitle>
+            <DrawerDescription>Rendición: {rendicionNumero}</DrawerDescription>
+          </DrawerHeader>
+          <div className="overflow-y-auto px-4 pb-6">
+            <AiExpenseWizard
+              rendicionIdInicial={rendicionId}
+              onSuccess={async () => {
+                await queryClient.invalidateQueries({
+                  queryKey: ["gastos-enriquecidos", rendicionId],
+                });
+                setWizardOpen(false);
+              }}
+              onCancel={() => setWizardOpen(false)}
+            />
+          </div>
+        </DrawerContent>
+      </Drawer>
 
       <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
         <DrawerContent>
@@ -361,6 +484,16 @@ export function GastosTab({
 
 // --- DocumentosTab -----------------------------------------------------------
 
+async function abrirDocumento(storagePath: string | null, nombre: string | null) {
+  if (!storagePath) return;
+  const { data, error } = await supabase.storage
+    .from("documentos")
+    .createSignedUrl(storagePath, 3600);
+  if (error || !data?.signedUrl) return;
+  window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  void nombre;
+}
+
 export function DocumentosTab({ rendicionId }: { rendicionId: string }) {
   const { data, isLoading } = useDocumentos({
     pageSize: 50,
@@ -373,9 +506,18 @@ export function DocumentosTab({ rendicionId }: { rendicionId: string }) {
     {
       key: "nombre_archivo",
       header: "Archivo",
-      cell: (row) => (
-        <span className="text-sm font-medium">{row.nombre_archivo ?? "Sin nombre"}</span>
-      ),
+      cell: (row) =>
+        row.storage_path ? (
+          <button
+            type="button"
+            className="text-sm font-medium text-primary underline-offset-2 hover:underline"
+            onClick={() => void abrirDocumento(row.storage_path, row.nombre_archivo)}
+          >
+            {row.nombre_archivo ?? "Sin nombre"}
+          </button>
+        ) : (
+          <span className="text-sm font-medium">{row.nombre_archivo ?? "Sin nombre"}</span>
+        ),
     },
     {
       key: "procesado",
@@ -403,10 +545,6 @@ export function DocumentosTab({ rendicionId }: { rendicionId: string }) {
         <p className="text-sm text-muted-foreground">
           {data?.total ?? 0} documento{(data?.total ?? 0) !== 1 ? "s" : ""} registrado
           {(data?.total ?? 0) !== 1 ? "s" : ""}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          Para adjuntar documentos usa el modulo{" "}
-          <span className="font-medium text-foreground">Documentos</span>
         </p>
       </div>
       <DataTable

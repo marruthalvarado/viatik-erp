@@ -34,6 +34,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useProyectos } from "@/hooks/entities/use-proyectos";
 import { useEstadosRendicion, useTiposRendicion } from "@/hooks/entities/use-catalogs";
 import { useActualizarRendicion, useEliminarRendicion } from "@/hooks/entities/use-rendiciones";
+import { useRolUsuarioEnEmpresa } from "@/hooks/entities/use-workflow";
 import { useViajes } from "@/hooks/entities/use-viajes";
 import { usePoliticas } from "@/hooks/entities/use-politicas";
 import { useCompany } from "@/contexts/company-context";
@@ -96,6 +97,8 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
   const { data: proyectosData } = useProyectos({ pageSize: 200 });
   const { data: estadosData } = useEstadosRendicion({ pageSize: 100 });
   const { data: tiposData } = useTiposRendicion({ pageSize: 100 });
+  const { data: rolData } = useRolUsuarioEnEmpresa();
+  const rolCodigo = rolData?.rol_codigo ?? null;
   const { data: workflowsData } = useWorkflows();
 
   const actualizar = useActualizarRendicion();
@@ -360,7 +363,12 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
         </TabsList>
 
         <TabsContent value="gastos">
-          <GastosTab rendicionId={rendicion.id} rendicionNumero={rendicion.numero} />
+          <GastosTab
+            rendicionId={rendicion.id}
+            rendicionNumero={rendicion.numero}
+            rendicionEstadoCodigo={estadoCodigo}
+            rendicionProyectoId={rendicion.proyecto_id}
+          />
         </TabsContent>
 
         <TabsContent value="documentos">
@@ -396,8 +404,9 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
               loading={actualizar.isPending}
               submitLabel="Guardar cambios"
               proyectos={proyectos}
-              estados={estados}
               tipos={tipos}
+              rolCodigo={rolCodigo}
+              isEditing
             />
           </div>
         </DrawerContent>

@@ -27,6 +27,7 @@ import {
   useEliminarProyecto,
 } from "@/hooks/entities/use-proyectos";
 import { useClientes } from "@/hooks/entities/use-clientes";
+import { useRolUsuarioEnEmpresa } from "@/hooks/entities/use-workflow";
 import { useCompany } from "@/contexts/company-context";
 import { formatCurrency, formatDate, emptyToNull } from "@/utils/formatters";
 
@@ -64,6 +65,8 @@ function ProyectosContent() {
   const crear = useCrearProyecto();
   const actualizar = useActualizarProyecto();
   const eliminar = useEliminarProyecto();
+  const { data: rolData } = useRolUsuarioEnEmpresa();
+  const puedeCrear = (rolData?.rol_codigo ?? "usuario") !== "usuario";
 
   const clientes = clientesData?.rows ?? [];
   const clienteNombre = (id: string) => clientes.find((c) => c.id === id)?.nombre ?? id;
@@ -239,10 +242,12 @@ function ProyectosContent() {
         description="Centros de costo y trazabilidad por proyecto."
         breadcrumbs={[{ label: "Proyectos" }]}
         actions={
-          <Button onClick={handleOpenNew} size="sm" className="gap-1.5">
-            <Plus className="size-4" />
-            Nuevo proyecto
-          </Button>
+          puedeCrear ? (
+            <Button onClick={handleOpenNew} size="sm" className="gap-1.5">
+              <Plus className="size-4" />
+              Nuevo proyecto
+            </Button>
+          ) : null
         }
       />
 
@@ -272,10 +277,12 @@ function ProyectosContent() {
             emptyTitle="Sin proyectos"
             emptyDescription="Agrega tu primer proyecto con el botón Nuevo proyecto."
             emptyAction={
-              <Button size="sm" onClick={handleOpenNew} className="gap-1.5">
-                <Plus className="size-4" />
-                Nuevo proyecto
-              </Button>
+              puedeCrear ? (
+                <Button size="sm" onClick={handleOpenNew} className="gap-1.5">
+                  <Plus className="size-4" />
+                  Nuevo proyecto
+                </Button>
+              ) : undefined
             }
           />
           {data && data.total > 0 && (

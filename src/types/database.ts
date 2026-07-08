@@ -1692,7 +1692,9 @@ export type Database = {
           estado_rendicion_id: string | null;
           fecha_aprobacion: string | null;
           fecha_envio: string | null;
+          fecha_liquidacion: string | null;
           fecha_rendicion: string | null;
+          liquidado_por: string | null;
           id: string;
           motivo: string | null;
           numero: string;
@@ -1720,7 +1722,9 @@ export type Database = {
           estado_rendicion_id?: string | null;
           fecha_aprobacion?: string | null;
           fecha_envio?: string | null;
+          fecha_liquidacion?: string | null;
           fecha_rendicion?: string | null;
+          liquidado_por?: string | null;
           id?: string;
           motivo?: string | null;
           numero: string;
@@ -1748,7 +1752,9 @@ export type Database = {
           estado_rendicion_id?: string | null;
           fecha_aprobacion?: string | null;
           fecha_envio?: string | null;
+          fecha_liquidacion?: string | null;
           fecha_rendicion?: string | null;
+          liquidado_por?: string | null;
           id?: string;
           motivo?: string | null;
           numero?: string;
@@ -2587,6 +2593,10 @@ export type Database = {
       };
       rendir_rechazar: {
         Args: { p_rendicion_id: string; p_motivo: string };
+        Returns: undefined;
+      };
+      rendir_liquidar: {
+        Args: { p_rendicion_id: string };
         Returns: undefined;
       };
       rendir_mis_pendientes: {

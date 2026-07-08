@@ -28,12 +28,14 @@ import {
 } from "@/hooks/entities/use-rendiciones";
 import { useProyectos } from "@/hooks/entities/use-proyectos";
 import { useEstadosRendicion, useTiposRendicion } from "@/hooks/entities/use-catalogs";
+import { useRolUsuarioEnEmpresa } from "@/hooks/entities/use-workflow";
+import { useCrearViaje } from "@/hooks/entities/use-viajes";
 import { useCompany } from "@/contexts/company-context";
 import { useAuth } from "@/contexts/auth-context";
 import { formatCurrency, formatDate, emptyToNull } from "@/utils/formatters";
 
 import type { DataTableColumn } from "@/components/common/data-table";
-import type { Rendicion, RendicionInsert, RendicionUpdate } from "@/types/entities";
+import type { Rendicion, RendicionInsert, RendicionUpdate, ViajeInsert } from "@/types/entities";
 import type { ListParams } from "@/types/common";
 
 import { RendicionForm } from "@/components/rendiciones/rendicion-form";
@@ -98,14 +100,17 @@ function RendicionesList({ onSelect }: RendicionesListProps) {
   const { data: proyectosData } = useProyectos({ pageSize: 200 });
   const { data: estadosData } = useEstadosRendicion({ pageSize: 100 });
   const { data: tiposData } = useTiposRendicion({ pageSize: 100 });
+  const { data: rolData } = useRolUsuarioEnEmpresa();
 
   const crear = useCrearRendicion();
   const actualizar = useActualizarRendicion();
   const eliminar = useEliminarRendicion();
+  const crearViaje = useCrearViaje();
 
   const proyectos = proyectosData?.rows ?? [];
   const estados = estadosData?.rows ?? [];
   const tipos = tiposData?.rows ?? [];
+  const rolCodigo = rolData?.rol_codigo ?? null;
 
   function proyectoNombre(id: string) {
     return proyectos.find((p) => p.id === id)?.nombre ?? id;
@@ -239,13 +244,11 @@ function RendicionesList({ onSelect }: RendicionesListProps) {
     }
     try {
       if (editingRendicion) {
+        // Al editar: número y estado NO se tocan (controlados por trigger/workflow)
         const payload: RendicionUpdate = {
-          numero: values.numero,
           proyecto_id: values.proyecto_id,
           descripcion: emptyToNull(values.descripcion),
           motivo: emptyToNull(values.motivo),
-          fecha_rendicion: emptyToNull(values.fecha_rendicion),
-          estado_rendicion_id: values.estado_rendicion_id ?? null,
           tipo_rendicion_id: values.tipo_rendicion_id ?? null,
           anticipo_efectivo: values.anticipo_efectivo ?? null,
           anticipo_credito: values.anticipo_credito ?? null,
@@ -253,20 +256,41 @@ function RendicionesList({ onSelect }: RendicionesListProps) {
         await actualizar.mutateAsync({ id: editingRendicion.id, payload });
         toast.success("Rendición actualizada correctamente.");
       } else {
+        // Al crear: número y estado los asigna el trigger automáticamente
         const payload: RendicionInsert = {
           empresa_id: empresaActivaId,
           usuario_id: user.id,
-          numero: values.numero,
+          numero: "", // trigger lo reemplaza con el auto-número
           proyecto_id: values.proyecto_id,
           descripcion: emptyToNull(values.descripcion),
           motivo: emptyToNull(values.motivo),
           fecha_rendicion: emptyToNull(values.fecha_rendicion),
-          estado_rendicion_id: values.estado_rendicion_id ?? null,
           tipo_rendicion_id: values.tipo_rendicion_id ?? null,
           anticipo_efectivo: values.anticipo_efectivo ?? null,
           anticipo_credito: values.anticipo_credito ?? null,
         };
-        await crear.mutateAsync(payload);
+        const nuevaRendicion = await crear.mutateAsync(payload);
+
+        // Crear viaje asociado si se llenaron campos de viaje
+        const tieneViaje =
+          values.viaje_origen ||
+          values.viaje_destino ||
+          values.viaje_fecha_inicio ||
+          values.viaje_fecha_fin;
+
+        if (tieneViaje && nuevaRendicion?.id) {
+          const viajePayload: ViajeInsert = {
+            rendicion_id: nuevaRendicion.id,
+            origen: emptyToNull(values.viaje_origen),
+            destino: values.viaje_destino ?? "",
+            fecha_inicio: emptyToNull(values.viaje_fecha_inicio),
+            fecha_fin: emptyToNull(values.viaje_fecha_fin),
+            vehiculo_propio: values.viaje_vehiculo_propio ?? false,
+            distancia_km: values.viaje_vehiculo_propio ? (values.viaje_distancia_km ?? null) : null,
+          };
+          await crearViaje.mutateAsync(viajePayload);
+        }
+
         toast.success("Rendición creada correctamente.");
       }
       handleCloseDrawer();
@@ -364,11 +388,12 @@ function RendicionesList({ onSelect }: RendicionesListProps) {
               defaultValues={editingRendicion ? rendicionToForm(editingRendicion) : EMPTY_RENDICION}
               onSubmit={handleSubmit}
               onCancel={handleCloseDrawer}
-              loading={crear.isPending || actualizar.isPending}
+              loading={crear.isPending || actualizar.isPending || crearViaje.isPending}
               submitLabel={editingRendicion ? "Guardar cambios" : "Crear rendición"}
               proyectos={proyectos}
-              estados={estados}
               tipos={tipos}
+              rolCodigo={rolCodigo}
+              isEditing={!!editingRendicion}
             />
           </div>
         </DrawerContent>
