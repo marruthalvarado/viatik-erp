@@ -109,3 +109,11 @@ export type HistorialWorkflowInsert = TablesInsert<"historial_workflow">;
 export type Comentario = Tables<"comentarios">;
 export type ComentarioInsert = TablesInsert<"comentarios">;
 export type Notificacion = Tables<"notificaciones">;
+export type RendirLog = Tables<"rendir_log">;
+export type RendirLogEntry = {
+  id: string;
+  created_at: string;
+  estado_codigo: string;
+  observacion: string | null;
+  usuario_nombre: string;
+};
