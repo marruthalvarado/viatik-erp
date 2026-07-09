@@ -40,7 +40,7 @@ import { useProveedores } from "@/hooks/entities/use-proveedores";
 import { useCategoriasGasto, useEstadosGasto, useMonedas } from "@/hooks/entities/use-catalogs";
 import { toast } from "@/components/common/toast";
 import { AiExpenseWizard } from "@/components/ai/ai-expense-wizard";
-import { useEnviarAprobacion } from "@/hooks/entities/use-workflow";
+import { useEnviarRendicion } from "@/hooks/entities/use-rendicion-aprobacion";
 import type { DataTableColumn } from "@/components/common/data-table";
 import type { Gasto, Documento, Viaje, GastoInsert, Politica } from "@/types/entities";
 
@@ -180,7 +180,7 @@ export function GastosTab({
   const [wizardOpen, setWizardOpen] = useState(false);
   const [alertMsg, setAlertMsg] = useState<string | null>(null);
   const [confirmarEnvio, setConfirmarEnvio] = useState(false);
-  const enviarAprobacion = useEnviarAprobacion();
+  const enviarRendicion = useEnviarRendicion(rendicionId);
 
   // Catalog data for the gasto form
   const { data: proveedoresData } = useProveedores({ pageSize: 200 });
@@ -230,9 +230,9 @@ export function GastosTab({
       setAlertMsg("La rendición debe tener un proyecto asignado antes de enviarse.");
       return;
     }
-    if (rendicionEstadoCodigo !== "registrada") {
+    if (!politica?.aprobador_id) {
       setAlertMsg(
-        `Esta rendición está en estado "${rendicionEstadoCodigo ?? "desconocido"}" y no puede enviarse nuevamente.`,
+        "Configura un aprobador predeterminado en Administración → Políticas antes de enviar.",
       );
       return;
     }
@@ -240,8 +240,9 @@ export function GastosTab({
   }
 
   async function handleConfirmarEnvio() {
+    if (!politica?.aprobador_id) return;
     try {
-      await enviarAprobacion.mutateAsync(rendicionId);
+      await enviarRendicion.mutateAsync(politica.aprobador_id);
       toast.success("Rendición enviada a aprobación correctamente.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error al enviar la rendición.");
@@ -445,10 +446,10 @@ export function GastosTab({
         <Button
           variant="default"
           onClick={() => void handleEnviar()}
-          disabled={enviarAprobacion.isPending}
+          disabled={enviarRendicion.isPending}
         >
           <Send className="mr-1.5 size-4" />
-          {enviarAprobacion.isPending ? "Enviando..." : "Enviar rendición"}
+          {enviarRendicion.isPending ? "Enviando..." : "Enviar rendición"}
         </Button>
       </div>
 
@@ -479,9 +480,9 @@ export function GastosTab({
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => void handleConfirmarEnvio()}
-              disabled={enviarAprobacion.isPending}
+              disabled={enviarRendicion.isPending}
             >
-              {enviarAprobacion.isPending ? "Enviando..." : "Confirmar envío"}
+              {enviarRendicion.isPending ? "Enviando..." : "Confirmar envío"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
