@@ -40,7 +40,7 @@ import { useProveedores } from "@/hooks/entities/use-proveedores";
 import { useCategoriasGasto, useEstadosGasto, useMonedas } from "@/hooks/entities/use-catalogs";
 import { toast } from "@/components/common/toast";
 import { AiExpenseWizard } from "@/components/ai/ai-expense-wizard";
-import { useEnviarRendicion } from "@/hooks/entities/use-rendicion-aprobacion";
+import { useEnviarAprobacion } from "@/hooks/entities/use-workflow";
 import type { DataTableColumn } from "@/components/common/data-table";
 import type { Gasto, Documento, Viaje, GastoInsert, Politica } from "@/types/entities";
 
@@ -180,7 +180,7 @@ export function GastosTab({
   const [wizardOpen, setWizardOpen] = useState(false);
   const [alertMsg, setAlertMsg] = useState<string | null>(null);
   const [confirmarEnvio, setConfirmarEnvio] = useState(false);
-  const enviarRendicion = useEnviarRendicion(rendicionId);
+  const enviarAprobacion = useEnviarAprobacion();
 
   // Catalog data for the gasto form
   const { data: proveedoresData } = useProveedores({ pageSize: 200 });
@@ -230,19 +230,12 @@ export function GastosTab({
       setAlertMsg("La rendición debe tener un proyecto asignado antes de enviarse.");
       return;
     }
-    if (!politica?.aprobador_id) {
-      setAlertMsg(
-        "Configura un aprobador predeterminado en Administración → Políticas antes de enviar.",
-      );
-      return;
-    }
     setConfirmarEnvio(true);
   }
 
   async function handleConfirmarEnvio() {
-    if (!politica?.aprobador_id) return;
     try {
-      await enviarRendicion.mutateAsync(politica.aprobador_id);
+      await enviarAprobacion.mutateAsync(rendicionId);
       toast.success("Rendición enviada a aprobación correctamente.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error al enviar la rendición.");
@@ -446,10 +439,10 @@ export function GastosTab({
         <Button
           variant="default"
           onClick={() => void handleEnviar()}
-          disabled={enviarRendicion.isPending}
+          disabled={enviarAprobacion.isPending}
         >
           <Send className="mr-1.5 size-4" />
-          {enviarRendicion.isPending ? "Enviando..." : "Enviar rendición"}
+          {enviarAprobacion.isPending ? "Enviando..." : "Enviar rendición"}
         </Button>
       </div>
 
@@ -480,9 +473,9 @@ export function GastosTab({
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => void handleConfirmarEnvio()}
-              disabled={enviarRendicion.isPending}
+              disabled={enviarAprobacion.isPending}
             >
-              {enviarRendicion.isPending ? "Enviando..." : "Confirmar envío"}
+              {enviarAprobacion.isPending ? "Enviando..." : "Confirmar envío"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
