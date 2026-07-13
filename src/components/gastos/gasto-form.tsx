@@ -383,3 +383,7 @@ export function GastoForm({
             />
           </div>
         );
+      }}
+    </EntityForm>
+  );
+}
