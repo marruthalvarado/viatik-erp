@@ -16,10 +16,19 @@ const STORAGE_KEY = "viatik.empresa_activa_id";
 
 export type EmpresaOpcion = Pick<Tables<"empresas">, "id" | "nombre" | "codigo" | "logo_url">;
 
+export interface RolActivo {
+  id: string;
+  codigo: string;
+  nombre: string;
+  modulos_permitidos: string[] | null;
+}
+
 interface CompanyContextValue {
   empresas: EmpresaOpcion[];
   empresaActiva: EmpresaOpcion | null;
   empresaActivaId: string | null;
+  /** Rol del usuario en la empresa activa. null = cargando o sin rol. */
+  rolActivo: RolActivo | null;
   loading: boolean;
   error: Error | null;
   setEmpresaActiva: (id: string | null) => void;
@@ -32,6 +41,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   const { user, loading: authLoading } = useAuth();
   const [empresas, setEmpresas] = useState<EmpresaOpcion[]>([]);
   const [empresaActivaId, setActivaId] = useState<string | null>(null);
+  const [rolesMap, setRolesMap] = useState<Record<string, RolActivo>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -59,7 +69,11 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     // RLS en empresas_usuarios (eu_select_own) refuerza esto a nivel BD.
     const { data, error: err } = await supabase
       .from("empresas_usuarios")
-      .select("empresa_id, activo, empresa:empresas(id, nombre, codigo, logo_url, deleted_at)")
+      .select(
+        "empresa_id, activo, " +
+        "empresa:empresas(id, nombre, codigo, logo_url, deleted_at), " +
+        "rol:roles(id, codigo, nombre, modulos_permitidos)"
+      )
       .eq("usuario_id", user.id)
       .eq("activo", true);
 
@@ -71,13 +85,20 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     }
 
     const rows: EmpresaOpcion[] = [];
-    for (const r of data ?? []) {
+    const newRolesMap: Record<string, RolActivo> = {};
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const r of (data as any[]) ?? []) {
       const raw = r.empresa as unknown;
       const e = (Array.isArray(raw) ? raw[0] : raw) as
         (EmpresaOpcion & { deleted_at: string | null }) | null;
       if (!e || e.deleted_at) continue;
       rows.push({ id: e.id, nombre: e.nombre, codigo: e.codigo, logo_url: e.logo_url });
+
+      const rawRol = r.rol as unknown;
+      const rol = (Array.isArray(rawRol) ? rawRol[0] : rawRol) as RolActivo | null;
+      if (rol) newRolesMap[e.id] = rol;
     }
+    setRolesMap(newRolesMap);
 
     setEmpresas(rows);
 
@@ -105,16 +126,18 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<CompanyContextValue>(() => {
     const activa = empresas.find((e) => e.id === empresaActivaId) ?? null;
+    const rolActivo = empresaActivaId ? (rolesMap[empresaActivaId] ?? null) : null;
     return {
       empresas,
       empresaActiva: activa,
       empresaActivaId,
+      rolActivo,
       loading: authLoading || loading,
       error,
       setEmpresaActiva,
       refresh: fetchEmpresas,
     };
-  }, [empresas, empresaActivaId, authLoading, loading, error, setEmpresaActiva, fetchEmpresas]);
+  }, [empresas, empresaActivaId, rolesMap, authLoading, loading, error, setEmpresaActiva, fetchEmpresas]);
 
   return <CompanyContext.Provider value={value}>{children}</CompanyContext.Provider>;
 }

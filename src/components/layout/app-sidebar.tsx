@@ -32,33 +32,45 @@ import {
 } from "@/components/ui/sidebar";
 import { CompanySwitcher } from "./company-switcher";
 import { BrandLogo } from "./brand-logo";
+import { useCompany } from "@/contexts/company-context";
 
-const workspaceItems = [
-  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Rendiciones", url: "/rendiciones", icon: Receipt },
-  { title: "Workflow", url: "/workflow", icon: GitBranch },
-  { title: "Documentos", url: "/documentos", icon: FileText },
+interface NavItem {
+  title: string;
+  url: string;
+  icon: React.ElementType;
+  /** Código de módulo usado para filtrar por permisos del rol */
+  modulo: string;
+}
+
+const workspaceItems: NavItem[] = [
+  { title: "Dashboard",   url: "/dashboard",   icon: LayoutDashboard, modulo: "dashboard" },
+  { title: "Rendiciones", url: "/rendiciones", icon: Receipt,          modulo: "rendiciones" },
+  { title: "Workflow",    url: "/workflow",    icon: GitBranch,        modulo: "workflow" },
+  { title: "Documentos",  url: "/documentos",  icon: FileText,         modulo: "documentos" },
 ];
 
-const relationsItems = [
-  { title: "Clientes", url: "/clientes", icon: Users },
-  { title: "Proyectos", url: "/proyectos", icon: FolderKanban },
-  { title: "Proveedores", url: "/proveedores", icon: Truck },
+const relationsItems: NavItem[] = [
+  { title: "Clientes",    url: "/clientes",    icon: Users,         modulo: "clientes" },
+  { title: "Proyectos",   url: "/proyectos",   icon: FolderKanban,  modulo: "proyectos" },
+  { title: "Proveedores", url: "/proveedores", icon: Truck,         modulo: "proveedores" },
 ];
 
-const financeItems = [
-  { title: "Presupuestos", url: "/presupuestos", icon: Wallet },
-  { title: "Gastos", url: "/gastos", icon: DollarSign },
-  { title: "Dashboard BI", url: "/reportes", icon: BarChart3 },
-  { title: "Rpt. Financieros", url: "/reportes/financieros", icon: TrendingUp },
-  { title: "Rpt. Operativos", url: "/reportes/operativos", icon: Activity },
-  { title: "Workflow Rpt.", url: "/reportes/workflow", icon: Network },
+const financeItems: NavItem[] = [
+  { title: "Presupuestos",    url: "/presupuestos",           icon: Wallet,    modulo: "presupuestos" },
+  { title: "Gastos",          url: "/gastos",                 icon: DollarSign, modulo: "gastos" },
+  { title: "Dashboard BI",    url: "/reportes",               icon: BarChart3,  modulo: "reportes" },
+  { title: "Rpt. Financieros",url: "/reportes/financieros",   icon: TrendingUp, modulo: "reportes" },
+  { title: "Rpt. Operativos", url: "/reportes/operativos",    icon: Activity,   modulo: "reportes" },
+  { title: "Workflow Rpt.",   url: "/reportes/workflow",      icon: Network,    modulo: "reportes" },
 ];
 
-const systemItems = [
-  { title: "Configuracion", url: "/configuracion", icon: Settings },
-  { title: "Administracion", url: "/administracion", icon: Shield },
+const systemItems: NavItem[] = [
+  { title: "Configuracion",   url: "/configuracion",   icon: Settings, modulo: "configuracion" },
+  { title: "Administracion",  url: "/administracion",  icon: Shield,   modulo: "administracion" },
 ];
+
+/** Códigos de rol que siempre tienen acceso total (sin filtro de módulos) */
+const ROLES_ADMIN = ["admin", "administrador"];
 
 export function AppSidebar() {
   const { state } = useSidebar();
@@ -66,25 +78,42 @@ export function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const isActive = (path: string) => pathname === path || pathname.startsWith(path + "/");
 
-  const renderGroup = (label: string, items: typeof workspaceItems) => (
-    <SidebarGroup>
-      {!collapsed && <SidebarGroupLabel>{label}</SidebarGroupLabel>}
-      <SidebarGroupContent>
-        <SidebarMenu>
-          {items.map((item) => (
-            <SidebarMenuItem key={item.url}>
-              <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
-                <Link to={item.url}>
-                  <item.icon className="size-4" />
-                  <span>{item.title}</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
-        </SidebarMenu>
-      </SidebarGroupContent>
-    </SidebarGroup>
-  );
+  const { rolActivo } = useCompany();
+
+  // Determina si un módulo es visible:
+  // - rol admin → siempre visible
+  // - modulos_permitidos null → sin restricción (visible)
+  // - modulos_permitidos array → solo los incluidos
+  function puedeVer(modulo: string): boolean {
+    if (!rolActivo) return true; // mientras carga, mostrar todo
+    if (ROLES_ADMIN.includes(rolActivo.codigo.toLowerCase())) return true;
+    if (rolActivo.modulos_permitidos === null) return true;
+    return rolActivo.modulos_permitidos.includes(modulo);
+  }
+
+  const renderGroup = (label: string, items: NavItem[]) => {
+    const visibles = items.filter((item) => puedeVer(item.modulo));
+    if (visibles.length === 0) return null;
+    return (
+      <SidebarGroup>
+        {!collapsed && <SidebarGroupLabel>{label}</SidebarGroupLabel>}
+        <SidebarGroupContent>
+          <SidebarMenu>
+            {visibles.map((item) => (
+              <SidebarMenuItem key={item.url}>
+                <SidebarMenuButton asChild isActive={isActive(item.url)} tooltip={item.title}>
+                  <Link to={item.url}>
+                    <item.icon className="size-4" />
+                    <span>{item.title}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
+          </SidebarMenu>
+        </SidebarGroupContent>
+      </SidebarGroup>
+    );
+  };
 
   return (
     <Sidebar collapsible="icon" className="border-r">

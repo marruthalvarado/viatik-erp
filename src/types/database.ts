@@ -1838,6 +1838,7 @@ export type Database = {
           created_at: string | null;
           descripcion: string | null;
           id: string;
+          modulos_permitidos: string[] | null;
           nombre: string;
         };
         Insert: {
@@ -1845,6 +1846,7 @@ export type Database = {
           created_at?: string | null;
           descripcion?: string | null;
           id?: string;
+          modulos_permitidos?: string[] | null;
           nombre: string;
         };
         Update: {
@@ -1852,6 +1854,7 @@ export type Database = {
           created_at?: string | null;
           descripcion?: string | null;
           id?: string;
+          modulos_permitidos?: string[] | null;
           nombre?: string;
         };
         Relationships: [];
@@ -2886,4 +2889,4 @@ export type CompositeTypes<
   ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
     ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-    : never;
+    : never

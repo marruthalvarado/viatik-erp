@@ -723,7 +723,7 @@ export function DocumentosTab({ rendicionId }: { rendicionId: string }) {
         isLoading={isLoading}
         getRowId={(row) => row.id}
         emptyTitle="Sin documentos"
-        emptyDescription="Esta rendicion no tiene documentos adjuntos."
+        emptyDescription="No hay documentos adjuntos a esta rendicion."
       />
     </div>
   );
