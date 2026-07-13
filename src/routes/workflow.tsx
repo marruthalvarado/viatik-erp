@@ -12,8 +12,8 @@ import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/common/page-header";
 import { EmptyState } from "@/components/common/empty-state";
 
-import { useMisRendicionesPendientes } from "@/hooks/entities/use-rendicion-aprobacion";
-import { RendicionesPendientesTable } from "@/components/workflow/rendiciones-pendientes-table";
+import { useMisAprobacionesPendientes } from "@/hooks/entities/use-workflow";
+import { MisAprobacionesTable } from "@/components/workflow/mis-aprobaciones-table";
 
 export const Route = createFileRoute("/workflow")({
   head: () => ({ meta: [{ title: "Aprobaciones - VIATIQ" }] }),
@@ -57,7 +57,7 @@ interface BandejaTabProps {
 }
 
 function BandejaTab({ onVerDetalle }: BandejaTabProps) {
-  const { data, isLoading, error } = useMisRendicionesPendientes();
+  const { data, isLoading, error } = useMisAprobacionesPendientes();
 
   if (error) {
     return (
@@ -79,6 +79,6 @@ function BandejaTab({ onVerDetalle }: BandejaTabProps) {
   }
 
   return (
-    <RendicionesPendientesTable data={data ?? []} loading={isLoading} onVerDetalle={onVerDetalle} />
+    <MisAprobacionesTable data={data ?? []} loading={isLoading} onVerDetalle={onVerDetalle} />
   );
 }
