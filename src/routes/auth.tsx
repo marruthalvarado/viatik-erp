@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2 } from "lucide-react";
+import { Loader2, ArrowLeft } from "lucide-react";
 import { BrandLogo } from "@/components/layout/brand-logo";
 
 export const Route = createFileRoute("/auth")({
@@ -28,12 +28,23 @@ function AuthPage() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const { redirect } = Route.useSearch();
+  const [recoveryMode, setRecoveryMode] = useState(false);
 
   useEffect(() => {
-    if (!loading && user) {
+    if (!loading && user && !recoveryMode) {
       navigate({ href: getSafeRedirect(redirect), replace: true });
     }
-  }, [loading, user, redirect, navigate]);
+  }, [loading, user, redirect, navigate, recoveryMode]);
+
+  // Detect Supabase password-recovery redirect (link in email)
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") {
+        setRecoveryMode(true);
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-muted/30 px-4 py-12">
@@ -49,18 +60,22 @@ function AuthPage() {
         </div>
 
         <div className="rounded-xl border bg-card p-6 shadow-sm">
-          <Tabs defaultValue="signin">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="signin">Iniciar sesión</TabsTrigger>
-              <TabsTrigger value="signup">Crear cuenta</TabsTrigger>
-            </TabsList>
-            <TabsContent value="signin" className="mt-4">
-              <SignInForm />
-            </TabsContent>
-            <TabsContent value="signup" className="mt-4">
-              <SignUpForm />
-            </TabsContent>
-          </Tabs>
+          {recoveryMode ? (
+            <ResetPasswordForm onDone={() => setRecoveryMode(false)} />
+          ) : (
+            <Tabs defaultValue="signin">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="signin">Iniciar sesión</TabsTrigger>
+                <TabsTrigger value="signup">Crear cuenta</TabsTrigger>
+              </TabsList>
+              <TabsContent value="signin" className="mt-4">
+                <SignInForm />
+              </TabsContent>
+              <TabsContent value="signup" className="mt-4">
+                <SignUpForm />
+              </TabsContent>
+            </Tabs>
+          )}
         </div>
 
         <div className="space-y-0.5 text-center text-[11px] text-muted-foreground">
@@ -86,6 +101,11 @@ function SignInForm() {
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showForgot, setShowForgot] = useState(false);
+
+  if (showForgot) {
+    return <ForgotPasswordForm onBack={() => setShowForgot(false)} />;
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -110,7 +130,16 @@ function SignInForm() {
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="signin-password">Contraseña</Label>
+        <div className="flex items-center justify-between">
+          <Label htmlFor="signin-password">Contraseña</Label>
+          <button
+            type="button"
+            className="text-xs text-muted-foreground hover:text-foreground underline-offset-2 hover:underline transition-colors"
+            onClick={() => setShowForgot(true)}
+          >
+            ¿Olvidaste tu contraseña?
+          </button>
+        </div>
         <Input
           id="signin-password"
           type="password"
@@ -128,6 +157,151 @@ function SignInForm() {
       <Button type="submit" disabled={submitting} className="w-full">
         {submitting && <Loader2 className="mr-2 size-4 animate-spin" />}
         Iniciar sesión
+      </Button>
+    </form>
+  );
+}
+
+function ForgotPasswordForm({ onBack }: { onBack: () => void }) {
+  const [email, setEmail] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + "/auth",
+    });
+    setSubmitting(false);
+    if (err) {
+      setError(err.message);
+    } else {
+      setSent(true);
+    }
+  }
+
+  if (sent) {
+    return (
+      <div className="space-y-4">
+        <Alert>
+          <AlertDescription>
+            Revisa tu correo. Te enviamos un enlace para restablecer tu contraseña.
+          </AlertDescription>
+        </Alert>
+        <Button variant="ghost" className="w-full gap-2" onClick={onBack}>
+          <ArrowLeft className="size-4" />
+          Volver al inicio de sesión
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="space-y-4">
+      <div className="space-y-1">
+        <h3 className="text-sm font-semibold">Restablecer contraseña</h3>
+        <p className="text-xs text-muted-foreground">
+          Ingresa tu correo y te enviaremos un enlace para crear una nueva contraseña.
+        </p>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="forgot-email">Correo</Label>
+        <Input
+          id="forgot-email"
+          type="email"
+          autoComplete="email"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+      </div>
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+      <Button type="submit" disabled={submitting} className="w-full">
+        {submitting && <Loader2 className="mr-2 size-4 animate-spin" />}
+        Enviar enlace
+      </Button>
+      <Button type="button" variant="ghost" className="w-full gap-2" onClick={onBack}>
+        <ArrowLeft className="size-4" />
+        Volver
+      </Button>
+    </form>
+  );
+}
+
+function ResetPasswordForm({ onDone }: { onDone: () => void }) {
+  const navigate = useNavigate();
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (password !== confirm) {
+      setError("Las contraseñas no coinciden.");
+      return;
+    }
+    if (password.length < 6) {
+      setError("La contraseña debe tener al menos 6 caracteres.");
+      return;
+    }
+    setError(null);
+    setSubmitting(true);
+    const { error: err } = await supabase.auth.updateUser({ password });
+    setSubmitting(false);
+    if (err) {
+      setError(err.message);
+    } else {
+      await supabase.auth.signOut();
+      onDone();
+      navigate({ href: "/auth", replace: true });
+    }
+  }
+
+  return (
+    <form onSubmit={onSubmit} className="space-y-4">
+      <div className="space-y-1">
+        <h3 className="text-sm font-semibold">Nueva contraseña</h3>
+        <p className="text-xs text-muted-foreground">Elige una nueva contraseña para tu cuenta.</p>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="reset-password">Nueva contraseña</Label>
+        <Input
+          id="reset-password"
+          type="password"
+          autoComplete="new-password"
+          required
+          minLength={6}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="reset-confirm">Confirmar contraseña</Label>
+        <Input
+          id="reset-confirm"
+          type="password"
+          autoComplete="new-password"
+          required
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+        />
+      </div>
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+      <Button type="submit" disabled={submitting} className="w-full">
+        {submitting && <Loader2 className="mr-2 size-4 animate-spin" />}
+        Guardar nueva contraseña
       </Button>
     </form>
   );
