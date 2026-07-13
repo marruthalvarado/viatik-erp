@@ -11,7 +11,6 @@ import {
   TrendingUp,
   Activity,
   Network,
-  Settings,
   Shield,
   DollarSign,
   GitBranch,
@@ -65,8 +64,7 @@ const financeItems: NavItem[] = [
 ];
 
 const systemItems: NavItem[] = [
-  { title: "Configuracion",   url: "/configuracion",   icon: Settings, modulo: "configuracion" },
-  { title: "Administracion",  url: "/administracion",  icon: Shield,   modulo: "administracion" },
+  { title: "Administracion", url: "/administracion", icon: Shield, modulo: "administracion" },
 ];
 
 /** Códigos de rol que siempre tienen acceso total (sin filtro de módulos) */
