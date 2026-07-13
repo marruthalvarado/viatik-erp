@@ -245,6 +245,7 @@ export function GastosTab({
     };
     try {
       await actualizar.mutateAsync({ id: gastoEditar.id, payload });
+      await queryClient.invalidateQueries({ queryKey: ["gastos-enriquecidos", rendicionId] });
       toast.success("Gasto actualizado.");
       setGastoEditar(null);
     } catch {
@@ -256,6 +257,7 @@ export function GastosTab({
     if (!gastoEliminar) return;
     try {
       await eliminar.mutateAsync(gastoEliminar.id);
+      await queryClient.invalidateQueries({ queryKey: ["gastos-enriquecidos", rendicionId] });
       toast.success("Gasto eliminado.");
       setGastoEliminar(null);
     } catch {
