@@ -348,6 +348,7 @@ export function GastoForm({
                     <Input
                       type="number"
                       min="0"
+                      step="0.01"
                       placeholder="0"
                       value={field.value ?? ""}
                       onChange={(e) =>
@@ -382,7 +383,3 @@ export function GastoForm({
             />
           </div>
         );
-      }}
-    </EntityForm>
-  );
-}
