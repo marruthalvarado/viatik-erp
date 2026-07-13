@@ -4,7 +4,7 @@
  * Consumidos por RendicionDetail (rendicion-detail.tsx).
  */
 import { useState } from "react";
-import { Plus, ScanLine, Send } from "lucide-react";
+import { Pencil, Plus, ScanLine, Send, Trash2 } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,9 +33,9 @@ import {
   DrawerDescription,
 } from "@/components/common/drawer";
 import { GastoForm } from "@/components/gastos/gasto-form";
-import { EMPTY_FORM } from "@/components/gastos/gasto-types";
+import { EMPTY_FORM, gastoToForm } from "@/components/gastos/gasto-types";
 import type { GastoFormValues } from "@/components/gastos/gasto-types";
-import { useCrearGasto } from "@/hooks/entities/use-gastos";
+import { useActualizarGasto, useCrearGasto, useEliminarGasto } from "@/hooks/entities/use-gastos";
 import { useProveedores } from "@/hooks/entities/use-proveedores";
 import { useCategoriasGasto, useEstadosGasto, useMonedas } from "@/hooks/entities/use-catalogs";
 import { toast } from "@/components/common/toast";
@@ -188,6 +188,10 @@ export function GastosTab({
   const { data: estadosData } = useEstadosGasto({ pageSize: 200 });
   const { data: monedasData } = useMonedas({ pageSize: 200 });
   const crear = useCrearGasto();
+  const actualizar = useActualizarGasto();
+  const eliminar = useEliminarGasto();
+  const [gastoEditar, setGastoEditar] = useState<Gasto | null>(null);
+  const [gastoEliminar, setGastoEliminar] = useState<Gasto | null>(null);
 
   const proveedores = proveedoresData?.rows ?? [];
   const categorias = categoriasData?.rows ?? [];
@@ -219,6 +223,44 @@ export function GastosTab({
     await queryClient.invalidateQueries({ queryKey: ["gastos-enriquecidos", rendicionId] });
     toast.success("Gasto registrado correctamente.");
     setDrawerOpen(false);
+  }
+
+  async function handleUpdateGasto(values: GastoFormValues) {
+    if (!empresaActivaId || !gastoEditar) return;
+    const payload = {
+      empresa_id: empresaActivaId,
+      rendicion_id: values.rendicion_id ?? rendicionId,
+      fecha: values.fecha ?? null,
+      numero_documento: values.numero_documento ?? null,
+      descripcion: values.descripcion ?? null,
+      categoria_gasto_id: values.categoria_gasto_id ?? null,
+      estado_gasto_id: values.estado_gasto_id ?? null,
+      proveedor_id: values.proveedor_id ?? null,
+      moneda_codigo: values.moneda_codigo ?? null,
+      valor_factura: values.valor_factura ?? null,
+      valor_moneda_origen: values.valor_moneda_origen ?? null,
+      tipo_cambio: values.tipo_cambio ?? null,
+      valor_reembolsable: values.valor_reembolsable ?? null,
+      observaciones: values.observaciones || null,
+    };
+    try {
+      await actualizar.mutateAsync({ id: gastoEditar.id, payload });
+      toast.success("Gasto actualizado.");
+      setGastoEditar(null);
+    } catch {
+      toast.error("No se pudo actualizar el gasto.");
+    }
+  }
+
+  async function handleDeleteGasto() {
+    if (!gastoEliminar) return;
+    try {
+      await eliminar.mutateAsync(gastoEliminar.id);
+      toast.success("Gasto eliminado.");
+      setGastoEliminar(null);
+    } catch {
+      toast.error("No se pudo eliminar el gasto.");
+    }
   }
 
   async function handleEnviar() {
@@ -379,6 +421,33 @@ export function GastosTab({
         <span className="tabular-nums text-sm">{formatCurrency(row.valor_reembolsable)}</span>
       ),
     },
+    {
+      key: "id",
+      header: "",
+      className: "w-20",
+      cell: (row) => (
+        <div className="flex items-center justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => setGastoEditar(row)}
+            aria-label="Editar gasto"
+          >
+            <Pencil className="size-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-destructive hover:text-destructive"
+            onClick={() => setGastoEliminar(row)}
+            aria-label="Eliminar gasto"
+          >
+            <Trash2 className="size-3.5" />
+          </Button>
+        </div>
+      ),
+    },
   ];
 
   return (
@@ -483,7 +552,7 @@ export function GastosTab({
 
       {/* Wizard IA: Cargar Factura */}
       <Drawer open={wizardOpen} onOpenChange={setWizardOpen}>
-        <DrawerContent>
+        <DrawerContent onInteractOutside={(e) => e.preventDefault()}>
           <DrawerHeader>
             <DrawerTitle>Cargar Factura con IA</DrawerTitle>
             <DrawerDescription>Rendición: {rendicionNumero}</DrawerDescription>
@@ -504,7 +573,7 @@ export function GastosTab({
       </Drawer>
 
       <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
-        <DrawerContent>
+        <DrawerContent onInteractOutside={(e) => e.preventDefault()}>
           <DrawerHeader>
             <DrawerTitle>Nuevo gasto</DrawerTitle>
             <DrawerDescription>Rendición: {rendicionNumero}</DrawerDescription>
@@ -524,6 +593,56 @@ export function GastosTab({
               politica={politica}
               viajeNoches={diasViaje}
             />
+          </div>
+        </DrawerContent>
+      </Drawer>
+
+      {/* Confirmación de eliminación */}
+      <AlertDialog open={!!gastoEliminar} onOpenChange={(open) => { if (!open) setGastoEliminar(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar gasto?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. Se eliminará el gasto de forma permanente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setGastoEliminar(null)}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => void handleDeleteGasto()}
+              disabled={eliminar.isPending}
+            >
+              {eliminar.isPending ? "Eliminando..." : "Eliminar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Editar gasto */}
+      <Drawer open={gastoEditar !== null} onOpenChange={(open) => { if (!open) setGastoEditar(null); }}>
+        <DrawerContent onInteractOutside={(e) => e.preventDefault()}>
+          <DrawerHeader>
+            <DrawerTitle>Editar gasto</DrawerTitle>
+            <DrawerDescription>Rendición: {rendicionNumero}</DrawerDescription>
+          </DrawerHeader>
+          <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-6">
+            {gastoEditar && (
+              <GastoForm
+                defaultValues={gastoToForm(gastoEditar)}
+                onSubmit={handleUpdateGasto}
+                onCancel={() => setGastoEditar(null)}
+                loading={actualizar.isPending}
+                submitLabel="Guardar cambios"
+                rendiciones={[{ id: rendicionId, numero: rendicionNumero }]}
+                proveedores={proveedores}
+                categorias={categorias}
+                estados={estados}
+                monedas={monedas}
+                politica={politica}
+                viajeNoches={diasViaje}
+              />
+            )}
           </div>
         </DrawerContent>
       </Drawer>
