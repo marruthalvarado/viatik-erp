@@ -1,6 +1,6 @@
 /**
  * RendicionDetail — vista detalle de una rendición con tabs de Gastos,
- * Documentos y Viajes, más edición inline y eliminación.
+ * Documentos y Workflow, más edición inline (incluye viaje) y eliminación.
  */
 import { useState } from "react";
 import {

@@ -20,6 +20,7 @@ import { GastoForm } from "@/components/gastos/gasto-form";
 import { AiConfidenceBadge } from "./ai-confidence-badge";
 import type { GastoFormValues } from "@/components/gastos/gasto-types";
 import type { ExpenseExtraction } from "@/services/ai/document-ai-provider";
+import type { Politica } from "@/types/entities";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -34,6 +35,7 @@ export interface AiExpenseReviewProps {
   categorias: Array<{ id: string; nombre: string }>;
   estados: Array<{ id: string; nombre: string; codigo: string }>;
   monedas: Array<{ codigo: string; nombre: string; simbolo: string | null }>;
+  politica?: Politica | null;
 }
 
 // ─── Componente ───────────────────────────────────────────────────────────────
@@ -49,6 +51,7 @@ export function AiExpenseReview({
   categorias,
   estados,
   monedas,
+  politica,
 }: AiExpenseReviewProps) {
   return (
     <div className="flex flex-col gap-4">
@@ -128,6 +131,7 @@ export function AiExpenseReview({
         categorias={categorias}
         estados={estados}
         monedas={monedas}
+        politica={politica}
       />
     </div>
   );

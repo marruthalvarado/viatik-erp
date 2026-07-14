@@ -31,6 +31,7 @@ import { useRendiciones } from "@/hooks/entities/use-rendiciones";
 import { useProveedores, useCrearProveedor } from "@/hooks/entities/use-proveedores";
 import { supabase } from "@/integrations/supabase/client";
 import { useCategoriasGasto, useEstadosGasto, useMonedas } from "@/hooks/entities/use-catalogs";
+import { usePoliticas } from "@/hooks/entities/use-politicas";
 import { useCompany } from "@/contexts/company-context";
 import { toast } from "@/components/common/toast";
 import { emptyToNull } from "@/utils/formatters";
@@ -73,6 +74,9 @@ export function AiExpenseWizard({
   const { data: categoriasData } = useCategoriasGasto({ pageSize: 200 });
   const { data: estadosData } = useEstadosGasto({ pageSize: 200 });
   const { data: monedasData } = useMonedas({ pageSize: 200 });
+
+  const { data: politicasData } = usePoliticas({ pageSize: 1 });
+  const politica = politicasData?.rows?.[0] ?? null;
 
   const rendiciones = rendicionesData?.rows ?? [];
   const proveedores = proveedoresData?.rows ?? [];
@@ -341,6 +345,7 @@ export function AiExpenseWizard({
             nombre: m.nombre,
             simbolo: m.simbolo ?? null,
           }))}
+          politica={politica}
         />
       </div>
     );
@@ -383,8 +388,8 @@ export function AiExpenseWizard({
   // completado — el padre cerrará el dialog en onSuccess
   return (
     <div className="flex flex-col items-center gap-3 py-8 text-center">
-      <Sparkles className="size-8 text-emerald-500" aria-hidden="true" />
-      <p className="text-sm font-semibold text-emerald-600">¡Gasto creado correctamente!</p>
+      <Loader2 className="size-8 animate-spin text-primary" aria-hidden="true" />
+      <p className="text-sm font-medium">Completado.</p>
     </div>
   );
 }
