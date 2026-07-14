@@ -14,6 +14,7 @@ import {
   getRendicionesPendientes,
   getTopViajeros,
   getPresupuestoTotal,
+  getResumenFinancieroProyectos,
 } from "@/services/dashboard";
 
 export function useDashboardEjecutivo(empresaId: string | null, anio?: number) {
@@ -92,6 +93,14 @@ export function usePresupuestoTotal(empresaId: string | null) {
   return useQuery({
     queryKey: ["presupuestos", "total", empresaId],
     queryFn: () => getPresupuestoTotal(empresaId!),
+     enabled: !!empresaId,
+  });
+}
+
+export function useResumenFinancieroProyectos(empresaId: string | null) {
+  return useQuery({
+    queryKey: ["presupuestos", "resumen_financiero", empresaId],
+    queryFn: () => getResumenFinancieroProyectos(empresaId!),
     enabled: !!empresaId,
   });
 }

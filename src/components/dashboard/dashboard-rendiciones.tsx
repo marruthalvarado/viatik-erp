@@ -14,7 +14,7 @@ import type { RendicionPendiente } from "@/services/dashboard";
 interface DashboardRendicionesProps {
   data: RendicionPendiente[];
   loading: boolean;
-  onNavigate: () => void;
+  onNavigate?: () => void;
 }
 
 export function DashboardRendiciones({ data, loading, onNavigate }: DashboardRendicionesProps) {

@@ -1,7 +1,7 @@
 /**
  * Graficos del Dashboard Ejecutivo:
  * - Evolucion mensual de gastos (BarChart)
- * - Presupuesto vs ejecutado por proyecto (BarChart horizontal)
+ * - Contrato vs Ejecutado por proyecto (tabla con indicadores)
  * - Gastos por categoria (PieChart)
  * - Gastos por cliente (BarChart horizontal)
  */
@@ -18,6 +18,7 @@ import {
   Cell,
   ResponsiveContainer,
 } from "recharts";
+import { TrendingUp, TrendingDown } from "lucide-react";
 
 import { LoadingState } from "@/components/common/loading-state";
 import { EmptyState } from "@/components/common/empty-state";
@@ -27,6 +28,7 @@ import type {
   GastoCategoria,
   DashboardProyecto,
   DashboardCliente,
+  ResumenFinancieroProyecto,
 } from "@/services/dashboard";
 
 // Paleta de colores (hex para evitar dependencia de CSS vars indefinidas)
@@ -115,46 +117,80 @@ export function EvolucionMensualChart({ data, loading, anio }: EvolucionChartPro
   );
 }
 
-// Presupuesto vs Ejecutado
+// Contrato vs Ejecutado por proyecto (tabla con indicadores)
 
+interface ResumenProyectosChartProps {
+  data: ResumenFinancieroProyecto[];
+  loading: boolean;
+}
+
+export function ResumenProyectosChart({ data, loading }: ResumenProyectosChartProps) {
+  const rows = data
+    .filter((p) => p.valor_contrato > 0 || p.ejecutado > 0)
+    .slice(0, 8);
+
+  return (
+    <ChartPanel
+      title="Contrato vs ejecutado por proyecto"
+      loading={loading}
+      empty={!loading && rows.length === 0}
+    >
+      <div className="space-y-3">
+        {rows.map((p) => {
+          const pct = p.valor_contrato > 0
+            ? Math.min(100, Math.round((p.ejecutado / p.valor_contrato) * 100))
+            : 0;
+          const over = p.ejecutado > p.valor_contrato && p.valor_contrato > 0;
+          const gananciaPos = p.ganancia >= 0;
+
+          return (
+            <div key={p.proyecto_id} className="space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-medium truncate max-w-[160px]" title={p.nombre}>
+                  {p.nombre}
+                </span>
+                <div className="flex items-center gap-1 shrink-0">
+                  {p.valor_contrato > 0 && (
+                    <span className={`flex items-center gap-0.5 text-xs font-medium ${gananciaPos ? "text-emerald-600" : "text-red-500"}`}>
+                      {gananciaPos
+                        ? <TrendingUp className="size-3" />
+                        : <TrendingDown className="size-3" />}
+                      {formatCurrency(Math.abs(p.ganancia))}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${over ? "bg-red-500" : "bg-indigo-500"}`}
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+                <span className="text-[10px] tabular-nums text-muted-foreground w-8 text-right">
+                  {pct}%
+                </span>
+              </div>
+              <div className="flex justify-between text-[10px] text-muted-foreground tabular-nums">
+                <span>Ejecutado: {formatCurrency(p.ejecutado)}</span>
+                {p.valor_contrato > 0 && <span>Contrato: {formatCurrency(p.valor_contrato)}</span>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </ChartPanel>
+  );
+}
+
+// Kept for backward compatibility (unused but avoids import errors)
 interface PresupuestoChartProps {
   data: DashboardProyecto[];
   loading: boolean;
 }
-
-export function PresupuestoEjecutadoChart({ data, loading }: PresupuestoChartProps) {
-  const chartData = data
-    .filter((p) => (p.presupuesto ?? 0) > 0 || (p.gasto_real ?? 0) > 0)
-    .slice(0, 8)
-    .map((p) => ({
-      nombre: p.nombre ? (p.nombre.length > 18 ? p.nombre.slice(0, 16) + "..." : p.nombre) : "-",
-      presupuesto: p.presupuesto ?? 0,
-      ejecutado: p.gasto_real ?? 0,
-    }));
-
-  return (
-    <ChartPanel
-      title="Presupuesto vs ejecutado por proyecto"
-      loading={loading}
-      empty={!loading && chartData.length === 0}
-    >
-      <ResponsiveContainer width="100%" height={220}>
-        <BarChart
-          data={chartData}
-          layout="vertical"
-          margin={{ top: 4, right: 40, left: 8, bottom: 0 }}
-        >
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-          <XAxis type="number" tickFormatter={currencyTick} tick={{ fontSize: 10 }} />
-          <YAxis type="category" dataKey="nombre" tick={{ fontSize: 10 }} width={100} />
-          <Tooltip formatter={(v: number) => formatCurrency(v)} />
-          <Legend wrapperStyle={{ fontSize: 11 }} />
-          <Bar dataKey="presupuesto" name="Presupuesto" fill={COLORS[2]} radius={[0, 3, 3, 0]} />
-          <Bar dataKey="ejecutado" name="Ejecutado" fill={COLORS[0]} radius={[0, 3, 3, 0]} />
-        </BarChart>
-      </ResponsiveContainer>
-    </ChartPanel>
-  );
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function PresupuestoEjecutadoChart(_props: PresupuestoChartProps) {
+  return null;
 }
 
 // Gastos por categoria

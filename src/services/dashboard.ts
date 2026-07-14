@@ -539,3 +539,68 @@ export async function getPresupuestoTotal(empresaId: string): Promise<number> {
   if (error) throw new Error(error.message);
   return (data ?? []).reduce((acc, p) => acc + (Number(p.valor_total) || 0), 0);
 }
+
+// ─── Resumen financiero por proyecto ─────────────────────────────────────────
+
+export interface ResumenFinancieroProyecto {
+  proyecto_id: string;
+  nombre: string;
+  cliente_nombre: string | null;
+  presupuesto: number;
+  valor_contrato: number;
+  ejecutado: number;
+  ganancia: number;
+  margen_pct: number | null;
+}
+
+export async function getResumenFinancieroProyectos(
+  empresaId: string,
+): Promise<ResumenFinancieroProyecto[]> {
+  const [proyRes, rendRes] = await Promise.all([
+    supabase
+      .from("proyectos")
+      .select("id, nombre, presupuesto, valor_contrato, cliente:clientes(nombre)")
+      .eq("empresa_id", empresaId)
+      .is("deleted_at", null)
+      .order("nombre"),
+    supabase
+      .from("rendiciones")
+      .select("proyecto_id, total_facturado")
+      .eq("empresa_id", empresaId)
+      .is("deleted_at", null)
+      .not("proyecto_id", "is", null),
+  ]);
+
+  if (proyRes.error) throw new Error(proyRes.error.message);
+
+  const ejecutadoMap = new Map<string, number>();
+  for (const r of rendRes.data ?? []) {
+    if (!r.proyecto_id) continue;
+    ejecutadoMap.set(
+      r.proyecto_id,
+      (ejecutadoMap.get(r.proyecto_id) ?? 0) + (Number(r.total_facturado) || 0),
+    );
+  }
+
+  return (proyRes.data ?? []).map((p) => {
+    const raw = p.cliente as unknown;
+    const cliente = (Array.isArray(raw) ? raw[0] : raw) as { nombre: string } | null;
+    const presupuesto    = Number(p.presupuesto    ?? 0);
+    const valor_contrato = Number(p.valor_contrato ?? 0);
+    const ejecutado      = ejecutadoMap.get(p.id) ?? 0;
+    const ganancia       = valor_contrato - ejecutado;
+    const margen_pct     = valor_contrato > 0
+      ? Math.round((ganancia / valor_contrato) * 100)
+      : null;
+    return {
+      proyecto_id:    p.id,
+      nombre:         p.nombre,
+      cliente_nombre: cliente?.nombre ?? null,
+      presupuesto,
+      valor_contrato,
+      ejecutado,
+      ganancia,
+      margen_pct,
+    };
+  });
+}

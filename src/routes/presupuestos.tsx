@@ -1,14 +1,27 @@
+/**
+ * Módulo Presupuestos — Tracker financiero por proyecto.
+ *
+ * Muestra todos los proyectos de la empresa con:
+ *   - Presupuesto interno (proyectos.presupuesto)
+ *   - Valor contrato con el cliente (proyectos.valor_contrato)
+ *   - Ejecutado (suma de rendiciones)
+ *   - Ganancia estimada (contrato − ejecutado)
+ *
+ * Permite editar Presupuesto y Valor Contrato desde aquí; son los mismos
+ * campos que en el formulario de Proyectos.
+ */
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Pencil, TrendingDown, TrendingUp } from "lucide-react";
+import { z } from "zod";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/common/page-header";
 import { DataTable } from "@/components/common/data-table";
-import { SearchBar } from "@/components/common/search-bar";
-import { Pagination } from "@/components/common/pagination";
-import { DeleteDialog } from "@/components/common/delete-dialog";
-import { StatusBadge } from "@/components/common/status-badge";
+import { LoadingState } from "@/components/common/loading-state";
 import { EmptyState } from "@/components/common/empty-state";
 import { toast } from "@/components/common/toast";
 import {
@@ -18,25 +31,24 @@ import {
   DrawerTitle,
   DrawerDescription,
 } from "@/components/common/drawer";
+import {
+  Form,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormControl,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
-import {
-  usePresupuestos,
-  useCrearPresupuesto,
-  useActualizarPresupuesto,
-  useEliminarPresupuesto,
-} from "@/hooks/entities/use-presupuestos";
-import { useProyectos } from "@/hooks/entities/use-proyectos";
+import { useResumenFinancieroProyectos } from "@/hooks/entities/use-dashboard";
+import { useActualizarProyecto } from "@/hooks/entities/use-proyectos";
 import { useCompany } from "@/contexts/company-context";
-import { formatCurrency, emptyToNull } from "@/utils/formatters";
+import { formatCurrency } from "@/utils/formatters";
 
 import type { DataTableColumn } from "@/components/common/data-table";
-import type { Presupuesto, PresupuestoInsert, PresupuestoUpdate } from "@/types/entities";
-import type { ListParams } from "@/types/common";
-
-import { PresupuestoForm } from "@/components/presupuestos/presupuesto-form";
-import { EMPTY_PRESUPUESTO, presupuestoToForm } from "@/components/presupuestos/presupuesto-types";
-import type { PresupuestoFormValues } from "@/components/presupuestos/presupuesto-types";
+import type { ResumenFinancieroProyecto } from "@/services/dashboard";
 
 export const Route = createFileRoute("/presupuestos")({
   head: () => ({ meta: [{ title: "Presupuestos · VIATIQ" }] }),
@@ -51,258 +63,250 @@ function PresupuestosPage() {
   );
 }
 
+const editSchema = z.object({
+  presupuesto:    z.coerce.number().min(0).nullable(),
+  valor_contrato: z.coerce.number().min(0).nullable(),
+});
+type EditValues = z.infer<typeof editSchema>;
+
+function GananciaCell({ ganancia, margen_pct }: { ganancia: number; margen_pct: number | null }) {
+  const positive = ganancia >= 0;
+  return (
+    <div className={`flex items-center gap-1 tabular-nums font-medium ${positive ? "text-emerald-600" : "text-red-500"}`}>
+      {positive
+        ? <TrendingUp className="size-3.5 shrink-0" />
+        : <TrendingDown className="size-3.5 shrink-0" />}
+      <span>{formatCurrency(ganancia)}</span>
+      {margen_pct !== null && (
+        <span className="text-xs font-normal opacity-70">({margen_pct}%)</span>
+      )}
+    </div>
+  );
+}
+
+function ProgressBar({ value, max }: { value: number; max: number }) {
+  if (max <= 0) return <span className="text-xs text-muted-foreground">—</span>;
+  const pct = Math.min(100, Math.round((value / max) * 100));
+  const over = value > max;
+  return (
+    <div className="flex items-center gap-2">
+      <div className="h-1.5 w-24 rounded-full bg-muted overflow-hidden">
+        <div
+          className={`h-full rounded-full ${over ? "bg-red-500" : "bg-indigo-500"}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <span className="text-xs tabular-nums text-muted-foreground">{pct}%</span>
+    </div>
+  );
+}
+
 function PresupuestosContent() {
   const { empresaActivaId } = useCompany();
-  const [params, setParams] = useState<ListParams>({ page: 1, pageSize: 25 });
-  const [search, setSearch] = useState("");
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [editingPresupuesto, setEditingPresupuesto] = useState<Presupuesto | null>(null);
-  const [deletingPresupuesto, setDeletingPresupuesto] = useState<Presupuesto | null>(null);
+  const { data, isLoading, error } = useResumenFinancieroProyectos(empresaActivaId);
+  const actualizar = useActualizarProyecto();
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = useState<ResumenFinancieroProyecto | null>(null);
 
-  const { data, isLoading, error } = usePresupuestos({ ...params, search });
-  const { data: proyectosData } = useProyectos({ pageSize: 200 });
-  const crear = useCrearPresupuesto();
-  const actualizar = useActualizarPresupuesto();
-  const eliminar = useEliminarPresupuesto();
+  const form = useForm<EditValues>({
+    resolver: zodResolver(editSchema),
+    defaultValues: { presupuesto: null, valor_contrato: null },
+  });
 
-  const proyectos = proyectosData?.rows ?? [];
-  const proyectoNombre = (id: string | null | undefined) =>
-    id ? (proyectos.find((p) => p.id === id)?.nombre ?? id) : "—";
+  function openEdit(row: ResumenFinancieroProyecto) {
+    setEditing(row);
+    form.reset({
+      presupuesto:    row.presupuesto    || null,
+      valor_contrato: row.valor_contrato || null,
+    });
+  }
 
-  const columns: DataTableColumn<Presupuesto>[] = [
-    {
-      key: "codigo",
-      header: "Código",
-      className: "w-24",
-      cell: (row) => <span className="text-xs text-muted-foreground">{row.codigo ?? "—"}</span>,
-    },
+  async function onSubmit(values: EditValues) {
+    if (!editing) return;
+    try {
+      await actualizar.mutateAsync({
+        id: editing.proyecto_id,
+        payload: {
+          presupuesto:    values.presupuesto    ?? null,
+          valor_contrato: values.valor_contrato ?? null,
+        },
+      });
+      await queryClient.invalidateQueries({ queryKey: ["presupuestos", "resumen_financiero"] });
+      await queryClient.invalidateQueries({ queryKey: ["dashboard", "proyectos"] });
+      toast.success("Valores actualizados.");
+      setEditing(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al guardar.");
+    }
+  }
+
+  const columns: DataTableColumn<ResumenFinancieroProyecto>[] = [
     {
       key: "nombre",
-      header: "Nombre",
+      header: "Proyecto",
       cell: (row) => (
         <div>
           <p className="text-sm font-medium">{row.nombre}</p>
-          {row.descripcion && <p className="text-xs text-muted-foreground">{row.descripcion}</p>}
+          {row.cliente_nombre && (
+            <p className="text-xs text-muted-foreground">{row.cliente_nombre}</p>
+          )}
         </div>
       ),
     },
     {
-      key: "anio",
-      header: "Año",
-      className: "w-20",
-      cell: (row) => <span className="tabular-nums">{row.anio}</span>,
-    },
-    { key: "proyecto", header: "Proyecto", cell: (row) => proyectoNombre(row.proyecto_id) },
-    {
-      key: "valor_total",
-      header: "Total",
+      key: "presupuesto",
+      header: "Presupuesto",
       align: "right",
-      cell: (row) => <span className="tabular-nums">{formatCurrency(row.valor_total)}</span>,
+      cell: (row) =>
+        row.presupuesto > 0
+          ? <span className="tabular-nums text-sm">{formatCurrency(row.presupuesto)}</span>
+          : <span className="text-xs text-muted-foreground">—</span>,
     },
     {
-      key: "activo",
-      header: "Estado",
+      key: "valor_contrato",
+      header: "Valor contrato",
+      align: "right",
+      cell: (row) =>
+        row.valor_contrato > 0
+          ? <span className="tabular-nums text-sm">{formatCurrency(row.valor_contrato)}</span>
+          : <span className="text-xs text-muted-foreground">—</span>,
+    },
+    {
+      key: "ejecutado",
+      header: "Ejecutado",
+      align: "right",
       cell: (row) => (
-        <StatusBadge tone={row.activo ? "success" : "neutral"}>
-          {row.activo ? "Activo" : "Inactivo"}
-        </StatusBadge>
+        <div className="flex flex-col items-end gap-1">
+          <span className="tabular-nums text-sm">{formatCurrency(row.ejecutado)}</span>
+          <ProgressBar value={row.ejecutado} max={row.valor_contrato || row.presupuesto} />
+        </div>
       ),
+    },
+    {
+      key: "ganancia",
+      header: "Ganancia est.",
+      cell: (row) =>
+        row.valor_contrato > 0
+          ? <GananciaCell ganancia={row.ganancia} margen_pct={row.margen_pct} />
+          : <span className="text-xs text-muted-foreground">Sin contrato</span>,
     },
     {
       key: "acciones",
       header: "",
-      className: "w-[88px]",
+      className: "w-12",
       cell: (row) => (
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            aria-label="Editar presupuesto"
-            onClick={(e) => {
-              e.stopPropagation();
-              setEditingPresupuesto(row);
-              setDrawerOpen(true);
-            }}
-          >
-            <Pencil className="size-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-destructive hover:text-destructive"
-            aria-label="Eliminar presupuesto"
-            onClick={(e) => {
-              e.stopPropagation();
-              setDeletingPresupuesto(row);
-            }}
-          >
-            <Trash2 className="size-3.5" />
-          </Button>
-        </div>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          aria-label="Editar presupuesto"
+          onClick={(e) => { e.stopPropagation(); openEdit(row); }}
+        >
+          <Pencil className="size-3.5" />
+        </Button>
       ),
     },
   ];
-
-  function handleOpenNew() {
-    setEditingPresupuesto(null);
-    setDrawerOpen(true);
-  }
-  function handleCloseDrawer() {
-    setDrawerOpen(false);
-    setEditingPresupuesto(null);
-  }
-
-  async function handleSubmit(values: PresupuestoFormValues) {
-    if (!empresaActivaId) {
-      toast.error("Selecciona una empresa activa antes de continuar.");
-      return;
-    }
-    try {
-      if (editingPresupuesto) {
-        const payload: PresupuestoUpdate = {
-          nombre: values.nombre,
-          anio: values.anio,
-          codigo: emptyToNull(values.codigo),
-          descripcion: emptyToNull(values.descripcion),
-          proyecto_id: values.proyecto_id ?? null,
-          activo: values.activo ?? true,
-          valor_total: values.valor_total ?? null,
-        };
-        await actualizar.mutateAsync({ id: editingPresupuesto.id, payload });
-        toast.success("Presupuesto actualizado correctamente.");
-      } else {
-        const payload: PresupuestoInsert = {
-          empresa_id: empresaActivaId,
-          nombre: values.nombre,
-          anio: values.anio,
-          codigo: emptyToNull(values.codigo),
-          descripcion: emptyToNull(values.descripcion),
-          proyecto_id: values.proyecto_id ?? null,
-          activo: values.activo ?? true,
-          valor_total: values.valor_total ?? null,
-        };
-        await crear.mutateAsync(payload);
-        toast.success("Presupuesto creado correctamente.");
-      }
-      handleCloseDrawer();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al guardar el presupuesto.");
-    }
-  }
-
-  async function handleDelete() {
-    if (!deletingPresupuesto) return;
-    try {
-      await eliminar.mutateAsync(deletingPresupuesto.id);
-      toast.success(`"${deletingPresupuesto.nombre}" eliminado.`);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al eliminar el presupuesto.");
-    } finally {
-      setDeletingPresupuesto(null);
-    }
-  }
 
   return (
     <>
       <PageHeader
         title="Presupuestos"
-        description="Planificación y control presupuestario."
+        description="Control financiero por proyecto: presupuesto interno, contrato, ejecutado y ganancia."
         breadcrumbs={[{ label: "Presupuestos" }]}
-        actions={
-          <Button onClick={handleOpenNew} size="sm" className="gap-1.5">
-            <Plus className="size-4" />
-            Nuevo presupuesto
-          </Button>
-        }
       />
 
-      <div className="mb-4 flex items-center gap-3">
-        <SearchBar
-          value={search}
-          onChange={(v) => {
-            setSearch(v);
-            setParams((p) => ({ ...p, page: 1 }));
-          }}
-          placeholder="Buscar por nombre, código, descripción..."
-        />
-      </div>
-
-      {error ? (
+      {isLoading ? (
+        <LoadingState label="Cargando proyectos..." />
+      ) : error ? (
         <EmptyState
-          title="Error al cargar presupuestos"
-          description={error instanceof Error ? error.message : "Ocurrió un error inesperado."}
+          title="Error al cargar"
+          description={error instanceof Error ? error.message : "Error inesperado."}
         />
       ) : (
-        <>
-          <DataTable
-            columns={columns}
-            data={data?.rows ?? []}
-            isLoading={isLoading}
-            getRowId={(row) => row.id}
-            emptyTitle="Sin presupuestos"
-            emptyDescription="Crea tu primer presupuesto con el botón Nuevo presupuesto."
-            emptyAction={
-              <Button size="sm" onClick={handleOpenNew} className="gap-1.5">
-                <Plus className="size-4" />
-                Nuevo presupuesto
-              </Button>
-            }
-          />
-          {data && data.total > 0 && (
-            <div className="mt-3">
-              <Pagination
-                page={data.page}
-                pageSize={data.pageSize}
-                total={data.total}
-                onPageChange={(page) => setParams((p) => ({ ...p, page }))}
-              />
-            </div>
-          )}
-        </>
+        <DataTable
+          columns={columns}
+          data={data ?? []}
+          isLoading={false}
+          getRowId={(row) => row.proyecto_id}
+          emptyTitle="Sin proyectos"
+          emptyDescription="Crea proyectos en el módulo Proyectos para verlos aquí."
+        />
       )}
 
-      <Drawer
-        open={drawerOpen}
-        onOpenChange={(open) => {
-          if (!open) handleCloseDrawer();
-        }}
-      >
-        <DrawerContent className="sm:max-w-lg">
+      <Drawer open={!!editing} onOpenChange={(open) => { if (!open) setEditing(null); }}>
+        <DrawerContent className="sm:max-w-sm">
           <DrawerHeader>
-            <DrawerTitle>
-              {editingPresupuesto ? "Editar presupuesto" : "Nuevo presupuesto"}
-            </DrawerTitle>
-            <DrawerDescription>
-              {editingPresupuesto
-                ? "Modifica los datos del presupuesto."
-                : "Completa los datos para crear un presupuesto."}
-            </DrawerDescription>
+            <DrawerTitle>Valores financieros</DrawerTitle>
+            <DrawerDescription>{editing?.nombre}</DrawerDescription>
           </DrawerHeader>
-          <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6">
-            <PresupuestoForm
-              defaultValues={
-                editingPresupuesto ? presupuestoToForm(editingPresupuesto) : EMPTY_PRESUPUESTO
-              }
-              onSubmit={handleSubmit}
-              onCancel={handleCloseDrawer}
-              loading={crear.isPending || actualizar.isPending}
-              submitLabel={editingPresupuesto ? "Guardar cambios" : "Crear presupuesto"}
-              proyectos={proyectos}
-            />
+          <div className="px-6 pb-6">
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="presupuesto"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Presupuesto interno</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          placeholder="0.00"
+                          value={field.value ?? ""}
+                          onChange={(e) =>
+                            field.onChange(e.target.value === "" ? null : +e.target.value)
+                          }
+                        />
+                      </FormControl>
+                      <p className="text-xs text-muted-foreground">Costo estimado del proyecto.</p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="valor_contrato"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Valor contrato</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          placeholder="0.00"
+                          value={field.value ?? ""}
+                          onChange={(e) =>
+                            field.onChange(e.target.value === "" ? null : +e.target.value)
+                          }
+                        />
+                      </FormControl>
+                      <p className="text-xs text-muted-foreground">Lo cobrado al cliente.</p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <div className="flex gap-2 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => setEditing(null)}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button type="submit" className="flex-1" disabled={actualizar.isPending}>
+                    Guardar
+                  </Button>
+                </div>
+              </form>
+            </Form>
           </div>
         </DrawerContent>
       </Drawer>
-
-      <DeleteDialog
-        open={!!deletingPresupuesto}
-        onOpenChange={(open) => {
-          if (!open) setDeletingPresupuesto(null);
-        }}
-        entityLabel={`el presupuesto "${deletingPresupuesto?.nombre ?? ""}"`}
-        onConfirm={handleDelete}
-        loading={eliminar.isPending}
-      />
     </>
   );
 }

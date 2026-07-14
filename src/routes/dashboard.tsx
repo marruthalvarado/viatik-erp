@@ -11,7 +11,7 @@ import { DashboardFilters } from "@/components/dashboard/dashboard-filters";
 import { DashboardKpis } from "@/components/dashboard/dashboard-kpis";
 import {
   EvolucionMensualChart,
-  PresupuestoEjecutadoChart,
+  ResumenProyectosChart,
   GastosCategoriaChart,
   GastosClienteChart,
 } from "@/components/dashboard/dashboard-charts";
@@ -33,6 +33,7 @@ import {
   useRendicionesPendientes,
   useTopViajeros,
   usePresupuestoTotal,
+  useResumenFinancieroProyectos,
 } from "@/hooks/entities/use-dashboard";
 import { Building2 } from "lucide-react";
 
@@ -113,6 +114,7 @@ function DashboardMain({
   // Charts
   const evolucion = useEvolucionMensual(empresaId, anio > 0 ? anio : new Date().getFullYear());
   const proyectos = useDashboardProyectos(empresaId, 10, anioFiltro);
+  const resumenProyectos = useResumenFinancieroProyectos(empresaId);
   const categorias = useGastosPorCategoria(empresaId, anioFiltro);
   const clientes = useDashboardClientes(empresaId, 10, anioFiltro);
 
@@ -150,7 +152,7 @@ function DashboardMain({
           loading={evolucion.isLoading}
           anio={anio}
         />
-        <PresupuestoEjecutadoChart data={proyectos.data ?? []} loading={proyectos.isLoading} />
+        <ResumenProyectosChart data={resumenProyectos.data ?? []} loading={resumenProyectos.isLoading} />
       </div>
 
       {/* Categorías + Clientes */}
