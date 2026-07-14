@@ -150,14 +150,32 @@ export function AiExpenseWizard({
     const normaliza = (s: string) => s.trim().toLowerCase();
     const key = identificacion ? normaliza(identificacion) : normaliza(nombre);
     if (creandoProveedores.current.has(key)) return;
-    const yaExiste = proveedores.some(
+
+    // 1. Check cache en memoria (rápido)
+    const yaExisteEnCache = proveedores.some(
       (p) =>
         normaliza(p.nombre) === normaliza(nombre) ||
         (identificacion &&
           p.identificacion &&
           normaliza(p.identificacion) === normaliza(identificacion)),
     );
-    if (yaExiste) return;
+    if (yaExisteEnCache) return;
+
+    // 2. Check DB — evita duplicado cuando el cache está desactualizado o hay +200 proveedores
+    if (identificacion) {
+      const { data: existing } = await supabase
+        .from("proveedores")
+        .select("id")
+        .eq("empresa_id", empresaActivaId)
+        .eq("identificacion", identificacion.trim())
+        .is("deleted_at", null)
+        .maybeSingle();
+      if (existing) {
+        void refetchProveedores();
+        return;
+      }
+    }
+
     creandoProveedores.current.add(key);
     try {
       await crearProveedor.mutateAsync({
