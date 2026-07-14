@@ -78,7 +78,5 @@ function BandejaTab({ onVerDetalle }: BandejaTabProps) {
     );
   }
 
-  return (
-    <MisAprobacionesTable data={data ?? []} loading={isLoading} onVerDetalle={onVerDetalle} />
-  );
+  return <MisAprobacionesTable data={data ?? []} loading={isLoading} onVerDetalle={onVerDetalle} />;
 }

@@ -73,9 +73,8 @@ export function GastoForm({
       submitLabel={submitLabel}
     >
       {(form) => {
-        // eslint-disable-next-line react-hooks/rules-of-hooks
         const categoriaId = form.watch("categoria_gasto_id");
-        // eslint-disable-next-line react-hooks/rules-of-hooks
+
         const valorFactura = form.watch("valor_factura");
 
         const catNombre = categorias.find((c) => c.id === categoriaId)?.nombre ?? "";
@@ -88,7 +87,7 @@ export function GastoForm({
           if (valorFactura == null || !politica) return;
           const computed = tope != null ? Math.min(valorFactura, tope) : valorFactura;
           form.setValue("valor_reembolsable", computed, { shouldValidate: false });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+          // eslint-disable-next-line react-hooks/exhaustive-deps
         }, [categoriaId, valorFactura]);
 
         return (

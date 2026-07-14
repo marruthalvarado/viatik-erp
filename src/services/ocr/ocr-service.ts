@@ -238,10 +238,7 @@ async function ejecutarOcr(
 /**
  * Extrae texto de un XML (CFDI/UBL/genérico) y lo guarda en ocr_extracciones.
  */
-async function ejecutarExtraccionXml(
-  file: File,
-  extraccionId: string,
-): Promise<OcrExtraccion> {
+async function ejecutarExtraccionXml(file: File, extraccionId: string): Promise<OcrExtraccion> {
   let textoExtraido: string | null = null;
   let estado = "completado";
   let errorMensaje: string | null = null;
@@ -285,10 +282,7 @@ async function ejecutarExtraccionXml(
 /**
  * Envía el PDF como base64 a la Edge Function (OpenAI Vision) y guarda el texto.
  */
-async function ejecutarExtraccionPdf(
-  file: File,
-  extraccionId: string,
-): Promise<OcrExtraccion> {
+async function ejecutarExtraccionPdf(file: File, extraccionId: string): Promise<OcrExtraccion> {
   let textoExtraido: string | null = null;
   let estado = "completado";
   let errorMensaje: string | null = null;

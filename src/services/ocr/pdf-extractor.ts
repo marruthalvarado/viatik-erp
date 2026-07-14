@@ -40,12 +40,7 @@ export async function readPdfAsBase64(file: File): Promise<PdfExtractionResult> 
   const bytes = new Uint8Array(arrayBuffer);
 
   // Verificar magic bytes PDF (%PDF-)
-  if (
-    bytes[0] !== 0x25 ||
-    bytes[1] !== 0x50 ||
-    bytes[2] !== 0x44 ||
-    bytes[3] !== 0x46
-  ) {
+  if (bytes[0] !== 0x25 || bytes[1] !== 0x50 || bytes[2] !== 0x44 || bytes[3] !== 0x46) {
     throw new Error("[pdf-extractor] El archivo no tiene firma PDF válida.");
   }
 

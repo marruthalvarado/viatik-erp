@@ -125,9 +125,7 @@ interface ResumenProyectosChartProps {
 }
 
 export function ResumenProyectosChart({ data, loading }: ResumenProyectosChartProps) {
-  const rows = data
-    .filter((p) => p.valor_contrato > 0 || p.ejecutado > 0)
-    .slice(0, 8);
+  const rows = data.filter((p) => p.valor_contrato > 0 || p.ejecutado > 0).slice(0, 8);
 
   return (
     <ChartPanel
@@ -137,9 +135,10 @@ export function ResumenProyectosChart({ data, loading }: ResumenProyectosChartPr
     >
       <div className="space-y-3">
         {rows.map((p) => {
-          const pct = p.valor_contrato > 0
-            ? Math.min(100, Math.round((p.ejecutado / p.valor_contrato) * 100))
-            : 0;
+          const pct =
+            p.valor_contrato > 0
+              ? Math.min(100, Math.round((p.ejecutado / p.valor_contrato) * 100))
+              : 0;
           const over = p.ejecutado > p.valor_contrato && p.valor_contrato > 0;
           const gananciaPos = p.ganancia >= 0;
 
@@ -151,10 +150,14 @@ export function ResumenProyectosChart({ data, loading }: ResumenProyectosChartPr
                 </span>
                 <div className="flex items-center gap-1 shrink-0">
                   {p.valor_contrato > 0 && (
-                    <span className={`flex items-center gap-0.5 text-xs font-medium ${gananciaPos ? "text-emerald-600" : "text-red-500"}`}>
-                      {gananciaPos
-                        ? <TrendingUp className="size-3" />
-                        : <TrendingDown className="size-3" />}
+                    <span
+                      className={`flex items-center gap-0.5 text-xs font-medium ${gananciaPos ? "text-emerald-600" : "text-red-500"}`}
+                    >
+                      {gananciaPos ? (
+                        <TrendingUp className="size-3" />
+                      ) : (
+                        <TrendingDown className="size-3" />
+                      )}
                       {formatCurrency(Math.abs(p.ganancia))}
                     </span>
                   )}
@@ -188,7 +191,7 @@ interface PresupuestoChartProps {
   data: DashboardProyecto[];
   loading: boolean;
 }
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+
 export function PresupuestoEjecutadoChart(_props: PresupuestoChartProps) {
   return null;
 }

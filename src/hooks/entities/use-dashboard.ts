@@ -93,7 +93,7 @@ export function usePresupuestoTotal(empresaId: string | null) {
   return useQuery({
     queryKey: ["presupuestos", "total", empresaId],
     queryFn: () => getPresupuestoTotal(empresaId!),
-     enabled: !!empresaId,
+    enabled: !!empresaId,
   });
 }
 

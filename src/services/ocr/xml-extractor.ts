@@ -153,8 +153,13 @@ function parseSri(doc: Document, rawText: string): XmlExtractionResult {
 
   // Normalizar moneda SRI: "DOLAR" -> "USD"
   const monedaMap: Record<string, string> = {
-    DOLAR: "USD", USD: "USD", SOLES: "PEN", PEN: "PEN",
-    PESOS: "COP", COP: "COP", EUR: "EUR",
+    DOLAR: "USD",
+    USD: "USD",
+    SOLES: "PEN",
+    PEN: "PEN",
+    PESOS: "COP",
+    COP: "COP",
+    EUR: "EUR",
   };
   const moneda = monedaRaw ? (monedaMap[monedaRaw.toUpperCase()] ?? monedaRaw) : undefined;
 
@@ -207,39 +212,70 @@ function inferirCategoriaDesdeItems(items: string[]): string {
   const texto = items.join(" ").toLowerCase();
 
   // COMBUSTIBLE: tipos de gasolina Ecuador (Extra, Super, Eco, Diesel) + marcas
-  if (/\bextra\b|\bsuper\b|\bdiesel\b|\beco\b|ecopais|etanol|gasolina|combustible|fuel|petroleo|galones|nafta|gasolinera|estacion de servicio|primax|terpel|repsol|petroecuador|ep petro|gulf|texaco|puma energia|biomax/.test(texto))
+  if (
+    /\bextra\b|\bsuper\b|\bdiesel\b|\beco\b|ecopais|etanol|gasolina|combustible|fuel|petroleo|galones|nafta|gasolinera|estacion de servicio|primax|terpel|repsol|petroecuador|ep petro|gulf|texaco|puma energia|biomax/.test(
+      texto,
+    )
+  )
     return "Combustible";
 
   // HOSPEDAJE
-  if (/hotel|hostal|hosteria|hospedaje|habitacion|alojamiento|suite|inn|lodge|resort|airbnb|cabana|apartamento|apart|motel|pensione|posada|glamping/.test(texto))
+  if (
+    /hotel|hostal|hosteria|hospedaje|habitacion|alojamiento|suite|inn|lodge|resort|airbnb|cabana|apartamento|apart|motel|pensione|posada|glamping/.test(
+      texto,
+    )
+  )
     return "Hospedaje";
 
   // MOVILIZACION: transporte terrestre, alquiler de vehículos
-  if (/taxi|uber|indriver|cabify|bus\b|buseta|camioneta|alquiler.*vehic|vehic.*alquiler|rent.?a.?car|rental|estacionamiento|parqueadero|parqueo|pasaje|transporte|moviliz|transfer|autobus|microbas|tren|metro|mototaxi/.test(texto))
+  if (
+    /taxi|uber|indriver|cabify|bus\b|buseta|camioneta|alquiler.*vehic|vehic.*alquiler|rent.?a.?car|rental|estacionamiento|parqueadero|parqueo|pasaje|transporte|moviliz|transfer|autobus|microbas|tren|metro|mototaxi/.test(
+      texto,
+    )
+  )
     return "Movilizacion";
 
   // PEAJE
-  if (/\bpeaje\b|\btoll\b/.test(texto))
-    return "Peaje";
+  if (/\bpeaje\b|\btoll\b/.test(texto)) return "Peaje";
 
   // SALUD
-  if (/farmacia|medicamento|medicina|clinica|hospital|doctor|consulta medica|laboratorio|odontolog|dental|optometria|optica|enfermeria|ambulancia|seguro medico|salud/.test(texto))
+  if (
+    /farmacia|medicamento|medicina|clinica|hospital|doctor|consulta medica|laboratorio|odontolog|dental|optometria|optica|enfermeria|ambulancia|seguro medico|salud/.test(
+      texto,
+    )
+  )
     return "Salud";
 
   // ALIMENTACION: comidas, bebidas, supermercados
-  if (/coca|cola|bebida|agua|jugo|jucy|mandarina|naranja|manzana|yogur|leche|mineral|snack|empacado|sandwich|sanduche|pan\b|comida|almuerzo|desayuno|cafe|restaurant|soda|energy|refresco|pollo|carne|\bres\b|cerdo|chancho|fritada|seco de|arroz|ensalada|hamburguesa|burger|pizza|helado|postre|empanada|tamal|taco|sushi|mariscos|ceviche|chifa|broster|alimento|comedor|cafeteria|tienda\b|minimarket|supermercad|panaderia|pasteleria|confiter|bocadillo|merienda|lonchera|brunch|lunch|dinner|meal|food|fiambre|choclo|mote|humita|menestra|lenteja|sopa|caldo|chupe|locro|aguado|encebollado|guatita|hornado|pernil|chicha|limonada|limon|pina|mora|tomate|papas|yuca|platano|verde|maduro|sango|tigrillo|bolon|queso|quesillo|mantequilla|mermelada|granola|cereal|avena/.test(texto))
+  if (
+    /coca|cola|bebida|agua|jugo|jucy|mandarina|naranja|manzana|yogur|leche|mineral|snack|empacado|sandwich|sanduche|pan\b|comida|almuerzo|desayuno|cafe|restaurant|soda|energy|refresco|pollo|carne|\bres\b|cerdo|chancho|fritada|seco de|arroz|ensalada|hamburguesa|burger|pizza|helado|postre|empanada|tamal|taco|sushi|mariscos|ceviche|chifa|broster|alimento|comedor|cafeteria|tienda\b|minimarket|supermercad|panaderia|pasteleria|confiter|bocadillo|merienda|lonchera|brunch|lunch|dinner|meal|food|fiambre|choclo|mote|humita|menestra|lenteja|sopa|caldo|chupe|locro|aguado|encebollado|guatita|hornado|pernil|chicha|limonada|limon|pina|mora|tomate|papas|yuca|platano|verde|maduro|sango|tigrillo|bolon|queso|quesillo|mantequilla|mermelada|granola|cereal|avena/.test(
+      texto,
+    )
+  )
     return "Alimentacion";
 
   // MATERIAL DE OFICINA
-  if (/papeleria|resma|toner|cartucho|impresora|cuaderno|lapiz|boligrafo|carpeta|archivador|grapadora|tijeras|marcador|pizarra|material de oficina|utiles de oficina|suministro/.test(texto))
+  if (
+    /papeleria|resma|toner|cartucho|impresora|cuaderno|lapiz|boligrafo|carpeta|archivador|grapadora|tijeras|marcador|pizarra|material de oficina|utiles de oficina|suministro/.test(
+      texto,
+    )
+  )
     return "Material de Oficina";
 
   // TELECOMUNICACIONES
-  if (/internet|fibra optica|plan datos|plan movil|recarga|telefono|celular|claro|movistar|cnt|tuenti|telecomunicacion|cable|streaming/.test(texto))
+  if (
+    /internet|fibra optica|plan datos|plan movil|recarga|telefono|celular|claro|movistar|cnt|tuenti|telecomunicacion|cable|streaming/.test(
+      texto,
+    )
+  )
     return "Telecomunicaciones";
 
   // REPRESENTACION / ENTRETENIMIENTO
-  if (/evento|conferencia|seminario|capacitacion|curso|taller|congreso|inscripcion|membresia|suscripcion|teatro|cine|concierto/.test(texto))
+  if (
+    /evento|conferencia|seminario|capacitacion|curso|taller|congreso|inscripcion|membresia|suscripcion|teatro|cine|concierto/.test(
+      texto,
+    )
+  )
     return "Representacion";
 
   return "Miscelaneos";
@@ -344,8 +380,7 @@ function parseUbl(doc: Document): XmlExtractionResult {
     legalMonetaryTotal?.getElementsByTagName("cbc:PayableAmount")[0]?.textContent?.trim();
 
   const taxTotalEl =
-    doc.getElementsByTagName("TaxAmount")[0] ??
-    doc.getElementsByTagName("cbc:TaxAmount")[0];
+    doc.getElementsByTagName("TaxAmount")[0] ?? doc.getElementsByTagName("cbc:TaxAmount")[0];
   const ivaStr = taxTotalEl?.textContent?.trim();
 
   const lineExtAmt =
@@ -356,7 +391,9 @@ function parseUbl(doc: Document): XmlExtractionResult {
     emisor,
     rfc: ruc,
     fecha: normalizarFecha(getTagText("IssueDate")),
-    moneda: normalizarMoneda(getTagAttr("DocumentCurrencyCode", "listID") ?? getTagText("DocumentCurrencyCode")),
+    moneda: normalizarMoneda(
+      getTagAttr("DocumentCurrencyCode", "listID") ?? getTagText("DocumentCurrencyCode"),
+    ),
     subtotal: lineExtAmt ? parseFloat(lineExtAmt) : null,
     iva: ivaStr ? parseFloat(ivaStr) : null,
     total: totalStr ? parseFloat(totalStr) : null,
@@ -373,10 +410,8 @@ function parseUbl(doc: Document): XmlExtractionResult {
 
 function parseGenerico(doc: Document, rawText: string): XmlExtractionResult {
   // Extraer todo el texto visible del XML (sin tags)
-  const textoVisible = doc.documentElement.textContent
-    ?.replace(/\s+/g, " ")
-    .trim()
-    .substring(0, 3000) ?? "";
+  const textoVisible =
+    doc.documentElement.textContent?.replace(/\s+/g, " ").trim().substring(0, 3000) ?? "";
 
   // Intentar extraer algunos valores comunes por regex
   const montoMatch = rawText.match(/[Tt]otal[^>]*>[\s]*([\d,.]+)/);

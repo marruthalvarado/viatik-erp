@@ -40,18 +40,18 @@ interface Modulo {
 }
 
 const MODULOS: Modulo[] = [
-  { codigo: "dashboard",      label: "Dashboard",           grupo: "Workspace" },
-  { codigo: "rendiciones",    label: "Rendiciones",          grupo: "Workspace" },
-  { codigo: "workflow",       label: "Workflow",             grupo: "Workspace" },
-  { codigo: "documentos",     label: "Documentos",           grupo: "Workspace" },
-  { codigo: "clientes",       label: "Clientes",             grupo: "Relaciones" },
-  { codigo: "proyectos",      label: "Proyectos",            grupo: "Relaciones" },
-  { codigo: "proveedores",    label: "Proveedores",          grupo: "Relaciones" },
-  { codigo: "presupuestos",   label: "Presupuestos",         grupo: "Finanzas" },
-  { codigo: "gastos",         label: "Gastos",               grupo: "Finanzas" },
-  { codigo: "reportes",       label: "Reportes (todos)",     grupo: "Finanzas" },
-  { codigo: "configuracion",  label: "Configuración",        grupo: "Sistema" },
-  { codigo: "administracion", label: "Administración",       grupo: "Sistema" },
+  { codigo: "dashboard", label: "Dashboard", grupo: "Workspace" },
+  { codigo: "rendiciones", label: "Rendiciones", grupo: "Workspace" },
+  { codigo: "workflow", label: "Workflow", grupo: "Workspace" },
+  { codigo: "documentos", label: "Documentos", grupo: "Workspace" },
+  { codigo: "clientes", label: "Clientes", grupo: "Relaciones" },
+  { codigo: "proyectos", label: "Proyectos", grupo: "Relaciones" },
+  { codigo: "proveedores", label: "Proveedores", grupo: "Relaciones" },
+  { codigo: "presupuestos", label: "Presupuestos", grupo: "Finanzas" },
+  { codigo: "gastos", label: "Gastos", grupo: "Finanzas" },
+  { codigo: "reportes", label: "Reportes (todos)", grupo: "Finanzas" },
+  { codigo: "configuracion", label: "Configuración", grupo: "Sistema" },
+  { codigo: "administracion", label: "Administración", grupo: "Sistema" },
 ];
 
 const GRUPOS = [...new Set(MODULOS.map((m) => m.grupo))];
@@ -110,10 +110,7 @@ function ModulosChecklist({ value, onChange }: ModulosChecklistProps) {
     <div className="space-y-3">
       {/* Opción "acceso total" */}
       <label className="flex items-center gap-2 cursor-pointer select-none">
-        <Checkbox
-          checked={sinRestriccion}
-          onCheckedChange={(c) => toggleSinRestriccion(!!c)}
-        />
+        <Checkbox checked={sinRestriccion} onCheckedChange={(c) => toggleSinRestriccion(!!c)} />
         <span className="text-sm font-medium">Acceso total (sin restricciones)</span>
       </label>
 
@@ -127,7 +124,10 @@ function ModulosChecklist({ value, onChange }: ModulosChecklistProps) {
               </p>
               <div className="grid grid-cols-2 gap-1.5">
                 {MODULOS.filter((m) => m.grupo === grupo).map((m) => (
-                  <label key={m.codigo} className="flex items-center gap-2 cursor-pointer select-none">
+                  <label
+                    key={m.codigo}
+                    className="flex items-center gap-2 cursor-pointer select-none"
+                  >
                     <Checkbox
                       checked={(value ?? []).includes(m.codigo)}
                       onCheckedChange={(c) => toggleModulo(m.codigo, !!c)}
@@ -400,10 +400,7 @@ export function RolesSection() {
                       <FormItem>
                         <FormLabel>Módulos accesibles</FormLabel>
                         <FormControl>
-                          <ModulosChecklist
-                            value={field.value}
-                            onChange={field.onChange}
-                          />
+                          <ModulosChecklist value={field.value} onChange={field.onChange} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

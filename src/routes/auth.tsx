@@ -38,7 +38,9 @@ function AuthPage() {
 
   // Detect Supabase password-recovery redirect (link in email)
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
       if (event === "PASSWORD_RECOVERY") {
         setRecoveryMode(true);
       }

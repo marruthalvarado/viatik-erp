@@ -70,7 +70,9 @@ export function AiExpenseReview({
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
               <div className="flex items-center gap-1.5 mb-1.5">
                 <AlertTriangle className="size-3.5 text-amber-600 shrink-0" aria-hidden="true" />
-                <span className="text-xs font-semibold text-amber-800">Posibles inconsistencias</span>
+                <span className="text-xs font-semibold text-amber-800">
+                  Posibles inconsistencias
+                </span>
               </div>
               <ul className="list-disc list-inside space-y-0.5">
                 {propuesta.inconsistencias.map((inc, i) => (
@@ -88,7 +90,14 @@ export function AiExpenseReview({
             <Campo label="N° Factura" valor={propuesta.numeroFactura} />
             <Campo label="Fecha" valor={propuesta.fecha} />
             <Campo label="Moneda" valor={propuesta.moneda} />
-            <Campo label="Total" valor={propuesta.total !== null ? formatCurrency(propuesta.total, propuesta.moneda ?? "USD") : null} />
+            <Campo
+              label="Total"
+              valor={
+                propuesta.total !== null
+                  ? formatCurrency(propuesta.total, propuesta.moneda ?? "USD")
+                  : null
+              }
+            />
             {propuesta.categoriasSugeridas.length > 0 && (
               <Campo label="Categoría sugerida" valor={propuesta.categoriasSugeridas[0]} />
             )}

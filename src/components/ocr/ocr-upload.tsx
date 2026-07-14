@@ -24,7 +24,13 @@ export interface OcrUploadProps {
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
-const TIPOS_ACEPTADOS = ["image/jpeg", "image/png", "application/pdf", "application/xml", "text/xml"];
+const TIPOS_ACEPTADOS = [
+  "image/jpeg",
+  "image/png",
+  "application/pdf",
+  "application/xml",
+  "text/xml",
+];
 const EXTENSIONES_LABEL = "JPG, PNG, PDF, XML";
 const MAX_MB = 20;
 

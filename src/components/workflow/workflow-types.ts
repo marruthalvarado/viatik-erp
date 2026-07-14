@@ -15,12 +15,7 @@ import type {
 // ---------------------------------------------------------------------------
 
 export type EstadoWorkflow =
-  | "borrador"
-  | "enviada"
-  | "en_revision"
-  | "aprobada"
-  | "rechazada"
-  | "devuelta";
+  "borrador" | "enviada" | "en_revision" | "aprobada" | "rechazada" | "devuelta";
 
 export type AccionCodigo = "aprobar" | "rechazar" | "devolver";
 

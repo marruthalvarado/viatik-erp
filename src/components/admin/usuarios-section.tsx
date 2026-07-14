@@ -134,7 +134,11 @@ export function UsuariosSection() {
     try {
       await actualizarPerfil.mutateAsync({
         usuarioId: editTarget.usuario_id,
-        data: { nombres: editNombres.trim(), apellidos: editApellidos.trim(), cargo: editCargo.trim() },
+        data: {
+          nombres: editNombres.trim(),
+          apellidos: editApellidos.trim(),
+          cargo: editCargo.trim(),
+        },
       });
       toast.success("Perfil actualizado.");
       setEditTarget(null);
@@ -323,7 +327,12 @@ export function UsuariosSection() {
       </Dialog>
 
       {/* Dialog: editar perfil de usuario */}
-      <Dialog open={!!editTarget} onOpenChange={(v) => { if (!v) setEditTarget(null); }}>
+      <Dialog
+        open={!!editTarget}
+        onOpenChange={(v) => {
+          if (!v) setEditTarget(null);
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Editar perfil</DialogTitle>

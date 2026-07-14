@@ -22,13 +22,7 @@ import {
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
 export type EstadoUpload =
-  | "idle"
-  | "validando"
-  | "subiendo"
-  | "procesando_ocr"
-  | "completado"
-  | "error"
-  | "cancelado";
+  "idle" | "validando" | "subiendo" | "procesando_ocr" | "completado" | "error" | "cancelado";
 
 export interface UseUploadDocumentOptions {
   empresaId: string;

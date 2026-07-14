@@ -600,7 +600,12 @@ export function GastosTab({
       </Drawer>
 
       {/* Confirmación de eliminación */}
-      <AlertDialog open={!!gastoEliminar} onOpenChange={(open) => { if (!open) setGastoEliminar(null); }}>
+      <AlertDialog
+        open={!!gastoEliminar}
+        onOpenChange={(open) => {
+          if (!open) setGastoEliminar(null);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar gasto?</AlertDialogTitle>
@@ -622,7 +627,12 @@ export function GastosTab({
       </AlertDialog>
 
       {/* Editar gasto */}
-      <Drawer open={gastoEditar !== null} onOpenChange={(open) => { if (!open) setGastoEditar(null); }}>
+      <Drawer
+        open={gastoEditar !== null}
+        onOpenChange={(open) => {
+          if (!open) setGastoEditar(null);
+        }}
+      >
         <DrawerContent onInteractOutside={(e) => e.preventDefault()}>
           <DrawerHeader>
             <DrawerTitle>Editar gasto</DrawerTitle>

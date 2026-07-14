@@ -48,7 +48,12 @@ const TOPE_LABELS: Record<string, string> = {
   tope_miscelaneo: "Misceláneo",
 };
 
-const BOOLEANS = ["paga_combustible", "paga_peajes", "activo", "acepta_facturas_fuera_rango"] as const;
+const BOOLEANS = [
+  "paga_combustible",
+  "paga_peajes",
+  "activo",
+  "acepta_facturas_fuera_rango",
+] as const;
 
 const BOOL_LABELS: Record<string, string> = {
   paga_combustible: "Paga combustible",

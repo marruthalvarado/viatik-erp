@@ -71,8 +71,8 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       .from("empresas_usuarios")
       .select(
         "empresa_id, activo, " +
-        "empresa:empresas(id, nombre, codigo, logo_url, deleted_at), " +
-        "rol:roles(id, codigo, nombre, modulos_permitidos)"
+          "empresa:empresas(id, nombre, codigo, logo_url, deleted_at), " +
+          "rol:roles(id, codigo, nombre, modulos_permitidos)",
       )
       .eq("usuario_id", user.id)
       .eq("activo", true);
@@ -137,7 +137,16 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       setEmpresaActiva,
       refresh: fetchEmpresas,
     };
-  }, [empresas, empresaActivaId, rolesMap, authLoading, loading, error, setEmpresaActiva, fetchEmpresas]);
+  }, [
+    empresas,
+    empresaActivaId,
+    rolesMap,
+    authLoading,
+    loading,
+    error,
+    setEmpresaActiva,
+    fetchEmpresas,
+  ]);
 
   return <CompanyContext.Provider value={value}>{children}</CompanyContext.Provider>;
 }

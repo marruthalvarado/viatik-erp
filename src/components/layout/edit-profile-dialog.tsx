@@ -4,8 +4,12 @@
  */
 import { useEffect, useState } from "react";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
-  DialogDescription, DialogFooter,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,7 +58,11 @@ export function EditProfileDialog({ open, onOpenChange }: Props) {
     }
     setError(null);
     try {
-      await actualizar.mutateAsync({ nombres: nombres.trim(), apellidos: apellidos.trim(), cargo: cargo.trim() });
+      await actualizar.mutateAsync({
+        nombres: nombres.trim(),
+        apellidos: apellidos.trim(),
+        cargo: cargo.trim(),
+      });
       toast.success("Perfil actualizado.");
       onOpenChange(false);
     } catch (err) {

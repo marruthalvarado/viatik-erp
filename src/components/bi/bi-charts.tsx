@@ -282,10 +282,20 @@ export function BiTopProveedoresChart({ data, loading, onNavigate }: TopProveedo
 const RADIAN = Math.PI / 180;
 
 function PieLabel({
-  cx, cy, midAngle, innerRadius, outerRadius, percent,
+  cx,
+  cy,
+  midAngle,
+  innerRadius,
+  outerRadius,
+  percent,
 }: {
-  cx: number; cy: number; midAngle: number;
-  innerRadius: number; outerRadius: number; percent: number; name: string;
+  cx: number;
+  cy: number;
+  midAngle: number;
+  innerRadius: number;
+  outerRadius: number;
+  percent: number;
+  name: string;
 }) {
   if (percent < 0.05) return null;
   const radius = innerRadius + (outerRadius - innerRadius) * 0.55;
