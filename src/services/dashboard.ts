@@ -604,3 +604,8 @@ export async function getResumenFinancieroProyectos(
     };
   });
 }
+a,
+      margen_pct,
+    };
+  });
+}
