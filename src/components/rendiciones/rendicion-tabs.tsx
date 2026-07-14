@@ -427,30 +427,35 @@ export function GastosTab({
       key: "id",
       header: "",
       className: "w-20",
-      cell: (row) => (
-        <div className="flex items-center justify-end gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => setGastoEditar(row)}
-            aria-label="Editar gasto"
-          >
-            <Pencil className="size-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 text-destructive hover:text-destructive"
-            onClick={() => setGastoEliminar(row)}
-            aria-label="Eliminar gasto"
-          >
-            <Trash2 className="size-3.5" />
-          </Button>
-        </div>
-      ),
+      cell: (row) =>
+        puedeEditar ? (
+          <div className="flex items-center justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => setGastoEditar(row)}
+              aria-label="Editar gasto"
+            >
+              <Pencil className="size-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-destructive hover:text-destructive"
+              onClick={() => setGastoEliminar(row)}
+              aria-label="Eliminar gasto"
+            >
+              <Trash2 className="size-3.5" />
+            </Button>
+          </div>
+        ) : null,
     },
   ];
+
+  // Estados que permiten editar gastos y enviar la rendición
+  const ESTADOS_EDITABLES = ["borrador", "registrada", "devuelta"];
+  const puedeEditar = ESTADOS_EDITABLES.includes(rendicionEstadoCodigo ?? "");
 
   return (
     <>
@@ -460,16 +465,18 @@ export function GastosTab({
             {gastosRaw.length} gasto{gastosRaw.length !== 1 ? "s" : ""} registrado
             {gastosRaw.length !== 1 ? "s" : ""}
           </p>
-          <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" onClick={() => setWizardOpen(true)}>
-              <ScanLine className="mr-1 size-3.5" />
-              Cargar Factura
-            </Button>
-            <Button size="sm" onClick={() => setDrawerOpen(true)}>
-              <Plus className="mr-1 size-3.5" />
-              +Nuevo Gasto Manual
-            </Button>
-          </div>
+          {puedeEditar && (
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={() => setWizardOpen(true)}>
+                <ScanLine className="mr-1 size-3.5" />
+                Cargar Factura
+              </Button>
+              <Button size="sm" onClick={() => setDrawerOpen(true)}>
+                <Plus className="mr-1 size-3.5" />
+                Nuevo Gasto
+              </Button>
+            </div>
+          )}
         </div>
         <DataTable
           columns={columns}
@@ -506,16 +513,18 @@ export function GastosTab({
         )}
       </div>
 
-      <div className="mt-4 flex justify-end border-t pt-4">
-        <Button
-          variant="default"
-          onClick={() => void handleEnviar()}
-          disabled={enviarAprobacion.isPending}
-        >
-          <Send className="mr-1.5 size-4" />
-          {enviarAprobacion.isPending ? "Enviando..." : "Enviar rendición"}
-        </Button>
-      </div>
+      {puedeEditar && (
+        <div className="mt-4 flex justify-end border-t pt-4">
+          <Button
+            variant="default"
+            onClick={() => void handleEnviar()}
+            disabled={enviarAprobacion.isPending}
+          >
+            <Send className="mr-1.5 size-4" />
+            {enviarAprobacion.isPending ? "Enviando..." : "Enviar rendición"}
+          </Button>
+        </div>
+      )}
 
       {/* Alert: validación fallida */}
       <AlertDialog open={!!alertMsg} onOpenChange={() => setAlertMsg(null)}>
@@ -674,7 +683,13 @@ async function abrirDocumento(storagePath: string | null, nombre: string | null)
   void nombre;
 }
 
-export function DocumentosTab({ rendicionId }: { rendicionId: string }) {
+export function DocumentosTab({
+  rendicionId,
+  rendicionEstadoCodigo,
+}: {
+  rendicionId: string;
+  rendicionEstadoCodigo?: string | null;
+}) {
   const { data, isLoading } = useDocumentos({
     pageSize: 50,
     filters: { rendicion_id: rendicionId },
@@ -719,6 +734,9 @@ export function DocumentosTab({ rendicionId }: { rendicionId: string }) {
     },
   ];
 
+  const ESTADOS_EDITABLES_DOC = ["borrador", "registrada", "devuelta"];
+  const puedeAgregarDoc = ESTADOS_EDITABLES_DOC.includes(rendicionEstadoCodigo ?? "");
+
   return (
     <div>
       <div className="mb-3 flex items-center justify-between">
@@ -735,6 +753,12 @@ export function DocumentosTab({ rendicionId }: { rendicionId: string }) {
         emptyTitle="Sin documentos"
         emptyDescription="No hay documentos adjuntos a esta rendicion."
       />
+      {puedeAgregarDoc && (
+        <p className="mt-3 text-xs text-muted-foreground">
+          Para adjuntar documentos usa <span className="font-medium">Cargar Factura</span> en la
+          pestaña Gastos.
+        </p>
+      )}
     </div>
   );
 }

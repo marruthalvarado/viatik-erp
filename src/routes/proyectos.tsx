@@ -140,35 +140,36 @@ function ProyectosContent() {
       key: "acciones",
       header: "",
       className: "w-[88px]",
-      cell: (row) => (
-        <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            aria-label="Editar proyecto"
-            onClick={(e) => {
-              e.stopPropagation();
-              setEditingProyecto(row);
-              setDrawerOpen(true);
-            }}
-          >
-            <Pencil className="size-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 text-destructive hover:text-destructive"
-            aria-label="Eliminar proyecto"
-            onClick={(e) => {
-              e.stopPropagation();
-              setDeletingProyecto(row);
-            }}
-          >
-            <Trash2 className="size-3.5" />
-          </Button>
-        </div>
-      ),
+      cell: (row) =>
+        puedeCrear ? (
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              aria-label="Editar proyecto"
+              onClick={(e) => {
+                e.stopPropagation();
+                setEditingProyecto(row);
+                setDrawerOpen(true);
+              }}
+            >
+              <Pencil className="size-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-destructive hover:text-destructive"
+              aria-label="Eliminar proyecto"
+              onClick={(e) => {
+                e.stopPropagation();
+                setDeletingProyecto(row);
+              }}
+            >
+              <Trash2 className="size-3.5" />
+            </Button>
+          </div>
+        ) : null,
     },
   ];
 

@@ -377,6 +377,14 @@ function RendicionesList({ onSelect }: RendicionesListProps) {
         <DrawerContent className="sm:max-w-lg">
           <DrawerHeader>
             <DrawerTitle>{editingRendicion ? "Editar rendición" : "Nueva rendición"}</DrawerTitle>
+            {editingRendicion && (
+              <div className="mt-1 flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Estado:</span>
+                <StatusBadge tone={estadoTone(estadoCodigo(editingRendicion.estado_rendicion_id))}>
+                  {estadoNombreFn(editingRendicion.estado_rendicion_id)}
+                </StatusBadge>
+              </div>
+            )}
             <DrawerDescription>
               {editingRendicion
                 ? "Modifica los datos de la rendición."

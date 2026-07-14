@@ -46,7 +46,7 @@ import type { Rendicion, RendicionUpdate, ViajeUpdate } from "@/types/entities";
 import { RendicionForm } from "./rendicion-form";
 import { rendicionToForm, emptyToNull, estadoTone } from "./rendicion-types";
 import type { RendicionFormValues } from "./rendicion-types";
-import { exportarLiquidacion } from "@/services/liquidacion-export";
+import { exportarLiquidacion, exportarLiquidacionPDF } from "@/services/liquidacion-export";
 import { WorkflowTab } from "./workflow-tab";
 import { useWorkflows } from "@/hooks/entities/use-workflow";
 import { useEnviarRendicion } from "@/hooks/entities/use-rendicion-aprobacion";
@@ -91,6 +91,7 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [deletingRendicion, setDeletingRendicion] = useState(false);
   const [exportando, setExportando] = useState(false);
+  const [exportandoPDF, setExportandoPDF] = useState(false);
   const [activeTab, setActiveTab] = useState("gastos");
 
   const { data: proyectosData } = useProyectos({ pageSize: 200 });
@@ -224,6 +225,18 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
     }
   }
 
+  async function handleExportarPDF() {
+    setExportandoPDF(true);
+    try {
+      await exportarLiquidacionPDF(rendicion);
+      toast.success("PDF generado correctamente.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al generar el PDF.");
+    } finally {
+      setExportandoPDF(false);
+    }
+  }
+
   async function handleExportarLiquidacion() {
     setExportando(true);
     try {
@@ -280,12 +293,23 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
               variant="outline"
               size="sm"
               className="gap-1.5"
-              aria-label="Exportar liquidación de viáticos"
+              aria-label="Exportar liquidación PDF"
+              disabled={exportandoPDF}
+              onClick={() => void handleExportarPDF()}
+            >
+              <FileText className="size-4" />
+              {exportandoPDF ? "Generando…" : "PDF"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              aria-label="Exportar liquidación Excel"
               disabled={exportando}
               onClick={() => void handleExportarLiquidacion()}
             >
               <Download className="size-4" />
-              {exportando ? "Generando…" : "Liquidación"}
+              {exportando ? "Generando…" : "Excel"}
             </Button>
 
             <Button
@@ -384,7 +408,7 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
         </TabsContent>
 
         <TabsContent value="documentos">
-          <DocumentosTab rendicionId={rendicion.id} />
+          <DocumentosTab rendicionId={rendicion.id} rendicionEstadoCodigo={estadoCodigo} />
         </TabsContent>
 
         <TabsContent value="workflow">
@@ -406,7 +430,7 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
           </DrawerHeader>
           <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6">
             <RendicionForm
-              defaultValues={rendicionToForm(rendicion, viajeExistente)}
+              defaultValues={rendicionToForm(rendicion, viajeExistente ?? undefined)}
               onSubmit={handleSubmitEdit}
               onCancel={() => setDrawerOpen(false)}
               loading={actualizar.isPending || actualizarViaje.isPending}
@@ -422,8 +446,10 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
 
       <DeleteDialog
         open={deletingRendicion}
-        onOpenChange={(open) => !open && setDeletingRendicion(false)}
-        entityLabel={`la rendición "${rendicion.numero}"`}
+        onOpenChange={(open) => {
+          if (!open) setDeletingRendicion(false);
+        }}
+        entityLabel={`la rendicion "${rendicion.numero}"`}
         onConfirm={handleDelete}
         loading={eliminar.isPending}
       />

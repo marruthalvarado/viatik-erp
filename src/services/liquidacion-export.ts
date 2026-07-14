@@ -603,28 +603,25 @@ export async function exportarLiquidacion(rendicion: Rendicion): Promise<void> {
     merge(r2, 4, 5);
   });
 
-  // Firmas
+  // Firmas — 3 columnas: Empleado | Aprobador | Contabilidad
   pushRow(row(), 8);
   pushRow(row(), 8);
   const LINE = "___________________________________";
-  [
-    {
-      l: [LINE, empleadoNombre, "Empleado / Viajante"],
-      r: [LINE, "Jefe inmediato", "Aprobado por / Firma"],
-    },
-    {
-      l: [LINE, "Aprobado por / Cliente", "Firma / Sello"],
-      r: [LINE, "Contabilidad", "Revisado / Firma"],
-    },
-  ].forEach((fb) => {
-    for (let li = 0; li < 3; li++) {
-      const r2 = aoa.length + 1;
-      pushRow(row("", fb.l[li], "", "", fb.r[li]), li === 0 ? 20 : 13);
-      merge(r2, 1, 3);
-      merge(r2, 4, 6);
-    }
-    pushRow(row(), 10);
-  });
+  const firmas3 = [
+    [LINE, empleadoNombre, "Empleado / Viajante"],
+    [LINE, aprobadorNombre, "Aprobador / Firma"],
+    [LINE, "Contabilidad", "Revisado / Sello"],
+  ];
+  for (let li = 0; li < 3; li++) {
+    const r2 = aoa.length + 1;
+    pushRow(
+      row("", firmas3[0][li], "", firmas3[1][li], "", firmas3[2][li], ""),
+      li === 0 ? 20 : 13,
+    );
+    merge(r2, 1, 2); // B-C
+    merge(r2, 3, 4); // D-E
+    merge(r2, 5, 6); // F-G
+  }
 
   // Crear worksheet desde AOA
   const ws: WS = XLSX.utils.aoa_to_sheet(aoa) as WS;
@@ -755,7 +752,7 @@ export async function exportarLiquidacion(rendicion: Rendicion): Promise<void> {
   setF(ws, "G", R_RF_TOT, `G${R_RF_A}+G${R_RF_B}+G${R_RF_C}+G${R_RF_D}`, totalGeneral);
   setF(ws, "G", R_RF_DIF, `G${R_RF_TOT}-G${R_RF_AE}-G${R_RF_AC}`, diferencia);
 
-  // Generar y descargar
+  // Generar y descargar (Excel)
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Liquidacion Viaje");
 
@@ -771,4 +768,283 @@ export async function exportarLiquidacion(rendicion: Rendicion): Promise<void> {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+// ---------------------------------------------------------------------------
+// Export PDF
+// ---------------------------------------------------------------------------
+export async function exportarLiquidacionPDF(rendicion: Rendicion): Promise<void> {
+  const { default: jsPDF } = await import("jspdf");
+  const { default: autoTable } = await import("jspdf-autotable");
+
+  const [
+    gastos,
+    viajes,
+    politica,
+    empleadoNombre,
+    empresaNombre,
+    proyectoNombre,
+    estadoNombre,
+    aprobadorNombre,
+  ] = await Promise.all([
+    fetchGastos(rendicion.id),
+    fetchViajes(rendicion.id),
+    fetchPolitica(rendicion.politica_id, rendicion.empresa_id),
+    fetchUsuarioNombre(rendicion.usuario_id),
+    fetchEmpresaNombre(rendicion.empresa_id),
+    fetchProyectoNombre(rendicion.proyecto_id),
+    fetchEstadoNombre(rendicion.estado_rendicion_id),
+    fetchAprobadorNombre(rendicion.aprobador_id),
+  ]);
+
+  const gastosEf = aplicarPolitica(gastos, politica);
+  const valorKm = n(politica?.valor_km);
+  const kmCiudadDia = n(politica?.km_ciudad_por_dia);
+
+  const viajePropio = viajes.find((v) => v.vehiculo_propio) ?? null;
+  const viajeMain = viajes[0] ?? null;
+  const destino = viajeMain?.destino ?? "-";
+  const periodoInicio = viajePropio?.fecha_inicio ?? viajeMain?.fecha_inicio ?? null;
+  const periodoFin = viajePropio?.fecha_fin ?? viajeMain?.fecha_fin ?? null;
+  const periodo = periodoInicio ? `${fmtDate(periodoInicio)} al ${fmtDate(periodoFin)}` : "-";
+  const diasViaje =
+    periodoInicio && periodoFin
+      ? Math.ceil((new Date(periodoFin).getTime() - new Date(periodoInicio).getTime()) / 86400000) +
+        1
+      : 0;
+
+  const antEfectivo = n(rendicion.anticipo_efectivo);
+  const antCredito = n(rendicion.anticipo_credito);
+
+  const hosG = gastosEf.filter((g) => categoriaSeccion(g.categoria_nombre) === "hospedaje");
+  const movG = gastosEf.filter((g) => categoriaSeccion(g.categoria_nombre) === "movilizacion");
+  const alimentG = gastosEf.filter((g) => categoriaSeccion(g.categoria_nombre) === "alimentacion");
+  const miscG = gastosEf.filter((g) => categoriaSeccion(g.categoria_nombre) === "miscelaneos");
+
+  const kmRows = viajes
+    .filter((v) => v.vehiculo_propio && (v.distancia_km ?? 0) > 0)
+    .map((v) => ({
+      label: `Vehiculo propio - ${v.origen ? `${v.origen} - ${v.destino}` : v.destino} (${n(v.distancia_km)}km x2)`,
+      valor: n(v.distancia_km) * 2 * valorKm,
+    }));
+  const kmCiudadValor = diasViaje > 0 && kmCiudadDia > 0 ? diasViaje * kmCiudadDia * valorKm : 0;
+
+  const fmt = (v: number | null | undefined) => `$${Number(v ?? 0).toFixed(2)}`;
+  const toBodyRow = (g: GastoEnriquecido) => [
+    g.descripcion ?? g.categoria_nombre ?? "-",
+    g.numero_documento ?? "-",
+    g.proveedor_nombre,
+    fmt(g.valor_factura),
+  ];
+
+  const movBody = [
+    ...kmRows.map((km) => [km.label, "-", "Vehiculo propio", fmt(km.valor)]),
+    ...(kmCiudadValor > 0
+      ? [
+          [
+            `Movilizacion ciudad (${diasViaje}d x ${kmCiudadDia}km x $${valorKm})`,
+            "-",
+            "Vehiculo propio",
+            fmt(kmCiudadValor),
+          ],
+        ]
+      : []),
+    ...movG.map(toBodyRow),
+  ];
+  if (movBody.length === 0) movBody.push(["Sin gastos de movilizacion", "", "", "$0.00"]);
+
+  const hosBody =
+    hosG.length > 0 ? hosG.map(toBodyRow) : [["Sin gastos de hospedaje", "", "", "$0.00"]];
+  const alimentBody =
+    alimentG.length > 0
+      ? alimentG.map(toBodyRow)
+      : [["Sin gastos de alimentacion", "", "", "$0.00"]];
+  const miscBody =
+    miscG.length > 0 ? miscG.map(toBodyRow) : [["Sin gastos miscelaneos", "", "", "$0.00"]];
+
+  const totA = hosG.reduce((s, g) => s + n(g.valor_factura), 0);
+  const totB = movBody.reduce((s, r) => {
+    const v = parseFloat(String(r[3]).replace("$", "")) || 0;
+    return s + v;
+  }, 0);
+  const totC = alimentG.reduce((s, g) => s + n(g.valor_factura), 0);
+  const totD = miscG.reduce((s, g) => s + n(g.valor_factura), 0);
+  const totalGeneral = totA + totB + totC + totD;
+  const totalAnticipos = antEfectivo + antCredito;
+  const diferencia = totalGeneral - totalAnticipos;
+
+  // Build PDF
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const TEAL = [13, 75, 96] as [number, number, number];
+  const WHITE = [255, 255, 255] as [number, number, number];
+  const DARK = [31, 41, 51] as [number, number, number];
+  const LIGHT_BG = [246, 250, 251] as [number, number, number];
+  const pageW = doc.internal.pageSize.getWidth();
+  const margin = 14;
+  const contentW = pageW - margin * 2;
+
+  // Header
+  doc.setFillColor(...TEAL);
+  doc.rect(0, 0, pageW, 18, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.setTextColor(...WHITE);
+  doc.text("LIQUIDACION DE GASTOS DE VIAJE, HOSPEDAJE Y ALIMENTACION", pageW / 2, 11, {
+    align: "center",
+  });
+
+  // Info block
+  let y = 24;
+  doc.setFontSize(8);
+  const infoL: [string, string][] = [
+    ["EMPRESA:", empresaNombre],
+    ["EMPLEADO:", empleadoNombre],
+    ["PROYECTO:", proyectoNombre],
+    ["PERIODO:", periodo],
+    ["DESTINO:", destino],
+    ["MOTIVO:", rendicion.motivo ?? rendicion.descripcion ?? "-"],
+    [`RENDICION N: ${rendicion.numero}`, ""],
+    [`FECHA: ${fmtDate(rendicion.fecha_rendicion)}`, ""],
+    ["ESTADO:", estadoNombre],
+    ["APROBADOR:", aprobadorNombre],
+  ];
+  doc.setFillColor(...LIGHT_BG);
+  doc.rect(margin, y - 3, contentW * 0.55, infoL.length * 6 + 2, "F");
+  infoL.forEach(([lbl, val], i) => {
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...TEAL);
+    doc.text(lbl, margin + 1, y + i * 6);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(...DARK);
+    doc.text(val, margin + 30, y + i * 6);
+  });
+
+  // Resumen anticipos (right side)
+  const rx = margin + contentW * 0.57;
+  doc.setFillColor(...TEAL);
+  doc.rect(rx, y - 3, contentW * 0.43, 6, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.setTextColor(...WHITE);
+  doc.text("RESUMEN DE ANTICIPOS", rx + 2, y + 1);
+  const ants: [string, number][] = [
+    ["Anticipo efectivo:", antEfectivo],
+    ["Anticipo tarjeta:", antCredito],
+    ["TOTAL ANTICIPOS:", totalAnticipos],
+  ];
+  ants.forEach(([lbl, val], i) => {
+    const ry = y + 6 + i * 6;
+    doc.setFillColor(...LIGHT_BG);
+    doc.rect(rx, ry - 3, contentW * 0.43, 6, "F");
+    const bold = lbl.startsWith("TOTAL");
+    doc.setFont("helvetica", bold ? "bold" : "normal");
+    doc.setTextColor(bold ? TEAL[0] : DARK[0], bold ? TEAL[1] : DARK[1], bold ? TEAL[2] : DARK[2]);
+    doc.text(lbl, rx + 2, ry + 1);
+    doc.setTextColor(...DARK);
+    doc.text(fmt(val), rx + contentW * 0.43 - 2, ry + 1, { align: "right" });
+  });
+
+  y += infoL.length * 6 + 6;
+
+  // Helper: add section table
+  const addSection = (title: string, body: string[][], subtotal: number) => {
+    doc.setFillColor(...TEAL);
+    doc.rect(margin, y, contentW, 6, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.setTextColor(...WHITE);
+    doc.text(title, margin + 2, y + 4);
+    y += 6;
+    autoTable(doc, {
+      startY: y,
+      margin: { left: margin, right: margin },
+      head: [["Concepto / Detalle", "N Factura", "Proveedor", "Valor ($)"]],
+      body,
+      styles: { fontSize: 7, cellPadding: 1.5, textColor: DARK },
+      headStyles: { fillColor: [191, 201, 208], textColor: DARK, fontStyle: "bold" },
+      columnStyles: { 3: { halign: "right" } },
+      foot: [
+        [
+          {
+            content: `Subtotal: ${fmt(subtotal)}`,
+            colSpan: 4,
+            styles: { halign: "right", fontStyle: "bold", fillColor: LIGHT_BG, textColor: TEAL },
+          },
+        ],
+      ],
+      showFoot: "lastPage",
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    y = (doc as any).lastAutoTable.finalY + 4;
+  };
+
+  addSection("A. HOSPEDAJE", hosBody, totA);
+  addSection("B. MOVILIZACION", movBody, totB);
+  addSection("C. ALIMENTACION", alimentBody, totC);
+  addSection("D. MISCELANEOS", miscBody, totD);
+
+  // Resumen final
+  doc.setFillColor(...TEAL);
+  doc.rect(margin, y, contentW, 6, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.setTextColor(...WHITE);
+  doc.text("RESUMEN FINAL", margin + 2, y + 4);
+  y += 8;
+  const rfRows: [string, number, boolean][] = [
+    ["A. Hospedaje", totA, false],
+    ["B. Movilizacion", totB, false],
+    ["C. Alimentacion", totC, false],
+    ["D. Miscelaneos", totD, false],
+    ["TOTAL GENERAL", totalGeneral, true],
+    ["Menos anticipo efectivo", antEfectivo, false],
+    ["Menos anticipo tarjeta", antCredito, false],
+    ["DIFERENCIA A PAGAR / DEVOLVER", diferencia, true],
+  ];
+  rfRows.forEach(([lbl, val, bold]) => {
+    doc.setFillColor(...(bold ? TEAL : LIGHT_BG));
+    doc.rect(margin + contentW * 0.4, y - 3, contentW * 0.6, 6, "F");
+    doc.setFont("helvetica", bold ? "bold" : "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(...(bold ? WHITE : DARK));
+    doc.text(lbl, margin + contentW * 0.42, y + 1);
+    doc.text(fmt(val), margin + contentW - 1, y + 1, { align: "right" });
+    y += 6;
+  });
+
+  // Firmas — 3 columnas
+  y += 12;
+  const colW = contentW / 3;
+  const LINE_STR = "_".repeat(28);
+  const firmas = [
+    { nombre: empleadoNombre, rol: "Empleado / Viajante" },
+    { nombre: aprobadorNombre, rol: "Aprobador / Firma" },
+    { nombre: "Contabilidad", rol: "Revisado / Sello" },
+  ];
+  firmas.forEach((f, i) => {
+    const fx = margin + i * colW + colW / 2;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(...DARK);
+    doc.text(LINE_STR, fx, y, { align: "center" });
+    doc.setFont("helvetica", "bold");
+    doc.text(f.nombre.length > 22 ? f.nombre.substring(0, 22) + "…" : f.nombre, fx, y + 5, {
+      align: "center",
+    });
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(...TEAL);
+    doc.text(f.rol, fx, y + 10, { align: "center" });
+  });
+
+  // Footer
+  doc.setFontSize(7);
+  doc.setTextColor(150, 150, 150);
+  doc.text(
+    `VIATIQ · Nuclearpet S.A.S. · Generado ${new Date().toLocaleDateString("es-EC")}`,
+    pageW / 2,
+    doc.internal.pageSize.getHeight() - 6,
+    { align: "center" },
+  );
+
+  doc.save(`Liquidacion_${rendicion.numero.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`);
 }
