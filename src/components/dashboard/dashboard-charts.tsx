@@ -46,6 +46,9 @@ const COLORS = [
   "#06b6d4", // cyan
 ];
 
+// Color fijo para la categoría de vehículo propio (km reembolsables)
+const COLOR_KM_VEHICULO = "#f97316"; // orange
+
 // Helpers
 
 function ChartPanel({
@@ -102,15 +105,26 @@ export function EvolucionMensualChart({ data, loading, anio }: EvolucionChartPro
           <Tooltip
             formatter={(value: number, name: string) => [
               formatCurrency(value),
-              name === "total_facturado" ? "Facturado" : "Reembolsable",
+              name === "total_facturado"
+                ? "Facturado"
+                : name === "total_reembolsable"
+                  ? "Reembolsable"
+                  : "Km Vehículo",
             ]}
           />
           <Legend
-            formatter={(v) => (v === "total_facturado" ? "Facturado" : "Reembolsable")}
+            formatter={(v) =>
+              v === "total_facturado"
+                ? "Facturado"
+                : v === "total_reembolsable"
+                  ? "Reembolsable"
+                  : "Km Vehículo"
+            }
             wrapperStyle={{ fontSize: 11 }}
           />
           <Bar dataKey="total_facturado" fill={COLORS[0]} radius={[3, 3, 0, 0]} />
           <Bar dataKey="total_reembolsable" fill={COLORS[1]} radius={[3, 3, 0, 0]} />
+          <Bar dataKey="total_km_vehiculo" fill={COLOR_KM_VEHICULO} radius={[3, 3, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </ChartPanel>
@@ -250,8 +264,15 @@ export function GastosCategoriaChart({ data, loading }: CategoriaChartProps) {
               labelLine={false}
               label={(p) => <PieLabel {...p} name={p.categoria_nombre} />}
             >
-              {top.map((_, i) => (
-                <Cell key={i} fill={COLORS[i % COLORS.length]} />
+              {top.map((cat, i) => (
+                <Cell
+                  key={i}
+                  fill={
+                    cat.categoria_id === "__vehiculo_propio__"
+                      ? COLOR_KM_VEHICULO
+                      : COLORS[i % COLORS.length]
+                  }
+                />
               ))}
             </Pie>
             <Tooltip formatter={(v: number) => formatCurrency(v)} />
@@ -262,7 +283,12 @@ export function GastosCategoriaChart({ data, loading }: CategoriaChartProps) {
             <li key={cat.categoria_id ?? i} className="flex items-center gap-2">
               <span
                 className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
-                style={{ background: COLORS[i % COLORS.length] }}
+                style={{
+                  background:
+                    cat.categoria_id === "__vehiculo_propio__"
+                      ? COLOR_KM_VEHICULO
+                      : COLORS[i % COLORS.length],
+                }}
               />
               <span className="truncate flex-1">{cat.categoria_nombre}</span>
               <span className="tabular-nums font-medium">{formatCurrency(cat.total)}</span>

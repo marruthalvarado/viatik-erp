@@ -26,6 +26,7 @@ export interface EvolucionMensual {
   label: string;
   total_facturado: number;
   total_reembolsable: number;
+  total_km_vehiculo: number;
 }
 
 export interface RendicionPendiente {
@@ -442,28 +443,83 @@ export async function getEvolucionMensual(
   const { gte, lte } = dateRange(anio);
   const { data, error } = await supabase
     .from("rendiciones")
-    .select("fecha_rendicion, total_facturado, total_reembolsable")
+    .select("id, fecha_rendicion, total_facturado, total_reembolsable")
     .eq("empresa_id", empresaId)
     .is("deleted_at", null)
     .gte("fecha_rendicion", gte)
     .lte("fecha_rendicion", lte);
   if (error) throw new Error(error.message);
 
-  const map = new Map<string, { total_facturado: number; total_reembolsable: number }>();
+  type MesEntry = {
+    total_facturado: number;
+    total_reembolsable: number;
+    total_km_vehiculo: number;
+  };
+  const map = new Map<string, MesEntry>();
+  const rendMesMap = new Map<string, string>(); // rendicion_id → mes "YYYY-MM"
+
   for (const row of data ?? []) {
     if (!row.fecha_rendicion) continue;
     const mes = row.fecha_rendicion.slice(0, 7);
-    const ex = map.get(mes) ?? { total_facturado: 0, total_reembolsable: 0 };
+    const ex = map.get(mes) ?? { total_facturado: 0, total_reembolsable: 0, total_km_vehiculo: 0 };
     ex.total_facturado += Number(row.total_facturado) || 0;
     ex.total_reembolsable += Number(row.total_reembolsable) || 0;
     map.set(mes, ex);
+    rendMesMap.set(row.id, mes);
+  }
+
+  // Km vehículo propio por mes (sumado desde viajes con vehiculo_propio=true)
+  const rendIds = Array.from(rendMesMap.keys());
+  if (rendIds.length > 0) {
+    try {
+      const [politicaRes, viajesRes] = await Promise.all([
+        supabase
+          .from("politicas")
+          .select("valor_km, km_ciudad_por_dia")
+          .eq("empresa_id", empresaId)
+          .order("created_at")
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from("viajes")
+          .select("rendicion_id, distancia_km, fecha_inicio, fecha_fin")
+          .in("rendicion_id", rendIds)
+          .eq("vehiculo_propio", true)
+          .gt("distancia_km", 0),
+      ]);
+
+      const valorKm = Number(politicaRes.data?.valor_km ?? 0);
+      const kmCiudadDia = Number(politicaRes.data?.km_ciudad_por_dia ?? 0);
+
+      for (const v of viajesRes.data ?? []) {
+        const mes = rendMesMap.get(v.rendicion_id);
+        if (!mes) continue;
+        const ex = map.get(mes) ?? {
+          total_facturado: 0,
+          total_reembolsable: 0,
+          total_km_vehiculo: 0,
+        };
+        ex.total_km_vehiculo += Number(v.distancia_km ?? 0) * 2 * valorKm;
+        if (v.fecha_inicio && v.fecha_fin && kmCiudadDia > 0) {
+          const dias =
+            Math.ceil(
+              (new Date(v.fecha_fin).getTime() - new Date(v.fecha_inicio).getTime()) /
+                (1000 * 60 * 60 * 24),
+            ) + 1;
+          ex.total_km_vehiculo += dias * kmCiudadDia * valorKm;
+        }
+        map.set(mes, ex);
+      }
+    } catch {
+      // no fatal — km vehiculo propio queda en 0 si falla
+    }
   }
 
   const result: EvolucionMensual[] = [];
   for (let m = 1; m <= 12; m++) {
     const mm = String(m).padStart(2, "0");
     const mes = `${anio}-${mm}`;
-    const val = map.get(mes) ?? { total_facturado: 0, total_reembolsable: 0 };
+    const val = map.get(mes) ?? { total_facturado: 0, total_reembolsable: 0, total_km_vehiculo: 0 };
     result.push({ mes, label: MES_LABELS[mm] ?? mm, ...val });
   }
   return result;
