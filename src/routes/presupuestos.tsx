@@ -64,7 +64,7 @@ function PresupuestosPage() {
 }
 
 const editSchema = z.object({
-  presupuesto:    z.coerce.number().min(0).nullable(),
+  presupuesto: z.coerce.number().min(0).nullable(),
   valor_contrato: z.coerce.number().min(0).nullable(),
 });
 type EditValues = z.infer<typeof editSchema>;
@@ -72,10 +72,14 @@ type EditValues = z.infer<typeof editSchema>;
 function GananciaCell({ ganancia, margen_pct }: { ganancia: number; margen_pct: number | null }) {
   const positive = ganancia >= 0;
   return (
-    <div className={`flex items-center gap-1 tabular-nums font-medium ${positive ? "text-emerald-600" : "text-red-500"}`}>
-      {positive
-        ? <TrendingUp className="size-3.5 shrink-0" />
-        : <TrendingDown className="size-3.5 shrink-0" />}
+    <div
+      className={`flex items-center gap-1 tabular-nums font-medium ${positive ? "text-emerald-600" : "text-red-500"}`}
+    >
+      {positive ? (
+        <TrendingUp className="size-3.5 shrink-0" />
+      ) : (
+        <TrendingDown className="size-3.5 shrink-0" />
+      )}
       <span>{formatCurrency(ganancia)}</span>
       {margen_pct !== null && (
         <span className="text-xs font-normal opacity-70">({margen_pct}%)</span>
@@ -116,7 +120,7 @@ function PresupuestosContent() {
   function openEdit(row: ResumenFinancieroProyecto) {
     setEditing(row);
     form.reset({
-      presupuesto:    row.presupuesto    || null,
+      presupuesto: row.presupuesto || null,
       valor_contrato: row.valor_contrato || null,
     });
   }
@@ -127,7 +131,7 @@ function PresupuestosContent() {
       await actualizar.mutateAsync({
         id: editing.proyecto_id,
         payload: {
-          presupuesto:    values.presupuesto    ?? null,
+          presupuesto: values.presupuesto ?? null,
           valor_contrato: values.valor_contrato ?? null,
         },
       });
@@ -158,37 +162,66 @@ function PresupuestosContent() {
       header: "Presupuesto",
       align: "right",
       cell: (row) =>
-        row.presupuesto > 0
-          ? <span className="tabular-nums text-sm">{formatCurrency(row.presupuesto)}</span>
-          : <span className="text-xs text-muted-foreground">—</span>,
+        row.presupuesto > 0 ? (
+          <span className="tabular-nums text-sm">{formatCurrency(row.presupuesto)}</span>
+        ) : (
+          <span className="text-xs text-muted-foreground">—</span>
+        ),
     },
     {
       key: "valor_contrato",
       header: "Valor contrato",
       align: "right",
       cell: (row) =>
-        row.valor_contrato > 0
-          ? <span className="tabular-nums text-sm">{formatCurrency(row.valor_contrato)}</span>
-          : <span className="text-xs text-muted-foreground">—</span>,
+        row.valor_contrato > 0 ? (
+          <span className="tabular-nums text-sm">{formatCurrency(row.valor_contrato)}</span>
+        ) : (
+          <span className="text-xs text-muted-foreground">—</span>
+        ),
+    },
+    {
+      key: "facturado",
+      header: "Facturado",
+      align: "right",
+      cell: (row) =>
+        ((row as ResumenFinancieroProyecto & { facturado?: number }).facturado ?? 0 > 0) ? (
+          <span className="tabular-nums text-sm font-medium text-emerald-700">
+            {formatCurrency(
+              (row as ResumenFinancieroProyecto & { facturado?: number }).facturado ?? 0,
+            )}
+          </span>
+        ) : (
+          <span className="text-xs text-muted-foreground">—</span>
+        ),
     },
     {
       key: "ejecutado",
-      header: "Ejecutado",
+      header: "Gastos (ejecutado)",
       align: "right",
       cell: (row) => (
         <div className="flex flex-col items-end gap-1">
           <span className="tabular-nums text-sm">{formatCurrency(row.ejecutado)}</span>
-          <ProgressBar value={row.ejecutado} max={row.valor_contrato || row.presupuesto} />
+          <ProgressBar
+            value={row.ejecutado}
+            max={
+              (row as ResumenFinancieroProyecto & { facturado?: number }).facturado ||
+              row.valor_contrato ||
+              row.presupuesto
+            }
+          />
         </div>
       ),
     },
     {
       key: "ganancia",
-      header: "Ganancia est.",
+      header: "Ganancia",
       cell: (row) =>
-        row.valor_contrato > 0
-          ? <GananciaCell ganancia={row.ganancia} margen_pct={row.margen_pct} />
-          : <span className="text-xs text-muted-foreground">Sin contrato</span>,
+        row.valor_contrato > 0 ||
+        ((row as ResumenFinancieroProyecto & { facturado?: number }).facturado ?? 0) > 0 ? (
+          <GananciaCell ganancia={row.ganancia} margen_pct={row.margen_pct} />
+        ) : (
+          <span className="text-xs text-muted-foreground">Sin datos</span>
+        ),
     },
     {
       key: "acciones",
@@ -200,7 +233,10 @@ function PresupuestosContent() {
           size="icon"
           className="h-8 w-8"
           aria-label="Editar presupuesto"
-          onClick={(e) => { e.stopPropagation(); openEdit(row); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            openEdit(row);
+          }}
         >
           <Pencil className="size-3.5" />
         </Button>
@@ -234,7 +270,12 @@ function PresupuestosContent() {
         />
       )}
 
-      <Drawer open={!!editing} onOpenChange={(open) => { if (!open) setEditing(null); }}>
+      <Drawer
+        open={!!editing}
+        onOpenChange={(open) => {
+          if (!open) setEditing(null);
+        }}
+      >
         <DrawerContent className="sm:max-w-sm">
           <DrawerHeader>
             <DrawerTitle>Valores financieros</DrawerTitle>

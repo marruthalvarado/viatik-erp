@@ -19,12 +19,22 @@ import { PageHeader } from "@/components/common/page-header";
 import { LoadingState } from "@/components/common/loading-state";
 import { EmptyState } from "@/components/common/empty-state";
 
-import {
-  getEvolucionMensual,
-  getGastosPorCategoria,
-  getProveedores,
-} from "@/services/dashboard";
+import { getEvolucionMensual, getGastosPorCategoria, getProveedores } from "@/services/dashboard";
 import type { TopProveedorRow } from "@/types/reportes";
+import { useKpiFacturacion, useFacturacionMensual } from "@/hooks/entities/use-facturas-emitidas";
+import { formatCurrency } from "@/utils/formatters";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
+import type { EvolucionMensual } from "@/services/dashboard";
+import type { ResumenFacturacionMensual } from "@/services/facturas-emitidas";
 
 import { defaultBiFiltros, type BiFiltros } from "./bi-filter-types";
 import { BiFilters } from "./bi-filters";
@@ -40,12 +50,8 @@ import { BiAlerts } from "./bi-alerts";
 import { BiRendicionesPendientes, BiTopProveedoresTable } from "./bi-summary";
 import { DrillDownBar } from "./bi-drilldown";
 
-import {
-  useRptResumenEjecutivo,
-} from "@/hooks/entities/use-reportes-gerenciales";
-import {
-  useRptEjecucionPresupuestaria,
-} from "@/hooks/entities/use-reportes-financieros";
+import { useRptResumenEjecutivo } from "@/hooks/entities/use-reportes-gerenciales";
+import { useRptEjecucionPresupuestaria } from "@/hooks/entities/use-reportes-financieros";
 import {
   useRptRendicionesEstado,
   useRptViajesDetalle,
@@ -162,6 +168,10 @@ export function BiLayout() {
     return n > 0 ? total / n : null;
   }, [viajes.data, resumen.data]);
 
+  // Facturación emitida
+  const kpiFacturacion = useKpiFacturacion(empresaId, filtros.anio);
+  const facturacionMensual = useFacturacionMensual(empresaId, filtros.anio);
+
   const kpiLoading =
     resumen.isLoading || ejecucion.isLoading || tiemposWorkflow.isLoading || viajes.isLoading;
 
@@ -220,7 +230,11 @@ export function BiLayout() {
   void BiRendicionesPendientes;
   void BiTopProveedoresTable;
   void DrillDownBar;
-  void ClipboardList; void Truck; void FolderKanban; void Workflow; void Receipt;
+  void ClipboardList;
+  void Truck;
+  void FolderKanban;
+  void Workflow;
+  void Receipt;
 
   return (
     <>
@@ -283,6 +297,148 @@ export function BiLayout() {
           onNavigate={() => nav("/gastos")}
         />
       </div>
+
+      {/* Fila 4 — Facturación emitida */}
+      <div className="mt-8">
+        <h2 className="mb-4 text-sm font-semibold tracking-tight text-muted-foreground uppercase">
+          Facturación emitida {filtros.anio}
+        </h2>
+        <div className="grid gap-4 sm:grid-cols-4 mb-6">
+          <FactKpiCard
+            label={`Total facturado ${filtros.anio}`}
+            value={
+              kpiFacturacion.isLoading ? "…" : formatCurrency(kpiFacturacion.data?.total_anio ?? 0)
+            }
+            accent="emerald"
+          />
+          <FactKpiCard
+            label="Facturado mes actual"
+            value={
+              kpiFacturacion.isLoading
+                ? "…"
+                : formatCurrency(kpiFacturacion.data?.total_mes_actual ?? 0)
+            }
+          />
+          <FactKpiCard
+            label="N° facturas emitidas"
+            value={
+              kpiFacturacion.isLoading ? "…" : String(kpiFacturacion.data?.num_facturas_anio ?? 0)
+            }
+          />
+          <FactKpiCard
+            label="Clientes distintos"
+            value={
+              kpiFacturacion.isLoading
+                ? "…"
+                : String(kpiFacturacion.data?.num_clientes_distintos ?? 0)
+            }
+          />
+        </div>
+        <FacturacionVsGastosChart
+          facturacion={facturacionMensual.data ?? []}
+          gastos={evolucion.data ?? []}
+          loading={facturacionMensual.isLoading || evolucion.isLoading}
+          anio={filtros.anio}
+          onNavigate={() => nav("/facturas")}
+        />
+      </div>
     </>
+  );
+}
+
+// ─── Componentes auxiliares de facturación ─────────────────────────────────────────────
+
+function FactKpiCard({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string;
+  accent?: "emerald";
+}) {
+  return (
+    <div className="rounded-xl border bg-card p-4">
+      <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">{label}</p>
+      <p
+        className={`text-2xl font-bold tabular-nums ${accent === "emerald" ? "text-emerald-700" : ""}`}
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function currencyTick(v: number) {
+  if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `$${(v / 1_000).toFixed(0)}k`;
+  return `$${v}`;
+}
+
+function FacturacionVsGastosChart({
+  facturacion,
+  gastos,
+  loading,
+  anio,
+  onNavigate,
+}: {
+  facturacion: ResumenFacturacionMensual[];
+  gastos: EvolucionMensual[];
+  loading: boolean;
+  anio: number;
+  onNavigate: () => void;
+}) {
+  const data = facturacion.map((f) => {
+    const g = gastos.find((g) => g.label === f.label);
+    return {
+      label: f.label,
+      facturado: f.total_facturado,
+      gastos: g?.total_facturado ?? 0,
+    };
+  });
+
+  const empty = data.every((d) => d.facturado === 0 && d.gastos === 0);
+
+  return (
+    <section className="rounded-xl border bg-card p-5">
+      <div className="mb-4 flex items-center justify-between">
+        <h3 className="text-sm font-semibold tracking-tight">Facturado vs Gastos por mes</h3>
+        <button
+          onClick={onNavigate}
+          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+        >
+          Ver facturas →
+        </button>
+      </div>
+      {loading ? (
+        <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+          Cargando…
+        </div>
+      ) : empty ? (
+        <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+          Sin facturas registradas para {anio}
+        </div>
+      ) : (
+        <ResponsiveContainer width="100%" height={240}>
+          <BarChart data={data} margin={{ top: 4, right: 12, left: 0, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+            <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+            <YAxis tickFormatter={currencyTick} tick={{ fontSize: 11 }} width={60} />
+            <Tooltip
+              formatter={(value: number, name: string) => [
+                formatCurrency(value),
+                name === "facturado" ? "Facturado" : "Gastos",
+              ]}
+            />
+            <Legend
+              formatter={(v) => (v === "facturado" ? "Facturado" : "Gastos")}
+              wrapperStyle={{ fontSize: 11 }}
+            />
+            <Bar dataKey="facturado" fill="#10b981" radius={[3, 3, 0, 0]} />
+            <Bar dataKey="gastos" fill="#6366f1" radius={[3, 3, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      )}
+    </section>
   );
 }

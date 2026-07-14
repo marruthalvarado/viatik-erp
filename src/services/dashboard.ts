@@ -10,10 +10,10 @@ import type { Tables } from "@/types/database";
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
 export type DashboardEjecutivo = Tables<"vw_dashboard_ejecutivo">;
-export type DashboardProyecto  = Tables<"vw_dashboard_proyectos">;
-export type DashboardCliente   = Tables<"vw_dashboard_clientes">;
+export type DashboardProyecto = Tables<"vw_dashboard_proyectos">;
+export type DashboardCliente = Tables<"vw_dashboard_clientes">;
 export type DashboardProveedor = Tables<"vw_dashboard_proveedores">;
-export type DashboardIA        = Tables<"vw_dashboard_ia">;
+export type DashboardIA = Tables<"vw_dashboard_ia">;
 
 export interface GastoCategoria {
   categoria_id: string | null;
@@ -79,12 +79,16 @@ export async function getEjecutivo(
   const rows = rends ?? [];
   return {
     empresa_id: empresaId,
-    total_gastado:                   rows.reduce((s, r) => s + (Number(r.total_facturado)    || 0), 0),
-    total_reembolsable:              rows.reduce((s, r) => s + (Number(r.total_reembolsable) || 0), 0),
-    total_rendiciones:               rows.length,
-    total_proyectos_con_movimiento:  new Set(rows.filter(r => r.proyecto_id).map(r => r.proyecto_id)).size,
-    total_usuarios_con_movimiento:   new Set(rows.filter(r => r.usuario_id).map(r => r.usuario_id)).size,
-    total_anticipos:                 (anticipos ?? []).reduce((s, a) => s + (Number(a.valor) || 0), 0),
+    total_gastado: rows.reduce((s, r) => s + (Number(r.total_facturado) || 0), 0),
+    total_reembolsable: rows.reduce((s, r) => s + (Number(r.total_reembolsable) || 0), 0),
+    total_rendiciones: rows.length,
+    total_proyectos_con_movimiento: new Set(
+      rows.filter((r) => r.proyecto_id).map((r) => r.proyecto_id),
+    ).size,
+    total_usuarios_con_movimiento: new Set(
+      rows.filter((r) => r.usuario_id).map((r) => r.usuario_id),
+    ).size,
+    total_anticipos: (anticipos ?? []).reduce((s, a) => s + (Number(a.valor) || 0), 0),
   };
 }
 
@@ -92,7 +96,7 @@ export async function getEjecutivo(
 
 export async function getProyectos(
   empresaId: string,
-  limit  = 10,
+  limit = 10,
   anio?: number,
 ): Promise<DashboardProyecto[]> {
   if (!anio) {
@@ -125,23 +129,26 @@ export async function getProyectos(
   ]);
   if (rendRes.error) throw new Error(rendRes.error.message);
 
-  const proyMap = new Map((proyRes.data ?? []).map(p => [p.id, p]));
+  const proyMap = new Map((proyRes.data ?? []).map((p) => [p.id, p]));
   const gastoMap = new Map<string, number>();
 
   for (const r of rendRes.data ?? []) {
     if (!r.proyecto_id) continue;
-    gastoMap.set(r.proyecto_id, (gastoMap.get(r.proyecto_id) ?? 0) + (Number(r.total_facturado) || 0));
+    gastoMap.set(
+      r.proyecto_id,
+      (gastoMap.get(r.proyecto_id) ?? 0) + (Number(r.total_facturado) || 0),
+    );
   }
 
   return Array.from(gastoMap.entries())
     .map(([proyecto_id, gasto_real]) => {
       const p = proyMap.get(proyecto_id);
-      const presupuesto    = Number(p?.presupuesto    ?? 0);
+      const presupuesto = Number(p?.presupuesto ?? 0);
       const valor_contrato = Number(p?.valor_contrato ?? 0);
       return {
-        empresa_id:        empresaId,
+        empresa_id: empresaId,
         proyecto_id,
-        nombre:            p?.nombre ?? proyecto_id,
+        nombre: p?.nombre ?? proyecto_id,
         presupuesto,
         valor_contrato,
         gasto_real,
@@ -160,7 +167,7 @@ export async function getProyectos(
 
 export async function getClientes(
   empresaId: string,
-  limit  = 10,
+  limit = 10,
   anio?: number,
 ): Promise<DashboardCliente[]> {
   if (!anio) {
@@ -199,9 +206,9 @@ export async function getClientes(
   ]);
   if (rendRes.error) throw new Error(rendRes.error.message);
 
-  const proyToCliente = new Map((proyRes.data ?? []).map(p => [p.id, p.cliente_id]));
-  const clienteMap    = new Map((cliRes.data  ?? []).map(c => [c.id, c.nombre]));
-  const totales       = new Map<string, { total: number; rendIds: Set<string> }>();
+  const proyToCliente = new Map((proyRes.data ?? []).map((p) => [p.id, p.cliente_id]));
+  const clienteMap = new Map((cliRes.data ?? []).map((c) => [c.id, c.nombre]));
+  const totales = new Map<string, { total: number; rendIds: Set<string> }>();
 
   for (const r of rendRes.data ?? []) {
     if (!r.proyecto_id) continue;
@@ -215,12 +222,12 @@ export async function getClientes(
 
   return Array.from(totales.entries())
     .map(([cliente_id, { total, rendIds }]) => ({
-      empresa_id:        empresaId,
+      empresa_id: empresaId,
       cliente_id,
-      cliente:           clienteMap.get(cliente_id) ?? cliente_id,
-      total_gastado:     total,
+      cliente: clienteMap.get(cliente_id) ?? cliente_id,
+      total_gastado: total,
       total_rendiciones: rendIds.size,
-      total_proyectos:   null,
+      total_proyectos: null,
     }))
     .sort((a, b) => b.total_gastado - a.total_gastado)
     .slice(0, limit);
@@ -230,7 +237,7 @@ export async function getClientes(
 
 export async function getProveedores(
   empresaId: string,
-  limit  = 10,
+  limit = 10,
   anio?: number,
 ): Promise<DashboardProveedor[]> {
   if (!anio) {
@@ -255,7 +262,7 @@ export async function getProveedores(
     .gte("fecha_rendicion", gte)
     .lte("fecha_rendicion", lte);
   if (rendRes.error) throw new Error(rendRes.error.message);
-  const rendIds = (rendRes.data ?? []).map(r => r.id);
+  const rendIds = (rendRes.data ?? []).map((r) => r.id);
   if (rendIds.length === 0) return [];
 
   const [gastosRes, provRes] = await Promise.all([
@@ -273,7 +280,7 @@ export async function getProveedores(
   ]);
   if (gastosRes.error) throw new Error(gastosRes.error.message);
 
-  const provMap = new Map((provRes.data ?? []).map(p => [p.id, p.nombre]));
+  const provMap = new Map((provRes.data ?? []).map((p) => [p.id, p.nombre]));
   const totales = new Map<string, { total: number; count: number }>();
 
   for (const g of gastosRes.data ?? []) {
@@ -286,10 +293,10 @@ export async function getProveedores(
 
   return Array.from(totales.entries())
     .map(([id, { total, count }]) => ({
-      empresa_id:      empresaId,
+      empresa_id: empresaId,
       id,
-      nombre:          provMap.get(id) ?? id,
-      total_gastado:   total,
+      nombre: provMap.get(id) ?? id,
+      total_gastado: total,
       cantidad_gastos: count,
     }))
     .sort((a, b) => b.total_gastado - a.total_gastado)
@@ -329,17 +336,20 @@ export async function getGastosPorCategoria(
 
   const map = new Map<string, { nombre: string; total: number }>();
   for (const row of data ?? []) {
-    const key    = row.categoria_gasto_id ?? "__sin_categoria__";
+    const key = row.categoria_gasto_id ?? "__sin_categoria__";
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const nombre = (row as any).categorias_gasto?.nombre ?? "Sin categoria";
-    const ex     = map.get(key);
-    if (ex) { ex.total += Number(row.valor_factura) || 0; }
-    else    { map.set(key, { nombre, total: Number(row.valor_factura) || 0 }); }
+    const ex = map.get(key);
+    if (ex) {
+      ex.total += Number(row.valor_factura) || 0;
+    } else {
+      map.set(key, { nombre, total: Number(row.valor_factura) || 0 });
+    }
   }
 
   const result = Array.from(map.entries())
     .map(([id, { nombre, total }]) => ({
-      categoria_id:     id === "__sin_categoria__" ? null : id,
+      categoria_id: id === "__sin_categoria__" ? null : id,
       categoria_nombre: nombre,
       total,
     }))
@@ -376,9 +386,9 @@ export async function getGastosPorCategoria(
           .gt("distancia_km", 0),
       ]);
 
-      const valorKm      = Number(politicaRes.data?.valor_km          ?? 0);
-      const kmCiudadDia  = Number(politicaRes.data?.km_ciudad_por_dia ?? 0);
-      let   totalVehiculo = 0;
+      const valorKm = Number(politicaRes.data?.valor_km ?? 0);
+      const kmCiudadDia = Number(politicaRes.data?.km_ciudad_por_dia ?? 0);
+      let totalVehiculo = 0;
 
       for (const v of viajesRes.data ?? []) {
         totalVehiculo += Number(v.distancia_km ?? 0) * 2 * valorKm;
@@ -393,7 +403,11 @@ export async function getGastosPorCategoria(
       }
 
       if (totalVehiculo > 0) {
-        result.push({ categoria_id: "__vehiculo_propio__", categoria_nombre: "Vehiculo propio", total: totalVehiculo });
+        result.push({
+          categoria_id: "__vehiculo_propio__",
+          categoria_nombre: "Vehiculo propio",
+          total: totalVehiculo,
+        });
         result.sort((a, b) => b.total - a.total);
       }
     }
@@ -407,9 +421,18 @@ export async function getGastosPorCategoria(
 // ─── Evolución mensual ────────────────────────────────────────────────────────
 
 const MES_LABELS: Record<string, string> = {
-  "01": "Ene", "02": "Feb", "03": "Mar", "04": "Abr",
-  "05": "May", "06": "Jun", "07": "Jul", "08": "Ago",
-  "09": "Sep", "10": "Oct", "11": "Nov", "12": "Dic",
+  "01": "Ene",
+  "02": "Feb",
+  "03": "Mar",
+  "04": "Abr",
+  "05": "May",
+  "06": "Jun",
+  "07": "Jul",
+  "08": "Ago",
+  "09": "Sep",
+  "10": "Oct",
+  "11": "Nov",
+  "12": "Dic",
 };
 
 export async function getEvolucionMensual(
@@ -430,15 +453,15 @@ export async function getEvolucionMensual(
   for (const row of data ?? []) {
     if (!row.fecha_rendicion) continue;
     const mes = row.fecha_rendicion.slice(0, 7);
-    const ex  = map.get(mes) ?? { total_facturado: 0, total_reembolsable: 0 };
-    ex.total_facturado    += Number(row.total_facturado)    || 0;
+    const ex = map.get(mes) ?? { total_facturado: 0, total_reembolsable: 0 };
+    ex.total_facturado += Number(row.total_facturado) || 0;
     ex.total_reembolsable += Number(row.total_reembolsable) || 0;
     map.set(mes, ex);
   }
 
   const result: EvolucionMensual[] = [];
   for (let m = 1; m <= 12; m++) {
-    const mm  = String(m).padStart(2, "0");
+    const mm = String(m).padStart(2, "0");
     const mes = `${anio}-${mm}`;
     const val = map.get(mes) ?? { total_facturado: 0, total_reembolsable: 0 };
     result.push({ mes, label: MES_LABELS[mm] ?? mm, ...val });
@@ -472,15 +495,15 @@ export async function getRendicionesPendientes(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const ra = r as any;
     return {
-      id:               r.id,
-      numero:           r.numero,
-      descripcion:      r.descripcion,
-      proyecto_nombre:  ra.proyectos?.nombre        ?? null,
-      fecha_rendicion:  r.fecha_rendicion,
-      total_facturado:  r.total_facturado,
-      estado_nombre:    ra.estados_rendicion?.nombre ?? null,
-      estado_codigo:    ra.estados_rendicion?.codigo ?? null,
-      usuario_nombre:   ra.usuarios
+      id: r.id,
+      numero: r.numero,
+      descripcion: r.descripcion,
+      proyecto_nombre: ra.proyectos?.nombre ?? null,
+      fecha_rendicion: r.fecha_rendicion,
+      total_facturado: r.total_facturado,
+      estado_nombre: ra.estados_rendicion?.nombre ?? null,
+      estado_codigo: ra.estados_rendicion?.codigo ?? null,
+      usuario_nombre: ra.usuarios
         ? `${ra.usuarios.nombres ?? ""} ${ra.usuarios.apellidos ?? ""}`.trim()
         : null,
     };
@@ -508,17 +531,20 @@ export async function getTopViajeros(
   const { data, error } = await q;
   if (error) throw new Error(error.message);
 
-  const map = new Map<string, { nombre: string; total_rendiciones: number; total_gastado: number }>();
+  const map = new Map<
+    string,
+    { nombre: string; total_rendiciones: number; total_gastado: number }
+  >();
   for (const row of data ?? []) {
     if (!row.usuario_id) continue;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const ra     = row as any;
+    const ra = row as any;
     const nombre = ra.usuarios
       ? `${ra.usuarios.nombres ?? ""} ${ra.usuarios.apellidos ?? ""}`.trim()
       : row.usuario_id;
     const ex = map.get(row.usuario_id) ?? { nombre, total_rendiciones: 0, total_gastado: 0 };
     ex.total_rendiciones += 1;
-    ex.total_gastado     += Number(row.total_facturado) || 0;
+    ex.total_gastado += Number(row.total_facturado) || 0;
     map.set(row.usuario_id, ex);
   }
 
@@ -540,7 +566,7 @@ export async function getPresupuestoTotal(empresaId: string): Promise<number> {
   return (data ?? []).reduce((acc, p) => acc + (Number(p.valor_total) || 0), 0);
 }
 
-// ─── Resumen financiero por proyecto ─────────────────────────────────────────
+// ─── Resumen financiero por proyecto ─────────────────────────────────────────────────
 
 export interface ResumenFinancieroProyecto {
   proyecto_id: string;
@@ -548,6 +574,7 @@ export interface ResumenFinancieroProyecto {
   cliente_nombre: string | null;
   presupuesto: number;
   valor_contrato: number;
+  facturado: number;
   ejecutado: number;
   ganancia: number;
   margen_pct: number | null;
@@ -556,7 +583,7 @@ export interface ResumenFinancieroProyecto {
 export async function getResumenFinancieroProyectos(
   empresaId: string,
 ): Promise<ResumenFinancieroProyecto[]> {
-  const [proyRes, rendRes] = await Promise.all([
+  const [proyRes, rendRes, factRes] = await Promise.all([
     supabase
       .from("proyectos")
       .select("id, nombre, presupuesto, valor_contrato, cliente:clientes(nombre)")
@@ -566,6 +593,12 @@ export async function getResumenFinancieroProyectos(
     supabase
       .from("rendiciones")
       .select("proyecto_id, total_facturado")
+      .eq("empresa_id", empresaId)
+      .is("deleted_at", null)
+      .not("proyecto_id", "is", null),
+    supabase
+      .from("facturas_emitidas")
+      .select("proyecto_id, total")
       .eq("empresa_id", empresaId)
       .is("deleted_at", null)
       .not("proyecto_id", "is", null),
@@ -582,29 +615,34 @@ export async function getResumenFinancieroProyectos(
     );
   }
 
+  const facturadoMap = new Map<string, number>();
+  for (const f of factRes.data ?? []) {
+    if (!f.proyecto_id) continue;
+    facturadoMap.set(
+      f.proyecto_id,
+      (facturadoMap.get(f.proyecto_id) ?? 0) + (Number(f.total) || 0),
+    );
+  }
+
   return (proyRes.data ?? []).map((p) => {
     const raw = p.cliente as unknown;
     const cliente = (Array.isArray(raw) ? raw[0] : raw) as { nombre: string } | null;
-    const presupuesto    = Number(p.presupuesto    ?? 0);
+    const presupuesto = Number(p.presupuesto ?? 0);
     const valor_contrato = Number(p.valor_contrato ?? 0);
-    const ejecutado      = ejecutadoMap.get(p.id) ?? 0;
-    const ganancia       = valor_contrato - ejecutado;
-    const margen_pct     = valor_contrato > 0
-      ? Math.round((ganancia / valor_contrato) * 100)
-      : null;
+    const ejecutado = ejecutadoMap.get(p.id) ?? 0;
+    const facturado = facturadoMap.get(p.id) ?? 0;
+    const ganancia = facturado > 0 ? facturado - ejecutado : valor_contrato - ejecutado;
+    const base_margen = facturado > 0 ? facturado : valor_contrato;
+    const margen_pct = base_margen > 0 ? Math.round((ganancia / base_margen) * 100) : null;
     return {
-      proyecto_id:    p.id,
-      nombre:         p.nombre,
+      proyecto_id: p.id,
+      nombre: p.nombre,
       cliente_nombre: cliente?.nombre ?? null,
       presupuesto,
       valor_contrato,
+      facturado,
       ejecutado,
       ganancia,
-      margen_pct,
-    };
-  });
-}
-a,
       margen_pct,
     };
   });

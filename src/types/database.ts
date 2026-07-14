@@ -431,6 +431,90 @@ export type Database = {
           },
         ];
       };
+      facturas_emitidas: {
+        Row: {
+          id: string;
+          empresa_id: string;
+          proyecto_id: string | null;
+          numero: string;
+          fecha: string;
+          tipo: string;
+          ruc_cliente: string | null;
+          razon_social: string;
+          subtotal: number;
+          descuento: number;
+          iva: number;
+          total: number;
+          clave_acceso: string | null;
+          estado_sri: string | null;
+          xml_content: string | null;
+          observacion: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          empresa_id: string;
+          proyecto_id?: string | null;
+          numero: string;
+          fecha: string;
+          tipo?: string;
+          ruc_cliente?: string | null;
+          razon_social: string;
+          subtotal?: number;
+          descuento?: number;
+          iva?: number;
+          total?: number;
+          clave_acceso?: string | null;
+          estado_sri?: string | null;
+          xml_content?: string | null;
+          observacion?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          empresa_id?: string;
+          proyecto_id?: string | null;
+          numero?: string;
+          fecha?: string;
+          tipo?: string;
+          ruc_cliente?: string | null;
+          razon_social?: string;
+          subtotal?: number;
+          descuento?: number;
+          iva?: number;
+          total?: number;
+          clave_acceso?: string | null;
+          estado_sri?: string | null;
+          xml_content?: string | null;
+          observacion?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          deleted_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "facturas_emitidas_empresa_id_fkey";
+            columns: ["empresa_id"];
+            isOneToOne: false;
+            referencedRelation: "empresas";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "facturas_emitidas_proyecto_id_fkey";
+            columns: ["proyecto_id"];
+            isOneToOne: false;
+            referencedRelation: "proyectos";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       clientes: {
         Row: {
           codigo: string | null;

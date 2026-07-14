@@ -152,7 +152,10 @@ function DashboardMain({
           loading={evolucion.isLoading}
           anio={anio}
         />
-        <ResumenProyectosChart data={resumenProyectos.data ?? []} loading={resumenProyectos.isLoading} />
+        <ResumenProyectosChart
+          data={resumenProyectos.data ?? []}
+          loading={resumenProyectos.isLoading}
+        />
       </div>
 
       {/* Categorías + Clientes */}

@@ -14,6 +14,7 @@ import {
   Shield,
   DollarSign,
   GitBranch,
+  FileSpreadsheet,
 } from "lucide-react";
 
 import {
@@ -42,25 +43,26 @@ interface NavItem {
 }
 
 const workspaceItems: NavItem[] = [
-  { title: "Dashboard",   url: "/dashboard",   icon: LayoutDashboard, modulo: "dashboard" },
-  { title: "Rendiciones", url: "/rendiciones", icon: Receipt,          modulo: "rendiciones" },
-  { title: "Workflow",    url: "/workflow",    icon: GitBranch,        modulo: "workflow" },
-  { title: "Documentos",  url: "/documentos",  icon: FileText,         modulo: "documentos" },
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard, modulo: "dashboard" },
+  { title: "Rendiciones", url: "/rendiciones", icon: Receipt, modulo: "rendiciones" },
+  { title: "Workflow", url: "/workflow", icon: GitBranch, modulo: "workflow" },
+  { title: "Documentos", url: "/documentos", icon: FileText, modulo: "documentos" },
 ];
 
 const relationsItems: NavItem[] = [
-  { title: "Clientes",    url: "/clientes",    icon: Users,         modulo: "clientes" },
-  { title: "Proyectos",   url: "/proyectos",   icon: FolderKanban,  modulo: "proyectos" },
-  { title: "Proveedores", url: "/proveedores", icon: Truck,         modulo: "proveedores" },
+  { title: "Clientes", url: "/clientes", icon: Users, modulo: "clientes" },
+  { title: "Proyectos", url: "/proyectos", icon: FolderKanban, modulo: "proyectos" },
+  { title: "Proveedores", url: "/proveedores", icon: Truck, modulo: "proveedores" },
 ];
 
 const financeItems: NavItem[] = [
-  { title: "Presupuestos",    url: "/presupuestos",           icon: Wallet,    modulo: "presupuestos" },
-  { title: "Gastos",          url: "/gastos",                 icon: DollarSign, modulo: "gastos" },
-  { title: "Dashboard BI",    url: "/reportes",               icon: BarChart3,  modulo: "reportes" },
-  { title: "Rpt. Financieros",url: "/reportes/financieros",   icon: TrendingUp, modulo: "reportes" },
-  { title: "Rpt. Operativos", url: "/reportes/operativos",    icon: Activity,   modulo: "reportes" },
-  { title: "Workflow Rpt.",   url: "/reportes/workflow",      icon: Network,    modulo: "reportes" },
+  { title: "Presupuestos", url: "/presupuestos", icon: Wallet, modulo: "presupuestos" },
+  { title: "Facturas emit.", url: "/facturas", icon: FileSpreadsheet, modulo: "facturas" },
+  { title: "Gastos", url: "/gastos", icon: DollarSign, modulo: "gastos" },
+  { title: "Dashboard BI", url: "/reportes", icon: BarChart3, modulo: "reportes" },
+  { title: "Rpt. Financieros", url: "/reportes/financieros", icon: TrendingUp, modulo: "reportes" },
+  { title: "Rpt. Operativos", url: "/reportes/operativos", icon: Activity, modulo: "reportes" },
+  { title: "Workflow Rpt.", url: "/reportes/workflow", icon: Network, modulo: "reportes" },
 ];
 
 const systemItems: NavItem[] = [

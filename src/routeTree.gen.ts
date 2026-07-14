@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as FacturasRouteImport } from './routes/facturas'
 import { Route as WorkflowRouteImport } from './routes/workflow'
 import { Route as ReportesRouteImport } from './routes/reportes'
 import { Route as RendicionesRouteImport } from './routes/rendiciones'
@@ -27,6 +28,11 @@ import { Route as ReportesWorkflowRouteImport } from './routes/reportes.workflow
 import { Route as ReportesOperativosRouteImport } from './routes/reportes.operativos'
 import { Route as ReportesFinancierosRouteImport } from './routes/reportes.financieros'
 
+const FacturasRoute = FacturasRouteImport.update({
+  id: '/facturas',
+  path: '/facturas',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const WorkflowRoute = WorkflowRouteImport.update({
   id: '/workflow',
   path: '/workflow',
@@ -121,6 +127,7 @@ export interface FileRoutesByFullPath {
   '/configuracion': typeof ConfiguracionRoute
   '/dashboard': typeof DashboardRoute
   '/documentos': typeof DocumentosRoute
+  '/facturas': typeof FacturasRoute
   '/gastos': typeof GastosRoute
   '/presupuestos': typeof PresupuestosRoute
   '/proveedores': typeof ProveedoresRoute
@@ -140,6 +147,7 @@ export interface FileRoutesByTo {
   '/configuracion': typeof ConfiguracionRoute
   '/dashboard': typeof DashboardRoute
   '/documentos': typeof DocumentosRoute
+  '/facturas': typeof FacturasRoute
   '/gastos': typeof GastosRoute
   '/presupuestos': typeof PresupuestosRoute
   '/proveedores': typeof ProveedoresRoute
@@ -160,6 +168,7 @@ export interface FileRoutesById {
   '/configuracion': typeof ConfiguracionRoute
   '/dashboard': typeof DashboardRoute
   '/documentos': typeof DocumentosRoute
+  '/facturas': typeof FacturasRoute
   '/gastos': typeof GastosRoute
   '/presupuestos': typeof PresupuestosRoute
   '/proveedores': typeof ProveedoresRoute
@@ -181,6 +190,7 @@ export interface FileRouteTypes {
     | '/configuracion'
     | '/dashboard'
     | '/documentos'
+    | '/facturas'
     | '/gastos'
     | '/presupuestos'
     | '/proveedores'
@@ -200,6 +210,7 @@ export interface FileRouteTypes {
     | '/configuracion'
     | '/dashboard'
     | '/documentos'
+    | '/facturas'
     | '/gastos'
     | '/presupuestos'
     | '/proveedores'
@@ -219,6 +230,7 @@ export interface FileRouteTypes {
     | '/configuracion'
     | '/dashboard'
     | '/documentos'
+    | '/facturas'
     | '/gastos'
     | '/presupuestos'
     | '/proveedores'
@@ -239,6 +251,7 @@ export interface RootRouteChildren {
   ConfiguracionRoute: typeof ConfiguracionRoute
   DashboardRoute: typeof DashboardRoute
   DocumentosRoute: typeof DocumentosRoute
+  FacturasRoute: typeof FacturasRoute
   GastosRoute: typeof GastosRoute
   PresupuestosRoute: typeof PresupuestosRoute
   ProveedoresRoute: typeof ProveedoresRoute
@@ -304,6 +317,13 @@ declare module '@tanstack/react-router' {
       path: '/documentos'
       fullPath: '/documentos'
       preLoaderRoute: typeof DocumentosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/facturas': {
+      id: '/facturas'
+      path: '/facturas'
+      fullPath: '/facturas'
+      preLoaderRoute: typeof FacturasRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -396,6 +416,7 @@ const rootRouteChildren: RootRouteChildren = {
   ConfiguracionRoute: ConfiguracionRoute,
   DashboardRoute: DashboardRoute,
   DocumentosRoute: DocumentosRoute,
+  FacturasRoute: FacturasRoute,
   GastosRoute: GastosRoute,
   PresupuestosRoute: PresupuestosRoute,
   ProveedoresRoute: ProveedoresRoute,
