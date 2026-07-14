@@ -22,15 +22,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return;
       setSession(data.session);
-      console.log("SESSION", data.session);
-      console.log("USER", data.session?.user);
-      console.log("USER ID", data.session?.user?.id);
       setLoading(false);
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s);
-      console.log("AUTH CHANGE", s?.user?.id);
     });
 
     return () => {
