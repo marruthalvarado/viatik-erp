@@ -37,12 +37,36 @@ function NotFoundComponent() {
   );
 }
 
+function isChunkLoadError(err: Error): boolean {
+  const msg = err.message ?? "";
+  return (
+    err.name === "ChunkLoadError" ||
+    msg.includes("Failed to fetch dynamically imported module") ||
+    msg.includes("Loading chunk") ||
+    msg.includes("Importing a module script failed")
+  );
+}
+
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
+
   useEffect(() => {
+    // Chunk load error: el bundle cambió en Vercel mientras la pestaña estaba abierta.
+    // Recargamos automáticamente una sola vez.
+    if (isChunkLoadError(error)) {
+      const reloadKey = "viatik:chunk_reload";
+      if (!sessionStorage.getItem(reloadKey)) {
+        sessionStorage.setItem(reloadKey, "1");
+        window.location.reload();
+      }
+      return;
+    }
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
+
+  // Mientras recarga, no mostrar nada
+  if (isChunkLoadError(error)) return null;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -56,6 +80,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
             onClick={() => {
+              sessionStorage.removeItem("viatik:chunk_reload");
               router.invalidate();
               reset();
             }}
@@ -137,7 +162,7 @@ function RootComponent() {
         <CompanyProvider>
           {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
           <Outlet />
-          <Toaster />
+          <Toaster richColors position="top-right" />
         </CompanyProvider>
       </AuthProvider>
     </QueryClientProvider>
