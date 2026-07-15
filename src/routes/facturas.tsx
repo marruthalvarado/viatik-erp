@@ -473,7 +473,7 @@ function FacturasContent() {
                         </td>
                         <td className="px-4 py-3 text-right tabular-nums font-medium">
                           {estado === "cobrado" ? (
-                            <span className="text-emerald-600">\u2014</span>
+                            <span className="text-emerald-600">{"\u2014"}</span>
                           ) : (
                             <span className="text-amber-700">{formatCurrency(saldo)}</span>
                           )}
