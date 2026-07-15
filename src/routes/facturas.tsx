@@ -298,7 +298,7 @@ function FacturasContent() {
   }
 
   async function handleEliminar(id: string) {
-    if (!confirm("\u00bfEliminar esta factura?")) return;
+    if (!confirm("¿Eliminar esta factura?")) return;
     try {
       await eliminar.mutateAsync(id);
       toast.success("Factura eliminada");
@@ -329,15 +329,15 @@ function FacturasContent() {
   }, 0);
 
   const proyectoNombre = (id: string | null) => {
-    if (!id) return "\u2014";
-    return (proyectos.data?.rows ?? []).find((p) => p.id === id)?.nombre ?? "\u2014";
+    if (!id) return "—";
+    return (proyectos.data?.rows ?? []).find((p) => p.id === id)?.nombre ?? "—";
   };
 
   return (
     <>
       <PageHeader
         title="Facturas Emitidas"
-        description="Facturaci\u00f3n emitida por la empresa a clientes."
+        description="Facturación emitida por la empresa a clientes."
         actions={
           <div className="flex items-center gap-2">
             <select
@@ -375,17 +375,17 @@ function FacturasContent() {
         }
       />
 
-      {/* KPIs r\u00e1pidos */}
+      {/* KPIs rápidos */}
       <div className="mb-6 grid gap-4 sm:grid-cols-4">
         <KpiCard
           label={`Total facturado ${anio}`}
           value={formatCurrency(totalAnio)}
           icon={<TrendingUp className="size-4 text-emerald-600" />}
         />
-        <KpiCard label="N\u00famero de facturas" value={String(numFacturas)} />
+        <KpiCard label="Número de facturas" value={String(numFacturas)} />
         <KpiCard
           label="Promedio por factura"
-          value={numFacturas > 0 ? formatCurrency(totalAnio / numFacturas) : "\u2014"}
+          value={numFacturas > 0 ? formatCurrency(totalAnio / numFacturas) : "—"}
         />
         <KpiCard
           label="Saldo por cobrar"
@@ -410,7 +410,7 @@ function FacturasContent() {
             <table className="w-full text-sm">
               <thead className="border-b bg-muted/30">
                 <tr className="text-left text-xs uppercase text-muted-foreground">
-                  <th className="px-4 py-3 font-medium">N\u00famero</th>
+                  <th className="px-4 py-3 font-medium">Número</th>
                   <th className="px-4 py-3 font-medium">Fecha</th>
                   <th className="px-4 py-3 font-medium">Cliente</th>
                   <th className="px-4 py-3 font-medium">Proyecto</th>
@@ -473,14 +473,14 @@ function FacturasContent() {
                         </td>
                         <td className="px-4 py-3 text-right tabular-nums font-medium">
                           {estado === "cobrado" ? (
-                            <span className="text-emerald-600">{"\u2014"}</span>
+                            <span className="text-emerald-600">{"—"}</span>
                           ) : (
                             <span className="text-amber-700">{formatCurrency(saldo)}</span>
                           )}
                         </td>
                         <td className="px-4 py-3">
                           <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-                            {f.estado_sri ?? "\u2014"}
+                            {f.estado_sri ?? "—"}
                           </span>
                         </td>
                         <td className="px-4 py-3">
@@ -585,7 +585,7 @@ function FacturasContent() {
             <DrawerTitle>{editando ? "Editar factura" : "Nueva factura"}</DrawerTitle>
             <DrawerDescription>
               {xmlParsed && !editando
-                ? `Datos cargados desde XML \u00b7 ${xmlParsed.numero}`
+                ? `Datos cargados desde XML · ${xmlParsed.numero}`
                 : "Completa los datos de la factura emitida."}
             </DrawerDescription>
           </DrawerHeader>
@@ -598,7 +598,7 @@ function FacturasContent() {
                     name="numero"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>N\u00famero</FormLabel>
+                        <FormLabel>Número</FormLabel>
                         <FormControl>
                           <Input placeholder="001-001-000000001" {...field} />
                         </FormControl>
@@ -636,7 +636,7 @@ function FacturasContent() {
                           </FormControl>
                           <SelectContent>
                             <SelectItem value="factura">Factura</SelectItem>
-                            <SelectItem value="nota_credito">Nota de Cr\u00e9dito</SelectItem>
+                            <SelectItem value="nota_credito">Nota de Crédito</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -692,7 +692,7 @@ function FacturasContent() {
                     name="razon_social"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Raz\u00f3n Social</FormLabel>
+                        <FormLabel>Razón Social</FormLabel>
                         <FormControl>
                           <Input placeholder="Nombre del cliente" {...field} />
                         </FormControl>
@@ -727,11 +727,11 @@ function FacturasContent() {
                 <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-3 space-y-3">
                   <p className="text-xs font-semibold text-blue-700 flex items-center gap-1.5">
                     <Percent className="size-3" />
-                    Retenciones fiscales (agente de retenci\u00f3n)
+                    Retenciones fiscales (agente de retención)
                   </p>
                   <p className="text-[11px] text-muted-foreground">
                     Si el cliente retiene impuestos, ingresa los porcentajes. El valor a cobrar se
-                    calcular\u00e1 autom\u00e1ticamente. Deja en 0 si no aplica.
+                    calculará automáticamente. Deja en 0 si no aplica.
                   </p>
                   <div className="grid grid-cols-2 gap-4">
                     <FormField
@@ -804,10 +804,10 @@ function FacturasContent() {
                   name="observacion"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Observaci\u00f3n</FormLabel>
+                      <FormLabel>Observación</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder="Descripci\u00f3n del producto / servicio"
+                          placeholder="Descripción del producto / servicio"
                           {...field}
                           value={field.value ?? ""}
                         />
@@ -1000,7 +1000,7 @@ function CobroPanel({
   }
 
   async function handleEliminar(id: string) {
-    if (!confirm("\u00bfEliminar este cobro?")) return;
+    if (!confirm("¿Eliminar este cobro?")) return;
     try {
       await eliminar.mutateAsync(id);
       toast.success("Cobro eliminado");
@@ -1143,7 +1143,7 @@ function CobroPanel({
           {cobros.isLoading ? (
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Loader2 className="size-3 animate-spin" />
-              Cargando\u2026
+              Cargando…
             </div>
           ) : listaCobros.length === 0 ? (
             <p className="text-xs text-muted-foreground italic">Sin cobros registrados.</p>
@@ -1203,7 +1203,7 @@ function CobroPanel({
                   <label className="text-xs font-medium">
                     Monto{" "}
                     <span className="text-muted-foreground font-normal">
-                      (m\u00e1x {formatCurrency(saldo)})
+                      (máx {formatCurrency(saldo)})
                     </span>
                   </label>
                   <Input
@@ -1219,11 +1219,11 @@ function CobroPanel({
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium">
-                  Observaci\u00f3n{" "}
+                  Observación{" "}
                   <span className="text-muted-foreground font-normal">(opcional)</span>
                 </label>
                 <Input
-                  placeholder="Transferencia, cheque, cuota #1\u2026"
+                  placeholder="Transferencia, cheque, cuota #1…"
                   value={observacion}
                   onChange={(e) => setObservacion(e.target.value)}
                   className="h-8 text-sm"
