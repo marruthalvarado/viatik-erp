@@ -34,4 +34,5 @@ dist-ssr
 .vercel
 importar_gastos.py
 Plantilla_Importacion_Gastos.xlsx
-Facturas_emit
+Facturas_emitidas.xlsx
+__pycache__/
