@@ -117,3 +117,18 @@ export type RendirLogEntry = {
   observacion: string | null;
   usuario_nombre: string;
 };
+
+export type FacturaEmitida = Tables<"facturas_emitidas">;
+export type FacturaEmitidaInsert = TablesInsert<"facturas_emitidas">;
+export type FacturaEmitidaUpdate = TablesUpdate<"facturas_emitidas">;
+
+/** Factura enriquecida con datos de cobros (saldo derivado). */
+export type FacturaConSaldo = FacturaEmitida & {
+  monto_cobrado: number;
+  saldo_pendiente: number;
+  estado_cobro: "pendiente" | "parcial" | "cobrado";
+};
+
+export type Cobro = Tables<"cobros">;
+export type CobroInsert = TablesInsert<"cobros">;
+export type CobroUpdate = TablesUpdate<"cobros">;

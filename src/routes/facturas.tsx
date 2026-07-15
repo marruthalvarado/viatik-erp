@@ -5,10 +5,23 @@
  * - Carga desde XML SRI Ecuador (parseo automático)
  * - Ingreso manual
  * - Asociación a proyecto
+ * - Panel de cobros (pagos recibidos) por factura
  */
-import { useRef, useState } from "react";
+import { useRef, useState, Fragment } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { FileText, Upload, Plus, Pencil, Trash2, TrendingUp } from "lucide-react";
+import {
+  FileText,
+  Upload,
+  Plus,
+  Pencil,
+  Trash2,
+  TrendingUp,
+  ChevronDown,
+  ChevronUp,
+  DollarSign,
+  Loader2,
+  X,
+} from "lucide-react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -55,6 +68,13 @@ import {
   useEliminarFactura,
 } from "@/hooks/entities/use-facturas-emitidas";
 import { useProyectos } from "@/hooks/entities/use-proyectos";
+import {
+  useCobros,
+  useCrearCobro,
+  useEliminarCobro,
+  useCobrosAgregados,
+} from "@/hooks/entities/use-cobros";
+import type { CobroInsert } from "@/types/entities";
 
 export const Route = createFileRoute("/facturas")({
   head: () => ({ meta: [{ title: "Facturas Emitidas · VIATIQ" }] }),
@@ -79,6 +99,22 @@ const schema = z.object({
 });
 type FormValues = z.infer<typeof schema>;
 
+// ─── Helpers cobros ───────────────────────────────────────────────────────────
+
+type EstadoCobro = "pendiente" | "parcial" | "cobrado";
+
+function calcEstadoCobro(total: number, cobrado: number): EstadoCobro {
+  if (cobrado <= 0) return "pendiente";
+  if (cobrado >= total) return "cobrado";
+  return "parcial";
+}
+
+const BADGE_COBRO: Record<EstadoCobro, string> = {
+  pendiente: "bg-amber-100 text-amber-700",
+  parcial: "bg-blue-100 text-blue-700",
+  cobrado: "bg-emerald-100 text-emerald-700",
+};
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 function FacturasPage() {
@@ -98,6 +134,7 @@ function FacturasContent() {
   const [editando, setEditando] = useState<FacturaEmitida | null>(null);
   const [xmlParsed, setXmlParsed] = useState<FacturaXmlData | null>(null);
   const [loadingXml, setLoadingXml] = useState(false);
+  const [expandedFactura, setExpandedFactura] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const facturas = useFacturasEmitidas(empresaActivaId, anio);
@@ -105,6 +142,7 @@ function FacturasContent() {
   const crear = useCrearFactura();
   const actualizar = useActualizarFactura();
   const eliminar = useEliminarFactura();
+  const cobrosAgregados = useCobrosAgregados(empresaActivaId);
 
   const anios = [
     new Date().getFullYear(),
@@ -246,10 +284,19 @@ function FacturasContent() {
     }
   }
 
+  function toggleExpand(facturaId: string) {
+    setExpandedFactura((prev) => (prev === facturaId ? null : facturaId));
+  }
+
   // KPIs rápidos
   const lista = facturas.data ?? [];
+  const cobrosMap = cobrosAgregados.data;
   const totalAnio = lista.reduce((s, f) => s + (Number(f.total) || 0), 0);
   const numFacturas = lista.length;
+  const totalPendiente = lista.reduce((s, f) => {
+    const cobrado = cobrosMap?.get(f.id) ?? 0;
+    return s + Math.max(0, Number(f.total) - cobrado);
+  }, 0);
 
   const proyectoNombre = (id: string | null) => {
     if (!id) return "—";
@@ -299,7 +346,7 @@ function FacturasContent() {
       />
 
       {/* KPIs rápidos */}
-      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+      <div className="mb-6 grid gap-4 sm:grid-cols-4">
         <KpiCard
           label={`Total facturado ${anio}`}
           value={formatCurrency(totalAnio)}
@@ -309,6 +356,12 @@ function FacturasContent() {
         <KpiCard
           label="Promedio por factura"
           value={numFacturas > 0 ? formatCurrency(totalAnio / numFacturas) : "—"}
+        />
+        <KpiCard
+          label="Saldo por cobrar"
+          value={formatCurrency(totalPendiente)}
+          icon={<DollarSign className="size-4 text-amber-600" />}
+          highlight={totalPendiente > 0}
         />
       </div>
 
@@ -334,60 +387,109 @@ function FacturasContent() {
                   <th className="px-4 py-3 font-medium text-right">Subtotal</th>
                   <th className="px-4 py-3 font-medium text-right">IVA</th>
                   <th className="px-4 py-3 font-medium text-right">Total</th>
-                  <th className="px-4 py-3 font-medium">Estado</th>
+                  <th className="px-4 py-3 font-medium text-right">Saldo</th>
+                  <th className="px-4 py-3 font-medium">Estado SRI</th>
+                  <th className="px-4 py-3 font-medium">Cobros</th>
                   <th className="px-4 py-3" />
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {lista.map((f) => (
-                  <tr key={f.id} className="hover:bg-muted/20 transition-colors">
-                    <td className="px-4 py-3 font-mono text-xs font-medium">{f.numero}</td>
-                    <td className="px-4 py-3 tabular-nums text-xs">{formatDate(f.fecha)}</td>
-                    <td className="px-4 py-3 max-w-[200px]">
-                      <div className="truncate font-medium">{f.razon_social}</div>
-                      {f.ruc_cliente && (
-                        <div className="text-[10px] text-muted-foreground">{f.ruc_cliente}</div>
+                {lista.map((f) => {
+                  const montoCobrado = cobrosMap?.get(f.id) ?? 0;
+                  const saldo = Math.max(0, Number(f.total) - montoCobrado);
+                  const estado = calcEstadoCobro(Number(f.total), montoCobrado);
+                  const isExpanded = expandedFactura === f.id;
+                  return (
+                    <Fragment key={f.id}>
+                      <tr className={`hover:bg-muted/20 transition-colors${isExpanded ? " bg-muted/10" : ""}`}>
+                        <td className="px-4 py-3 font-mono text-xs font-medium">{f.numero}</td>
+                        <td className="px-4 py-3 tabular-nums text-xs">{formatDate(f.fecha)}</td>
+                        <td className="px-4 py-3 max-w-[200px]">
+                          <div className="truncate font-medium">{f.razon_social}</div>
+                          {f.ruc_cliente && (
+                            <div className="text-[10px] text-muted-foreground">{f.ruc_cliente}</div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 max-w-[160px] truncate text-muted-foreground text-xs">
+                          {proyectoNombre(f.proyecto_id)}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums">
+                          {formatCurrency(f.subtotal)}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">
+                          {formatCurrency(f.iva)}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums font-semibold">
+                          {formatCurrency(f.total)}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums font-medium">
+                          {estado === "cobrado" ? (
+                            <span className="text-emerald-600">—</span>
+                          ) : (
+                            <span className="text-amber-700">{formatCurrency(saldo)}</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                            {f.estado_sri ?? "—"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ${BADGE_COBRO[estado]}`}
+                          >
+                            {estado}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-7"
+                              title={isExpanded ? "Cerrar cobros" : "Ver cobros"}
+                              onClick={() => toggleExpand(f.id)}
+                            >
+                              {isExpanded ? (
+                                <ChevronUp className="size-3.5" />
+                              ) : (
+                                <ChevronDown className="size-3.5" />
+                              )}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-7"
+                              onClick={() => openEditar(f)}
+                            >
+                              <Pencil className="size-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-7 text-destructive hover:text-destructive"
+                              onClick={() => handleEliminar(f.id)}
+                            >
+                              <Trash2 className="size-3.5" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                      {isExpanded && empresaActivaId && (
+                        <tr>
+                          <td colSpan={11} className="bg-muted/10 px-6 py-4 border-t">
+                            <CobroPanel
+                              facturaId={f.id}
+                              total={Number(f.total)}
+                              empresaId={empresaActivaId}
+                              numero={f.numero}
+                            />
+                          </td>
+                        </tr>
                       )}
-                    </td>
-                    <td className="px-4 py-3 max-w-[160px] truncate text-muted-foreground text-xs">
-                      {proyectoNombre(f.proyecto_id)}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums">
-                      {formatCurrency(f.subtotal)}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">
-                      {formatCurrency(f.iva)}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums font-semibold">
-                      {formatCurrency(f.total)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-                        {f.estado_sri ?? "—"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-7"
-                          onClick={() => openEditar(f)}
-                        >
-                          <Pencil className="size-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-7 text-destructive hover:text-destructive"
-                          onClick={() => handleEliminar(f.id)}
-                        >
-                          <Trash2 className="size-3.5" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                    </Fragment>
+                  );
+                })}
               </tbody>
               <tfoot className="border-t bg-muted/20">
                 <tr>
@@ -403,7 +505,10 @@ function FacturasContent() {
                   <td className="px-4 py-2 text-right tabular-nums text-sm font-bold text-emerald-700">
                     {formatCurrency(totalAnio)}
                   </td>
-                  <td colSpan={2} />
+                  <td className="px-4 py-2 text-right tabular-nums text-sm font-bold text-amber-700">
+                    {formatCurrency(totalPendiente)}
+                  </td>
+                  <td colSpan={3} />
                 </tr>
               </tfoot>
             </table>
@@ -591,16 +696,233 @@ function FacturasContent() {
   );
 }
 
+// ─── CobroPanel ───────────────────────────────────────────────────────────────
+
+interface CobroPanelProps {
+  facturaId: string;
+  total: number;
+  empresaId: string;
+  numero: string;
+}
+
+function CobroPanel({ facturaId, total, empresaId, numero }: CobroPanelProps) {
+  const cobros = useCobros(facturaId);
+  const crear = useCrearCobro(facturaId);
+  const eliminar = useEliminarCobro(facturaId);
+
+  const [fecha, setFecha] = useState(() => new Date().toISOString().split("T")[0]);
+  const [monto, setMonto] = useState("");
+  const [observacion, setObservacion] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const listaCobros = cobros.data ?? [];
+  const montoCobrado = listaCobros.reduce((s, c) => s + Number(c.monto), 0);
+  const saldo = Math.max(0, total - montoCobrado);
+  const estado = calcEstadoCobro(total, montoCobrado);
+
+  async function handleCrear(e: React.FormEvent) {
+    e.preventDefault();
+    setFormError(null);
+    const montoNum = parseFloat(monto);
+    if (!fecha) {
+      setFormError("La fecha es requerida.");
+      return;
+    }
+    if (isNaN(montoNum) || montoNum <= 0) {
+      setFormError("El monto debe ser mayor a 0.");
+      return;
+    }
+    if (montoNum > saldo + 0.001) {
+      setFormError(`El monto no puede superar el saldo (${formatCurrency(saldo)}).`);
+      return;
+    }
+    try {
+      const payload: CobroInsert = {
+        empresa_id: empresaId,
+        factura_id: facturaId,
+        fecha_cobro: fecha,
+        monto: montoNum,
+        observacion: observacion.trim() || null,
+      };
+      await crear.mutateAsync(payload);
+      setMonto("");
+      setObservacion("");
+      toast.success("Cobro registrado");
+    } catch (err) {
+      setFormError((err as Error).message);
+    }
+  }
+
+  async function handleEliminar(id: string) {
+    if (!confirm("¿Eliminar este cobro?")) return;
+    try {
+      await eliminar.mutateAsync(id);
+      toast.success("Cobro eliminado");
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Saldo header */}
+      <div className="flex flex-wrap items-center gap-6">
+        <div>
+          <p className="text-xs uppercase text-muted-foreground tracking-wide">Factura</p>
+          <p className="font-mono text-sm font-medium">{numero}</p>
+        </div>
+        <div>
+          <p className="text-xs uppercase text-muted-foreground tracking-wide">Total</p>
+          <p className="tabular-nums font-semibold">{formatCurrency(total)}</p>
+        </div>
+        <div>
+          <p className="text-xs uppercase text-muted-foreground tracking-wide">Cobrado</p>
+          <p className="tabular-nums font-semibold text-emerald-700">{formatCurrency(montoCobrado)}</p>
+        </div>
+        <div>
+          <p className="text-xs uppercase text-muted-foreground tracking-wide">Saldo pendiente</p>
+          <p
+            className={`tabular-nums text-xl font-bold ${
+              estado === "cobrado" ? "text-emerald-600" : "text-amber-600"
+            }`}
+          >
+            {formatCurrency(saldo)}
+          </p>
+        </div>
+        <span
+          className={`rounded-full px-3 py-1 text-xs font-semibold capitalize ${BADGE_COBRO[estado]}`}
+        >
+          {estado}
+        </span>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Lista de cobros */}
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+            Pagos recibidos
+          </p>
+          {cobros.isLoading ? (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="size-3 animate-spin" />
+              Cargando…
+            </div>
+          ) : listaCobros.length === 0 ? (
+            <p className="text-xs text-muted-foreground italic">Sin cobros registrados.</p>
+          ) : (
+            <div className="space-y-1">
+              {listaCobros.map((c) => (
+                <div
+                  key={c.id}
+                  className="flex items-center justify-between rounded-lg border bg-background px-3 py-2"
+                >
+                  <div className="flex items-center gap-4">
+                    <span className="tabular-nums text-xs text-muted-foreground">
+                      {formatDate(c.fecha_cobro)}
+                    </span>
+                    <span className="tabular-nums font-semibold text-emerald-700">
+                      {formatCurrency(Number(c.monto))}
+                    </span>
+                    {c.observacion && (
+                      <span className="text-xs text-muted-foreground truncate max-w-[200px]">
+                        {c.observacion}
+                      </span>
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-6 text-destructive hover:text-destructive"
+                    onClick={() => handleEliminar(c.id)}
+                    disabled={eliminar.isPending}
+                  >
+                    <X className="size-3" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Formulario nuevo cobro */}
+        {estado !== "cobrado" && (
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+              Registrar cobro
+            </p>
+            <form onSubmit={handleCrear} className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">Fecha</label>
+                  <Input
+                    type="date"
+                    value={fecha}
+                    onChange={(e) => setFecha(e.target.value)}
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">Monto</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    placeholder="0.00"
+                    value={monto}
+                    onChange={(e) => setMonto(e.target.value)}
+                    className="h-8 text-sm"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium">
+                  Observación{" "}
+                  <span className="text-muted-foreground font-normal">(opcional)</span>
+                </label>
+                <Input
+                  placeholder="Transferencia, cheque, cuota #1…"
+                  value={observacion}
+                  onChange={(e) => setObservacion(e.target.value)}
+                  className="h-8 text-sm"
+                />
+              </div>
+              {formError && <p className="text-xs text-destructive">{formError}</p>}
+              <Button type="submit" size="sm" disabled={crear.isPending}>
+                {crear.isPending && <Loader2 className="size-3 mr-1.5 animate-spin" />}
+                Registrar cobro
+              </Button>
+            </form>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── KPI Card ─────────────────────────────────────────────────────────────────
 
-function KpiCard({ label, value, icon }: { label: string; value: string; icon?: React.ReactNode }) {
+function KpiCard({
+  label,
+  value,
+  icon,
+  highlight,
+}: {
+  label: string;
+  value: string;
+  icon?: React.ReactNode;
+  highlight?: boolean;
+}) {
   return (
-    <div className="rounded-xl border bg-card p-4">
+    <div
+      className={`rounded-xl border bg-card p-4 ${highlight ? "border-amber-300 bg-amber-50/30" : ""}`}
+    >
       <div className="flex items-center justify-between mb-1">
         {icon && <span className="text-muted-foreground">{icon}</span>}
         <span className="text-xs uppercase tracking-wide text-muted-foreground">{label}</span>
       </div>
-      <p className="text-2xl font-bold tabular-nums">{value}</p>
+      <p className={`text-2xl font-bold tabular-nums ${highlight ? "text-amber-700" : ""}`}>
+        {value}
+      </p>
     </div>
   );
 }

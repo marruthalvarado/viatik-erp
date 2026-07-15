@@ -431,6 +431,54 @@ export type Database = {
           },
         ];
       };
+      cobros: {
+        Row: {
+          id: string;
+          empresa_id: string;
+          factura_id: string;
+          fecha_cobro: string;
+          monto: number;
+          observacion: string | null;
+          created_at: string;
+          created_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          empresa_id: string;
+          factura_id: string;
+          fecha_cobro: string;
+          monto: number;
+          observacion?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+        };
+        Update: {
+          id?: string;
+          empresa_id?: string;
+          factura_id?: string;
+          fecha_cobro?: string;
+          monto?: number;
+          observacion?: string | null;
+          created_at?: string;
+          created_by?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "cobros_empresa_id_fkey";
+            columns: ["empresa_id"];
+            isOneToOne: false;
+            referencedRelation: "empresas";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "cobros_factura_id_fkey";
+            columns: ["factura_id"];
+            isOneToOne: false;
+            referencedRelation: "facturas_emitidas";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       facturas_emitidas: {
         Row: {
           id: string;

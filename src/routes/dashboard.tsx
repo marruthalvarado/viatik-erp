@@ -21,6 +21,7 @@ import {
   TopProyectos,
 } from "@/components/dashboard/dashboard-rankings";
 import { DashboardRendiciones } from "@/components/dashboard/dashboard-rendiciones";
+import { DashboardCobros } from "@/components/dashboard/dashboard-cobros";
 
 import {
   useDashboardEjecutivo,
@@ -35,6 +36,7 @@ import {
   usePresupuestoTotal,
   useResumenFinancieroProyectos,
 } from "@/hooks/entities/use-dashboard";
+import { useResumenCobros } from "@/hooks/entities/use-cobros";
 import { Building2 } from "lucide-react";
 
 export const Route = createFileRoute("/dashboard")({
@@ -42,7 +44,7 @@ export const Route = createFileRoute("/dashboard")({
   component: DashboardPage,
 });
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// --- Page --------------------------------------------------------------------
 
 function DashboardPage() {
   return (
@@ -52,7 +54,7 @@ function DashboardPage() {
   );
 }
 
-// ─── Content ──────────────────────────────────────────────────────────────────
+// --- Content -----------------------------------------------------------------
 
 function DashboardContent() {
   const { empresaActivaId, empresaActiva, loading: loadingCompany } = useCompany();
@@ -66,7 +68,7 @@ function DashboardContent() {
   if (!empresaActivaId) {
     return (
       <>
-        <PageHeader title="Dashboard" description="Selecciona una empresa para ver tus métricas." />
+        <PageHeader title="Dashboard" description="Selecciona una empresa para ver tus metricas." />
         <EmptyState
           icon={Building2}
           title="Sin empresa activa"
@@ -87,7 +89,7 @@ function DashboardContent() {
   );
 }
 
-// ─── Main (empresaId garantizado) ─────────────────────────────────────────────
+// --- Main (empresaId garantizado) --------------------------------------------
 
 interface DashboardMainProps {
   empresaId: string;
@@ -125,6 +127,9 @@ function DashboardMain({
   // Rendiciones pendientes
   const rendiciones = useRendicionesPendientes(empresaId, 10);
 
+  // Cuentas por cobrar
+  const cobros = useResumenCobros(empresaId);
+
   const kpiLoading = ejecutivo.isLoading || ia.isLoading || presupuesto.isLoading;
 
   return (
@@ -145,7 +150,7 @@ function DashboardMain({
         loading={kpiLoading}
       />
 
-      {/* Evolución + Presupuesto vs ejecutado */}
+      {/* Evolucion + Presupuesto vs ejecutado */}
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <EvolucionMensualChart
           data={evolucion.data ?? []}
@@ -158,7 +163,7 @@ function DashboardMain({
         />
       </div>
 
-      {/* Categorías + Clientes */}
+      {/* Categorias + Clientes */}
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <GastosCategoriaChart data={categorias.data ?? []} loading={categorias.isLoading} />
         <GastosClienteChart data={clientes.data ?? []} loading={clientes.isLoading} />
@@ -176,6 +181,15 @@ function DashboardMain({
           data={proyectos.data ?? []}
           loading={proyectos.isLoading}
           onNavigate={() => onNavigate("/proyectos")}
+        />
+      </div>
+
+      {/* Cuentas por cobrar */}
+      <div className="mt-6">
+        <DashboardCobros
+          data={cobros.data}
+          loading={cobros.isLoading}
+          onNavigate={() => onNavigate("/facturas")}
         />
       </div>
 
