@@ -6,6 +6,7 @@
  * - Ingreso manual
  * - Asociación a proyecto
  * - Panel de cobros (pagos recibidos) por factura
+ * - Campos de retención fiscal (agente de retención Ecuador)
  */
 import { useRef, useState, Fragment } from "react";
 import { createFileRoute } from "@tanstack/react-router";
@@ -21,6 +22,7 @@ import {
   DollarSign,
   Loader2,
   X,
+  Percent,
 } from "lucide-react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -96,6 +98,8 @@ const schema = z.object({
   proyecto_id: z.string().nullable().optional(),
   observacion: z.string().nullable().optional(),
   clave_acceso: z.string().nullable().optional(),
+  retencion_iva_pct: z.coerce.number().min(0).max(100),
+  retencion_ir_pct: z.coerce.number().min(0).max(100),
 });
 type FormValues = z.infer<typeof schema>;
 
@@ -103,9 +107,20 @@ type FormValues = z.infer<typeof schema>;
 
 type EstadoCobro = "pendiente" | "parcial" | "cobrado";
 
-function calcEstadoCobro(total: number, cobrado: number): EstadoCobro {
+/** Calcula el valor neto a cobrar descontando retenciones fiscales. */
+function calcValorNeto(
+  total: number,
+  iva: number,
+  subtotal: number,
+  retIvaPct: number,
+  retIrPct: number,
+): number {
+  return Math.round((total - (iva * retIvaPct) / 100 - (subtotal * retIrPct) / 100) * 100) / 100;
+}
+
+function calcEstadoCobro(valorNeto: number, cobrado: number): EstadoCobro {
   if (cobrado <= 0) return "pendiente";
-  if (cobrado >= total) return "cobrado";
+  if (cobrado >= valorNeto - 0.001) return "cobrado";
   return "parcial";
 }
 
@@ -165,6 +180,8 @@ function FacturasContent() {
       proyecto_id: null,
       observacion: null,
       clave_acceso: null,
+      retencion_iva_pct: 0,
+      retencion_ir_pct: 0,
     },
   });
 
@@ -185,6 +202,8 @@ function FacturasContent() {
             proyecto_id: null,
             observacion: prefill.observacion ?? null,
             clave_acceso: prefill.clave_acceso ?? null,
+            retencion_iva_pct: 0,
+            retencion_ir_pct: 0,
           }
         : {
             numero: "",
@@ -199,6 +218,8 @@ function FacturasContent() {
             proyecto_id: null,
             observacion: null,
             clave_acceso: null,
+            retencion_iva_pct: 0,
+            retencion_ir_pct: 0,
           },
     );
     setDrawerOpen(true);
@@ -219,6 +240,8 @@ function FacturasContent() {
       proyecto_id: f.proyecto_id,
       observacion: f.observacion,
       clave_acceso: f.clave_acceso,
+      retencion_iva_pct: f.retencion_iva_pct ?? 0,
+      retencion_ir_pct: f.retencion_ir_pct ?? 0,
     });
     setDrawerOpen(true);
   }
@@ -275,7 +298,7 @@ function FacturasContent() {
   }
 
   async function handleEliminar(id: string) {
-    if (!confirm("¿Eliminar esta factura?")) return;
+    if (!confirm("\u00bfEliminar esta factura?")) return;
     try {
       await eliminar.mutateAsync(id);
       toast.success("Factura eliminada");
@@ -294,20 +317,27 @@ function FacturasContent() {
   const totalAnio = lista.reduce((s, f) => s + (Number(f.total) || 0), 0);
   const numFacturas = lista.length;
   const totalPendiente = lista.reduce((s, f) => {
+    const vn = calcValorNeto(
+      Number(f.total),
+      Number(f.iva),
+      Number(f.subtotal),
+      Number(f.retencion_iva_pct ?? 0),
+      Number(f.retencion_ir_pct ?? 0),
+    );
     const cobrado = cobrosMap?.get(f.id) ?? 0;
-    return s + Math.max(0, Number(f.total) - cobrado);
+    return s + Math.max(0, vn - cobrado);
   }, 0);
 
   const proyectoNombre = (id: string | null) => {
-    if (!id) return "—";
-    return (proyectos.data?.rows ?? []).find((p) => p.id === id)?.nombre ?? "—";
+    if (!id) return "\u2014";
+    return (proyectos.data?.rows ?? []).find((p) => p.id === id)?.nombre ?? "\u2014";
   };
 
   return (
     <>
       <PageHeader
         title="Facturas Emitidas"
-        description="Facturación emitida por la empresa a clientes."
+        description="Facturaci\u00f3n emitida por la empresa a clientes."
         actions={
           <div className="flex items-center gap-2">
             <select
@@ -345,17 +375,17 @@ function FacturasContent() {
         }
       />
 
-      {/* KPIs rápidos */}
+      {/* KPIs r\u00e1pidos */}
       <div className="mb-6 grid gap-4 sm:grid-cols-4">
         <KpiCard
           label={`Total facturado ${anio}`}
           value={formatCurrency(totalAnio)}
           icon={<TrendingUp className="size-4 text-emerald-600" />}
         />
-        <KpiCard label="Número de facturas" value={String(numFacturas)} />
+        <KpiCard label="N\u00famero de facturas" value={String(numFacturas)} />
         <KpiCard
           label="Promedio por factura"
-          value={numFacturas > 0 ? formatCurrency(totalAnio / numFacturas) : "—"}
+          value={numFacturas > 0 ? formatCurrency(totalAnio / numFacturas) : "\u2014"}
         />
         <KpiCard
           label="Saldo por cobrar"
@@ -380,7 +410,7 @@ function FacturasContent() {
             <table className="w-full text-sm">
               <thead className="border-b bg-muted/30">
                 <tr className="text-left text-xs uppercase text-muted-foreground">
-                  <th className="px-4 py-3 font-medium">Número</th>
+                  <th className="px-4 py-3 font-medium">N\u00famero</th>
                   <th className="px-4 py-3 font-medium">Fecha</th>
                   <th className="px-4 py-3 font-medium">Cliente</th>
                   <th className="px-4 py-3 font-medium">Proyecto</th>
@@ -395,19 +425,38 @@ function FacturasContent() {
               </thead>
               <tbody className="divide-y">
                 {lista.map((f) => {
+                  const valorNeto = calcValorNeto(
+                    Number(f.total),
+                    Number(f.iva),
+                    Number(f.subtotal),
+                    Number(f.retencion_iva_pct ?? 0),
+                    Number(f.retencion_ir_pct ?? 0),
+                  );
                   const montoCobrado = cobrosMap?.get(f.id) ?? 0;
-                  const saldo = Math.max(0, Number(f.total) - montoCobrado);
-                  const estado = calcEstadoCobro(Number(f.total), montoCobrado);
+                  const saldo = Math.max(0, valorNeto - montoCobrado);
+                  const estado = calcEstadoCobro(valorNeto, montoCobrado);
                   const isExpanded = expandedFactura === f.id;
+                  const tieneRetencion =
+                    Number(f.retencion_iva_pct ?? 0) > 0 || Number(f.retencion_ir_pct ?? 0) > 0;
                   return (
                     <Fragment key={f.id}>
-                      <tr className={`hover:bg-muted/20 transition-colors${isExpanded ? " bg-muted/10" : ""}`}>
+                      <tr
+                        className={`hover:bg-muted/20 transition-colors${isExpanded ? " bg-muted/10" : ""}`}
+                      >
                         <td className="px-4 py-3 font-mono text-xs font-medium">{f.numero}</td>
                         <td className="px-4 py-3 tabular-nums text-xs">{formatDate(f.fecha)}</td>
                         <td className="px-4 py-3 max-w-[200px]">
                           <div className="truncate font-medium">{f.razon_social}</div>
                           {f.ruc_cliente && (
                             <div className="text-[10px] text-muted-foreground">{f.ruc_cliente}</div>
+                          )}
+                          {tieneRetencion && (
+                            <div className="flex items-center gap-1 mt-0.5">
+                              <Percent className="size-2.5 text-blue-500" />
+                              <span className="text-[9px] text-blue-600 font-medium">
+                                Agente ret.
+                              </span>
+                            </div>
                           )}
                         </td>
                         <td className="px-4 py-3 max-w-[160px] truncate text-muted-foreground text-xs">
@@ -424,14 +473,14 @@ function FacturasContent() {
                         </td>
                         <td className="px-4 py-3 text-right tabular-nums font-medium">
                           {estado === "cobrado" ? (
-                            <span className="text-emerald-600">—</span>
+                            <span className="text-emerald-600">\u2014</span>
                           ) : (
                             <span className="text-amber-700">{formatCurrency(saldo)}</span>
                           )}
                         </td>
                         <td className="px-4 py-3">
                           <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-                            {f.estado_sri ?? "—"}
+                            {f.estado_sri ?? "\u2014"}
                           </span>
                         </td>
                         <td className="px-4 py-3">
@@ -481,8 +530,21 @@ function FacturasContent() {
                             <CobroPanel
                               facturaId={f.id}
                               total={Number(f.total)}
+                              subtotal={Number(f.subtotal)}
+                              iva={Number(f.iva)}
+                              retencionIvaPct={Number(f.retencion_iva_pct ?? 0)}
+                              retencionIrPct={Number(f.retencion_ir_pct ?? 0)}
                               empresaId={empresaActivaId}
                               numero={f.numero}
+                              onRetencionesSave={async (ivaPct, irPct) => {
+                                await actualizar.mutateAsync({
+                                  id: f.id,
+                                  payload: {
+                                    retencion_iva_pct: ivaPct,
+                                    retencion_ir_pct: irPct,
+                                  },
+                                });
+                              }}
                             />
                           </td>
                         </tr>
@@ -523,7 +585,7 @@ function FacturasContent() {
             <DrawerTitle>{editando ? "Editar factura" : "Nueva factura"}</DrawerTitle>
             <DrawerDescription>
               {xmlParsed && !editando
-                ? `Datos cargados desde XML · ${xmlParsed.numero}`
+                ? `Datos cargados desde XML \u00b7 ${xmlParsed.numero}`
                 : "Completa los datos de la factura emitida."}
             </DrawerDescription>
           </DrawerHeader>
@@ -536,7 +598,7 @@ function FacturasContent() {
                     name="numero"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Número</FormLabel>
+                        <FormLabel>N\u00famero</FormLabel>
                         <FormControl>
                           <Input placeholder="001-001-000000001" {...field} />
                         </FormControl>
@@ -574,7 +636,7 @@ function FacturasContent() {
                           </FormControl>
                           <SelectContent>
                             <SelectItem value="factura">Factura</SelectItem>
-                            <SelectItem value="nota_credito">Nota de Crédito</SelectItem>
+                            <SelectItem value="nota_credito">Nota de Cr\u00e9dito</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -630,7 +692,7 @@ function FacturasContent() {
                     name="razon_social"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Razón Social</FormLabel>
+                        <FormLabel>Raz\u00f3n Social</FormLabel>
                         <FormControl>
                           <Input placeholder="Nombre del cliente" {...field} />
                         </FormControl>
@@ -661,15 +723,91 @@ function FacturasContent() {
                   ))}
                 </div>
 
+                {/* Retenciones fiscales */}
+                <div className="rounded-lg border border-blue-200 bg-blue-50/40 p-3 space-y-3">
+                  <p className="text-xs font-semibold text-blue-700 flex items-center gap-1.5">
+                    <Percent className="size-3" />
+                    Retenciones fiscales (agente de retenci\u00f3n)
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Si el cliente retiene impuestos, ingresa los porcentajes. El valor a cobrar se
+                    calcular\u00e1 autom\u00e1ticamente. Deja en 0 si no aplica.
+                  </p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="retencion_iva_pct"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs">
+                            Ret. IVA{" "}
+                            <span className="text-muted-foreground font-normal">(% del IVA)</span>
+                          </FormLabel>
+                          <FormControl>
+                            <div className="relative">
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                max="100"
+                                placeholder="0"
+                                {...field}
+                                className="pr-7"
+                              />
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                                %
+                              </span>
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="retencion_ir_pct"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs">
+                            Ret. IR{" "}
+                            <span className="text-muted-foreground font-normal">
+                              (% del subtotal)
+                            </span>
+                          </FormLabel>
+                          <FormControl>
+                            <div className="relative">
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                max="100"
+                                placeholder="0"
+                                {...field}
+                                className="pr-7"
+                              />
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                                %
+                              </span>
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  {/* Preview del neto calculado */}
+                  <ValorNetoPreviewWrapper form={form} />
+                </div>
+
                 <FormField
                   control={form.control}
                   name="observacion"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Observación</FormLabel>
+                      <FormLabel>Observaci\u00f3n</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder="Descripción del producto / servicio"
+                          placeholder="Descripci\u00f3n del producto / servicio"
                           {...field}
                           value={field.value ?? ""}
                         />
@@ -696,16 +834,101 @@ function FacturasContent() {
   );
 }
 
+// ─── ValorNetoPreview ─────────────────────────────────────────────────────────
+
+function ValorNetoPreviewWrapper({ form }: { form: ReturnType<typeof useForm<FormValues>> }) {
+  const total = form.watch("total") ?? 0;
+  const iva = form.watch("iva") ?? 0;
+  const subtotal = form.watch("subtotal") ?? 0;
+  const retIva = form.watch("retencion_iva_pct") ?? 0;
+  const retIr = form.watch("retencion_ir_pct") ?? 0;
+  return (
+    <ValorNetoPreview
+      total={Number(total)}
+      iva={Number(iva)}
+      subtotal={Number(subtotal)}
+      retIva={Number(retIva)}
+      retIr={Number(retIr)}
+    />
+  );
+}
+
+function ValorNetoPreview({
+  total,
+  iva,
+  subtotal,
+  retIva,
+  retIr,
+}: {
+  total: number;
+  iva: number;
+  subtotal: number;
+  retIva: number;
+  retIr: number;
+}) {
+  if (retIva <= 0 && retIr <= 0) return null;
+
+  const retIvaMonto = Math.round(Number(iva) * Number(retIva)) / 100;
+  const retIrMonto = Math.round(Number(subtotal) * Number(retIr)) / 100;
+  const valorNeto = Math.round((Number(total) - retIvaMonto - retIrMonto) * 100) / 100;
+
+  return (
+    <div className="rounded-md bg-white border border-blue-100 px-3 py-2 text-xs space-y-1">
+      <div className="flex justify-between text-muted-foreground">
+        <span>Total factura</span>
+        <span className="tabular-nums font-medium text-foreground">
+          {formatCurrency(Number(total))}
+        </span>
+      </div>
+      {retIva > 0 && (
+        <div className="flex justify-between text-muted-foreground">
+          <span>
+            Ret. IVA ({retIva}% de {formatCurrency(Number(iva))})
+          </span>
+          <span className="tabular-nums text-red-600">- {formatCurrency(retIvaMonto)}</span>
+        </div>
+      )}
+      {retIr > 0 && (
+        <div className="flex justify-between text-muted-foreground">
+          <span>
+            Ret. IR ({retIr}% de {formatCurrency(Number(subtotal))})
+          </span>
+          <span className="tabular-nums text-red-600">- {formatCurrency(retIrMonto)}</span>
+        </div>
+      )}
+      <div className="flex justify-between border-t pt-1 font-semibold">
+        <span className="text-blue-700">Valor a cobrar</span>
+        <span className="tabular-nums text-blue-700">{formatCurrency(valorNeto)}</span>
+      </div>
+    </div>
+  );
+}
+
 // ─── CobroPanel ───────────────────────────────────────────────────────────────
 
 interface CobroPanelProps {
   facturaId: string;
   total: number;
+  subtotal: number;
+  iva: number;
+  retencionIvaPct: number;
+  retencionIrPct: number;
   empresaId: string;
   numero: string;
+  onRetencionesSave: (ivaPct: number, irPct: number) => Promise<void>;
 }
 
-function CobroPanel({ facturaId, total, empresaId, numero }: CobroPanelProps) {
+function CobroPanel({
+  facturaId,
+  total,
+  subtotal,
+  iva,
+  retencionIvaPct,
+  retencionIrPct,
+  empresaId,
+  numero,
+  onRetencionesSave,
+}: CobroPanelProps) {
   const cobros = useCobros(facturaId);
   const crear = useCrearCobro(facturaId);
   const eliminar = useEliminarCobro(facturaId);
@@ -715,10 +938,33 @@ function CobroPanel({ facturaId, total, empresaId, numero }: CobroPanelProps) {
   const [observacion, setObservacion] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
 
+  // Retenciones editables dentro del panel
+  const [retIvaPct, setRetIvaPct] = useState(retencionIvaPct);
+  const [retIrPct, setRetIrPct] = useState(retencionIrPct);
+  const [savingRet, setSavingRet] = useState(false);
+  const retChanged = retIvaPct !== retencionIvaPct || retIrPct !== retencionIrPct;
+
   const listaCobros = cobros.data ?? [];
   const montoCobrado = listaCobros.reduce((s, c) => s + Number(c.monto), 0);
-  const saldo = Math.max(0, total - montoCobrado);
-  const estado = calcEstadoCobro(total, montoCobrado);
+
+  // Valor neto a cobrar (con retenciones actuales — antes de guardar)
+  const retIvaMontoAct = Math.round(iva * retIvaPct) / 100;
+  const retIrMontoAct = Math.round(subtotal * retIrPct) / 100;
+  const valorNeto = Math.round((total - retIvaMontoAct - retIrMontoAct) * 100) / 100;
+  const saldo = Math.max(0, valorNeto - montoCobrado);
+  const estado = calcEstadoCobro(valorNeto, montoCobrado);
+
+  async function handleSaveRetenciones() {
+    setSavingRet(true);
+    try {
+      await onRetencionesSave(retIvaPct, retIrPct);
+      toast.success("Retenciones actualizadas");
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setSavingRet(false);
+    }
+  }
 
   async function handleCrear(e: React.FormEvent) {
     e.preventDefault();
@@ -754,7 +1000,7 @@ function CobroPanel({ facturaId, total, empresaId, numero }: CobroPanelProps) {
   }
 
   async function handleEliminar(id: string) {
-    if (!confirm("¿Eliminar este cobro?")) return;
+    if (!confirm("\u00bfEliminar este cobro?")) return;
     try {
       await eliminar.mutateAsync(id);
       toast.success("Cobro eliminado");
@@ -775,9 +1021,17 @@ function CobroPanel({ facturaId, total, empresaId, numero }: CobroPanelProps) {
           <p className="text-xs uppercase text-muted-foreground tracking-wide">Total</p>
           <p className="tabular-nums font-semibold">{formatCurrency(total)}</p>
         </div>
+        {(retIvaPct > 0 || retIrPct > 0) && (
+          <div>
+            <p className="text-xs uppercase text-muted-foreground tracking-wide">Valor a cobrar</p>
+            <p className="tabular-nums font-semibold text-blue-700">{formatCurrency(valorNeto)}</p>
+          </div>
+        )}
         <div>
           <p className="text-xs uppercase text-muted-foreground tracking-wide">Cobrado</p>
-          <p className="tabular-nums font-semibold text-emerald-700">{formatCurrency(montoCobrado)}</p>
+          <p className="tabular-nums font-semibold text-emerald-700">
+            {formatCurrency(montoCobrado)}
+          </p>
         </div>
         <div>
           <p className="text-xs uppercase text-muted-foreground tracking-wide">Saldo pendiente</p>
@@ -796,6 +1050,90 @@ function CobroPanel({ facturaId, total, empresaId, numero }: CobroPanelProps) {
         </span>
       </div>
 
+      {/* Retenciones inline */}
+      <div className="rounded-lg border border-blue-100 bg-blue-50/30 px-4 py-3">
+        <p className="text-xs font-semibold text-blue-700 mb-2 flex items-center gap-1.5">
+          <Percent className="size-3" />
+          Retenciones fiscales
+        </p>
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">
+              Ret. IVA (% del IVA)
+            </label>
+            <div className="relative w-28">
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                max="100"
+                value={retIvaPct}
+                onChange={(e) => setRetIvaPct(Number(e.target.value))}
+                className="h-8 w-full rounded-md border bg-background px-2 pr-6 text-sm tabular-nums"
+              />
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                %
+              </span>
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">
+              Ret. IR (% del subtotal)
+            </label>
+            <div className="relative w-28">
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                max="100"
+                value={retIrPct}
+                onChange={(e) => setRetIrPct(Number(e.target.value))}
+                className="h-8 w-full rounded-md border bg-background px-2 pr-6 text-sm tabular-nums"
+              />
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                %
+              </span>
+            </div>
+          </div>
+          {/* Desglose */}
+          {(retIvaPct > 0 || retIrPct > 0) && (
+            <div className="text-xs text-muted-foreground space-y-0.5">
+              {retIvaPct > 0 && (
+                <p>
+                  Ret. IVA:{" "}
+                  <span className="text-red-500 font-medium">
+                    - {formatCurrency(retIvaMontoAct)}
+                  </span>
+                </p>
+              )}
+              {retIrPct > 0 && (
+                <p>
+                  Ret. IR:{" "}
+                  <span className="text-red-500 font-medium">
+                    - {formatCurrency(retIrMontoAct)}
+                  </span>
+                </p>
+              )}
+              <p className="font-semibold text-blue-700 border-t pt-0.5 mt-0.5">
+                Neto: {formatCurrency(valorNeto)}
+              </p>
+            </div>
+          )}
+          {retChanged && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 border-blue-300 text-blue-700 hover:bg-blue-50"
+              onClick={handleSaveRetenciones}
+              disabled={savingRet}
+            >
+              {savingRet && <Loader2 className="size-3 mr-1.5 animate-spin" />}
+              Guardar
+            </Button>
+          )}
+        </div>
+      </div>
+
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Lista de cobros */}
         <div>
@@ -805,7 +1143,7 @@ function CobroPanel({ facturaId, total, empresaId, numero }: CobroPanelProps) {
           {cobros.isLoading ? (
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Loader2 className="size-3 animate-spin" />
-              Cargando…
+              Cargando\u2026
             </div>
           ) : listaCobros.length === 0 ? (
             <p className="text-xs text-muted-foreground italic">Sin cobros registrados.</p>
@@ -862,7 +1200,12 @@ function CobroPanel({ facturaId, total, empresaId, numero }: CobroPanelProps) {
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-medium">Monto</label>
+                  <label className="text-xs font-medium">
+                    Monto{" "}
+                    <span className="text-muted-foreground font-normal">
+                      (m\u00e1x {formatCurrency(saldo)})
+                    </span>
+                  </label>
                   <Input
                     type="number"
                     step="0.01"
@@ -876,11 +1219,11 @@ function CobroPanel({ facturaId, total, empresaId, numero }: CobroPanelProps) {
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium">
-                  Observación{" "}
+                  Observaci\u00f3n{" "}
                   <span className="text-muted-foreground font-normal">(opcional)</span>
                 </label>
                 <Input
-                  placeholder="Transferencia, cheque, cuota #1…"
+                  placeholder="Transferencia, cheque, cuota #1\u2026"
                   value={observacion}
                   onChange={(e) => setObservacion(e.target.value)}
                   className="h-8 text-sm"

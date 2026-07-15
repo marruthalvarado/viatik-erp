@@ -19,11 +19,7 @@ export async function listarCobros(facturaId: string): Promise<Cobro[]> {
 
 /** Registra un nuevo cobro. */
 export async function crearCobro(payload: CobroInsert): Promise<Cobro> {
-  const { data, error } = await supabase
-    .from("cobros")
-    .insert(payload)
-    .select()
-    .single();
+  const { data, error } = await supabase.from("cobros").insert(payload).select().single();
   if (error) throw new Error(`[cobros] ${error.message}`);
   return data;
 }
@@ -88,12 +84,17 @@ function getRangoAging(dias: number): RangoAging {
  * Calcula el resumen de cuentas por cobrar para el dashboard BI.
  * Incluye aging (0-30 / 31-60 / 61-90 / +90 dias desde emision),
  * top clientes con mayor saldo y lista detallada de facturas pendientes.
+ *
+ * Considera retenciones fiscales (agentes de retención Ecuador):
+ *   valor_neto = total - (iva × ret_iva_pct/100) - (subtotal × ret_ir_pct/100)
  */
 export async function getResumenCobros(empresaId: string): Promise<ResumenCobros> {
   const [{ data: facturas, error: e1 }, cobrosMap] = await Promise.all([
     supabase
       .from("facturas_emitidas")
-      .select("id, numero, fecha, razon_social, ruc_cliente, total")
+      .select(
+        "id, numero, fecha, razon_social, ruc_cliente, subtotal, iva, total, retencion_iva_pct, retencion_ir_pct",
+      )
       .eq("empresa_id", empresaId)
       .is("deleted_at", null),
     getCobrosAgregadosPorEmpresa(empresaId),
@@ -110,12 +111,25 @@ export async function getResumenCobros(empresaId: string): Promise<ResumenCobros
 
   let total_pendiente = 0;
   let total_cobrado = 0;
-  const clienteMap = new Map<string, { razon_social: string; ruc_cliente: string | null; saldo: number }>();
+  const clienteMap = new Map<
+    string,
+    { razon_social: string; ruc_cliente: string | null; saldo: number }
+  >();
   const cuentas: CuentaPorCobrar[] = [];
 
   for (const f of facturas ?? []) {
+    const ivaN = Number(f.iva ?? 0);
+    const subN = Number(f.subtotal ?? 0);
+    const totalN = Number(f.total ?? 0);
+    const retIva = Number(f.retencion_iva_pct ?? 0);
+    const retIr = Number(f.retencion_ir_pct ?? 0);
+
+    // Valor real a cobrar (neto de retenciones)
+    const valor_neto =
+      Math.round((totalN - (ivaN * retIva) / 100 - (subN * retIr) / 100) * 100) / 100;
+
     const monto_cobrado = cobrosMap.get(f.id) ?? 0;
-    const saldo_pendiente = Math.max(0, Number(f.total) - monto_cobrado);
+    const saldo_pendiente = Math.max(0, valor_neto - monto_cobrado);
     total_cobrado += monto_cobrado;
     total_pendiente += saldo_pendiente;
 
@@ -145,7 +159,7 @@ export async function getResumenCobros(empresaId: string): Promise<ResumenCobros
       fecha: f.fecha,
       razon_social: f.razon_social,
       ruc_cliente: f.ruc_cliente ?? null,
-      total: Number(f.total),
+      total: totalN,
       monto_cobrado,
       saldo_pendiente,
       dias_emitida: dias,

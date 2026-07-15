@@ -497,6 +497,8 @@ export type Database = {
           estado_sri: string | null;
           xml_content: string | null;
           observacion: string | null;
+          retencion_iva_pct: number;
+          retencion_ir_pct: number;
           created_by: string | null;
           created_at: string;
           updated_at: string;
@@ -519,6 +521,8 @@ export type Database = {
           estado_sri?: string | null;
           xml_content?: string | null;
           observacion?: string | null;
+          retencion_iva_pct?: number;
+          retencion_ir_pct?: number;
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -541,6 +545,8 @@ export type Database = {
           estado_sri?: string | null;
           xml_content?: string | null;
           observacion?: string | null;
+          retencion_iva_pct?: number;
+          retencion_ir_pct?: number;
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
