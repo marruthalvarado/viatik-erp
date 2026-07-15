@@ -124,9 +124,10 @@ export async function getResumenCobros(empresaId: string): Promise<ResumenCobros
     const retIva = Number(f.retencion_iva_pct ?? 0);
     const retIr = Number(f.retencion_ir_pct ?? 0);
 
-    // Valor real a cobrar (neto de retenciones)
-    const valor_neto =
-      Math.round((totalN - (ivaN * retIva) / 100 - (subN * retIr) / 100) * 100) / 100;
+    // Valor real a cobrar (neto de retenciones, cada retención redondeada al centavo)
+    const retIvaMonto = Math.round(ivaN * retIva) / 100;
+    const retIrMonto = Math.round(subN * retIr) / 100;
+    const valor_neto = Math.round((totalN - retIvaMonto - retIrMonto) * 100) / 100;
 
     const monto_cobrado = cobrosMap.get(f.id) ?? 0;
     const saldo_pendiente = Math.max(0, valor_neto - monto_cobrado);

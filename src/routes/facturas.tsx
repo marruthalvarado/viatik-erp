@@ -107,7 +107,8 @@ type FormValues = z.infer<typeof schema>;
 
 type EstadoCobro = "pendiente" | "parcial" | "cobrado";
 
-/** Calcula el valor neto a cobrar descontando retenciones fiscales. */
+/** Calcula el valor neto a cobrar descontando retenciones fiscales.
+ *  Cada retención se redondea individualmente al centavo (comportamiento fiscal Ecuador). */
 function calcValorNeto(
   total: number,
   iva: number,
@@ -115,7 +116,9 @@ function calcValorNeto(
   retIvaPct: number,
   retIrPct: number,
 ): number {
-  return Math.round((total - (iva * retIvaPct) / 100 - (subtotal * retIrPct) / 100) * 100) / 100;
+  const retIvaMonto = Math.round(iva * retIvaPct) / 100;
+  const retIrMonto = Math.round(subtotal * retIrPct) / 100;
+  return Math.round((total - retIvaMonto - retIrMonto) * 100) / 100;
 }
 
 function calcEstadoCobro(valorNeto: number, cobrado: number): EstadoCobro {
