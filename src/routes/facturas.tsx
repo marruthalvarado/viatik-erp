@@ -62,6 +62,7 @@ import { useCompany } from "@/contexts/company-context";
 import { formatCurrency, formatDate } from "@/utils/formatters";
 import { readFacturaXmlFile } from "@/services/factura-xml-parser";
 import type { FacturaXmlData } from "@/services/factura-xml-parser";
+import { readFacturaPdfFile } from "@/services/factura-pdf-parser";
 import type { FacturaEmitida } from "@/services/facturas-emitidas";
 import {
   useFacturasEmitidas,
@@ -168,8 +169,10 @@ function FacturasContent() {
   const [editando, setEditando] = useState<FacturaEmitida | null>(null);
   const [xmlParsed, setXmlParsed] = useState<FacturaXmlData | null>(null);
   const [loadingXml, setLoadingXml] = useState(false);
+  const [loadingPdf, setLoadingPdf] = useState(false);
   const [expandedFactura, setExpandedFactura] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const pdfRef = useRef<HTMLInputElement>(null);
 
   const facturas = useFacturasEmitidas(empresaActivaId, anio);
   const proyectos = useProyectos({ empresaId: empresaActivaId ?? undefined, pageSize: 200 });
@@ -286,6 +289,23 @@ function FacturasContent() {
     }
   }
 
+  async function handlePdfUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLoadingPdf(true);
+    try {
+      const parsed = await readFacturaPdfFile(file);
+      setXmlParsed(parsed);
+      openNueva(parsed);
+      toast.success(`PDF cargado: ${parsed.numero}`);
+    } catch (err) {
+      toast.error("Error al leer PDF: " + (err as Error).message);
+    } finally {
+      setLoadingPdf(false);
+      if (pdfRef.current) pdfRef.current.value = "";
+    }
+  }
+
   async function onSubmit(values: FormValues) {
     if (!empresaActivaId) return;
     try {
@@ -381,14 +401,30 @@ function FacturasContent() {
               className="hidden"
               onChange={handleXmlUpload}
             />
+            <input
+              ref={pdfRef}
+              type="file"
+              accept=".pdf"
+              className="hidden"
+              onChange={handlePdfUpload}
+            />
             <Button
               variant="outline"
               size="sm"
               onClick={() => fileRef.current?.click()}
-              disabled={loadingXml}
+              disabled={loadingXml || loadingPdf}
             >
               <Upload className="size-4 mr-1.5" />
-              Cargar XML
+              {loadingXml ? "Leyendo..." : "Cargar XML"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => pdfRef.current?.click()}
+              disabled={loadingXml || loadingPdf}
+            >
+              <Upload className="size-4 mr-1.5" />
+              {loadingPdf ? "Leyendo..." : "Cargar PDF"}
             </Button>
             <Button size="sm" onClick={() => openNueva()}>
               <Plus className="size-4 mr-1.5" />
