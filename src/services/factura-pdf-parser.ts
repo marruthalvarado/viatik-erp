@@ -113,10 +113,18 @@ function parsePdfText(text: string): FacturaXmlData {
   }
 
   // ── Razón social del cliente ──
+  // En pdfjs la etiqueta "Razón Social...Apellidos:" y "Identificación" a veces quedan
+  // en la misma fila Y; capturamos todo hasta el primer RUC (10-13 dígitos) o la
+  // etiqueta "Identificación" y filtramos residuos de etiquetas.
   const razonMatch = text.match(
-    /Raz[oó]n\s+Social\s*\/\s*Nombres\s+y\s+Apellidos\s*:?\s+([^\n]+)/i,
+    /Raz[oó]n\s+Social[^:\n]*:?\s+([\s\S]{1,200}?)(?=\s*(?:\b\d{10,13}\b|Identificaci[oó]n))/i,
   );
-  const razon_social = razonMatch?.[1]?.trim() ?? "";
+  const razon_social = (razonMatch?.[1] ?? "")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l && !/^(Identificaci[oó]n|Fecha|Direcci[oó]n|Placa)/i.test(l))
+    .join(" ")
+    .trim();
 
   // ── RUC / Identificación del cliente ──
   const idMatch = text.match(/Identificaci[oó]n\s+(\d{10,13})/i);
@@ -136,8 +144,29 @@ function parsePdfText(text: string): FacturaXmlData {
   iva = Math.round(iva * 100) / 100;
 
   // ── Descuento total ──
-  const descMatch = text.match(/TOTAL\s+DESCUENTO\s+([\d.,]+)/i);
-  const descuento = num(descMatch?.[1]);
+  const descuentoMatch = text.match(/TOTAL\s+DESCUENTO\s+([\d.,]+)/i);
+  const descuento = num(descuentoMatch?.[1]);
+
+  // ── Descripción de ítems → Observación ──
+  // Buscar en el bloque entre la cabecera de la tabla (Cantidad) y los totales
+  let observacion: string | null = null;
+  const tblStart = text.search(/\bCantidad\b/i);
+  const tblEnd = text.search(/SUBTOTAL\s+SIN\s+IMPUESTOS/i);
+  if (tblStart >= 0 && tblEnd > tblStart) {
+    const block = text.slice(tblStart, tblEnd);
+    const descLines = block
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(
+        (l) =>
+          l.length > 4 &&
+          !/^[\d.,\s]+$/.test(l) && // solo números → descartar
+          !/^[A-Z]{1,6}-\d+$/.test(l) && // códigos como SERV-012 → descartar
+          !/^(Cantidad|Descripci|Detalle|Precio|Subsidio|Descuento|Cod\.)/i.test(l) && // cabeceras
+          !/^(Sucursal|Direcci[oó]n|E-MAIL|Tel[eé]fono|Forma|Informaci[oó]n)/i.test(l),
+      );
+    observacion = descLines.join(" ").trim() || null;
+  }
 
   // ── Total ("VALOR TOTAL" pero NO "VALOR TOTAL SIN SUBSIDIO") ──
   const totalMatch = text.match(/VALOR\s+TOTAL\s+([\d.,]+)(?!\s*SIN\s+SUBSIDIO)/i);
@@ -161,7 +190,7 @@ function parsePdfText(text: string): FacturaXmlData {
     clave_acceso,
     estado_sri: "AUTORIZADO",
     xml_content: "",
-    observacion: null,
+    observacion,
   };
 }
 

@@ -651,7 +651,7 @@ function FacturasContent() {
             <DrawerTitle>{editando ? "Editar factura" : "Nueva factura"}</DrawerTitle>
             <DrawerDescription>
               {xmlParsed && !editando
-                ? `Datos cargados desde XML · ${xmlParsed.numero}`
+                ? `Datos cargados desde ${xmlParsed.xml_content ? "XML" : "PDF"} · ${xmlParsed.numero}`
                 : "Completa los datos de la factura emitida."}
             </DrawerDescription>
           </DrawerHeader>
