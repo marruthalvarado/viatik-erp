@@ -100,12 +100,13 @@ const schema = z.object({
   clave_acceso: z.string().nullable().optional(),
   retencion_iva_pct: z.coerce.number().min(0).max(100),
   retencion_ir_pct: z.coerce.number().min(0).max(100),
+  fecha_vencimiento: z.string().nullable().optional(),
 });
 type FormValues = z.infer<typeof schema>;
 
 // ─── Helpers cobros ───────────────────────────────────────────────────────────
 
-type EstadoCobro = "pendiente" | "parcial" | "cobrado";
+type EstadoCobro = "pendiente" | "parcial" | "cobrado" | "vencido";
 
 /** Calcula el valor neto a cobrar descontando retenciones fiscales.
  *  Cada retención se redondea individualmente al centavo (comportamiento fiscal Ecuador). */
@@ -121,16 +122,31 @@ function calcValorNeto(
   return Math.round((total - retIvaMonto - retIrMonto) * 100) / 100;
 }
 
-function calcEstadoCobro(valorNeto: number, cobrado: number): EstadoCobro {
-  if (cobrado <= 0) return "pendiente";
+/** Días de atraso respecto a la fecha de vencimiento (0 si no venció o no tiene fecha). */
+function calcDiasAtraso(fechaVencimiento: string | null | undefined): number {
+  if (!fechaVencimiento) return 0;
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  const venc = new Date(fechaVencimiento + "T00:00:00");
+  return Math.max(0, Math.floor((hoy.getTime() - venc.getTime()) / 86_400_000));
+}
+
+function calcEstadoCobro(
+  valorNeto: number,
+  cobrado: number,
+  fechaVencimiento?: string | null,
+): EstadoCobro {
   if (cobrado >= valorNeto - 0.001) return "cobrado";
-  return "parcial";
+  if (fechaVencimiento && calcDiasAtraso(fechaVencimiento) > 0) return "vencido";
+  if (cobrado > 0) return "parcial";
+  return "pendiente";
 }
 
 const BADGE_COBRO: Record<EstadoCobro, string> = {
   pendiente: "bg-amber-100 text-amber-700",
   parcial: "bg-blue-100 text-blue-700",
   cobrado: "bg-emerald-100 text-emerald-700",
+  vencido: "bg-red-100 text-red-700",
 };
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -185,6 +201,7 @@ function FacturasContent() {
       clave_acceso: null,
       retencion_iva_pct: 0,
       retencion_ir_pct: 0,
+      fecha_vencimiento: null,
     },
   });
 
@@ -207,6 +224,7 @@ function FacturasContent() {
             clave_acceso: prefill.clave_acceso ?? null,
             retencion_iva_pct: 0,
             retencion_ir_pct: 0,
+            fecha_vencimiento: null,
           }
         : {
             numero: "",
@@ -223,6 +241,7 @@ function FacturasContent() {
             clave_acceso: null,
             retencion_iva_pct: 0,
             retencion_ir_pct: 0,
+            fecha_vencimiento: null,
           },
     );
     setDrawerOpen(true);
@@ -245,6 +264,7 @@ function FacturasContent() {
       clave_acceso: f.clave_acceso,
       retencion_iva_pct: f.retencion_iva_pct ?? 0,
       retencion_ir_pct: f.retencion_ir_pct ?? 0,
+      fecha_vencimiento: f.fecha_vencimiento ?? null,
     });
     setDrawerOpen(true);
   }
@@ -437,7 +457,8 @@ function FacturasContent() {
                   );
                   const montoCobrado = cobrosMap?.get(f.id) ?? 0;
                   const saldo = Math.max(0, valorNeto - montoCobrado);
-                  const estado = calcEstadoCobro(valorNeto, montoCobrado);
+                  const estado = calcEstadoCobro(valorNeto, montoCobrado, f.fecha_vencimiento);
+                  const diasAtraso = estado === "vencido" ? calcDiasAtraso(f.fecha_vencimiento) : 0;
                   const isExpanded = expandedFactura === f.id;
                   const tieneRetencion =
                     Number(f.retencion_iva_pct ?? 0) > 0 || Number(f.retencion_ir_pct ?? 0) > 0;
@@ -488,9 +509,15 @@ function FacturasContent() {
                         </td>
                         <td className="px-4 py-3">
                           <span
-                            className={`rounded-full px-2 py-0.5 text-[10px] font-medium capitalize ${BADGE_COBRO[estado]}`}
+                            className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${BADGE_COBRO[estado]}`}
                           >
-                            {estado}
+                            {estado === "vencido"
+                              ? `Vencido · ${diasAtraso}d`
+                              : estado === "cobrado"
+                                ? "Cobrado"
+                                : estado === "parcial"
+                                  ? "Parcial"
+                                  : "Pendiente"}
                           </span>
                         </td>
                         <td className="px-4 py-3">
@@ -818,6 +845,59 @@ function FacturasContent() {
                       <FormMessage />
                     </FormItem>
                   )}
+                />
+
+                {/* Fecha de vencimiento / plazo de crédito */}
+                <FormField
+                  control={form.control}
+                  name="fecha_vencimiento"
+                  render={({ field }) => {
+                    const fechaEmision = form.watch("fecha");
+                    function setDias(dias: number) {
+                      if (!fechaEmision) return;
+                      const d = new Date(fechaEmision + "T00:00:00");
+                      d.setDate(d.getDate() + dias);
+                      field.onChange(d.toISOString().split("T")[0]);
+                    }
+                    return (
+                      <FormItem>
+                        <FormLabel>
+                          Fecha de vencimiento{" "}
+                          <span className="text-muted-foreground font-normal">(opcional)</span>
+                        </FormLabel>
+                        <div className="flex flex-wrap gap-1 mb-1">
+                          {[15, 30, 60, 90].map((d) => (
+                            <button
+                              key={d}
+                              type="button"
+                              onClick={() => setDias(d)}
+                              className="rounded border px-2 py-0.5 text-[10px] font-medium hover:bg-muted transition-colors"
+                            >
+                              {d}d
+                            </button>
+                          ))}
+                          {field.value && (
+                            <button
+                              type="button"
+                              onClick={() => field.onChange(null)}
+                              className="rounded border px-2 py-0.5 text-[10px] font-medium text-destructive hover:bg-destructive/10 transition-colors"
+                            >
+                              Quitar
+                            </button>
+                          )}
+                        </div>
+                        <FormControl>
+                          <Input
+                            type="date"
+                            {...field}
+                            value={field.value ?? ""}
+                            onChange={(e) => field.onChange(e.target.value || null)}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
                 />
 
                 <div className="flex justify-end gap-2 pt-2">

@@ -499,6 +499,7 @@ export type Database = {
           observacion: string | null;
           retencion_iva_pct: number;
           retencion_ir_pct: number;
+          fecha_vencimiento: string | null;
           created_by: string | null;
           created_at: string;
           updated_at: string;
@@ -523,6 +524,7 @@ export type Database = {
           observacion?: string | null;
           retencion_iva_pct?: number;
           retencion_ir_pct?: number;
+          fecha_vencimiento?: string | null;
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -547,6 +549,7 @@ export type Database = {
           observacion?: string | null;
           retencion_iva_pct?: number;
           retencion_ir_pct?: number;
+          fecha_vencimiento?: string | null;
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
