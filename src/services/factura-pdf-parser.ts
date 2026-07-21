@@ -97,13 +97,19 @@ function parsePdfText(text: string): FacturaXmlData {
   const claveMatch = text.match(/\b(\d{49})\b/);
   const clave_acceso = claveMatch?.[1] ?? null;
 
-  // ── Fecha de emisión (sección cliente: "Fecha dd/mm/yyyy") ──
-  // Ignorar "FECHA Y HORA DE AUTORIZACIÓN: dd/mm/yyyy HH:MM:SS"
-  const fechaEmisionMatch = text.match(/(?<!\bHORA\b[^\n]{0,30})\bFecha\s+(\d{2}\/\d{2}\/\d{4})\b/i);
+  // ── Fecha de emisión ──
+  // El RIDE tiene dos fechas: autorización (con hora "HH:MM:SS") y emisión (sin hora).
+  // Tomamos la primera fecha dd/mm/yyyy que NO vaya seguida de una hora.
   let fecha = "";
-  if (fechaEmisionMatch) {
-    const [d, m, y] = fechaEmisionMatch[1].split("/");
-    fecha = `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+  const allDatesRe = /\b(\d{2}\/\d{2}\/\d{4})\b/g;
+  let dm: RegExpExecArray | null;
+  while ((dm = allDatesRe.exec(text)) !== null) {
+    const after = text.slice(dm.index + dm[0].length, dm.index + dm[0].length + 12);
+    if (!/\s*\d{1,2}:\d{2}:\d{2}/.test(after)) {
+      const [d, m, y] = dm[1].split("/");
+      fecha = `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+      break;
+    }
   }
 
   // ── Razón social del cliente ──
