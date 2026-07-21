@@ -272,12 +272,23 @@ function FacturasContent() {
     setDrawerOpen(true);
   }
 
+  function checkDuplicado(numero: string): boolean {
+    const lista = facturas.data ?? [];
+    const existente = lista.find((f) => f.numero === numero);
+    if (existente) {
+      toast.error(`La factura ${numero} ya está registrada (${existente.razon_social})`);
+      return true;
+    }
+    return false;
+  }
+
   async function handleXmlUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setLoadingXml(true);
     try {
       const parsed = await readFacturaXmlFile(file);
+      if (checkDuplicado(parsed.numero)) return;
       setXmlParsed(parsed);
       openNueva(parsed);
       toast.success(`XML cargado: ${parsed.numero}`);
@@ -295,6 +306,7 @@ function FacturasContent() {
     setLoadingPdf(true);
     try {
       const parsed = await readFacturaPdfFile(file);
+      if (checkDuplicado(parsed.numero)) return;
       setXmlParsed(parsed);
       openNueva(parsed);
       toast.success(`PDF cargado: ${parsed.numero}`);
