@@ -113,18 +113,30 @@ function parsePdfText(text: string): FacturaXmlData {
   }
 
   // ── Razón social del cliente ──
-  // En pdfjs la etiqueta "Razón Social...Apellidos:" y "Identificación" a veces quedan
-  // en la misma fila Y; capturamos todo hasta el primer RUC (10-13 dígitos) o la
-  // etiqueta "Identificación" y filtramos residuos de etiquetas.
-  const razonMatch = text.match(
-    /Raz[oó]n\s+Social[^:\n]*:?\s+([\s\S]{1,200}?)(?=\s*(?:\b\d{10,13}\b|Identificaci[oó]n))/i,
-  );
-  const razon_social = (razonMatch?.[1] ?? "")
-    .split("\n")
-    .map((l) => l.trim())
-    .filter((l) => l && !/^(Identificaci[oó]n|Fecha|Direcci[oó]n|Placa)/i.test(l))
-    .join(" ")
-    .trim();
+  // En pdfjs, los valores de la columna derecha del PDF suelen quedar en la línea
+  // ANTERIOR al label de la columna izquierda (diferencia de 1px en Y → bucket distinto).
+  // Estrategia: buscar en ±3 líneas alrededor del label "Razón Social" la primera línea
+  // que no sea un label conocido, un número o una fecha.
+  const allLines = text.split("\n");
+  const rsIdx = allLines.findIndex((l) => /Raz[oó]n\s+Social/i.test(l));
+  const isKnownLabel = (s: string) =>
+    /^(Raz[oó]n\s+Social|Identificaci[oó]n|Fecha|Direcci[oó]n|Placa|Gu[íi]a|Cod\.|Cantidad|Descripci|Precio|Subsidio|Descuento|OBLIG|AMBIENTE|EMISI)/i.test(s);
+  let razon_social = "";
+  if (rsIdx >= 0) {
+    const start = Math.max(0, rsIdx - 3);
+    const end = Math.min(allLines.length, rsIdx + 4);
+    for (let i = start; i < end; i++) {
+      // Limpiar: quitar texto que empiece en "Identificación" o dígitos largos en adelante
+      const clean = allLines[i]
+        .trim()
+        .replace(/\s*(Identificaci[oó]n|\d{10,13})[\s\S]*/i, "")
+        .trim();
+      if (clean && !isKnownLabel(clean) && !/^\d/.test(clean) && !/^\d{2}\/\d{2}\/\d{4}/.test(clean)) {
+        razon_social = clean;
+        break;
+      }
+    }
+  }
 
   // ── RUC / Identificación del cliente ──
   const idMatch = text.match(/Identificaci[oó]n\s+(\d{10,13})/i);
@@ -161,9 +173,10 @@ function parsePdfText(text: string): FacturaXmlData {
         (l) =>
           l.length > 4 &&
           !/^[\d.,\s]+$/.test(l) && // solo números → descartar
-          !/^[A-Z]{1,6}-\d+$/.test(l) && // códigos como SERV-012 → descartar
-          !/^(Cantidad|Descripci|Detalle|Precio|Subsidio|Descuento|Cod\.)/i.test(l) && // cabeceras
-          !/^(Sucursal|Direcci[oó]n|E-MAIL|Tel[eé]fono|Forma|Informaci[oó]n)/i.test(l),
+          !/^[A-Z]{1,6}-\d/.test(l) && // líneas que empiezan con código de ítem (SERV-012...) → descartar
+          !/^(Cantidad|Descripci|Detalle|Precio|Subsidio|Descuento|Cod\.|Principal|Auxiliar)/i.test(l) &&
+          !/^(Sucursal|Direcci[oó]n|E-MAIL|Tel[eé]fono|Forma|Informaci[oó]n|NuclearMed)/i.test(l) &&
+          !/^SUBTOTAL/i.test(l), // líneas de subtotal antes de "SUBTOTAL SIN IMPUESTOS" → descartar
       );
     observacion = descLines.join(" ").trim() || null;
   }
