@@ -1,6 +1,6 @@
 /**
  * Parser de RIDE (Representación Impresa del Documento Electrónico) SRI Ecuador en PDF.
- * Extrae el texto del PDF con pdfjs-dist y detecta los campos por patrones conocidos del formato SRI.
+ * Carga pdfjs-dist desde CDN en tiempo de ejecución para evitar problemas de bundling SSR.
  * Compatible con: Factura electrónica (tipo 01), Nota de Crédito (tipo 04).
  *
  * Nota: requiere que el PDF tenga capa de texto (PDFs generados por el SRI / portales de facturación),
@@ -9,16 +9,39 @@
 
 import type { FacturaXmlData } from "./factura-xml-parser";
 
-// ─── Extracción de texto con pdfjs ────────────────────────────────────────────
+// ─── Carga de pdfjs desde CDN ────────────────────────────────────────────────
+
+const PDFJS_VERSION = "3.11.174";
+const PDFJS_CDN = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}`;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type PdfjsLib = any;
+
+async function loadPdfjs(): Promise<PdfjsLib> {
+  // Reutilizar instancia ya cargada
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const win = window as any;
+  if (win.pdfjsLib?.getDocument) return win.pdfjsLib;
+
+  // Cargar script principal desde CDN
+  await new Promise<void>((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = `${PDFJS_CDN}/pdf.min.js`;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("No se pudo cargar pdf.js desde CDN"));
+    document.head.appendChild(script);
+  });
+
+  const lib: PdfjsLib = win.pdfjsLib;
+  // Apuntar al worker también desde CDN
+  lib.GlobalWorkerOptions.workerSrc = `${PDFJS_CDN}/pdf.worker.min.js`;
+  return lib;
+}
+
+// ─── Extracción de texto ──────────────────────────────────────────────────────
 
 async function extractPdfText(file: File): Promise<string> {
-  // Importación dinámica para evitar problemas de SSR y reducir bundle inicial
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-ignore – pdfjs-dist se instala vía npm install; types incluidos en el paquete
-  const pdfjsLib = await import("pdfjs-dist");
-
-  // Worker desde CDN (mismo dominio que pdfjs, sin configuración de Vite)
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+  const pdfjsLib = await loadPdfjs();
 
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
@@ -32,11 +55,13 @@ async function extractPdfText(file: File): Promise<string> {
     // Agrupar items por posición Y (redondeada) para reconstruir líneas
     const byY = new Map<number, { x: number; str: string }[]>();
     for (const item of textContent.items) {
-      if (!("str" in item) || !item.str.trim()) continue;
-      const y = Math.round((item as { transform: number[] }).transform[5]);
-      const x = (item as { transform: number[] }).transform[4];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const it = item as any;
+      if (!it.str?.trim()) continue;
+      const y = Math.round(it.transform[5]);
+      const x = it.transform[4];
       if (!byY.has(y)) byY.set(y, []);
-      byY.get(y)!.push({ x, str: item.str });
+      byY.get(y)!.push({ x, str: it.str });
     }
 
     // Ordenar líneas de arriba a abajo (Y descendente en coordenadas PDF)
