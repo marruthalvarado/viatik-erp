@@ -113,20 +113,21 @@ function parsePdfText(text: string): FacturaXmlData {
   }
 
   // ── Razón social del cliente ──
-  // En pdfjs, los valores de la columna derecha del PDF suelen quedar en la línea
-  // ANTERIOR al label de la columna izquierda (diferencia de 1px en Y → bucket distinto).
-  // Estrategia: buscar en ±3 líneas alrededor del label "Razón Social" la primera línea
-  // que no sea un label conocido, un número o una fecha.
+  // En pdfjs los valores (columna derecha) quedan típicamente UNA LÍNEA ANTES del label
+  // (columna izquierda) porque su baseline Y es 1-2 px mayor.
+  // Buscamos en este orden: rs-1 → rs+1 → rs-2 → rs+2 → rs-3 (prioridad al candidato
+  // más cercano) para evitar capturar labels previos como "Sucursal: CLAVE DE ACCESO".
   const allLines = text.split("\n");
   const rsIdx = allLines.findIndex((l) => /Raz[oó]n\s+Social/i.test(l));
   const isKnownLabel = (s: string) =>
-    /^(Raz[oó]n\s+Social|Identificaci[oó]n|Fecha|Direcci[oó]n|Placa|Gu[íi]a|Cod\.|Cantidad|Descripci|Precio|Subsidio|Descuento|OBLIG|AMBIENTE|EMISI)/i.test(s);
+    /^(Raz[oó]n\s+Social|Identificaci[oó]n|Fecha|Direcci[oó]n|Placa|Gu[íi]a|Cod\.|Cantidad|Descripci|Precio|Subsidio|Descuento|OBLIG|AMBIENTE|EMISI|Sucursal|CLAVE|No\.|R\.U\.C|N[ÚU]MERO|FACTURA|PROTON|Direcci)/i.test(s);
   let razon_social = "";
   if (rsIdx >= 0) {
-    const start = Math.max(0, rsIdx - 3);
-    const end = Math.min(allLines.length, rsIdx + 4);
-    for (let i = start; i < end; i++) {
-      // Limpiar: quitar texto que empiece en "Identificación" o dígitos largos en adelante
+    // Orden de búsqueda: inmediatamente antes → justo después → más atrás
+    const searchOrder = [rsIdx - 1, rsIdx + 1, rsIdx - 2, rsIdx + 2, rsIdx - 3];
+    for (const i of searchOrder) {
+      if (i < 0 || i >= allLines.length) continue;
+      // Eliminar sufijos de label o RUC que puedan estar en la misma línea pdfjs
       const clean = allLines[i]
         .trim()
         .replace(/\s*(Identificaci[oó]n|\d{10,13})[\s\S]*/i, "")
