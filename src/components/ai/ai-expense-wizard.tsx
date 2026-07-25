@@ -162,17 +162,31 @@ export function AiExpenseWizard({
     if (yaExisteEnCache) return;
 
     // 2. Check DB — evita duplicado cuando el cache está desactualizado o hay +200 proveedores
-    if (identificacion) {
-      const { data: existing } = await supabase
+    {
+      const dbBase = supabase
         .from("proveedores")
         .select("id")
         .eq("empresa_id", empresaActivaId)
-        .eq("identificacion", identificacion.trim())
-        .is("deleted_at", null)
-        .maybeSingle();
-      if (existing) {
-        void refetchProveedores();
-        return;
+        .is("deleted_at", null);
+
+      if (identificacion) {
+        // Buscar por RUC/identificación (más confiable)
+        const { data: existing } = await dbBase
+          .eq("identificacion", identificacion.trim())
+          .maybeSingle();
+        if (existing) {
+          void refetchProveedores();
+          return;
+        }
+      } else {
+        // Sin identificación: buscar por nombre exacto (case-insensitive)
+        const { data: existing } = await dbBase
+          .ilike("nombre", nombre.trim())
+          .maybeSingle();
+        if (existing) {
+          void refetchProveedores();
+          return;
+        }
       }
     }
 

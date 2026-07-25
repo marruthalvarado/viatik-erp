@@ -117,6 +117,13 @@ const MENSAJES_DEVOLUCION = [
   "Categorías de gasto incorrectas",
 ];
 
+const MENSAJES_RECHAZO = [
+  "Gastos no corresponden al período del viaje",
+  "No se aceptan los gastos presentados",
+  "Límites de política excedidos",
+  "Documentación insuficiente",
+];
+
 // ---------------------------------------------------------------------------
 // ViolacionesPolitica
 // ---------------------------------------------------------------------------
@@ -341,70 +348,78 @@ export function AprobacionPanel({ rendicion, estadoCodigo, estadoNombre }: Aprob
   const puedeDevolver = esAprobador && (estadoCodigo === "enviada" || estadoCodigo === "aprobada");
 
   return (
-    <div className="rounded-lg border border-border bg-card p-5 space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <UserCheck className="size-4 text-muted-foreground" />
-          <span className="text-sm font-medium text-foreground">Estado de aprobacion</span>
+    <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+      {/* Columna principal: estado + acciones */}
+      <div className="space-y-4">
+        <div className="rounded-lg border border-border bg-card p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <UserCheck className="size-4 text-muted-foreground" />
+              <span className="text-sm font-medium text-foreground">Estado de aprobación</span>
+            </div>
+            <StatusBadge tone={estadoTone(estadoCodigo)}>{estadoNombre}</StatusBadge>
+          </div>
+
+          {rendicion.aprobador_id && (
+            <AprobadorInfo aprobadorId={rendicion.aprobador_id} empresaId={empresaActivaId ?? ""} />
+          )}
+
+          <div className="grid grid-cols-2 gap-3 text-xs text-muted-foreground">
+            {rendicion.fecha_envio && (
+              <div>
+                <span className="font-medium text-foreground">Enviada:</span>{" "}
+                {formatDate(rendicion.fecha_envio)}
+              </div>
+            )}
+            {rendicion.fecha_aprobacion && (
+              <div>
+                <span className="font-medium text-foreground">Aprobada:</span>{" "}
+                {formatDate(rendicion.fecha_aprobacion)}
+              </div>
+            )}
+          </div>
+
+          <ViolacionesPolitica rendicionId={rendicion.id} />
+
+          {estadoCodigo === "devuelta" && <DevueltaBanner rendicionId={rendicion.id} />}
+
+          {estadoCodigo === "rechazada" && rendicion.comentario_rechazo && (
+            <div className="flex gap-2 rounded-md bg-destructive/10 border border-destructive/20 p-3">
+              <AlertCircle className="size-4 text-destructive mt-0.5 shrink-0" />
+              <div>
+                <p className="text-xs font-medium text-destructive">Motivo de rechazo</p>
+                <p className="text-xs text-foreground mt-1">{rendicion.comentario_rechazo}</p>
+              </div>
+            </div>
+          )}
+
+          {esPropietario && estadoCodigo === "enviada" && (
+            <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 rounded-md p-3 border border-amber-200">
+              <Clock className="size-4 shrink-0" />
+              Pendiente de revisión por el aprobador asignado.
+            </div>
+          )}
+
+          {puedeEnviar && (
+            <EnviarDialog
+              rendicionId={rendicion.id}
+              empresaId={empresaActivaId ?? ""}
+              defaultAprobadorId={politicasData?.rows?.[0]?.aprobador_id ?? null}
+            />
+          )}
+
+          {puedeActuar && (
+            <AccionesAprobador rendicionId={rendicion.id} puedeDevolver={puedeDevolver} />
+          )}
+
+          {!puedeActuar && puedeDevolver && <DevolverSolo rendicionId={rendicion.id} />}
         </div>
-        <StatusBadge tone={estadoTone(estadoCodigo)}>{estadoNombre}</StatusBadge>
       </div>
 
-      {rendicion.aprobador_id && (
-        <AprobadorInfo aprobadorId={rendicion.aprobador_id} empresaId={empresaActivaId ?? ""} />
-      )}
-
-      <div className="grid grid-cols-2 gap-3 text-xs text-muted-foreground">
-        {rendicion.fecha_envio && (
-          <div>
-            <span className="font-medium text-foreground">Enviada:</span>{" "}
-            {formatDate(rendicion.fecha_envio)}
-          </div>
-        )}
-        {rendicion.fecha_aprobacion && (
-          <div>
-            <span className="font-medium text-foreground">Aprobada:</span>{" "}
-            {formatDate(rendicion.fecha_aprobacion)}
-          </div>
-        )}
+      {/* Columna derecha: historial */}
+      <div>
+        <HistorialWorkflow rendicionId={rendicion.id} />
       </div>
-
-      <HistorialWorkflow rendicionId={rendicion.id} />
-
-      <ViolacionesPolitica rendicionId={rendicion.id} />
-
-      {estadoCodigo === "devuelta" && <DevueltaBanner rendicionId={rendicion.id} />}
-
-      {estadoCodigo === "rechazada" && rendicion.comentario_rechazo && (
-        <div className="flex gap-2 rounded-md bg-destructive/10 border border-destructive/20 p-3">
-          <AlertCircle className="size-4 text-destructive mt-0.5 shrink-0" />
-          <div>
-            <p className="text-xs font-medium text-destructive">Motivo de rechazo</p>
-            <p className="text-xs text-foreground mt-1">{rendicion.comentario_rechazo}</p>
-          </div>
-        </div>
-      )}
-
-      {puedeEnviar && (
-        <EnviarDialog
-          rendicionId={rendicion.id}
-          empresaId={empresaActivaId ?? ""}
-          defaultAprobadorId={politicasData?.rows?.[0]?.aprobador_id ?? null}
-        />
-      )}
-
-      {puedeActuar && (
-        <AccionesAprobador rendicionId={rendicion.id} puedeDevolver={puedeDevolver} />
-      )}
-
-      {!puedeActuar && puedeDevolver && <DevolverSolo rendicionId={rendicion.id} />}
-
-      {esPropietario && estadoCodigo === "enviada" && (
-        <div className="flex items-center gap-2 text-xs text-warning bg-warning/10 rounded-md p-3 border border-warning/20">
-          <Clock className="size-4 shrink-0" />
-          Pendiente de revision por el aprobador asignado.
-        </div>
-      )}
     </div>
   );
 }
@@ -683,18 +698,31 @@ function AccionesAprobador({
       <Dialog open={openRechazar} onOpenChange={setOpenRechazar}>
         <DialogContent className="sm:max-w-sm" onInteractOutside={(e) => e.preventDefault()}>
           <DialogHeader>
-            <DialogTitle>Rechazar rendicion</DialogTitle>
+            <DialogTitle>Rechazar rendición</DialogTitle>
             <DialogDescription>
-              Indica el motivo del rechazo. El empleado podra corregirla y reenviarla.
+              Indica el motivo del rechazo. El empleado podrá corregirla y reenviarla.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-2">
+          <div className="space-y-3 py-2">
+            <div className="flex flex-wrap gap-1.5">
+              {MENSAJES_RECHAZO.map((msg) => (
+                <button
+                  key={msg}
+                  type="button"
+                  onClick={() => setMotivo(msg)}
+                  className="rounded-full border border-border bg-muted/50 px-2.5 py-0.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                >
+                  {msg}
+                </button>
+              ))}
+            </div>
             <Textarea
               placeholder="Motivo del rechazo..."
               value={motivo}
-              onChange={(e) => setMotivo(e.target.value)}
+              onChange={(e) => setMotivo(e.target.value.slice(0, 500))}
               rows={3}
             />
+            <p className="text-right text-xs text-muted-foreground">{motivo.length}/500</p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpenRechazar(false)}>

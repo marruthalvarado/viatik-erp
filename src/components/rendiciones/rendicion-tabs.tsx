@@ -333,8 +333,9 @@ export function GastosTab({
     (v) => v.vehiculo_propio && (v.distancia_km ?? 0) > 0,
   );
 
-  // Movilización en ciudad
+  // viaje principal (para rango de fechas) y viaje con vehículo propio (para km ciudad)
   const viajeMain = viajes[0] ?? null;
+  const viajeVehiculo = viajes.find((v) => v.vehiculo_propio) ?? null;
   const diasViaje =
     viajeMain?.fecha_inicio && viajeMain?.fecha_fin
       ? Math.ceil(
@@ -342,9 +343,18 @@ export function GastosTab({
             (1000 * 60 * 60 * 24),
         ) + 1
       : 0;
+  // Días del viaje con vehículo propio (para movilización en ciudad)
+  const diasVehiculo =
+    viajeVehiculo?.fecha_inicio && viajeVehiculo?.fecha_fin
+      ? Math.ceil(
+          (new Date(viajeVehiculo.fecha_fin).getTime() -
+            new Date(viajeVehiculo.fecha_inicio).getTime()) /
+            (1000 * 60 * 60 * 24),
+        ) + 1
+      : diasViaje;
   const kmCiudadTotal =
-    viajeMain?.vehiculo_propio && diasViaje > 0 && kmCiudadDia > 0
-      ? diasViaje * kmCiudadDia * valorKm
+    viajeVehiculo && diasVehiculo > 0 && kmCiudadDia > 0
+      ? diasVehiculo * kmCiudadDia * valorKm
       : 0;
 
   // Mapa id → nombre de categoría (para badges de violación)
@@ -501,7 +511,7 @@ export function GastosTab({
               <div>
                 <p className="text-sm font-semibold text-foreground">Movilización en ciudad</p>
                 <p className="text-xs text-muted-foreground">
-                  {diasViaje} día{diasViaje !== 1 ? "s" : ""} · {kmCiudadDia} km/día ·{" "}
+                  {diasVehiculo} día{diasVehiculo !== 1 ? "s" : ""} · {kmCiudadDia} km/día ·{" "}
                   {formatCurrency(valorKm)}/km
                 </p>
               </div>
