@@ -366,19 +366,25 @@ export type Database = {
       categorias_gasto: {
         Row: {
           codigo: string;
+          codigo_contable: string | null;
           created_at: string | null;
+          es_deducible: boolean;
           id: string;
           nombre: string;
         };
         Insert: {
           codigo: string;
+          codigo_contable?: string | null;
           created_at?: string | null;
+          es_deducible?: boolean;
           id?: string;
           nombre: string;
         };
         Update: {
           codigo?: string;
+          codigo_contable?: string | null;
           created_at?: string | null;
+          es_deducible?: boolean;
           id?: string;
           nombre?: string;
         };
@@ -427,6 +433,104 @@ export type Database = {
             columns: ["empresa_id"];
             isOneToOne: false;
             referencedRelation: "empresas";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      gastos_empresa: {
+        Row: {
+          id: string;
+          empresa_id: string;
+          fecha: string;
+          categoria_id: string | null;
+          proveedor_id: string | null;
+          descripcion: string;
+          subtotal: number;
+          iva: number;
+          total: number;
+          clave_acceso: string | null;
+          comprobante_url: string | null;
+          responsable: string | null;
+          proyecto_id: string | null;
+          es_deducible: boolean;
+          xml_content: string | null;
+          observacion: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          empresa_id: string;
+          fecha: string;
+          categoria_id?: string | null;
+          proveedor_id?: string | null;
+          descripcion: string;
+          subtotal?: number;
+          iva?: number;
+          total?: number;
+          clave_acceso?: string | null;
+          comprobante_url?: string | null;
+          responsable?: string | null;
+          proyecto_id?: string | null;
+          es_deducible?: boolean;
+          xml_content?: string | null;
+          observacion?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          empresa_id?: string;
+          fecha?: string;
+          categoria_id?: string | null;
+          proveedor_id?: string | null;
+          descripcion?: string;
+          subtotal?: number;
+          iva?: number;
+          total?: number;
+          clave_acceso?: string | null;
+          comprobante_url?: string | null;
+          responsable?: string | null;
+          proyecto_id?: string | null;
+          es_deducible?: boolean;
+          xml_content?: string | null;
+          observacion?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          deleted_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "gastos_empresa_empresa_id_fkey";
+            columns: ["empresa_id"];
+            isOneToOne: false;
+            referencedRelation: "empresas";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "gastos_empresa_categoria_id_fkey";
+            columns: ["categoria_id"];
+            isOneToOne: false;
+            referencedRelation: "categorias_gasto";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "gastos_empresa_proveedor_id_fkey";
+            columns: ["proveedor_id"];
+            isOneToOne: false;
+            referencedRelation: "proveedores";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "gastos_empresa_proyecto_id_fkey";
+            columns: ["proyecto_id"];
+            isOneToOne: false;
+            referencedRelation: "proyectos";
             referencedColumns: ["id"];
           },
         ];
@@ -2701,6 +2805,16 @@ export type Database = {
       };
     };
     Functions: {
+      flujo_caja_proyectado: {
+        Args: { p_empresa_id: string; p_anio?: number | null };
+        Returns: {
+          mes: string;
+          monto_esperado: number;
+          monto_cobrado: number;
+          monto_pendiente: number;
+          saldo_proyectado: number;
+        }[];
+      };
       crear_empresa_y_unirse: {
         Args: { p_nombre: string; p_codigo?: string };
         Returns: Json;

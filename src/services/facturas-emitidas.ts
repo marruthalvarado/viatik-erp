@@ -87,6 +87,7 @@ export async function getFacturacionMensual(
     .select("fecha, total")
     .eq("empresa_id", empresaId)
     .is("deleted_at", null)
+    .neq("estado_sri", "ANULADA")
     .gte("fecha", `${anio}-01-01`)
     .lte("fecha", `${anio}-12-31`);
 
@@ -128,6 +129,7 @@ export async function getKpiFacturacion(empresaId: string, anio: number): Promis
     .select("total, fecha, ruc_cliente")
     .eq("empresa_id", empresaId)
     .is("deleted_at", null)
+    .neq("estado_sri", "ANULADA")
     .gte("fecha", `${anio}-01-01`)
     .lte("fecha", `${anio}-12-31`);
 
@@ -142,6 +144,42 @@ export async function getKpiFacturacion(empresaId: string, anio: number): Promis
   const num_clientes_distintos = new Set(rows.map((r) => r.ruc_cliente).filter(Boolean)).size;
 
   return { total_anio, total_mes_actual, num_facturas_anio, num_clientes_distintos };
+}
+
+// ─── Flujo de caja proyectado ────────────────────────────────────────────────
+
+export interface FlujoCajaMes {
+  mes: string;           // 'YYYY-MM'
+  label: string;         // 'Ene 2026'
+  monto_esperado: number;
+  monto_cobrado: number;
+  monto_pendiente: number;
+  saldo_proyectado: number;
+}
+
+export async function getFlujoCajaProyectado(
+  empresaId: string,
+  anio?: number,
+): Promise<FlujoCajaMes[]> {
+  const { data, error } = await supabase.rpc("flujo_caja_proyectado", {
+    p_empresa_id: empresaId,
+    p_anio: anio ?? null,
+  });
+  if (error) throw new Error(error.message);
+
+  const MESES_CORTOS = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+  return (data ?? []).map((r) => {
+    const [anioStr, mesStr] = r.mes.split("-");
+    const idx = parseInt(mesStr, 10) - 1;
+    return {
+      mes: r.mes,
+      label: `${MESES_CORTOS[idx]} ${anioStr}`,
+      monto_esperado: Number(r.monto_esperado),
+      monto_cobrado: Number(r.monto_cobrado),
+      monto_pendiente: Number(r.monto_pendiente),
+      saldo_proyectado: Number(r.saldo_proyectado),
+    };
+  });
 }
 
 // ─── Facturado por proyecto ───────────────────────────────────────────────────

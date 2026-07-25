@@ -9,6 +9,16 @@
  * - Campos de retención fiscal (agente de retención Ecuador)
  */
 import { useRef, useState, Fragment } from "react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   FileText,
@@ -23,6 +33,7 @@ import {
   Loader2,
   X,
   Percent,
+  Ban,
 } from "lucide-react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -63,12 +74,13 @@ import { formatCurrency, formatDate } from "@/utils/formatters";
 import { readFacturaXmlFile } from "@/services/factura-xml-parser";
 import type { FacturaXmlData } from "@/services/factura-xml-parser";
 import { readFacturaPdfFile } from "@/services/factura-pdf-parser";
-import type { FacturaEmitida } from "@/services/facturas-emitidas";
+import type { FacturaEmitida, FlujoCajaMes } from "@/services/facturas-emitidas";
 import {
   useFacturasEmitidas,
   useCrearFactura,
   useActualizarFactura,
   useEliminarFactura,
+  useFlujoCajaProyectado,
 } from "@/hooks/entities/use-facturas-emitidas";
 import { useProyectos } from "@/hooks/entities/use-proyectos";
 import {
@@ -175,6 +187,7 @@ function FacturasContent() {
   const pdfRef = useRef<HTMLInputElement>(null);
 
   const facturas = useFacturasEmitidas(empresaActivaId, anio);
+  const flujoCaja = useFlujoCajaProyectado(empresaActivaId, anio);
   const proyectos = useProyectos({ empresaId: empresaActivaId ?? undefined, pageSize: 200 });
   const crear = useCrearFactura();
   const actualizar = useActualizarFactura();
@@ -362,15 +375,30 @@ function FacturasContent() {
     }
   }
 
+  async function handleAnular(f: FacturaEmitida) {
+    if (f.estado_sri === "ANULADA") return;
+    if (!confirm(`¿Anular la factura ${f.numero}? Esta acción pone el total en $0 y marca la factura como ANULADA.`)) return;
+    try {
+      await actualizar.mutateAsync({
+        id: f.id,
+        payload: { estado_sri: "ANULADA", total: 0, subtotal: 0, iva: 0, descuento: 0 },
+      });
+      toast.success(`Factura ${f.numero} anulada`);
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
+  }
+
   function toggleExpand(facturaId: string) {
     setExpandedFactura((prev) => (prev === facturaId ? null : facturaId));
   }
 
   // KPIs rápidos
   const lista = facturas.data ?? [];
+  const listaActiva = lista.filter((f) => f.estado_sri !== "ANULADA");
   const cobrosMap = cobrosAgregados.data;
-  const totalAnio = lista.reduce((s, f) => s + (Number(f.total) || 0), 0);
-  const numFacturas = lista.length;
+  const totalAnio = listaActiva.reduce((s, f) => s + (Number(f.total) || 0), 0);
+  const numFacturas = listaActiva.length;
   const totalPendiente = lista.reduce((s, f) => {
     const vn = calcValorNeto(
       Number(f.total),
@@ -466,6 +494,11 @@ function FacturasContent() {
         />
       </div>
 
+      {/* Flujo de caja proyectado */}
+      {(flujoCaja.data?.length ?? 0) > 0 && (
+        <FlujoCajaChart data={flujoCaja.data!} anio={anio} />
+      )}
+
       {/* Tabla */}
       {facturas.isLoading ? (
         <LoadingState label="Cargando facturas..." />
@@ -510,12 +543,15 @@ function FacturasContent() {
                   const isExpanded = expandedFactura === f.id;
                   const tieneRetencion =
                     Number(f.retencion_iva_pct ?? 0) > 0 || Number(f.retencion_ir_pct ?? 0) > 0;
+                  const isAnulada = f.estado_sri === "ANULADA";
                   return (
                     <Fragment key={f.id}>
                       <tr
-                        className={`hover:bg-muted/20 transition-colors${isExpanded ? " bg-muted/10" : ""}`}
+                        className={`hover:bg-muted/20 transition-colors${isExpanded ? " bg-muted/10" : ""}${isAnulada ? " opacity-50" : ""}`}
                       >
-                        <td className="px-4 py-3 font-mono text-xs font-medium">{f.numero}</td>
+                        <td className="px-4 py-3 font-mono text-xs font-medium">
+                          <span className={isAnulada ? "line-through text-muted-foreground" : ""}>{f.numero}</span>
+                        </td>
                         <td className="px-4 py-3 tabular-nums text-xs">{formatDate(f.fecha)}</td>
                         <td className="px-4 py-3 max-w-[200px]">
                           <div className="truncate font-medium">{f.razon_social}</div>
@@ -551,7 +587,7 @@ function FacturasContent() {
                           )}
                         </td>
                         <td className="px-4 py-3">
-                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${isAnulada ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"}`}>
                             {f.estado_sri ?? "—"}
                           </span>
                         </td>
@@ -588,14 +624,28 @@ function FacturasContent() {
                               size="icon"
                               className="size-7"
                               onClick={() => openEditar(f)}
+                              disabled={isAnulada}
+                              title="Editar"
                             >
                               <Pencil className="size-3.5" />
                             </Button>
+                            {!isAnulada && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-7 text-amber-600 hover:text-amber-700"
+                                onClick={() => handleAnular(f)}
+                                title="Anular factura"
+                              >
+                                <Ban className="size-3.5" />
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="icon"
                               className="size-7 text-destructive hover:text-destructive"
                               onClick={() => handleEliminar(f.id)}
+                              title="Eliminar"
                             >
                               <Trash2 className="size-3.5" />
                             </Button>
@@ -1369,6 +1419,53 @@ function CobroPanel({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── Flujo de Caja Chart ──────────────────────────────────────────────────────
+
+function FlujoCajaChart({ data, anio }: { data: FlujoCajaMes[]; anio: number }) {
+  return (
+    <div className="mb-6 rounded-xl border bg-card p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold">Flujo de Caja Proyectado {anio}</p>
+          <p className="text-xs text-muted-foreground">
+            Monto esperado vs cobrado por mes de vencimiento
+          </p>
+        </div>
+      </div>
+      <ResponsiveContainer width="100%" height={220}>
+        <BarChart data={data} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+          <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+          <YAxis
+            tick={{ fontSize: 11 }}
+            tickFormatter={(v: number) =>
+              v >= 1000 ? `$${(v / 1000).toFixed(1)}k` : `$${v}`
+            }
+          />
+          <Tooltip
+            formatter={(value: number, name: string) => {
+              const labels: Record<string, string> = {
+                monto_esperado: "Esperado",
+                monto_cobrado: "Cobrado",
+                monto_pendiente: "Pendiente",
+              };
+              return [`$${value.toFixed(2)}`, labels[name] ?? name];
+            }}
+          />
+          <Legend
+            formatter={(value: string) =>
+              ({ monto_esperado: "Esperado", monto_cobrado: "Cobrado", monto_pendiente: "Pendiente" })[value] ?? value
+            }
+          />
+          <Bar dataKey="monto_esperado" fill="#94a3b8" radius={[3, 3, 0, 0]} />
+          <Bar dataKey="monto_cobrado" fill="#10b981" radius={[3, 3, 0, 0]} />
+          <Bar dataKey="monto_pendiente" fill="#f59e0b" radius={[3, 3, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 }

@@ -15,6 +15,7 @@ import {
   DollarSign,
   GitBranch,
   FileSpreadsheet,
+  Building2,
 } from "lucide-react";
 
 import {
@@ -58,7 +59,8 @@ const relationsItems: NavItem[] = [
 const financeItems: NavItem[] = [
   { title: "Presupuestos", url: "/presupuestos", icon: Wallet, modulo: "presupuestos" },
   { title: "Facturas emit.", url: "/facturas", icon: FileSpreadsheet, modulo: "facturas" },
-  { title: "Gastos", url: "/gastos", icon: DollarSign, modulo: "gastos" },
+  { title: "Gastos empresa", url: "/gastos-empresa", icon: Building2, modulo: "gastos_empresa" },
+  { title: "Gastos viaje", url: "/gastos", icon: DollarSign, modulo: "gastos" },
   { title: "Dashboard BI", url: "/reportes", icon: BarChart3, modulo: "reportes" },
   { title: "Rpt. Financieros", url: "/reportes/financieros", icon: TrendingUp, modulo: "reportes" },
   { title: "Rpt. Operativos", url: "/reportes/operativos", icon: Activity, modulo: "reportes" },

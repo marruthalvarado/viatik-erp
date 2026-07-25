@@ -9,6 +9,7 @@ import {
   deleteFacturaEmitida,
   getFacturacionMensual,
   getKpiFacturacion,
+  getFlujoCajaProyectado,
 } from "@/services/facturas-emitidas";
 import type { FacturaEmitida } from "@/services/facturas-emitidas";
 
@@ -42,6 +43,16 @@ export function useFacturacionMensual(empresaId: string | null, anio: number) {
   return useQuery({
     queryKey: ["facturas_emitidas", "mensual", empresaId, anio],
     queryFn: () => getFacturacionMensual(empresaId!, anio),
+    enabled: !!empresaId,
+  });
+}
+
+// ─── Flujo de caja proyectado ────────────────────────────────────────────────
+
+export function useFlujoCajaProyectado(empresaId: string | null, anio?: number) {
+  return useQuery({
+    queryKey: ["facturas_emitidas", "flujo_caja", empresaId, anio],
+    queryFn: () => getFlujoCajaProyectado(empresaId!, anio),
     enabled: !!empresaId,
   });
 }
