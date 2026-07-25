@@ -69,10 +69,17 @@ export function ReporteGastos({ data, loading, error, onRetry }: ReporteGastosPr
   const totalReembolsable = data.reduce((s, r) => s + (r.valor_reembolsable ?? 0), 0);
   const countPendientes = data.filter((r) => r.estado_codigo === "pendiente").length;
 
+  const totalDeducible = data
+    .filter((r) => r.categoria_es_deducible !== false)
+    .reduce((s, r) => s + (r.valor_factura ?? 0), 0);
+  const totalNoDeducible = data
+    .filter((r) => r.categoria_es_deducible === false)
+    .reduce((s, r) => s + (r.valor_factura ?? 0), 0);
+
   return (
     <div className="space-y-6">
       {/* KPIs resumen */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard
           label="Total facturado"
           value={formatCurrency(totalFacturado)}
@@ -84,8 +91,13 @@ export function ReporteGastos({ data, loading, error, onRetry }: ReporteGastosPr
           icon={DollarSign}
         />
         <MetricCard
-          label="Gastos registrados"
-          value={data.length}
+          label="Deducible"
+          value={formatCurrency(totalDeducible)}
+          icon={DollarSign}
+        />
+        <MetricCard
+          label="No deducible"
+          value={formatCurrency(totalNoDeducible)}
           hint={countPendientes > 0 ? `${countPendientes} pendientes` : undefined}
         />
       </div>
@@ -125,7 +137,16 @@ export function ReporteGastos({ data, loading, error, onRetry }: ReporteGastosPr
                   </td>
                   <td className="px-3 py-2 font-medium">{g.origen_nombre ?? "—"}</td>
                   <td className="px-3 py-2 text-muted-foreground">{g.proyecto_nombre ?? "—"}</td>
-                  <td className="px-3 py-2 text-muted-foreground">{g.categoria_nombre ?? "—"}</td>
+                  <td className="px-3 py-2 text-muted-foreground">
+                    <div className="flex flex-col gap-0.5">
+                      <span>{g.categoria_nombre ?? "—"}</span>
+                      {g.categoria_es_deducible === false && (
+                        <span className="rounded border border-red-300 bg-red-50 px-1.5 py-0.5 text-xs font-medium text-red-600">
+                          No deducible
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-3 py-2 text-muted-foreground">{g.proveedor_nombre ?? "—"}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
                     {g.moneda_codigo ?? "—"}

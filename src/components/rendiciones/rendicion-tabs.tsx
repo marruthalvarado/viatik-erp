@@ -295,7 +295,7 @@ export function GastosTab({
     queryFn: async () => {
       const { data } = await supabase
         .from("gastos")
-        .select("*, categorias_gasto(nombre)")
+        .select("*, categorias_gasto(nombre, es_deducible)")
         .eq("rendicion_id", rendicionId)
         .is("deleted_at", null)
         .order("fecha");
@@ -363,6 +363,15 @@ export function GastosTab({
     (gastosRaw as any[]).map((g) => [g.id as string, (g.categorias_gasto?.nombre ?? "") as string]),
   );
 
+  // Mapa id → es_deducible de la categoría
+  const gastoDeducibleMap = new Map<string, boolean>(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (gastosRaw as any[]).map((g) => [
+      g.id as string,
+      (g.categorias_gasto?.es_deducible ?? true) as boolean,
+    ]),
+  );
+
   // Rango de fechas del viaje para badge fuera de rango
   const viajeInicio = viajeMain?.fecha_inicio ?? null;
   const viajeFin = viajeMain?.fecha_fin ?? null;
@@ -395,7 +404,19 @@ export function GastosTab({
     {
       key: "descripcion",
       header: "Descripcion",
-      cell: (row) => <span className="text-sm">{row.descripcion ?? "—"}</span>,
+      cell: (row) => {
+        const esDeducible = gastoDeducibleMap.get(row.id) ?? true;
+        return (
+          <div className="flex flex-col gap-0.5">
+            <span className="text-sm">{row.descripcion ?? "—"}</span>
+            {!esDeducible && (
+              <span className="rounded border border-red-300 bg-red-50 px-1.5 py-0.5 text-xs font-medium text-red-600">
+                No deducible
+              </span>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: "numero_documento",

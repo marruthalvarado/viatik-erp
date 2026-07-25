@@ -89,6 +89,8 @@ export interface GastoDetalleRow {
   proyecto_nombre: string | null;
   categoria_nombre: string | null;
   categoria_gasto_id: string | null;
+  categoria_es_deducible: boolean | null;
+  categoria_codigo_contable: string | null;
   proveedor_nombre: string | null;
   proveedor_id: string | null;
   valor_factura: number | null;
