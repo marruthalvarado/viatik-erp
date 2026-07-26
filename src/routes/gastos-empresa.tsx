@@ -126,6 +126,19 @@ export const Route = createFileRoute("/gastos-empresa")({
 
 // ─── Schema ───────────────────────────────────────────────────────────────────
 
+const MONEDAS_EXTRANJERAS = [
+  { code: "EUR", label: "EUR — Euro" },
+  { code: "GBP", label: "GBP — Libra esterlina" },
+  { code: "CHF", label: "CHF — Franco suizo" },
+  { code: "JPY", label: "JPY — Yen japonés" },
+  { code: "CNY", label: "CNY — Yuan chino" },
+  { code: "CAD", label: "CAD — Dólar canadiense" },
+  { code: "AUD", label: "AUD — Dólar australiano" },
+  { code: "SEK", label: "SEK — Corona sueca" },
+  { code: "DKK", label: "DKK — Corona danesa" },
+  { code: "NOK", label: "NOK — Corona noruega" },
+];
+
 const schema = z.object({
   fecha: z.string().min(1, "Requerido"),
   descripcion: z.string().min(1, "Requerido"),
@@ -139,6 +152,9 @@ const schema = z.object({
   es_deducible: z.boolean(),
   clave_acceso: z.string().nullable().optional(),
   observacion: z.string().nullable().optional(),
+  moneda_origen: z.string().nullable().optional(),
+  monto_origen: z.coerce.number().nullable().optional(),
+  tipo_cambio: z.coerce.number().nullable().optional(),
 });
 type FormValues = z.infer<typeof schema>;
 
@@ -212,6 +228,9 @@ function GastosEmpresaContent() {
       es_deducible: true,
       clave_acceso: null,
       observacion: null,
+      moneda_origen: null,
+      monto_origen: null,
+      tipo_cambio: null,
     },
   });
 
@@ -232,6 +251,9 @@ function GastosEmpresaContent() {
             es_deducible: true,
             clave_acceso: prefill.clave_acceso ?? null,
             observacion: prefill.razon_social ?? null,
+            moneda_origen: null,
+            monto_origen: null,
+            tipo_cambio: null,
           }
         : {
             fecha: new Date().toISOString().split("T")[0],
@@ -246,6 +268,9 @@ function GastosEmpresaContent() {
             es_deducible: true,
             clave_acceso: null,
             observacion: null,
+            moneda_origen: null,
+            monto_origen: null,
+            tipo_cambio: null,
           },
     );
     setDrawerOpen(true);
@@ -266,6 +291,9 @@ function GastosEmpresaContent() {
       es_deducible: g.es_deducible,
       clave_acceso: g.clave_acceso,
       observacion: g.observacion,
+      moneda_origen: g.moneda_origen ?? null,
+      monto_origen: g.monto_origen ? Number(g.monto_origen) : null,
+      tipo_cambio: g.tipo_cambio ? Number(g.tipo_cambio) : null,
     });
     setDrawerOpen(true);
   }
@@ -359,7 +387,12 @@ function GastosEmpresaContent() {
       if (editando) {
         await actualizar.mutateAsync({
           id: editando.id,
-          payload: { ...values },
+          payload: {
+            ...values,
+            moneda_origen: values.moneda_origen ?? null,
+            monto_origen: values.monto_origen ?? null,
+            tipo_cambio: values.tipo_cambio ?? null,
+          },
         });
         toast.success("Gasto actualizado");
       } else {
@@ -372,6 +405,9 @@ function GastosEmpresaContent() {
           responsable: values.responsable ?? null,
           clave_acceso: values.clave_acceso ?? null,
           observacion: values.observacion ?? null,
+          moneda_origen: values.moneda_origen ?? null,
+          monto_origen: values.monto_origen ?? null,
+          tipo_cambio: values.tipo_cambio ?? null,
           xml_content: xmlParsed?.xml_content ?? null,
           comprobante_url: null,
           created_by: null,
@@ -577,6 +613,12 @@ function GastosEmpresaContent() {
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums font-semibold">
                       {formatCurrency(g.total)}
+                      {g.moneda_origen && (
+                        <div className="text-[10px] font-normal text-blue-600 tabular-nums">
+                          {Number(g.monto_origen).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{" "}
+                          {g.moneda_origen}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <span
@@ -795,6 +837,112 @@ function GastosEmpresaContent() {
                     </FormItem>
                   )}
                 />
+
+                {/* ── Moneda de origen (importaciones) ─────────────────── */}
+                <div className="rounded-lg border border-dashed px-3 pt-3 pb-2 space-y-3">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    Moneda de origen
+                  </p>
+                  <FormField
+                    control={form.control}
+                    name="moneda_origen"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Moneda</FormLabel>
+                        <Select
+                          value={field.value ?? "__usd__"}
+                          onValueChange={(v) => {
+                            field.onChange(v === "__usd__" ? null : v);
+                            if (v === "__usd__") {
+                              form.setValue("monto_origen", null);
+                              form.setValue("tipo_cambio", null);
+                            }
+                          }}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="USD — Dólar (por defecto)" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="__usd__">USD — Dólar (por defecto)</SelectItem>
+                            {MONEDAS_EXTRANJERAS.map((m) => (
+                              <SelectItem key={m.code} value={m.code}>
+                                {m.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  {form.watch("moneda_origen") && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <FormField
+                        control={form.control}
+                        name="monto_origen"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>
+                              Monto ({form.watch("moneda_origen")})
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                placeholder="0.00"
+                                value={field.value ?? ""}
+                                onChange={(e) => {
+                                  const v = parseFloat(e.target.value) || null;
+                                  field.onChange(v);
+                                  const tc = form.getValues("tipo_cambio") ?? 0;
+                                  if (v && tc) {
+                                    form.setValue("subtotal", parseFloat((v * tc).toFixed(2)));
+                                    form.setValue("total", parseFloat((v * tc).toFixed(2)));
+                                  }
+                                }}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="tipo_cambio"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Tipo de cambio (a USD)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                step="0.000001"
+                                min="0"
+                                placeholder="1.000000"
+                                value={field.value ?? ""}
+                                onChange={(e) => {
+                                  const v = parseFloat(e.target.value) || null;
+                                  field.onChange(v);
+                                  const mo = form.getValues("monto_origen") ?? 0;
+                                  if (mo && v) {
+                                    form.setValue("subtotal", parseFloat((mo * v).toFixed(2)));
+                                    form.setValue("total", parseFloat((mo * v).toFixed(2)));
+                                  }
+                                }}
+                              />
+                            </FormControl>
+                            <p className="text-[11px] text-muted-foreground mt-1">
+                              Tipo indicado por el banco
+                            </p>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  )}
+                </div>
 
                 <div className="grid grid-cols-3 gap-3">
                   {(["subtotal", "iva", "total"] as const).map((f) => (

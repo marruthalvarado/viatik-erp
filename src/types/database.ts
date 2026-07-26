@@ -455,6 +455,9 @@ export type Database = {
           es_deducible: boolean;
           xml_content: string | null;
           observacion: string | null;
+          moneda_origen: string | null;
+          monto_origen: number | null;
+          tipo_cambio: number | null;
           created_by: string | null;
           created_at: string;
           updated_at: string;
@@ -477,6 +480,9 @@ export type Database = {
           es_deducible?: boolean;
           xml_content?: string | null;
           observacion?: string | null;
+          moneda_origen?: string | null;
+          monto_origen?: number | null;
+          tipo_cambio?: number | null;
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -499,6 +505,9 @@ export type Database = {
           es_deducible?: boolean;
           xml_content?: string | null;
           observacion?: string | null;
+          moneda_origen?: string | null;
+          monto_origen?: number | null;
+          tipo_cambio?: number | null;
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
