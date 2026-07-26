@@ -79,6 +79,36 @@ export async function updateGastoEmpresa(
   return data as GastoEmpresa;
 }
 
+// ─── Sugerencias por RUC ──────────────────────────────────────────────────────
+
+export type SugerenciasRuc = Map<string, { categoriaId: string | null; proyectoId: string | null }>;
+
+/**
+ * Devuelve el mapa RUC → {categoriaId, proyectoId} basado en el último registro
+ * de cada emisor en la empresa. Usado para pre-rellenar automáticamente el diálogo
+ * de importación TXT SRI.
+ */
+export async function getSugerenciasPorRuc(empresaId: string): Promise<SugerenciasRuc> {
+  const { data, error } = await supabase
+    .from("gastos_empresa")
+    .select("ruc_emisor, categoria_id, proyecto_id, created_at")
+    .eq("empresa_id", empresaId)
+    .is("deleted_at", null)
+    .not("ruc_emisor", "is", null)
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  const map: SugerenciasRuc = new Map();
+  for (const row of data ?? []) {
+    if (row.ruc_emisor && !map.has(row.ruc_emisor)) {
+      map.set(row.ruc_emisor, {
+        categoriaId: row.categoria_id ?? null,
+        proyectoId: row.proyecto_id ?? null,
+      });
+    }
+  }
+  return map;
+}
+
 /** Devuelve el Set de clave_acceso ya registradas (no eliminadas) para una empresa. */
 export async function getClaveAccesoExistentes(empresaId: string): Promise<Set<string>> {
   const { data, error } = await supabase

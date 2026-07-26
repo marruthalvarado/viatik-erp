@@ -5,9 +5,10 @@
  * - Asignar valores por lote (categoría / proyecto / deducible) y aplicarlos a todas las filas
  * - Sobrescribir individualmente cada fila desde la tabla
  * - Seleccionar / deseleccionar filas con checkbox
+ * - Auto-sugerir categoría y proyecto según el historial de cada RUC emisor
  */
 import { useState, useMemo, useEffect } from "react";
-import { CheckSquare, Square, Loader2, AlertTriangle } from "lucide-react";
+import { CheckSquare, Square, Loader2, AlertTriangle, Sparkles } from "lucide-react";
 
 import {
   Dialog,
@@ -27,12 +28,19 @@ interface CatalogoItem {
   nombre: string;
 }
 
+interface SugerenciaRuc {
+  categoriaId: string | null;
+  proyectoId: string | null;
+}
+
 interface FilaConMeta {
   fila: FilaTxtSri;
   seleccionada: boolean;
   categoriaId: string | null;
   proyectoId: string | null;
   esDeducible: boolean;
+  /** true si categoriaId/proyectoId fueron pre-rellenados desde el historial de RUC */
+  sugerida: boolean;
 }
 
 interface ImportSriDialogProps {
@@ -43,6 +51,8 @@ interface ImportSriDialogProps {
   proyectos: CatalogoItem[];
   /** Claves de acceso ya existentes en la BD — usadas para detectar duplicados */
   clavesExistentes?: Set<string>;
+  /** Mapa RUC → {categoriaId, proyectoId} con el último uso registrado por emisor */
+  sugerenciasPorRuc?: Map<string, SugerenciaRuc>;
   onImportar: (
     filas: {
       fila: FilaTxtSri;
@@ -53,15 +63,24 @@ interface ImportSriDialogProps {
   ) => Promise<void>;
 }
 
-function buildFilas(filas: FilaTxtSri[], clavesExistentes: Set<string>): FilaConMeta[] {
-  return filas.map((f) => ({
-    fila: f,
-    // Auto-deseleccionar duplicados
-    seleccionada: !f.clave_acceso || !clavesExistentes.has(f.clave_acceso),
-    categoriaId: null,
-    proyectoId: null,
-    esDeducible: true,
-  }));
+function buildFilas(
+  filas: FilaTxtSri[],
+  clavesExistentes: Set<string>,
+  sugerencias: Map<string, SugerenciaRuc>,
+): FilaConMeta[] {
+  return filas.map((f) => {
+    const s = sugerencias.get(f.ruc_emisor);
+    const tieneSugerencia = !!s && (s.categoriaId !== null || s.proyectoId !== null);
+    return {
+      fila: f,
+      // Auto-deseleccionar duplicados
+      seleccionada: !f.clave_acceso || !clavesExistentes.has(f.clave_acceso),
+      categoriaId: s?.categoriaId ?? null,
+      proyectoId: s?.proyectoId ?? null,
+      esDeducible: true,
+      sugerida: tieneSugerencia,
+    };
+  });
 }
 
 export function ImportSriDialog({
@@ -71,9 +90,12 @@ export function ImportSriDialog({
   categorias,
   proyectos,
   clavesExistentes = new Set(),
+  sugerenciasPorRuc = new Map(),
   onImportar,
 }: ImportSriDialogProps) {
-  const [filas, setFilas] = useState<FilaConMeta[]>(() => buildFilas(filasProp, clavesExistentes));
+  const [filas, setFilas] = useState<FilaConMeta[]>(() =>
+    buildFilas(filasProp, clavesExistentes, sugerenciasPorRuc),
+  );
   const [cargando, setCargando] = useState(false);
 
   // Batch defaults
@@ -81,14 +103,14 @@ export function ImportSriDialog({
   const [batchProyectoId, setBatchProyectoId] = useState<string | null>(null);
   const [batchEsDeducible, setBatchEsDeducible] = useState(true);
 
-  // Reinicializar cuando cambia la prop
+  // Reinicializar cuando cambia la prop o llegan sugerencias
   useEffect(() => {
-    setFilas(buildFilas(filasProp, clavesExistentes));
+    setFilas(buildFilas(filasProp, clavesExistentes, sugerenciasPorRuc));
     setBatchCategoriaId(null);
     setBatchProyectoId(null);
     setBatchEsDeducible(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filasProp]);
+  }, [filasProp, sugerenciasPorRuc]);
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -99,12 +121,18 @@ export function ImportSriDialog({
         categoriaId: batchCategoriaId,
         proyectoId: batchProyectoId,
         esDeducible: batchEsDeducible,
+        sugerida: false, // Aplicación manual elimina la bandera de sugerencia
       })),
     );
   }
 
   function updateFila(i: number, patch: Partial<Omit<FilaConMeta, "fila">>) {
-    setFilas((prev) => prev.map((f, idx) => (idx === i ? { ...f, ...patch } : f)));
+    // Si el usuario cambia categoría o proyecto, la sugerencia ya no aplica
+    const clearSugerida =
+      "categoriaId" in patch || "proyectoId" in patch ? { sugerida: false } : {};
+    setFilas((prev) =>
+      prev.map((f, idx) => (idx === i ? { ...f, ...patch, ...clearSugerida } : f)),
+    );
   }
 
   const todasSeleccionadas = filas.every((f) => f.seleccionada);
@@ -116,6 +144,7 @@ export function ImportSriDialog({
   }
 
   const seleccionadas = filas.filter((f) => f.seleccionada);
+  const numSugeridas = useMemo(() => filas.filter((f) => f.sugerida).length, [filas]);
   const numDuplicados = useMemo(
     () => filas.filter((f) => f.fila.clave_acceso && clavesExistentes.has(f.fila.clave_acceso)).length,
     [filas, clavesExistentes],
@@ -169,6 +198,18 @@ export function ImportSriDialog({
             cada fila individualmente.
           </DialogDescription>
         </DialogHeader>
+
+        {/* Banner sugerencias por RUC */}
+        {numSugeridas > 0 && (
+          <div className="shrink-0 flex items-center gap-2 bg-blue-50 border-b border-blue-200 px-6 py-2.5 text-sm text-blue-800">
+            <Sparkles className="size-4 shrink-0 text-blue-500" />
+            <span>
+              <strong>{numSugeridas} comprobante{numSugeridas !== 1 ? "s" : ""}</strong>{" "}
+              recibieron categoría y/o proyecto sugeridos automáticamente según el historial del
+              emisor. Puedes ajustarlos individualmente.
+            </span>
+          </div>
+        )}
 
         {/* Banner duplicados */}
         {numDuplicados > 0 && (
@@ -306,7 +347,18 @@ export function ImportSriDialog({
                         </span>
                       )}
                     </div>
-                    <div className="text-[10px] text-muted-foreground">{item.fila.ruc_emisor}</div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] text-muted-foreground">{item.fila.ruc_emisor}</span>
+                      {item.sugerida && (
+                        <span
+                          className="shrink-0 flex items-center gap-0.5 rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700"
+                          title="Categoría y/o proyecto sugeridos desde el historial de este emisor"
+                        >
+                          <Sparkles className="size-2.5" />
+                          Auto
+                        </span>
+                      )}
+                    </div>
                   </td>
 
                   {/* Serie */}

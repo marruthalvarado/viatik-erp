@@ -10,6 +10,7 @@ import {
   deleteGastoEmpresa,
   getKpiGastosEmpresa,
   getClaveAccesoExistentes,
+  getSugerenciasPorRuc,
 } from "@/services/gastos-empresa";
 import type { GastoEmpresa, GastoEmpresaFiltros } from "@/services/gastos-empresa";
 
@@ -71,6 +72,15 @@ export function useCrearGastosEmpresaLote() {
   return useMutation({
     mutationFn: createGastosEmpresaLote,
     onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
+  });
+}
+
+export function useSugerenciasPorRuc(empresaId: string | null) {
+  return useQuery({
+    queryKey: [QK, "sugerencias_ruc", empresaId],
+    queryFn: () => getSugerenciasPorRuc(empresaId!),
+    enabled: !!empresaId,
+    staleTime: 60_000,
   });
 }
 

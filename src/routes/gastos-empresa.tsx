@@ -72,6 +72,7 @@ import {
   useActualizarGastoEmpresa,
   useEliminarGastoEmpresa,
   useClaveAccesoExistentes,
+  useSugerenciasPorRuc,
 } from "@/hooks/entities/use-gastos-empresa";
 import { useCategoriasGasto } from "@/hooks/entities/use-catalogs";
 import { useProveedores } from "@/hooks/entities/use-proveedores";
@@ -149,6 +150,7 @@ function GastosEmpresaContent() {
   const proveedores = useProveedores({ pageSize: 200 });
   const proyectos = useProyectos({ empresaId: empresaActivaId ?? undefined, pageSize: 200 });
   const claveAccesoExistentes = useClaveAccesoExistentes(empresaActivaId);
+  const sugerenciasRuc = useSugerenciasPorRuc(empresaActivaId);
   const crear = useCrearGastoEmpresa();
   const crearLote = useCrearGastosEmpresaLote();
   const actualizar = useActualizarGastoEmpresa();
@@ -300,6 +302,7 @@ function GastosEmpresaContent() {
       total: f.total,
       es_deducible: esDeducible,
       clave_acceso: f.clave_acceso || null,
+      ruc_emisor: f.ruc_emisor || null,
       observacion: `RUC: ${f.ruc_emisor} · Serie: ${f.serie}`,
       xml_content: null,
       comprobante_url: null,
@@ -581,6 +584,7 @@ function GastosEmpresaContent() {
         categorias={(categorias.data?.rows ?? []).map((c) => ({ id: c.id, nombre: c.nombre }))}
         proyectos={(proyectos.data?.rows ?? []).map((p) => ({ id: p.id, nombre: p.nombre }))}
         clavesExistentes={claveAccesoExistentes.data}
+        sugerenciasPorRuc={sugerenciasRuc.data}
         onImportar={handleImportarLote}
       />
 
