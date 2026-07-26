@@ -60,32 +60,45 @@ export async function getEjecutivo(
   empresaId: string,
   anio?: number,
 ): Promise<DashboardEjecutivo | null> {
-  let q = supabase
+  let qRend = supabase
     .from("rendiciones")
     .select("total_facturado, total_reembolsable, proyecto_id, usuario_id")
     .eq("empresa_id", empresaId)
     .is("deleted_at", null);
 
+  let qGe = supabase
+    .from("gastos_empresa")
+    .select("total, proyecto_id")
+    .eq("empresa_id", empresaId)
+    .is("deleted_at", null);
+
   if (anio) {
     const { gte, lte } = dateRange(anio);
-    q = q.gte("fecha_rendicion", gte).lte("fecha_rendicion", lte);
+    qRend = qRend.gte("fecha_rendicion", gte).lte("fecha_rendicion", lte);
+    qGe = qGe.gte("fecha", gte).lte("fecha", lte);
   }
 
-  const [{ data: rends, error }, { data: anticipos }] = await Promise.all([
-    q,
+  const [{ data: rends, error }, { data: geRows }, { data: anticipos }] = await Promise.all([
+    qRend,
+    qGe,
     supabase.from("anticipos").select("valor").eq("empresa_id", empresaId),
   ]);
   if (error) throw new Error(error.message);
 
   const rows = rends ?? [];
+  const ge = geRows ?? [];
+  const totalGe = ge.reduce((s, g) => s + (Number(g.total) || 0), 0);
+  const proyectosConMovimiento = new Set([
+    ...rows.filter((r) => r.proyecto_id).map((r) => r.proyecto_id),
+    ...ge.filter((g) => g.proyecto_id).map((g) => g.proyecto_id),
+  ]);
+
   return {
     empresa_id: empresaId,
-    total_gastado: rows.reduce((s, r) => s + (Number(r.total_facturado) || 0), 0),
+    total_gastado: rows.reduce((s, r) => s + (Number(r.total_facturado) || 0), 0) + totalGe,
     total_reembolsable: rows.reduce((s, r) => s + (Number(r.total_reembolsable) || 0), 0),
     total_rendiciones: rows.length,
-    total_proyectos_con_movimiento: new Set(
-      rows.filter((r) => r.proyecto_id).map((r) => r.proyecto_id),
-    ).size,
+    total_proyectos_con_movimiento: proyectosConMovimiento.size,
     total_usuarios_con_movimiento: new Set(
       rows.filter((r) => r.usuario_id).map((r) => r.usuario_id),
     ).size,
@@ -100,28 +113,29 @@ export async function getProyectos(
   limit = 10,
   anio?: number,
 ): Promise<DashboardProyecto[]> {
-  if (!anio) {
-    const { data, error } = await supabase
-      .from("vw_dashboard_proyectos")
-      .select("*")
-      .eq("empresa_id", empresaId)
-      .order("gasto_real", { ascending: false })
-      .limit(limit);
-    if (error) throw new Error(error.message);
-    return data ?? [];
+  let qRend = supabase
+    .from("rendiciones")
+    .select("proyecto_id, total_facturado")
+    .eq("empresa_id", empresaId)
+    .is("deleted_at", null)
+    .not("proyecto_id", "is", null);
+
+  let qGe = supabase
+    .from("gastos_empresa")
+    .select("proyecto_id, total")
+    .eq("empresa_id", empresaId)
+    .is("deleted_at", null)
+    .not("proyecto_id", "is", null);
+
+  if (anio) {
+    const { gte, lte } = dateRange(anio);
+    qRend = qRend.gte("fecha_rendicion", gte).lte("fecha_rendicion", lte);
+    qGe = qGe.gte("fecha", gte).lte("fecha", lte);
   }
 
-  const { gte, lte } = dateRange(anio);
-
-  const [rendRes, proyRes] = await Promise.all([
-    supabase
-      .from("rendiciones")
-      .select("proyecto_id, total_facturado")
-      .eq("empresa_id", empresaId)
-      .is("deleted_at", null)
-      .not("proyecto_id", "is", null)
-      .gte("fecha_rendicion", gte)
-      .lte("fecha_rendicion", lte),
+  const [rendRes, geRes, proyRes] = await Promise.all([
+    qRend,
+    qGe,
     supabase
       .from("proyectos")
       .select("id, nombre, presupuesto, valor_contrato")
@@ -139,6 +153,18 @@ export async function getProyectos(
       r.proyecto_id,
       (gastoMap.get(r.proyecto_id) ?? 0) + (Number(r.total_facturado) || 0),
     );
+  }
+  for (const g of geRes.data ?? []) {
+    if (!g.proyecto_id) continue;
+    gastoMap.set(
+      g.proyecto_id,
+      (gastoMap.get(g.proyecto_id) ?? 0) + (Number(g.total) || 0),
+    );
+  }
+
+  // Incluir proyectos con contrato aunque no tengan gastos aún
+  for (const p of proyRes.data ?? []) {
+    if (!gastoMap.has(p.id)) gastoMap.set(p.id, 0);
   }
 
   return Array.from(gastoMap.entries())
@@ -441,13 +467,22 @@ export async function getEvolucionMensual(
   anio: number,
 ): Promise<EvolucionMensual[]> {
   const { gte, lte } = dateRange(anio);
-  const { data, error } = await supabase
-    .from("rendiciones")
-    .select("id, fecha_rendicion, total_facturado, total_reembolsable")
-    .eq("empresa_id", empresaId)
-    .is("deleted_at", null)
-    .gte("fecha_rendicion", gte)
-    .lte("fecha_rendicion", lte);
+  const [{ data, error }, { data: geData }] = await Promise.all([
+    supabase
+      .from("rendiciones")
+      .select("id, fecha_rendicion, total_facturado, total_reembolsable")
+      .eq("empresa_id", empresaId)
+      .is("deleted_at", null)
+      .gte("fecha_rendicion", gte)
+      .lte("fecha_rendicion", lte),
+    supabase
+      .from("gastos_empresa")
+      .select("fecha, total")
+      .eq("empresa_id", empresaId)
+      .is("deleted_at", null)
+      .gte("fecha", gte)
+      .lte("fecha", lte),
+  ]);
   if (error) throw new Error(error.message);
 
   type MesEntry = {
@@ -466,6 +501,15 @@ export async function getEvolucionMensual(
     ex.total_reembolsable += Number(row.total_reembolsable) || 0;
     map.set(mes, ex);
     rendMesMap.set(row.id, mes);
+  }
+
+  // Sumar gastos_empresa por mes
+  for (const g of geData ?? []) {
+    if (!g.fecha) continue;
+    const mes = g.fecha.slice(0, 7);
+    const ex = map.get(mes) ?? { total_facturado: 0, total_reembolsable: 0, total_km_vehiculo: 0 };
+    ex.total_facturado += Number(g.total) || 0;
+    map.set(mes, ex);
   }
 
   // Km vehículo propio por mes (sumado desde viajes con vehiculo_propio=true)
