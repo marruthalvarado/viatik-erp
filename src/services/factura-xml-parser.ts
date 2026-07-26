@@ -62,11 +62,26 @@ function getNumberByTag(doc: Document, tagName: string): number {
 
 export function parseFacturaXml(xmlString: string): FacturaXmlData {
   const parser = new DOMParser();
-  const doc = parser.parseFromString(xmlString, "application/xml");
+  let doc = parser.parseFromString(xmlString, "application/xml");
 
   const parserError = doc.querySelector("parsererror");
   if (parserError) {
     throw new Error("XML inválido: " + parserError.textContent);
+  }
+
+  // El SRI entrega los XML autorizados envueltos en:
+  //   <autorizacion>
+  //     <comprobante><![CDATA[<factura ...>...</factura>]]></comprobante>
+  //   </autorizacion>
+  // El CDATA se trata como texto, no como nodos XML. Hay que extraerlo
+  // y parsearlo como un documento separado.
+  const comprobanteEl = doc.querySelector("autorizacion > comprobante");
+  if (comprobanteEl?.textContent?.trim()) {
+    const innerXml = comprobanteEl.textContent.trim();
+    const innerDoc = parser.parseFromString(innerXml, "application/xml");
+    if (!innerDoc.querySelector("parsererror")) {
+      doc = innerDoc; // Usar el XML interno (la factura real) para todo lo demás
+    }
   }
 
   // ── Tipo de comprobante ──────────────────────────────────────────────────
