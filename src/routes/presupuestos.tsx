@@ -198,19 +198,26 @@ function PresupuestosContent() {
       key: "ejecutado",
       header: "Gastos (ejecutado)",
       align: "right",
-      cell: (row) => (
-        <div className="flex flex-col items-end gap-1">
-          <span className="tabular-nums text-sm">{formatCurrency(row.ejecutado)}</span>
-          <ProgressBar
-            value={row.ejecutado}
-            max={
-              (row as ResumenFinancieroProyecto & { facturado?: number }).facturado ||
-              row.valor_contrato ||
-              row.presupuesto
-            }
-          />
-        </div>
-      ),
+      cell: (row) => {
+        const max = row.facturado || row.valor_contrato || row.presupuesto;
+        return (
+          <div className="flex flex-col items-end gap-1">
+            <span className="tabular-nums text-sm font-medium">{formatCurrency(row.ejecutado)}</span>
+            {/* Desglose rendiciones + gastos empresa */}
+            {(row.ejecutado_rendiciones > 0 || row.ejecutado_empresa > 0) && (
+              <div className="flex flex-col items-end gap-0.5 text-[10px] text-muted-foreground tabular-nums">
+                {row.ejecutado_rendiciones > 0 && (
+                  <span>Viajes: {formatCurrency(row.ejecutado_rendiciones)}</span>
+                )}
+                {row.ejecutado_empresa > 0 && (
+                  <span>Empresa: {formatCurrency(row.ejecutado_empresa)}</span>
+                )}
+              </div>
+            )}
+            <ProgressBar value={row.ejecutado} max={max} />
+          </div>
+        );
+      },
     },
     {
       key: "ganancia",

@@ -111,6 +111,7 @@ function GastosEmpresaContent() {
   const { empresaActivaId } = useCompany();
   const [anio, setAnio] = useState(() => new Date().getFullYear());
   const [filtroDeducible, setFiltroDeducible] = useState<"todos" | "si" | "no">("todos");
+  const [filtroProyecto, setFiltroProyecto] = useState<string>("todos");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editando, setEditando] = useState<GastoEmpresa | null>(null);
   const [xmlParsed, setXmlParsed] = useState<FacturaXmlData | null>(null);
@@ -129,6 +130,9 @@ function GastosEmpresaContent() {
     anio,
     soloDeducibles: filtroDeducible === "si" ? true : filtroDeducible === "no" ? false : undefined,
   };
+
+  const proyectoNombre = (id: string | null) =>
+    id ? ((proyectos.data?.rows ?? []).find((p) => p.id === id)?.nombre ?? "—") : "—";
 
   const gastos = useGastosEmpresa(empresaActivaId, filtros);
   const kpi = useKpiGastosEmpresa(empresaActivaId, anio);
@@ -288,7 +292,13 @@ function GastosEmpresaContent() {
     }
   }
 
-  const lista = gastos.data ?? [];
+  const listaBase = gastos.data ?? [];
+  const lista =
+    filtroProyecto === "todos"
+      ? listaBase
+      : filtroProyecto === "__sin_proyecto__"
+        ? listaBase.filter((g) => !g.proyecto_id)
+        : listaBase.filter((g) => g.proyecto_id === filtroProyecto);
 
   const categoriaNombre = (id: string | null) =>
     id ? ((categorias.data?.rows ?? []).find((c) => c.id === id)?.nombre ?? "—") : "—";
@@ -311,6 +321,17 @@ function GastosEmpresaContent() {
                 <option key={a} value={a}>
                   {a}
                 </option>
+              ))}
+            </select>
+            <select
+              value={filtroProyecto}
+              onChange={(e) => setFiltroProyecto(e.target.value)}
+              className="h-8 rounded-md border bg-background px-2 text-sm"
+            >
+              <option value="todos">Todos los proyectos</option>
+              <option value="__sin_proyecto__">Sin proyecto</option>
+              {(proyectos.data?.rows ?? []).map((p) => (
+                <option key={p.id} value={p.id}>{p.nombre}</option>
               ))}
             </select>
             <select
@@ -390,6 +411,7 @@ function GastosEmpresaContent() {
                   <th className="px-4 py-3 font-medium">Descripción</th>
                   <th className="px-4 py-3 font-medium">Categoría</th>
                   <th className="px-4 py-3 font-medium">Proveedor</th>
+                  <th className="px-4 py-3 font-medium">Proyecto</th>
                   <th className="px-4 py-3 font-medium text-right">Subtotal</th>
                   <th className="px-4 py-3 font-medium text-right">IVA</th>
                   <th className="px-4 py-3 font-medium text-right">Total</th>
@@ -412,6 +434,9 @@ function GastosEmpresaContent() {
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground max-w-[150px] truncate">
                       {proveedorNombre(g.proveedor_id)}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground max-w-[140px] truncate">
+                      {proyectoNombre(g.proyecto_id)}
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums">{formatCurrency(g.subtotal)}</td>
                     <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">
@@ -458,7 +483,7 @@ function GastosEmpresaContent() {
               </tbody>
               <tfoot className="border-t bg-muted/20">
                 <tr>
-                  <td colSpan={4} className="px-4 py-2 text-xs font-semibold text-muted-foreground">
+                  <td colSpan={5} className="px-4 py-2 text-xs font-semibold text-muted-foreground">
                     {lista.length} gasto{lista.length !== 1 ? "s" : ""}
                   </td>
                   <td className="px-4 py-2 text-right tabular-nums text-xs font-semibold">

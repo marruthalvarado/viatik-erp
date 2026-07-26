@@ -631,7 +631,12 @@ export interface ResumenFinancieroProyecto {
   presupuesto: number;
   valor_contrato: number;
   facturado: number;
+  /** Total de gastos ejecutados: rendiciones + gastos_empresa */
   ejecutado: number;
+  /** Gastos de rendiciones de viaje asignadas a este proyecto */
+  ejecutado_rendiciones: number;
+  /** Gastos de empresa (facturas, importaciones, etc.) asignados a este proyecto */
+  ejecutado_empresa: number;
   ganancia: number;
   margen_pct: number | null;
 }
@@ -639,7 +644,7 @@ export interface ResumenFinancieroProyecto {
 export async function getResumenFinancieroProyectos(
   empresaId: string,
 ): Promise<ResumenFinancieroProyecto[]> {
-  const [proyRes, rendRes, factRes] = await Promise.all([
+  const [proyRes, rendRes, factRes, geRes] = await Promise.all([
     supabase
       .from("proyectos")
       .select("id, nombre, presupuesto, valor_contrato, cliente:clientes(nombre)")
@@ -658,19 +663,37 @@ export async function getResumenFinancieroProyectos(
       .eq("empresa_id", empresaId)
       .is("deleted_at", null)
       .not("proyecto_id", "is", null),
+    supabase
+      .from("gastos_empresa")
+      .select("proyecto_id, total")
+      .eq("empresa_id", empresaId)
+      .is("deleted_at", null)
+      .not("proyecto_id", "is", null),
   ]);
 
   if (proyRes.error) throw new Error(proyRes.error.message);
 
-  const ejecutadoMap = new Map<string, number>();
+  // Gastos de rendiciones de viaje por proyecto
+  const rendicionesMap = new Map<string, number>();
   for (const r of rendRes.data ?? []) {
     if (!r.proyecto_id) continue;
-    ejecutadoMap.set(
+    rendicionesMap.set(
       r.proyecto_id,
-      (ejecutadoMap.get(r.proyecto_id) ?? 0) + (Number(r.total_facturado) || 0),
+      (rendicionesMap.get(r.proyecto_id) ?? 0) + (Number(r.total_facturado) || 0),
     );
   }
 
+  // Gastos empresa (facturas, importaciones, etc.) por proyecto
+  const gastoEmpresaMap = new Map<string, number>();
+  for (const g of geRes.data ?? []) {
+    if (!g.proyecto_id) continue;
+    gastoEmpresaMap.set(
+      g.proyecto_id,
+      (gastoEmpresaMap.get(g.proyecto_id) ?? 0) + (Number(g.total) || 0),
+    );
+  }
+
+  // Facturación emitida al cliente por proyecto
   const facturadoMap = new Map<string, number>();
   for (const f of factRes.data ?? []) {
     if (!f.proyecto_id) continue;
@@ -685,7 +708,9 @@ export async function getResumenFinancieroProyectos(
     const cliente = (Array.isArray(raw) ? raw[0] : raw) as { nombre: string } | null;
     const presupuesto = Number(p.presupuesto ?? 0);
     const valor_contrato = Number(p.valor_contrato ?? 0);
-    const ejecutado = ejecutadoMap.get(p.id) ?? 0;
+    const ejecutado_rendiciones = rendicionesMap.get(p.id) ?? 0;
+    const ejecutado_empresa = gastoEmpresaMap.get(p.id) ?? 0;
+    const ejecutado = ejecutado_rendiciones + ejecutado_empresa;
     const facturado = facturadoMap.get(p.id) ?? 0;
     const ganancia = facturado > 0 ? facturado - ejecutado : valor_contrato - ejecutado;
     const base_margen = facturado > 0 ? facturado : valor_contrato;
@@ -698,6 +723,8 @@ export async function getResumenFinancieroProyectos(
       valor_contrato,
       facturado,
       ejecutado,
+      ejecutado_rendiciones,
+      ejecutado_empresa,
       ganancia,
       margen_pct,
     };
