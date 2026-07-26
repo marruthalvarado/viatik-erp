@@ -156,7 +156,7 @@ function GastosEmpresaPage() {
 
 function GastosEmpresaContent() {
   const { empresaActivaId } = useCompany();
-  const [anio, setAnio] = useState(() => new Date().getFullYear());
+  const [anio, setAnio] = useState<number | null>(() => new Date().getFullYear());
   const [filtroDeducible, setFiltroDeducible] = useState<"todos" | "si" | "no">("todos");
   const [filtroProyecto, setFiltroProyecto] = useState<string>("todos");
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -171,14 +171,13 @@ function GastosEmpresaContent() {
   const pdfRef = useRef<HTMLInputElement>(null);
   const txtRef = useRef<HTMLInputElement>(null);
 
-  const anios = [
-    new Date().getFullYear(),
-    new Date().getFullYear() - 1,
-    new Date().getFullYear() - 2,
-  ];
+  const currentYear = new Date().getFullYear();
+  // Años desde el actual hasta 2020 (cubre datos históricos desde 2023)
+  const anios: number[] = [];
+  for (let y = currentYear; y >= 2020; y--) anios.push(y);
 
   const filtros = {
-    anio,
+    anio: anio ?? undefined, // null = sin filtro de año (todos)
     soloDeducibles: filtroDeducible === "si" ? true : filtroDeducible === "no" ? false : undefined,
   };
 
@@ -186,7 +185,8 @@ function GastosEmpresaContent() {
     id ? ((proyectos.data?.rows ?? []).find((p) => p.id === id)?.nombre ?? "—") : "—";
 
   const gastos = useGastosEmpresa(empresaActivaId, filtros);
-  const kpi = useKpiGastosEmpresa(empresaActivaId, anio);
+  // KPI hook siempre necesita un año concreto; cuando es "todos" usamos datos en memoria
+  const kpi = useKpiGastosEmpresa(empresaActivaId, anio ?? currentYear);
   const categorias = useCategoriasGasto({ pageSize: 200 });
   const proveedores = useProveedores({ pageSize: 200 });
   const proyectos = useProyectos({ empresaId: empresaActivaId ?? undefined, pageSize: 200 });
@@ -403,6 +403,21 @@ function GastosEmpresaContent() {
         ? listaBase.filter((g) => !g.proyecto_id)
         : listaBase.filter((g) => g.proyecto_id === filtroProyecto);
 
+  // Cuando se muestran "todos los años", los KPIs se computan desde los datos en memoria
+  const kpiEfectivo =
+    anio === null && gastos.data
+      ? {
+          total_anio: gastos.data.reduce((s, g) => s + (Number(g.total) || 0), 0),
+          total_deducible: gastos.data
+            .filter((g) => g.es_deducible)
+            .reduce((s, g) => s + (Number(g.total) || 0), 0),
+          total_no_deducible: gastos.data
+            .filter((g) => !g.es_deducible)
+            .reduce((s, g) => s + (Number(g.total) || 0), 0),
+          num_gastos: gastos.data.length,
+        }
+      : kpi.data;
+
   const categoriaNombre = (id: string | null) =>
     id ? ((categorias.data?.rows ?? []).find((c) => c.id === id)?.nombre ?? "—") : "—";
   const proveedorNombre = (id: string | null) =>
@@ -416,10 +431,14 @@ function GastosEmpresaContent() {
         actions={
           <div className="flex items-center gap-2">
             <select
-              value={anio}
-              onChange={(e) => setAnio(Number(e.target.value))}
+              value={anio ?? "todos"}
+              onChange={(e) => {
+                const v = e.target.value;
+                setAnio(v === "todos" ? null : Number(v));
+              }}
               className="h-8 rounded-md border bg-background px-2 text-sm"
             >
+              <option value="todos">Todos los años</option>
               {anios.map((a) => (
                 <option key={a} value={a}>
                   {a}
@@ -488,21 +507,21 @@ function GastosEmpresaContent() {
       {/* KPIs */}
       <div className="mb-6 grid gap-4 sm:grid-cols-4">
         <KpiCard
-          label={`Total gastos ${anio}`}
-          value={formatCurrency(kpi.data?.total_anio ?? 0)}
+          label={anio !== null ? `Total gastos ${anio}` : "Total gastos (todos)"}
+          value={formatCurrency(kpiEfectivo?.total_anio ?? 0)}
           icon={<TrendingDown className="size-4 text-rose-500" />}
         />
-        <KpiCard label="Nº registros" value={String(kpi.data?.num_gastos ?? 0)} />
+        <KpiCard label="Nº registros" value={String(kpiEfectivo?.num_gastos ?? 0)} />
         <KpiCard
           label="Deducibles"
-          value={formatCurrency(kpi.data?.total_deducible ?? 0)}
+          value={formatCurrency(kpiEfectivo?.total_deducible ?? 0)}
           icon={<CheckCircle className="size-4 text-emerald-500" />}
         />
         <KpiCard
           label="No deducibles"
-          value={formatCurrency(kpi.data?.total_no_deducible ?? 0)}
+          value={formatCurrency(kpiEfectivo?.total_no_deducible ?? 0)}
           icon={<XCircle className="size-4 text-amber-500" />}
-          highlight={(kpi.data?.total_no_deducible ?? 0) > 0}
+          highlight={(kpiEfectivo?.total_no_deducible ?? 0) > 0}
         />
       </div>
 
@@ -513,7 +532,7 @@ function GastosEmpresaContent() {
         <EmptyState
           icon={Building2}
           title="Sin gastos registrados"
-          description={`No hay gastos de empresa para ${anio}. Carga un comprobante XML/PDF o agrégalo manualmente.`}
+          description={`No hay gastos de empresa${anio !== null ? ` para ${anio}` : ""}. Carga un comprobante XML/PDF o agrégalo manualmente.`}
         />
       ) : (
         <div className="rounded-xl border bg-card overflow-hidden">
