@@ -9,6 +9,7 @@ import {
   updateGastoEmpresa,
   deleteGastoEmpresa,
   getKpiGastosEmpresa,
+  getClaveAccesoExistentes,
 } from "@/services/gastos-empresa";
 import type { GastoEmpresa, GastoEmpresaFiltros } from "@/services/gastos-empresa";
 
@@ -53,6 +54,15 @@ export function useActualizarGastoEmpresa() {
     mutationFn: ({ id, payload }: { id: string; payload: Partial<GastoEmpresa> }) =>
       updateGastoEmpresa(id, payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
+  });
+}
+
+export function useClaveAccesoExistentes(empresaId: string | null) {
+  return useQuery({
+    queryKey: [QK, "claves_acceso", empresaId],
+    queryFn: () => getClaveAccesoExistentes(empresaId!),
+    enabled: !!empresaId,
+    staleTime: 30_000,
   });
 }
 

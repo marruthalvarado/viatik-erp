@@ -79,6 +79,18 @@ export async function updateGastoEmpresa(
   return data as GastoEmpresa;
 }
 
+/** Devuelve el Set de clave_acceso ya registradas (no eliminadas) para una empresa. */
+export async function getClaveAccesoExistentes(empresaId: string): Promise<Set<string>> {
+  const { data, error } = await supabase
+    .from("gastos_empresa")
+    .select("clave_acceso")
+    .eq("empresa_id", empresaId)
+    .is("deleted_at", null)
+    .not("clave_acceso", "is", null);
+  if (error) throw new Error(error.message);
+  return new Set((data ?? []).map((r) => r.clave_acceso as string));
+}
+
 export async function createGastosEmpresaLote(
   rows: Omit<GastoEmpresa, "id" | "created_at" | "updated_at" | "deleted_at">[],
 ): Promise<number> {

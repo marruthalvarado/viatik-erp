@@ -71,6 +71,7 @@ import {
   useCrearGastosEmpresaLote,
   useActualizarGastoEmpresa,
   useEliminarGastoEmpresa,
+  useClaveAccesoExistentes,
 } from "@/hooks/entities/use-gastos-empresa";
 import { useCategoriasGasto } from "@/hooks/entities/use-catalogs";
 import { useProveedores } from "@/hooks/entities/use-proveedores";
@@ -147,6 +148,7 @@ function GastosEmpresaContent() {
   const categorias = useCategoriasGasto({ pageSize: 200 });
   const proveedores = useProveedores({ pageSize: 200 });
   const proyectos = useProyectos({ empresaId: empresaActivaId ?? undefined, pageSize: 200 });
+  const claveAccesoExistentes = useClaveAccesoExistentes(empresaActivaId);
   const crear = useCrearGastoEmpresa();
   const crearLote = useCrearGastosEmpresaLote();
   const actualizar = useActualizarGastoEmpresa();
@@ -578,6 +580,7 @@ function GastosEmpresaContent() {
         filas={filasTxt}
         categorias={(categorias.data?.rows ?? []).map((c) => ({ id: c.id, nombre: c.nombre }))}
         proyectos={(proyectos.data?.rows ?? []).map((p) => ({ id: p.id, nombre: p.nombre }))}
+        clavesExistentes={claveAccesoExistentes.data}
         onImportar={handleImportarLote}
       />
 

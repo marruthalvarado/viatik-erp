@@ -7,7 +7,7 @@
  * - Seleccionar / deseleccionar filas con checkbox
  */
 import { useState, useMemo, useEffect } from "react";
-import { CheckSquare, Square, Loader2 } from "lucide-react";
+import { CheckSquare, Square, Loader2, AlertTriangle } from "lucide-react";
 
 import {
   Dialog,
@@ -41,6 +41,8 @@ interface ImportSriDialogProps {
   filas: FilaTxtSri[];
   categorias: CatalogoItem[];
   proyectos: CatalogoItem[];
+  /** Claves de acceso ya existentes en la BD — usadas para detectar duplicados */
+  clavesExistentes?: Set<string>;
   onImportar: (
     filas: {
       fila: FilaTxtSri;
@@ -51,10 +53,11 @@ interface ImportSriDialogProps {
   ) => Promise<void>;
 }
 
-function buildFilas(filas: FilaTxtSri[]): FilaConMeta[] {
+function buildFilas(filas: FilaTxtSri[], clavesExistentes: Set<string>): FilaConMeta[] {
   return filas.map((f) => ({
     fila: f,
-    seleccionada: true,
+    // Auto-deseleccionar duplicados
+    seleccionada: !f.clave_acceso || !clavesExistentes.has(f.clave_acceso),
     categoriaId: null,
     proyectoId: null,
     esDeducible: true,
@@ -67,9 +70,10 @@ export function ImportSriDialog({
   filas: filasProp,
   categorias,
   proyectos,
+  clavesExistentes = new Set(),
   onImportar,
 }: ImportSriDialogProps) {
-  const [filas, setFilas] = useState<FilaConMeta[]>(() => buildFilas(filasProp));
+  const [filas, setFilas] = useState<FilaConMeta[]>(() => buildFilas(filasProp, clavesExistentes));
   const [cargando, setCargando] = useState(false);
 
   // Batch defaults
@@ -79,10 +83,11 @@ export function ImportSriDialog({
 
   // Reinicializar cuando cambia la prop
   useEffect(() => {
-    setFilas(buildFilas(filasProp));
+    setFilas(buildFilas(filasProp, clavesExistentes));
     setBatchCategoriaId(null);
     setBatchProyectoId(null);
     setBatchEsDeducible(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filasProp]);
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -111,6 +116,10 @@ export function ImportSriDialog({
   }
 
   const seleccionadas = filas.filter((f) => f.seleccionada);
+  const numDuplicados = useMemo(
+    () => filas.filter((f) => f.fila.clave_acceso && clavesExistentes.has(f.fila.clave_acceso)).length,
+    [filas, clavesExistentes],
+  );
 
   const totales = useMemo(
     () =>
@@ -160,6 +169,18 @@ export function ImportSriDialog({
             cada fila individualmente.
           </DialogDescription>
         </DialogHeader>
+
+        {/* Banner duplicados */}
+        {numDuplicados > 0 && (
+          <div className="shrink-0 flex items-center gap-2 bg-amber-50 border-b border-amber-200 px-6 py-2.5 text-sm text-amber-800">
+            <AlertTriangle className="size-4 shrink-0 text-amber-500" />
+            <span>
+              <strong>{numDuplicados} factura{numDuplicados !== 1 ? "s" : ""}</strong> ya existen en
+              la base de datos y fueron deseleccionadas automáticamente. Puedes reactivarlas si
+              necesitas sobreescribirlas.
+            </span>
+          </div>
+        )}
 
         {/* Batch defaults */}
         <div className="shrink-0 border-b bg-muted/20 px-6 py-3">
@@ -277,7 +298,14 @@ export function ImportSriDialog({
 
                   {/* Emisor */}
                   <td className="max-w-[200px] px-3 py-2">
-                    <div className="truncate font-medium text-sm">{item.fila.razon_social}</div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="truncate font-medium text-sm">{item.fila.razon_social}</span>
+                      {item.fila.clave_acceso && clavesExistentes.has(item.fila.clave_acceso) && (
+                        <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                          Ya existe
+                        </span>
+                      )}
+                    </div>
                     <div className="text-[10px] text-muted-foreground">{item.fila.ruc_emisor}</div>
                   </td>
 
