@@ -7,7 +7,8 @@
  * - Ingreso manual
  * - KPIs: total año, deducible vs no deducible
  */
-import { useRef, useState } from "react";
+import { Component, useRef, useState } from "react";
+import type { ReactNode, ErrorInfo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   Building2,
@@ -77,6 +78,46 @@ import {
 import { useCategoriasGasto } from "@/hooks/entities/use-catalogs";
 import { useProveedores } from "@/hooks/entities/use-proveedores";
 import { useProyectos } from "@/hooks/entities/use-proyectos";
+
+// ─── Error boundary local para el diálogo de importación ─────────────────────
+// Evita que un fallo en ImportSriDialog derribe toda la página.
+
+class ImportDialogBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(err: Error, info: ErrorInfo) {
+    console.error("[ImportSriDialog error]", err, info.componentStack);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80">
+          <div className="rounded-xl border bg-card p-6 text-center shadow-lg max-w-sm">
+            <p className="font-semibold text-destructive">Error al abrir el importador</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Revisa la consola para más detalles y recarga la página.
+            </p>
+            <button
+              onClick={() => this.setState({ hasError: false })}
+              className="mt-4 text-xs underline text-muted-foreground hover:text-foreground"
+            >
+              Intentar de nuevo
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 export const Route = createFileRoute("/gastos-empresa")({
   head: () => ({ meta: [{ title: "Gastos Empresa · VIATIQ" }] }),
@@ -576,17 +617,19 @@ function GastosEmpresaContent() {
         </div>
       )}
 
-      {/* Import TXT SRI Dialog */}
-      <ImportSriDialog
-        open={importDialogOpen}
-        onOpenChange={setImportDialogOpen}
-        filas={filasTxt}
-        categorias={(categorias.data?.rows ?? []).map((c) => ({ id: c.id, nombre: c.nombre }))}
-        proyectos={(proyectos.data?.rows ?? []).map((p) => ({ id: p.id, nombre: p.nombre }))}
-        clavesExistentes={claveAccesoExistentes.data}
-        sugerenciasPorRuc={sugerenciasRuc.data}
-        onImportar={handleImportarLote}
-      />
+      {/* Import TXT SRI Dialog — envuelto en boundary para evitar crash de página */}
+      <ImportDialogBoundary>
+        <ImportSriDialog
+          open={importDialogOpen}
+          onOpenChange={setImportDialogOpen}
+          filas={filasTxt}
+          categorias={(categorias.data?.rows ?? []).map((c) => ({ id: c.id, nombre: c.nombre }))}
+          proyectos={(proyectos.data?.rows ?? []).map((p) => ({ id: p.id, nombre: p.nombre }))}
+          clavesExistentes={claveAccesoExistentes.data}
+          sugerenciasPorRuc={sugerenciasRuc.data}
+          onImportar={handleImportarLote}
+        />
+      </ImportDialogBoundary>
 
       {/* Drawer form */}
       <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>

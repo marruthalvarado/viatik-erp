@@ -41,8 +41,22 @@ function getText(doc: Document, ...selectors: string[]): string {
   return "";
 }
 
+/**
+ * Fallback: busca por nombre de etiqueta (útil cuando querySelector falla
+ * por namespaces u otras quirks del DOMParser en modo XML).
+ */
+function getTagText(doc: Document, tagName: string): string {
+  const els = doc.getElementsByTagName(tagName);
+  return els[0]?.textContent?.trim() ?? "";
+}
+
 function getNumber(doc: Document, ...selectors: string[]): number {
   const t = getText(doc, ...selectors);
+  return t ? parseFloat(t) : 0;
+}
+
+function getNumberByTag(doc: Document, tagName: string): number {
+  const t = getTagText(doc, tagName);
   return t ? parseFloat(t) : 0;
 }
 
@@ -81,50 +95,61 @@ export function parseFacturaXml(xmlString: string): FacturaXmlData {
   );
   const fecha = parseFechaEcuador(fechaRaw);
 
-  // ── Receptor (cliente) ───────────────────────────────────────────────────
+  // ── Receptor (cliente = Protonmedical) ───────────────────────────────────
   const ruc_cliente =
     getText(doc, "identificacionComprador", "infoFactura > identificacionComprador") ||
     getText(doc, "identificacionCompradorNC", "infoNotaCredito > identificacionCompradorNC") ||
     null;
 
+  // ── Emisor (proveedor que emitió la factura) ─────────────────────────────
+  // Para gastos de empresa se necesita el nombre del EMISOR (quien vendió),
+  // no del comprador (que somos nosotros). En el XML SRI el emisor está en
+  // infoTributaria > razonSocial.
   const razon_social =
+    getText(doc, "infoTributaria > razonSocial") ||
+    getTagText(doc, "razonSocial") ||
     getText(doc, "razonSocialComprador", "infoFactura > razonSocialComprador") ||
     getText(doc, "razonSocialCompradorNC", "infoNotaCredito > razonSocialCompradorNC") ||
-    getText(doc, "razonSocialComprador") ||
     "Sin nombre";
 
   // ── Montos ───────────────────────────────────────────────────────────────
-  const subtotal = getNumber(
-    doc,
-    "totalSinImpuestos",
-    "infoFactura > totalSinImpuestos",
-    "infoNotaCredito > totalSinImpuestos",
-  );
+  // Se intenta primero con querySelector y luego con getElementsByTagName
+  // como fallback por si el DOMParser los resuelve diferente en prod.
+  const subtotal =
+    getNumber(doc, "infoFactura > totalSinImpuestos", "infoNotaCredito > totalSinImpuestos", "totalSinImpuestos") ||
+    getNumberByTag(doc, "totalSinImpuestos");
 
-  const descuento = getNumber(
-    doc,
-    "totalDescuento",
-    "infoFactura > totalDescuento",
-    "infoNotaCredito > totalDescuento",
-  );
+  const descuento =
+    getNumber(doc, "infoFactura > totalDescuento", "infoNotaCredito > totalDescuento", "totalDescuento") ||
+    getNumberByTag(doc, "totalDescuento");
 
   // IVA: buscar en totalConImpuestos → totalImpuesto donde codigo = 2
   let iva = 0;
   const impuestos = doc.querySelectorAll("totalImpuesto");
-  impuestos.forEach((imp) => {
-    const codigo = imp.querySelector("codigo")?.textContent?.trim();
-    if (codigo === "2") {
-      iva += parseFloat(imp.querySelector("valor")?.textContent?.trim() ?? "0");
-    }
-  });
+  if (impuestos.length > 0) {
+    impuestos.forEach((imp) => {
+      const codigo = imp.querySelector("codigo")?.textContent?.trim()
+        ?? imp.getElementsByTagName("codigo")[0]?.textContent?.trim();
+      if (codigo === "2") {
+        const valorEl = imp.querySelector("valor") ?? imp.getElementsByTagName("valor")[0];
+        iva += parseFloat(valorEl?.textContent?.trim() ?? "0");
+      }
+    });
+  } else {
+    // Fallback: getElementsByTagName por si querySelector no encuentra nada
+    const impByTag = doc.getElementsByTagName("totalImpuesto");
+    Array.from(impByTag).forEach((imp) => {
+      const codigo = imp.getElementsByTagName("codigo")[0]?.textContent?.trim();
+      if (codigo === "2") {
+        iva += parseFloat(imp.getElementsByTagName("valor")[0]?.textContent?.trim() ?? "0");
+      }
+    });
+  }
 
   const total =
-    getNumber(
-      doc,
-      "importeTotal",
-      "infoFactura > importeTotal",
-      "infoNotaCredito > importeTotal",
-    ) || subtotal + iva - descuento;
+    getNumber(doc, "infoFactura > importeTotal", "infoNotaCredito > importeTotal", "importeTotal") ||
+    getNumberByTag(doc, "importeTotal") ||
+    subtotal + iva - descuento;
 
   // ── Observación (primer detalle como referencia) ─────────────────────────
   const primerDetalle = doc.querySelector("detalle > descripcion");
