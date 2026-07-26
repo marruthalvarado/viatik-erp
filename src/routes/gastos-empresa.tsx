@@ -188,7 +188,7 @@ function GastosEmpresaContent() {
   // KPI hook siempre necesita un año concreto; cuando es "todos" usamos datos en memoria
   const kpi = useKpiGastosEmpresa(empresaActivaId, anio ?? currentYear);
   const categorias = useCategoriasGasto({ pageSize: 200 });
-  const proveedores = useProveedores({ pageSize: 200 });
+  const proveedores = useProveedores({ pageSize: 1000 });
   const proyectos = useProyectos({ empresaId: empresaActivaId ?? undefined, pageSize: 200 });
   const claveAccesoExistentes = useClaveAccesoExistentes(empresaActivaId);
   const sugerenciasRuc = useSugerenciasPorRuc(empresaActivaId);

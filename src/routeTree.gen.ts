@@ -9,15 +9,15 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as GastosEmpresaRouteImport } from './routes/gastos-empresa'
-import { Route as FacturasRouteImport } from './routes/facturas'
 import { Route as WorkflowRouteImport } from './routes/workflow'
 import { Route as ReportesRouteImport } from './routes/reportes'
 import { Route as RendicionesRouteImport } from './routes/rendiciones'
 import { Route as ProyectosRouteImport } from './routes/proyectos'
 import { Route as ProveedoresRouteImport } from './routes/proveedores'
 import { Route as PresupuestosRouteImport } from './routes/presupuestos'
+import { Route as GastosEmpresaRouteImport } from './routes/gastos-empresa'
 import { Route as GastosRouteImport } from './routes/gastos'
+import { Route as FacturasRouteImport } from './routes/facturas'
 import { Route as DocumentosRouteImport } from './routes/documentos'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ConfiguracionRouteImport } from './routes/configuracion'
@@ -29,16 +29,6 @@ import { Route as ReportesWorkflowRouteImport } from './routes/reportes.workflow
 import { Route as ReportesOperativosRouteImport } from './routes/reportes.operativos'
 import { Route as ReportesFinancierosRouteImport } from './routes/reportes.financieros'
 
-const GastosEmpresaRoute = GastosEmpresaRouteImport.update({
-  id: '/gastos-empresa',
-  path: '/gastos-empresa',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FacturasRoute = FacturasRouteImport.update({
-  id: '/facturas',
-  path: '/facturas',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const WorkflowRoute = WorkflowRouteImport.update({
   id: '/workflow',
   path: '/workflow',
@@ -69,9 +59,19 @@ const PresupuestosRoute = PresupuestosRouteImport.update({
   path: '/presupuestos',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GastosEmpresaRoute = GastosEmpresaRouteImport.update({
+  id: '/gastos-empresa',
+  path: '/gastos-empresa',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const GastosRoute = GastosRouteImport.update({
   id: '/gastos',
   path: '/gastos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FacturasRoute = FacturasRouteImport.update({
+  id: '/facturas',
+  path: '/facturas',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DocumentosRoute = DocumentosRouteImport.update({
@@ -276,13 +276,6 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/gastos-empresa': {
-      id: '/gastos-empresa'
-      path: '/gastos-empresa'
-      fullPath: '/gastos-empresa'
-      preLoaderRoute: typeof GastosEmpresaRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/workflow': {
       id: '/workflow'
       path: '/workflow'
@@ -325,6 +318,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PresupuestosRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/gastos-empresa': {
+      id: '/gastos-empresa'
+      path: '/gastos-empresa'
+      fullPath: '/gastos-empresa'
+      preLoaderRoute: typeof GastosEmpresaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/gastos': {
       id: '/gastos'
       path: '/gastos'
@@ -332,18 +332,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GastosRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/documentos': {
-      id: '/documentos'
-      path: '/documentos'
-      fullPath: '/documentos'
-      preLoaderRoute: typeof DocumentosRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/facturas': {
       id: '/facturas'
       path: '/facturas'
       fullPath: '/facturas'
       preLoaderRoute: typeof FacturasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/documentos': {
+      id: '/documentos'
+      path: '/documentos'
+      fullPath: '/documentos'
+      preLoaderRoute: typeof DocumentosRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {

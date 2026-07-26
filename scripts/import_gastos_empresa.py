@@ -26,7 +26,6 @@ from dotenv import load_dotenv
 from supabase import create_client
 
 # ─── Aliases de proyectos: nombre en Excel → nombre en VIATIQ ──────────────
-# Ampliar si hay más discrepancias encontradas durante la ejecución.
 PROJECT_ALIASES: dict[str, str] = {
     "Ludlum": "MEDIKA_Ludlum",
     "HCAM - SPECT": "HCAM Medika - Mant. Radiofarmacia",
@@ -34,7 +33,6 @@ PROJECT_ALIASES: dict[str, str] = {
     "Solca - Distribuidor automático": "Gammalife - Activímetro",
 }
 
-# ─── Tamaño del lote de inserción ──────────────────────────────────────────
 BATCH_SIZE = 50
 
 
@@ -72,7 +70,7 @@ def main():
 
     parser = argparse.ArgumentParser(description="Importar gastos_empresa desde Excel")
     parser.add_argument("--excel", required=True, help="Ruta al Excel de importación")
-    parser.add_argument("--empresa-id", default=None, help="UUID de la empresa (Protonmedical)")
+    parser.add_argument("--empresa-id", default=None, help="UUID de la empresa")
     parser.add_argument("--dry-run", action="store_true", help="Simular sin insertar nada")
     args = parser.parse_args()
 
@@ -105,20 +103,80 @@ def main():
 
     # ── Proyectos ───────────────────────────────────────────────────────────
     res = sb.table("proyectos").select("id, nombre").eq("empresa_id", empresa_id).execute()
-    proyectos_db: dict[str, str] = {}  # nombre_lower → id
+    proyectos_db: dict[str, str] = {}
     for p in res.data or []:
         proyectos_db[normalize(p["nombre"])] = p["id"]
     print(f"📁  {len(proyectos_db)} proyectos cargados desde BD")
 
     # ── Categorías ──────────────────────────────────────────────────────────
-    res = sb.table("categorias_gasto").select("id, nombre, es_deducible").execute()
-    categorias_db: dict[str, dict] = {}  # nombre_lower → {id, es_deducible}
+    # es_deducible puede no existir en producción; se omite del SELECT.
+    res = sb.table("categorias_gasto").select("id, nombre").execute()
+    categorias_db: dict[str, dict] = {}
     for c in res.data or []:
         categorias_db[normalize(c["nombre"])] = {
             "id": c["id"],
-            "es_deducible": c.get("es_deducible", True),
+            "es_deducible": True,
         }
     print(f"🏷️   {len(categorias_db)} categorías cargadas desde BD")
+
+    # ── Proveedores (matching por RUC y nombre) ──────────────────────────────
+    res_prov = (
+        sb.table("proveedores")
+        .select("id, nombre")
+        .eq("empresa_id", empresa_id)
+        .is_("deleted_at", "null")
+        .execute()
+    )
+    prov_by_ruc: dict[str, str] = {}   # ruc → id (poblado al crear nuevos)
+    prov_by_nombre: dict[str, str] = {}  # nombre_lower → id
+    for p in res_prov.data or []:
+        prov_by_nombre[normalize(p["nombre"])] = p["id"]
+    print(f"🏪  {len(res_prov.data or [])} proveedores cargados desde BD")
+
+    # Cache de proveedores creados en esta sesión (RUC → id)
+    prov_creados: dict[str, str] = {}
+    nuevos_prov = 0
+
+    def get_or_create_proveedor(nombre: str, ruc: str) -> str | None:
+        nonlocal nuevos_prov
+        # 1. Buscar por RUC (más confiable)
+        if ruc and ruc in prov_by_ruc:
+            return prov_by_ruc[ruc]
+        # 2. Buscar por nombre
+        if normalize(nombre) in prov_by_nombre:
+            return prov_by_nombre[normalize(nombre)]
+        # 3. Revisar cache de sesión
+        cache_key = ruc if ruc else normalize(nombre)
+        if cache_key in prov_creados:
+            return prov_creados[cache_key]
+        # 4. Crear nuevo proveedor
+        if not nombre:
+            return None
+        if args.dry_run:
+            # En dry-run simular el ID para no crear registros
+            prov_creados[cache_key] = f"__dry_{cache_key}__"
+            nuevos_prov += 1
+            return prov_creados[cache_key]
+        try:
+            r = (
+                sb.table("proveedores")
+                .insert({
+                    "empresa_id": empresa_id,
+                    "nombre": nombre,
+                })
+                .select("id")
+                .execute()
+            )
+            new_id = r.data[0]["id"]
+            prov_creados[cache_key] = new_id
+            if ruc:
+                prov_by_ruc[ruc] = new_id
+            prov_by_nombre[normalize(nombre)] = new_id
+            nuevos_prov += 1
+            return new_id
+        except Exception as e:
+            print(f"  ⚠️  No se pudo crear proveedor '{nombre}' (RUC: {ruc}): {e}")
+            return None
 
     # ── Leer Excel ──────────────────────────────────────────────────────────
     df = pd.read_excel(args.excel, sheet_name=0, header=2, dtype=str)
@@ -127,15 +185,11 @@ def main():
         "RUC_PROVEEDOR", "PROVEEDOR", "MONTO",
         "PROYECTO", "CATEGORIA", "DESCRIPCION", "IMPORTAR",
     ]
-    # Filtrar solo filas con datos y IMPORTAR = S
     df = df[df["RENDICION"].notna() & (df["RENDICION"].str.strip() != "")]
     df_import = df[df["IMPORTAR"].str.strip().str.upper() == "S"].reset_index(drop=True)
     print(f"\n📄  Filas a importar: {len(df_import)}")
 
-    # ── Claves de acceso ya existentes (deduplicación por N_FACTURA) ────────
-    # gastos importados desde Excel no tienen clave_acceso (49 chars), usamos
-    # N_FACTURA + RUC como identificador natural para evitar dobles inserciones.
-    # Cargamos las observaciones ya existentes para detectar duplicados.
+    # ── Deduplicación por observacion ────────────────────────────────────────
     res_exist = (
         sb.table("gastos_empresa")
         .select("observacion")
@@ -163,24 +217,21 @@ def main():
 
         n_factura = str(row.get("N_FACTURA", "")).strip()
         ruc = str(row.get("RUC_PROVEEDOR", "")).strip()
-        proveedor = str(row.get("PROVEEDOR", "")).strip()
+        proveedor_nombre = str(row.get("PROVEEDOR", "")).strip()
         monto = to_float(row.get("MONTO", 0))
         observacion = f"Serie: {n_factura} · RUC: {ruc}" if n_factura else f"RUC: {ruc}"
 
-        # Deduplicar por observacion
         if observacion in obs_existentes:
             skipped_dup += 1
             continue
 
         # Proyecto
         proy_nombre = str(row.get("PROYECTO", "")).strip()
-        # Aplicar alias conocidos
-        proy_nombre_busqueda = PROJECT_ALIASES.get(proy_nombre, proy_nombre)
-        proyecto_id = proyectos_db.get(normalize(proy_nombre_busqueda))
+        proy_busqueda = PROJECT_ALIASES.get(proy_nombre, proy_nombre)
+        proyecto_id = proyectos_db.get(normalize(proy_busqueda))
         if not proyecto_id and proy_nombre:
-            # Intento de coincidencia parcial (contiene)
             for db_nombre, db_id in proyectos_db.items():
-                if normalize(proy_nombre_busqueda) in db_nombre or db_nombre in normalize(proy_nombre_busqueda):
+                if normalize(proy_busqueda) in db_nombre or db_nombre in normalize(proy_busqueda):
                     proyecto_id = db_id
                     break
         if not proyecto_id and proy_nombre:
@@ -190,7 +241,6 @@ def main():
         cat_nombre = str(row.get("CATEGORIA", "")).strip()
         cat_data = categorias_db.get(normalize(cat_nombre))
         if not cat_data and cat_nombre:
-            # Intento parcial
             for db_nombre, db_data in categorias_db.items():
                 if normalize(cat_nombre) in db_nombre or db_nombre in normalize(cat_nombre):
                     cat_data = db_data
@@ -200,17 +250,25 @@ def main():
         if not cat_data and cat_nombre:
             unmatched_categorias.add(cat_nombre)
 
-        descripcion_extra = str(row.get("DESCRIPCION", "")).strip()
-        descripcion = proveedor if proveedor else n_factura
+        # Proveedor — matchear por RUC o crear
+        proveedor_id = get_or_create_proveedor(proveedor_nombre, ruc) if proveedor_nombre else None
+
+        # Descripción: usar columna DESCRIPCION del Excel; si vacía, usar nombre proveedor
+        descripcion_col = str(row.get("DESCRIPCION", "")).strip()
+        descripcion = (
+            descripcion_col
+            if descripcion_col and descripcion_col != "nan"
+            else proveedor_nombre or n_factura
+        )
 
         rows_to_insert.append({
             "empresa_id": empresa_id,
             "fecha": fecha,
             "descripcion": descripcion,
             "categoria_id": categoria_id,
-            "proveedor_id": None,
+            "proveedor_id": proveedor_id if not args.dry_run else None,
             "proyecto_id": proyecto_id,
-            "responsable": descripcion_extra if descripcion_extra and descripcion_extra != "nan" else None,
+            "responsable": None,
             "subtotal": round(monto, 2),
             "iva": 0.0,
             "total": round(monto, 2),
@@ -223,17 +281,17 @@ def main():
             "created_by": None,
         })
 
-    # ── Resumen pre-inserción ────────────────────────────────────────────────
+    # ── Resumen ──────────────────────────────────────────────────────────────
     print(f"\n─── Resumen ───────────────────────────────────────────")
     print(f"  Listas para insertar : {len(rows_to_insert)}")
     print(f"  Duplicadas (skip)    : {skipped_dup}")
     print(f"  Sin fecha (skip)     : {skipped_no_fecha}")
+    print(f"  Proveedores nuevos   : {nuevos_prov}")
 
     if unmatched_proyectos:
         print(f"\n⚠️  Proyectos sin match ({len(unmatched_proyectos)}) — se importarán sin proyecto:")
         for p in sorted(unmatched_proyectos):
             print(f"     · '{p}'")
-        print("  → Añade los aliases en PROJECT_ALIASES del script si es necesario.")
 
     if unmatched_categorias:
         print(f"\n⚠️  Categorías sin match ({len(unmatched_categorias)}) — se importarán sin categoría:")
