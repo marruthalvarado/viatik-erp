@@ -130,10 +130,11 @@ export function TopProyectos({ data, loading, onNavigate }: TopProyectosProps) {
     >
       <ul className="divide-y text-sm">
         {data.slice(0, 8).map((p, i) => {
-          const pct =
+          const rawPct =
             p.presupuesto && p.presupuesto > 0
               ? Math.round(((p.gasto_real ?? 0) / p.presupuesto) * 100)
               : null;
+          const pct = rawPct !== null && Math.abs(rawPct) > 9999 ? null : rawPct;
           const tone: "success" | "warning" | "danger" | "neutral" =
             pct === null ? "neutral" : pct > 100 ? "danger" : pct > 85 ? "warning" : "success";
 

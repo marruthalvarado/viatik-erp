@@ -210,8 +210,8 @@ export async function getClientes(
 
   const { gte, lte } = dateRange(anio);
 
-  // rendiciones del año → proyecto_id → cliente_id
-  const [rendRes, proyRes, cliRes] = await Promise.all([
+  // rendiciones + gastos_empresa → proyecto_id → cliente_id
+  const [rendRes, geRes, proyRes, cliRes] = await Promise.all([
     supabase
       .from("rendiciones")
       .select("proyecto_id, total_facturado, id")
@@ -220,6 +220,14 @@ export async function getClientes(
       .not("proyecto_id", "is", null)
       .gte("fecha_rendicion", gte)
       .lte("fecha_rendicion", lte),
+    supabase
+      .from("gastos_empresa")
+      .select("proyecto_id, total")
+      .eq("empresa_id", empresaId)
+      .is("deleted_at", null)
+      .not("proyecto_id", "is", null)
+      .gte("fecha", gte)
+      .lte("fecha", lte),
     supabase
       .from("proyectos")
       .select("id, cliente_id")
@@ -244,6 +252,15 @@ export async function getClientes(
     const entry = totales.get(clienteId) ?? { total: 0, rendIds: new Set() };
     entry.total += Number(r.total_facturado) || 0;
     entry.rendIds.add(r.id);
+    totales.set(clienteId, entry);
+  }
+
+  for (const g of geRes.data ?? []) {
+    if (!g.proyecto_id) continue;
+    const clienteId = proyToCliente.get(g.proyecto_id);
+    if (!clienteId) continue;
+    const entry = totales.get(clienteId) ?? { total: 0, rendIds: new Set() };
+    entry.total += Number(g.total) || 0;
     totales.set(clienteId, entry);
   }
 
@@ -281,39 +298,56 @@ export async function getProveedores(
   const { gte, lte } = dateRange(anio);
 
   // IDs de rendiciones del año
-  const rendRes = await supabase
-    .from("rendiciones")
-    .select("id")
-    .eq("empresa_id", empresaId)
-    .is("deleted_at", null)
-    .gte("fecha_rendicion", gte)
-    .lte("fecha_rendicion", lte);
-  if (rendRes.error) throw new Error(rendRes.error.message);
-  const rendIds = (rendRes.data ?? []).map((r) => r.id);
-  if (rendIds.length === 0) return [];
-
-  const [gastosRes, provRes] = await Promise.all([
+  const [rendRes, geRes, provRes] = await Promise.all([
     supabase
-      .from("gastos")
-      .select("proveedor_id, valor_factura")
+      .from("rendiciones")
+      .select("id")
       .eq("empresa_id", empresaId)
       .is("deleted_at", null)
-      .in("rendicion_id", rendIds),
+      .gte("fecha_rendicion", gte)
+      .lte("fecha_rendicion", lte),
+    supabase
+      .from("gastos_empresa")
+      .select("proveedor_id, total")
+      .eq("empresa_id", empresaId)
+      .is("deleted_at", null)
+      .not("proveedor_id", "is", null)
+      .gte("fecha", gte)
+      .lte("fecha", lte),
     supabase
       .from("proveedores")
       .select("id, nombre")
       .eq("empresa_id", empresaId)
       .is("deleted_at", null),
   ]);
-  if (gastosRes.error) throw new Error(gastosRes.error.message);
+  if (rendRes.error) throw new Error(rendRes.error.message);
 
   const provMap = new Map((provRes.data ?? []).map((p) => [p.id, p.nombre]));
   const totales = new Map<string, { total: number; count: number }>();
 
-  for (const g of gastosRes.data ?? []) {
+  // Gastos de rendiciones
+  const rendIds = (rendRes.data ?? []).map((r) => r.id);
+  if (rendIds.length > 0) {
+    const gastosRes = await supabase
+      .from("gastos")
+      .select("proveedor_id, valor_factura")
+      .eq("empresa_id", empresaId)
+      .is("deleted_at", null)
+      .in("rendicion_id", rendIds);
+    for (const g of gastosRes.data ?? []) {
+      if (!g.proveedor_id) continue;
+      const entry = totales.get(g.proveedor_id) ?? { total: 0, count: 0 };
+      entry.total += Number(g.valor_factura) || 0;
+      entry.count += 1;
+      totales.set(g.proveedor_id, entry);
+    }
+  }
+
+  // Gastos empresa
+  for (const g of geRes.data ?? []) {
     if (!g.proveedor_id) continue;
     const entry = totales.get(g.proveedor_id) ?? { total: 0, count: 0 };
-    entry.total += Number(g.valor_factura) || 0;
+    entry.total += Number(g.total) || 0;
     entry.count += 1;
     totales.set(g.proveedor_id, entry);
   }
@@ -348,20 +382,28 @@ export async function getGastosPorCategoria(
   empresaId: string,
   anio?: number,
 ): Promise<GastoCategoria[]> {
-  let q = supabase
+  let qGastos = supabase
     .from("gastos")
     .select("categoria_gasto_id, valor_factura, categorias_gasto(nombre)")
     .eq("empresa_id", empresaId)
     .is("deleted_at", null);
 
+  let qGe = supabase
+    .from("gastos_empresa")
+    .select("categoria_id, total, categorias_gasto(nombre)")
+    .eq("empresa_id", empresaId)
+    .is("deleted_at", null);
+
   if (anio) {
-    q = q.gte("fecha", `${anio}-01-01`).lte("fecha", `${anio}-12-31`);
+    qGastos = qGastos.gte("fecha", `${anio}-01-01`).lte("fecha", `${anio}-12-31`);
+    qGe = qGe.gte("fecha", `${anio}-01-01`).lte("fecha", `${anio}-12-31`);
   }
 
-  const { data, error } = await q;
+  const [{ data, error }, { data: geData }] = await Promise.all([qGastos, qGe]);
   if (error) throw new Error(error.message);
 
   const map = new Map<string, { nombre: string; total: number }>();
+
   for (const row of data ?? []) {
     const key = row.categoria_gasto_id ?? "__sin_categoria__";
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -371,6 +413,18 @@ export async function getGastosPorCategoria(
       ex.total += Number(row.valor_factura) || 0;
     } else {
       map.set(key, { nombre, total: Number(row.valor_factura) || 0 });
+    }
+  }
+
+  for (const row of geData ?? []) {
+    const key = (row as { categoria_id?: string | null }).categoria_id ?? "__sin_categoria__";
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const nombre = (row as any).categorias_gasto?.nombre ?? "Sin categoria";
+    const ex = map.get(key);
+    if (ex) {
+      ex.total += Number(row.total) || 0;
+    } else {
+      map.set(key, { nombre, total: Number(row.total) || 0 });
     }
   }
 
