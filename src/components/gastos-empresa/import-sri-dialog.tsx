@@ -1,13 +1,13 @@
 /**
  * Dialog de importación masiva de comprobantes SRI.
  *
- * Muestra una tabla de previsualización de todas las filas del TXT,
- * permite seleccionar/deseleccionar individualmente, asignar valores por
- * defecto (categoría, proyecto, deducible) para el lote, y confirmar la
- * importación en un solo click.
+ * Permite:
+ * - Asignar valores por lote (categoría / proyecto / deducible) y aplicarlos a todas las filas
+ * - Sobrescribir individualmente cada fila desde la tabla
+ * - Seleccionar / deseleccionar filas con checkbox
  */
-import { useState, useMemo } from "react";
-import { CheckSquare, Square, Loader2, AlertCircle } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
+import { CheckSquare, Square, Loader2 } from "lucide-react";
 
 import {
   Dialog,
@@ -18,14 +18,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 import { formatCurrency, formatDate } from "@/utils/formatters";
 import type { FilaTxtSri } from "@/services/factura-txt-parser";
@@ -35,175 +27,208 @@ interface CatalogoItem {
   nombre: string;
 }
 
+interface FilaConMeta {
+  fila: FilaTxtSri;
+  seleccionada: boolean;
+  categoriaId: string | null;
+  proyectoId: string | null;
+  esDeducible: boolean;
+}
+
 interface ImportSriDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   filas: FilaTxtSri[];
   categorias: CatalogoItem[];
   proyectos: CatalogoItem[];
-  /** IDs de claves_acceso ya existentes en la BD (para advertencia de duplicados) */
-  clavesExistentes?: Set<string>;
-  onImportar: (params: {
-    filas: FilaTxtSri[];
-    categoriaId: string | null;
-    proyectoId: string | null;
-    esDeducible: boolean;
-  }) => Promise<void>;
+  onImportar: (
+    filas: {
+      fila: FilaTxtSri;
+      categoriaId: string | null;
+      proyectoId: string | null;
+      esDeducible: boolean;
+    }[],
+  ) => Promise<void>;
+}
+
+function buildFilas(filas: FilaTxtSri[]): FilaConMeta[] {
+  return filas.map((f) => ({
+    fila: f,
+    seleccionada: true,
+    categoriaId: null,
+    proyectoId: null,
+    esDeducible: true,
+  }));
 }
 
 export function ImportSriDialog({
   open,
   onOpenChange,
-  filas,
+  filas: filasProp,
   categorias,
   proyectos,
-  clavesExistentes = new Set(),
   onImportar,
 }: ImportSriDialogProps) {
-  const [seleccionadas, setSeleccionadas] = useState<Set<number>>(
-    () => new Set(filas.map((_, i) => i)),
-  );
-  const [categoriaId, setCategoriaId] = useState<string | null>(null);
-  const [proyectoId, setProyectoId] = useState<string | null>(null);
-  const [esDeducible, setEsDeducible] = useState(true);
+  const [filas, setFilas] = useState<FilaConMeta[]>(() => buildFilas(filasProp));
   const [cargando, setCargando] = useState(false);
 
-  // Resetear selección cuando cambian las filas
-  const filasKey = filas.length;
-  useMemo(() => {
-    setSeleccionadas(new Set(filas.map((_, i) => i)));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filasKey]);
+  // Batch defaults
+  const [batchCategoriaId, setBatchCategoriaId] = useState<string | null>(null);
+  const [batchProyectoId, setBatchProyectoId] = useState<string | null>(null);
+  const [batchEsDeducible, setBatchEsDeducible] = useState(true);
 
-  const todasSeleccionadas = seleccionadas.size === filas.length;
-  const algunaSeleccionada = seleccionadas.size > 0;
+  // Reinicializar cuando cambia la prop
+  useEffect(() => {
+    setFilas(buildFilas(filasProp));
+    setBatchCategoriaId(null);
+    setBatchProyectoId(null);
+    setBatchEsDeducible(true);
+  }, [filasProp]);
+
+  // ── Helpers ──────────────────────────────────────────────────────────────────
+
+  function aplicarATodas() {
+    setFilas((prev) =>
+      prev.map((f) => ({
+        ...f,
+        categoriaId: batchCategoriaId,
+        proyectoId: batchProyectoId,
+        esDeducible: batchEsDeducible,
+      })),
+    );
+  }
+
+  function updateFila(i: number, patch: Partial<Omit<FilaConMeta, "fila">>) {
+    setFilas((prev) => prev.map((f, idx) => (idx === i ? { ...f, ...patch } : f)));
+  }
+
+  const todasSeleccionadas = filas.every((f) => f.seleccionada);
+  const algunaSeleccionada = filas.some((f) => f.seleccionada);
 
   function toggleTodas() {
-    if (todasSeleccionadas) {
-      setSeleccionadas(new Set());
-    } else {
-      setSeleccionadas(new Set(filas.map((_, i) => i)));
-    }
+    const nuevoValor = !todasSeleccionadas;
+    setFilas((prev) => prev.map((f) => ({ ...f, seleccionada: nuevoValor })));
   }
 
-  function toggleFila(i: number) {
-    const next = new Set(seleccionadas);
-    if (next.has(i)) next.delete(i);
-    else next.add(i);
-    setSeleccionadas(next);
-  }
+  const seleccionadas = filas.filter((f) => f.seleccionada);
 
-  const totales = useMemo(() => {
-    let subtotal = 0;
-    let iva = 0;
-    let total = 0;
-    seleccionadas.forEach((i) => {
-      subtotal += filas[i].subtotal;
-      iva += filas[i].iva;
-      total += filas[i].total;
-    });
-    return { subtotal, iva, total };
-  }, [filas, seleccionadas]);
+  const totales = useMemo(
+    () =>
+      seleccionadas.reduce(
+        (acc, { fila }) => ({
+          subtotal: acc.subtotal + fila.subtotal,
+          iva: acc.iva + fila.iva,
+          total: acc.total + fila.total,
+        }),
+        { subtotal: 0, iva: 0, total: 0 },
+      ),
+    [seleccionadas],
+  );
 
   async function handleImportar() {
     if (!algunaSeleccionada) return;
     setCargando(true);
     try {
-      const filasSeleccionadas = [...seleccionadas]
-        .sort((a, b) => a - b)
-        .map((i) => filas[i]);
-      await onImportar({ filas: filasSeleccionadas, categoriaId, proyectoId, esDeducible });
+      await onImportar(
+        seleccionadas.map(({ fila, categoriaId, proyectoId, esDeducible }) => ({
+          fila,
+          categoriaId,
+          proyectoId,
+          esDeducible,
+        })),
+      );
       onOpenChange(false);
     } finally {
       setCargando(false);
     }
   }
 
-  const duplicados = useMemo(
-    () => new Set(filas.map((f, i) => (clavesExistentes.has(f.clave_acceso) ? i : -1)).filter((i) => i >= 0)),
-    [filas, clavesExistentes],
-  );
+  // ── Select reutilizable compacto ───────────────────────────────────────────
+
+  const selectCls =
+    "h-7 rounded border bg-background px-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring max-w-[140px] truncate";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl w-full max-h-[90vh] flex flex-col gap-0 p-0">
-        <DialogHeader className="px-6 pt-6 pb-4 border-b shrink-0">
+      <DialogContent className="flex max-h-[92vh] w-[95vw] max-w-[1100px] flex-col gap-0 p-0">
+        {/* Header */}
+        <DialogHeader className="shrink-0 border-b px-6 pb-4 pt-6">
           <DialogTitle>Importar comprobantes SRI</DialogTitle>
           <DialogDescription>
-            {filas.length} comprobante{filas.length !== 1 ? "s" : ""} detectado
-            {filas.length !== 1 ? "s" : ""} en el archivo. Revisa y ajusta los valores antes de
-            importar.
+            {filasProp.length} comprobante{filasProp.length !== 1 ? "s" : ""} detectado
+            {filasProp.length !== 1 ? "s" : ""} en el archivo. Asigna valores por lote o ajusta
+            cada fila individualmente.
           </DialogDescription>
         </DialogHeader>
 
-        {/* Valores por defecto */}
-        <div className="px-6 py-4 border-b bg-muted/20 shrink-0">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">
-            Valores por defecto para todo el lote
-          </p>
-          <div className="flex flex-wrap items-center gap-4">
-            {/* Categoría */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground whitespace-nowrap">Categoría</span>
-              <Select
-                value={categoriaId ?? "__none__"}
-                onValueChange={(v) => setCategoriaId(v === "__none__" ? null : v)}
-              >
-                <SelectTrigger className="h-8 w-48 text-sm">
-                  <SelectValue placeholder="Sin categoría" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Sin categoría</SelectItem>
-                  {categorias.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.nombre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+        {/* Batch defaults */}
+        <div className="shrink-0 border-b bg-muted/20 px-6 py-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Valores por lote
+            </span>
 
-            {/* Proyecto */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground whitespace-nowrap">Proyecto</span>
-              <Select
-                value={proyectoId ?? "__none__"}
-                onValueChange={(v) => setProyectoId(v === "__none__" ? null : v)}
-              >
-                <SelectTrigger className="h-8 w-48 text-sm">
-                  <SelectValue placeholder="Sin proyecto" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Sin proyecto</SelectItem>
-                  {proyectos.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.nombre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Categoría batch */}
+            <select
+              value={batchCategoriaId ?? "__none__"}
+              onChange={(e) =>
+                setBatchCategoriaId(e.target.value === "__none__" ? null : e.target.value)
+              }
+              className={selectCls}
+              style={{ maxWidth: 180 }}
+            >
+              <option value="__none__">Sin categoría</option>
+              {categorias.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nombre}
+                </option>
+              ))}
+            </select>
 
-            {/* Deducible */}
-            <div className="flex items-center gap-2">
-              <Switch checked={esDeducible} onCheckedChange={setEsDeducible} id="sri-deducible" />
-              <label htmlFor="sri-deducible" className="text-sm cursor-pointer select-none">
-                Deducible
-              </label>
-            </div>
+            {/* Proyecto batch */}
+            <select
+              value={batchProyectoId ?? "__none__"}
+              onChange={(e) =>
+                setBatchProyectoId(e.target.value === "__none__" ? null : e.target.value)
+              }
+              className={selectCls}
+              style={{ maxWidth: 180 }}
+            >
+              <option value="__none__">Sin proyecto</option>
+              {proyectos.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nombre}
+                </option>
+              ))}
+            </select>
+
+            {/* Deducible batch */}
+            <select
+              value={batchEsDeducible ? "si" : "no"}
+              onChange={(e) => setBatchEsDeducible(e.target.value === "si")}
+              className={selectCls}
+              style={{ maxWidth: 120 }}
+            >
+              <option value="si">Deducible</option>
+              <option value="no">No deducible</option>
+            </select>
+
+            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={aplicarATodas}>
+              Aplicar a todas las filas
+            </Button>
           </div>
         </div>
 
-        {/* Tabla de previsualización */}
-        <div className="flex-1 overflow-auto min-h-0">
+        {/* Tabla */}
+        <div className="min-h-0 flex-1 overflow-auto">
           <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-muted/80 backdrop-blur border-b z-10">
-              <tr className="text-left text-xs uppercase text-muted-foreground">
-                <th className="px-3 py-2.5 w-10">
+            <thead className="sticky top-0 z-10 border-b bg-muted/80 backdrop-blur">
+              <tr className="text-left text-[11px] uppercase text-muted-foreground">
+                <th className="w-10 px-3 py-2.5">
                   <button
                     type="button"
                     onClick={toggleTodas}
-                    className="text-muted-foreground hover:text-foreground transition-colors"
+                    className="text-muted-foreground transition-colors hover:text-foreground"
                     title={todasSeleccionadas ? "Deseleccionar todas" : "Seleccionar todas"}
                   >
                     {todasSeleccionadas ? (
@@ -216,102 +241,146 @@ export function ImportSriDialog({
                 <th className="px-3 py-2.5">Fecha</th>
                 <th className="px-3 py-2.5">Emisor</th>
                 <th className="px-3 py-2.5">Serie</th>
-                <th className="px-3 py-2.5">Tipo</th>
-                <th className="px-3 py-2.5 text-right">Subtotal</th>
-                <th className="px-3 py-2.5 text-right">IVA</th>
                 <th className="px-3 py-2.5 text-right">Total</th>
+                <th className="px-3 py-2.5">Categoría</th>
+                <th className="px-3 py-2.5">Proyecto</th>
+                <th className="px-3 py-2.5 text-center">Ded.</th>
               </tr>
             </thead>
             <tbody className="divide-y">
-              {filas.map((f, i) => {
-                const checked = seleccionadas.has(i);
-                const esDuplicado = duplicados.has(i);
-                return (
-                  <tr
-                    key={i}
-                    onClick={() => toggleFila(i)}
-                    className={`cursor-pointer transition-colors ${
-                      checked ? "hover:bg-muted/30" : "opacity-40 hover:opacity-60"
-                    } ${esDuplicado ? "bg-amber-50/60" : ""}`}
-                  >
-                    <td className="px-3 py-2.5">
-                      {checked ? (
+              {filas.map((item, i) => (
+                <tr
+                  key={i}
+                  className={`transition-colors ${
+                    item.seleccionada ? "hover:bg-muted/20" : "opacity-40"
+                  }`}
+                >
+                  {/* Checkbox */}
+                  <td className="px-3 py-2">
+                    <button
+                      type="button"
+                      onClick={() => updateFila(i, { seleccionada: !item.seleccionada })}
+                      className="text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                      {item.seleccionada ? (
                         <CheckSquare className="size-4 text-primary" />
                       ) : (
-                        <Square className="size-4 text-muted-foreground" />
+                        <Square className="size-4" />
                       )}
-                    </td>
-                    <td className="px-3 py-2.5 tabular-nums text-xs whitespace-nowrap">
-                      {formatDate(f.fecha)}
-                    </td>
-                    <td className="px-3 py-2.5 max-w-[220px]">
-                      <div className="truncate font-medium">{f.razon_social}</div>
-                      <div className="text-[10px] text-muted-foreground">{f.ruc_emisor}</div>
-                    </td>
-                    <td className="px-3 py-2.5 text-xs text-muted-foreground tabular-nums whitespace-nowrap">
-                      {f.serie}
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <span className="rounded-full bg-muted px-2 py-0.5 text-[10px]">
-                        {f.tipo_comprobante}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">
-                      {formatCurrency(f.subtotal)}
-                    </td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">
-                      {formatCurrency(f.iva)}
-                    </td>
-                    <td className="px-3 py-2.5 text-right tabular-nums font-semibold">
-                      <div className="flex items-center justify-end gap-1">
-                        {esDuplicado && (
-                          <span title="Ya existe en la base de datos">
-                            <AlertCircle className="size-3 text-amber-500 shrink-0" />
-                          </span>
-                        )}
-                        {formatCurrency(f.total)}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+                    </button>
+                  </td>
+
+                  {/* Fecha */}
+                  <td className="whitespace-nowrap px-3 py-2 text-xs tabular-nums">
+                    {formatDate(item.fila.fecha)}
+                  </td>
+
+                  {/* Emisor */}
+                  <td className="max-w-[200px] px-3 py-2">
+                    <div className="truncate font-medium text-sm">{item.fila.razon_social}</div>
+                    <div className="text-[10px] text-muted-foreground">{item.fila.ruc_emisor}</div>
+                  </td>
+
+                  {/* Serie */}
+                  <td className="whitespace-nowrap px-3 py-2 text-xs tabular-nums text-muted-foreground">
+                    {item.fila.serie}
+                  </td>
+
+                  {/* Total */}
+                  <td className="px-3 py-2 text-right tabular-nums font-semibold text-sm">
+                    {formatCurrency(item.fila.total)}
+                  </td>
+
+                  {/* Categoría inline */}
+                  <td className="px-3 py-2">
+                    <select
+                      value={item.categoriaId ?? "__none__"}
+                      onChange={(e) =>
+                        updateFila(i, {
+                          categoriaId: e.target.value === "__none__" ? null : e.target.value,
+                        })
+                      }
+                      className={selectCls}
+                      disabled={!item.seleccionada}
+                    >
+                      <option value="__none__">Sin categoría</option>
+                      {categorias.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.nombre}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+
+                  {/* Proyecto inline */}
+                  <td className="px-3 py-2">
+                    <select
+                      value={item.proyectoId ?? "__none__"}
+                      onChange={(e) =>
+                        updateFila(i, {
+                          proyectoId: e.target.value === "__none__" ? null : e.target.value,
+                        })
+                      }
+                      className={selectCls}
+                      disabled={!item.seleccionada}
+                    >
+                      <option value="__none__">Sin proyecto</option>
+                      {proyectos.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.nombre}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+
+                  {/* Deducible inline */}
+                  <td className="px-3 py-2 text-center">
+                    <select
+                      value={item.esDeducible ? "si" : "no"}
+                      onChange={(e) => updateFila(i, { esDeducible: e.target.value === "si" })}
+                      className="h-7 rounded border bg-background px-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                      disabled={!item.seleccionada}
+                    >
+                      <option value="si">Sí</option>
+                      <option value="no">No</option>
+                    </select>
+                  </td>
+                </tr>
+              ))}
             </tbody>
-            {seleccionadas.size > 0 && (
+
+            {/* Footer totales */}
+            {algunaSeleccionada && (
               <tfoot className="sticky bottom-0 border-t bg-muted/80 backdrop-blur">
                 <tr className="text-xs font-semibold">
-                  <td colSpan={5} className="px-3 py-2 text-muted-foreground">
-                    {seleccionadas.size} de {filas.length} seleccionado
-                    {seleccionadas.size !== 1 ? "s" : ""}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {formatCurrency(totales.subtotal)}
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
-                    {formatCurrency(totales.iva)}
+                  <td colSpan={4} className="px-3 py-2 text-muted-foreground">
+                    {seleccionadas.length} de {filas.length} seleccionado
+                    {seleccionadas.length !== 1 ? "s" : ""}
                   </td>
                   <td className="px-3 py-2 text-right tabular-nums text-rose-700">
                     {formatCurrency(totales.total)}
                   </td>
+                  <td colSpan={3} />
                 </tr>
               </tfoot>
             )}
           </table>
         </div>
 
-        {/* Footer */}
-        <DialogFooter className="px-6 py-4 border-t shrink-0 flex items-center justify-between sm:justify-between">
+        {/* Dialog footer */}
+        <DialogFooter className="shrink-0 border-t px-6 py-4 sm:justify-between">
           <p className="text-xs text-muted-foreground">
-            Podrás editar categoría, proyecto y proveedor en cada registro después de importar.
+            Podrás editar el proveedor de cada registro después de importar.
           </p>
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={cargando}>
               Cancelar
             </Button>
             <Button onClick={handleImportar} disabled={!algunaSeleccionada || cargando}>
-              {cargando && <Loader2 className="size-3.5 mr-1.5 animate-spin" />}
+              {cargando && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
               {cargando
                 ? "Importando..."
-                : `Importar ${seleccionadas.size} comprobante${seleccionadas.size !== 1 ? "s" : ""}`}
+                : `Importar ${seleccionadas.length} comprobante${seleccionadas.length !== 1 ? "s" : ""}`}
             </Button>
           </div>
         </DialogFooter>

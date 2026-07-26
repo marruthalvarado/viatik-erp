@@ -276,19 +276,16 @@ function GastosEmpresaContent() {
     }
   }
 
-  async function handleImportarLote({
-    filas,
-    categoriaId,
-    proyectoId,
-    esDeducible,
-  }: {
-    filas: FilaTxtSri[];
-    categoriaId: string | null;
-    proyectoId: string | null;
-    esDeducible: boolean;
-  }) {
+  async function handleImportarLote(
+    items: {
+      fila: FilaTxtSri;
+      categoriaId: string | null;
+      proyectoId: string | null;
+      esDeducible: boolean;
+    }[],
+  ) {
     if (!empresaActivaId) return;
-    const rows = filas.map((f) => ({
+    const rows = items.map(({ fila: f, categoriaId, proyectoId, esDeducible }) => ({
       empresa_id: empresaActivaId,
       fecha: f.fecha,
       descripcion: f.razon_social,
