@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getGastosEmpresa,
   createGastoEmpresa,
+  createGastosEmpresaLote,
   updateGastoEmpresa,
   deleteGastoEmpresa,
   getKpiGastosEmpresa,
@@ -51,6 +52,14 @@ export function useActualizarGastoEmpresa() {
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: Partial<GastoEmpresa> }) =>
       updateGastoEmpresa(id, payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
+  });
+}
+
+export function useCrearGastosEmpresaLote() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: createGastosEmpresaLote,
     onSuccess: () => qc.invalidateQueries({ queryKey: [QK] }),
   });
 }

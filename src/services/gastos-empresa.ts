@@ -79,6 +79,17 @@ export async function updateGastoEmpresa(
   return data as GastoEmpresa;
 }
 
+export async function createGastosEmpresaLote(
+  rows: Omit<GastoEmpresa, "id" | "created_at" | "updated_at" | "deleted_at">[],
+): Promise<number> {
+  const { data, error } = await supabase
+    .from("gastos_empresa")
+    .insert(rows as never[])
+    .select("id");
+  if (error) throw new Error(error.message);
+  return (data ?? []).length;
+}
+
 export async function deleteGastoEmpresa(id: string): Promise<void> {
   const { error } = await supabase
     .from("gastos_empresa")

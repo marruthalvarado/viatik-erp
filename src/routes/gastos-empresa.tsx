@@ -60,11 +60,15 @@ import { formatCurrency, formatDate } from "@/utils/formatters";
 import { readFacturaXmlFile } from "@/services/factura-xml-parser";
 import type { FacturaXmlData } from "@/services/factura-xml-parser";
 import { readFacturaPdfFile } from "@/services/factura-pdf-parser";
+import { readTxtSriFile } from "@/services/factura-txt-parser";
+import type { FilaTxtSri } from "@/services/factura-txt-parser";
+import { ImportSriDialog } from "@/components/gastos-empresa/import-sri-dialog";
 import type { GastoEmpresa } from "@/services/gastos-empresa";
 import {
   useGastosEmpresa,
   useKpiGastosEmpresa,
   useCrearGastoEmpresa,
+  useCrearGastosEmpresaLote,
   useActualizarGastoEmpresa,
   useEliminarGastoEmpresa,
 } from "@/hooks/entities/use-gastos-empresa";
@@ -117,8 +121,12 @@ function GastosEmpresaContent() {
   const [xmlParsed, setXmlParsed] = useState<FacturaXmlData | null>(null);
   const [loadingXml, setLoadingXml] = useState(false);
   const [loadingPdf, setLoadingPdf] = useState(false);
+  const [loadingTxt, setLoadingTxt] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [filasTxt, setFilasTxt] = useState<FilaTxtSri[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const pdfRef = useRef<HTMLInputElement>(null);
+  const txtRef = useRef<HTMLInputElement>(null);
 
   const anios = [
     new Date().getFullYear(),
@@ -140,6 +148,7 @@ function GastosEmpresaContent() {
   const proveedores = useProveedores({ pageSize: 200 });
   const proyectos = useProyectos({ empresaId: empresaActivaId ?? undefined, pageSize: 200 });
   const crear = useCrearGastoEmpresa();
+  const crearLote = useCrearGastosEmpresaLote();
   const actualizar = useActualizarGastoEmpresa();
   const eliminar = useEliminarGastoEmpresa();
 
@@ -250,6 +259,57 @@ function GastosEmpresaContent() {
     }
   }
 
+  async function handleTxtUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLoadingTxt(true);
+    try {
+      const filas = await readTxtSriFile(file);
+      setFilasTxt(filas);
+      setImportDialogOpen(true);
+      toast.success(`${filas.length} comprobantes detectados`);
+    } catch (err) {
+      toast.error("Error al leer TXT: " + (err as Error).message);
+    } finally {
+      setLoadingTxt(false);
+      if (txtRef.current) txtRef.current.value = "";
+    }
+  }
+
+  async function handleImportarLote({
+    filas,
+    categoriaId,
+    proyectoId,
+    esDeducible,
+  }: {
+    filas: FilaTxtSri[];
+    categoriaId: string | null;
+    proyectoId: string | null;
+    esDeducible: boolean;
+  }) {
+    if (!empresaActivaId) return;
+    const rows = filas.map((f) => ({
+      empresa_id: empresaActivaId,
+      fecha: f.fecha,
+      descripcion: f.razon_social,
+      categoria_id: categoriaId,
+      proveedor_id: null,
+      proyecto_id: proyectoId,
+      responsable: null,
+      subtotal: f.subtotal,
+      iva: f.iva,
+      total: f.total,
+      es_deducible: esDeducible,
+      clave_acceso: f.clave_acceso || null,
+      observacion: `RUC: ${f.ruc_emisor} · Serie: ${f.serie}`,
+      xml_content: null,
+      comprobante_url: null,
+      created_by: null,
+    }));
+    const n = await crearLote.mutateAsync(rows as Parameters<typeof crearLote.mutateAsync>[0]);
+    toast.success(`${n} comprobante${n !== 1 ? "s" : ""} importado${n !== 1 ? "s" : ""} correctamente`);
+  }
+
   async function onSubmit(values: FormValues) {
     if (!empresaActivaId) return;
     try {
@@ -345,11 +405,22 @@ function GastosEmpresaContent() {
             </select>
             <input ref={fileRef} type="file" accept=".xml" className="hidden" onChange={handleXmlUpload} />
             <input ref={pdfRef} type="file" accept=".pdf" className="hidden" onChange={handlePdfUpload} />
+            <input ref={txtRef} type="file" accept=".txt,.tsv" className="hidden" onChange={handleTxtUpload} />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => txtRef.current?.click()}
+              disabled={loadingXml || loadingPdf || loadingTxt}
+              title="Importar archivo TXT de comprobantes recibidos del SRI"
+            >
+              <Upload className="size-4 mr-1.5" />
+              {loadingTxt ? "Leyendo..." : "TXT SRI"}
+            </Button>
             <Button
               variant="outline"
               size="sm"
               onClick={() => fileRef.current?.click()}
-              disabled={loadingXml || loadingPdf}
+              disabled={loadingXml || loadingPdf || loadingTxt}
             >
               <Upload className="size-4 mr-1.5" />
               {loadingXml ? "Leyendo..." : "XML"}
@@ -358,7 +429,7 @@ function GastosEmpresaContent() {
               variant="outline"
               size="sm"
               onClick={() => pdfRef.current?.click()}
-              disabled={loadingXml || loadingPdf}
+              disabled={loadingXml || loadingPdf || loadingTxt}
             >
               <Upload className="size-4 mr-1.5" />
               {loadingPdf ? "Leyendo..." : "PDF"}
@@ -502,6 +573,16 @@ function GastosEmpresaContent() {
           </div>
         </div>
       )}
+
+      {/* Import TXT SRI Dialog */}
+      <ImportSriDialog
+        open={importDialogOpen}
+        onOpenChange={setImportDialogOpen}
+        filas={filasTxt}
+        categorias={(categorias.data?.rows ?? []).map((c) => ({ id: c.id, nombre: c.nombre }))}
+        proyectos={(proyectos.data?.rows ?? []).map((p) => ({ id: p.id, nombre: p.nombre }))}
+        onImportar={handleImportarLote}
+      />
 
       {/* Drawer form */}
       <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
