@@ -36,3 +36,8 @@ importar_gastos.py
 Plantilla_Importacion_Gastos.xlsx
 Facturas_emitidas.xlsx
 __pycache__/
+
+# Environment variables
+.env
+.env.*
+!.env.example

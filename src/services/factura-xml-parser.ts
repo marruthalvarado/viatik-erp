@@ -9,6 +9,8 @@ export interface FacturaXmlData {
   fecha: string; // ISO yyyy-MM-dd
   tipo: "factura" | "nota_credito";
   ruc_cliente: string | null;
+  /** RUC del emisor (proveedor que emitió la factura) — infoTributaria > ruc */
+  ruc_emisor: string | null;
   razon_social: string;
   subtotal: number;
   descuento: number;
@@ -110,10 +112,16 @@ export function parseFacturaXml(xmlString: string): FacturaXmlData {
   );
   const fecha = parseFechaEcuador(fechaRaw);
 
-  // ── Receptor (cliente = Protonmedical) ───────────────────────────────────
+  // ── Receptor (cliente = empresa compradora) ──────────────────────────────
   const ruc_cliente =
     getText(doc, "identificacionComprador", "infoFactura > identificacionComprador") ||
     getText(doc, "identificacionCompradorNC", "infoNotaCredito > identificacionCompradorNC") ||
+    null;
+
+  // ── Emisor RUC (proveedor que emitió la factura) ─────────────────────────
+  const ruc_emisor =
+    getText(doc, "infoTributaria > ruc") ||
+    getTagText(doc, "ruc") ||
     null;
 
   // ── Emisor (proveedor que emitió la factura) ─────────────────────────────
@@ -175,6 +183,7 @@ export function parseFacturaXml(xmlString: string): FacturaXmlData {
     fecha,
     tipo,
     ruc_cliente,
+    ruc_emisor,
     razon_social,
     subtotal,
     descuento,

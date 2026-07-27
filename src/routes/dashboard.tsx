@@ -35,6 +35,7 @@ import {
   useTopViajeros,
   usePresupuestoTotal,
   useResumenFinancieroProyectos,
+  useTotalReembolsos,
 } from "@/hooks/entities/use-dashboard";
 import { useResumenCobros } from "@/hooks/entities/use-cobros";
 import { Building2 } from "lucide-react";
@@ -112,6 +113,7 @@ function DashboardMain({
   const ejecutivo = useDashboardEjecutivo(empresaId, anioFiltro);
   const ia = useDashboardIA(empresaId);
   const presupuesto = usePresupuestoTotal(empresaId);
+  const reembolsos = useTotalReembolsos(empresaId, anioFiltro);
 
   // Charts
   const evolucion = useEvolucionMensual(empresaId, anio > 0 ? anio : new Date().getFullYear());
@@ -130,7 +132,8 @@ function DashboardMain({
   // Cuentas por cobrar
   const cobros = useResumenCobros(empresaId);
 
-  const kpiLoading = ejecutivo.isLoading || ia.isLoading || presupuesto.isLoading;
+  const kpiLoading =
+    ejecutivo.isLoading || ia.isLoading || presupuesto.isLoading || reembolsos.isLoading;
 
   return (
     <>
@@ -147,6 +150,7 @@ function DashboardMain({
         ejecutivo={ejecutivo.data}
         presupuestoTotal={presupuesto.data ?? 0}
         ia={ia.data}
+        totalReembolsos={reembolsos.data ?? 0}
         loading={kpiLoading}
       />
 

@@ -65,6 +65,7 @@ import { readTxtSriFile } from "@/services/factura-txt-parser";
 import type { FilaTxtSri } from "@/services/factura-txt-parser";
 import { ImportSriDialog } from "@/components/gastos-empresa/import-sri-dialog";
 import type { GastoEmpresa } from "@/services/gastos-empresa";
+import { buscarReembolsoEnRendicion } from "@/services/gastos-empresa";
 import {
   useGastosEmpresa,
   useKpiGastosEmpresa,
@@ -151,6 +152,8 @@ const schema = z.object({
   total: z.coerce.number().min(0),
   es_deducible: z.boolean(),
   clave_acceso: z.string().nullable().optional(),
+  numero_documento: z.string().nullable().optional(),
+  ruc_emisor: z.string().nullable().optional(),
   observacion: z.string().nullable().optional(),
   moneda_origen: z.string().nullable().optional(),
   monto_origen: z.coerce.number().nullable().optional(),
@@ -227,6 +230,8 @@ function GastosEmpresaContent() {
       total: 0,
       es_deducible: true,
       clave_acceso: null,
+      numero_documento: null,
+      ruc_emisor: null,
       observacion: null,
       moneda_origen: null,
       monto_origen: null,
@@ -250,6 +255,8 @@ function GastosEmpresaContent() {
             total: prefill.total,
             es_deducible: true,
             clave_acceso: prefill.clave_acceso ?? null,
+            numero_documento: prefill.numero ?? null,
+            ruc_emisor: prefill.ruc_emisor ?? null,
             observacion: prefill.razon_social ?? null,
             moneda_origen: null,
             monto_origen: null,
@@ -267,6 +274,8 @@ function GastosEmpresaContent() {
             total: 0,
             es_deducible: true,
             clave_acceso: null,
+            numero_documento: null,
+            ruc_emisor: null,
             observacion: null,
             moneda_origen: null,
             monto_origen: null,
@@ -290,6 +299,8 @@ function GastosEmpresaContent() {
       total: g.total,
       es_deducible: g.es_deducible,
       clave_acceso: g.clave_acceso,
+      numero_documento: g.numero_documento ?? null,
+      ruc_emisor: g.ruc_emisor ?? null,
       observacion: g.observacion,
       moneda_origen: g.moneda_origen ?? null,
       monto_origen: g.monto_origen ? Number(g.monto_origen) : null,
@@ -384,11 +395,29 @@ function GastosEmpresaContent() {
   async function onSubmit(values: FormValues) {
     if (!empresaActivaId) return;
     try {
+      // ── Capa 3: advertencia si la misma factura ya está en una rendición ──
+      try {
+        const dup = await buscarReembolsoEnRendicion(
+          empresaActivaId,
+          values.clave_acceso ?? null,
+          values.numero_documento ?? null,
+          values.ruc_emisor ?? null,
+        );
+        if (dup.encontrado) {
+          const ref = dup.rendicionNumero ? ` (rendición ${dup.rendicionNumero})` : "";
+          toast.warning(`⚠ Esta factura ya fue registrada en una rendición de empleado${ref}. Se guardará igualmente.`);
+        }
+      } catch {
+        // No bloquear el guardado si la consulta falla
+      }
+
       if (editando) {
         await actualizar.mutateAsync({
           id: editando.id,
           payload: {
             ...values,
+            numero_documento: values.numero_documento ?? null,
+            ruc_emisor: values.ruc_emisor ?? null,
             moneda_origen: values.moneda_origen ?? null,
             monto_origen: values.monto_origen ?? null,
             tipo_cambio: values.tipo_cambio ?? null,
@@ -404,6 +433,8 @@ function GastosEmpresaContent() {
           proyecto_id: values.proyecto_id ?? null,
           responsable: values.responsable ?? null,
           clave_acceso: values.clave_acceso ?? null,
+          numero_documento: values.numero_documento ?? null,
+          ruc_emisor: values.ruc_emisor ?? null,
           observacion: values.observacion ?? null,
           moneda_origen: values.moneda_origen ?? null,
           monto_origen: values.monto_origen ?? null,

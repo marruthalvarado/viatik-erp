@@ -149,6 +149,59 @@ export interface KpiGastosEmpresa {
   num_gastos: number;
 }
 
+/** Verifica si existe un gasto en alguna rendición con la misma factura. */
+export async function buscarReembolsoEnRendicion(
+  empresaId: string,
+  claveAcceso: string | null,
+  numeroDocumento: string | null,
+  rucEmisor: string | null,
+): Promise<{ encontrado: boolean; rendicionNumero: string | null }> {
+  // 1. Por clave_acceso
+  if (claveAcceso) {
+    const { data } = await supabase
+      .from("gastos")
+      .select("id, rendiciones(numero)")
+      .eq("empresa_id", empresaId)
+      .eq("clave_acceso", claveAcceso)
+      .is("deleted_at", null)
+      .limit(1)
+      .maybeSingle();
+    if (data) {
+      const num = (data.rendiciones as { numero?: string | null } | null)?.numero ?? null;
+      return { encontrado: true, rendicionNumero: num };
+    }
+  }
+
+  // 2. Por numero_documento (con o sin RUC)
+  if (numeroDocumento) {
+    const { data } = await supabase
+      .from("gastos")
+      .select("id, rendiciones(numero), proveedores(ruc)")
+      .eq("empresa_id", empresaId)
+      .eq("numero_documento", numeroDocumento)
+      .is("deleted_at", null)
+      .limit(20);
+
+    const rows = data ?? [];
+    if (rows.length > 0) {
+      if (!rucEmisor) {
+        const num =
+          (rows[0].rendiciones as { numero?: string | null } | null)?.numero ?? null;
+        return { encontrado: true, rendicionNumero: num };
+      }
+      const match = rows.find(
+        (g) => (g.proveedores as { ruc?: string | null } | null)?.ruc === rucEmisor,
+      );
+      if (match) {
+        const num = (match.rendiciones as { numero?: string | null } | null)?.numero ?? null;
+        return { encontrado: true, rendicionNumero: num };
+      }
+    }
+  }
+
+  return { encontrado: false, rendicionNumero: null };
+}
+
 export async function getKpiGastosEmpresa(
   empresaId: string,
   anio: number,

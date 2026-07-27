@@ -828,3 +828,28 @@ export async function getResumenFinancieroProyectos(
     };
   });
 }
+
+// ─── Reembolsos (gastos en rendiciones ya registrados en gastos_empresa) ──────
+
+/**
+ * Suma valor_factura de gastos donde es_reembolso=true.
+ * Representa el monto que empleados incluyeron en rendiciones pero que
+ * ya estaba registrado en gastos_empresa (posible doble registro).
+ */
+export async function getTotalReembolsos(
+  empresaId: string,
+  anio?: number,
+): Promise<number> {
+  let q = supabase
+    .from("gastos")
+    .select("valor_factura")
+    .eq("empresa_id", empresaId)
+    .eq("es_reembolso", true)
+    .is("deleted_at", null);
+  if (anio) {
+    const { gte, lte } = dateRange(anio);
+    q = q.gte("fecha", gte).lte("fecha", lte);
+  }
+  const { data } = await q;
+  return (data ?? []).reduce((s, g) => s + (Number(g.valor_factura) || 0), 0);
+}

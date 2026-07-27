@@ -208,6 +208,7 @@ export function GastosTab({
       rendicion_id: rendicionId,
       descripcion: emptyToNull(values.descripcion),
       numero_documento: emptyToNull(values.numero_documento),
+      clave_acceso: values.clave_acceso ?? null,
       fecha: emptyToNull(values.fecha),
       categoria_gasto_id: values.categoria_gasto_id ?? null,
       estado_gasto_id: values.estado_gasto_id ?? null,
@@ -232,6 +233,7 @@ export function GastosTab({
       rendicion_id: values.rendicion_id ?? rendicionId,
       fecha: values.fecha ?? null,
       numero_documento: values.numero_documento ?? null,
+      clave_acceso: values.clave_acceso ?? null,
       descripcion: values.descripcion ?? null,
       categoria_gasto_id: values.categoria_gasto_id ?? null,
       estado_gasto_id: values.estado_gasto_id ?? null,
@@ -406,9 +408,16 @@ export function GastosTab({
       header: "Descripcion",
       cell: (row) => {
         const esDeducible = gastoDeducibleMap.get(row.id) ?? true;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const esReembolso = (row as any).es_reembolso === true;
         return (
           <div className="flex flex-col gap-0.5">
             <span className="text-sm">{row.descripcion ?? "—"}</span>
+            {esReembolso && (
+              <span className="rounded border border-blue-300 bg-blue-50 px-1.5 py-0.5 text-xs font-medium text-blue-700">
+                ↩ Reembolso empresa
+              </span>
+            )}
             {!esDeducible && (
               <span className="rounded border border-red-300 bg-red-50 px-1.5 py-0.5 text-xs font-medium text-red-600">
                 No deducible

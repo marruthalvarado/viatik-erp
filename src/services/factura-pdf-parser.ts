@@ -196,6 +196,7 @@ function parsePdfText(text: string): FacturaXmlData {
     fecha,
     tipo,
     ruc_cliente,
+    ruc_emisor: null, // PDFs RIDE no exponen el RUC del emisor directamente
     razon_social,
     subtotal,
     descuento,

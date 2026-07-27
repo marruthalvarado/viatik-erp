@@ -11,6 +11,7 @@ import {
   Users,
   ArrowDownLeft,
   FolderKanban,
+  AlertTriangle,
 } from "lucide-react";
 
 import { MetricCard } from "@/components/common/metric-card";
@@ -21,10 +22,17 @@ interface DashboardKpisProps {
   ejecutivo: DashboardEjecutivo | null | undefined;
   presupuestoTotal: number;
   ia: DashboardIA | null | undefined;
+  totalReembolsos: number;
   loading: boolean;
 }
 
-export function DashboardKpis({ ejecutivo, presupuestoTotal, ia, loading }: DashboardKpisProps) {
+export function DashboardKpis({
+  ejecutivo,
+  presupuestoTotal,
+  ia,
+  totalReembolsos,
+  loading,
+}: DashboardKpisProps) {
   const dash = ejecutivo;
   const v = (n: number | null | undefined) => formatCurrency(n ?? 0);
   const n = (x: number | null | undefined) => formatNumber(x ?? 0);
@@ -33,7 +41,7 @@ export function DashboardKpis({ ejecutivo, presupuestoTotal, ia, loading }: Dash
   return (
     <div className="space-y-4">
       {/* Fila 1 — financieros */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <MetricCard label="Total gastado" value={blank ?? v(dash?.total_gastado)} icon={Wallet} />
         <MetricCard
           label="Reembolsable"
@@ -41,6 +49,12 @@ export function DashboardKpis({ ejecutivo, presupuestoTotal, ia, loading }: Dash
           icon={ArrowDownLeft}
         />
         <MetricCard label="Anticipos" value={blank ?? v(dash?.total_anticipos)} icon={Receipt} />
+        <MetricCard
+          label="Doble registro"
+          value={blank ?? v(totalReembolsos)}
+          icon={AlertTriangle}
+          hint={totalReembolsos > 0 ? "Gastos ya cubiertos por empresa" : undefined}
+        />
         <MetricCard
           label="Presupuesto activo"
           value={blank ?? v(presupuestoTotal)}

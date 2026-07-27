@@ -458,6 +458,8 @@ export type Database = {
           moneda_origen: string | null;
           monto_origen: number | null;
           tipo_cambio: number | null;
+          numero_documento: string | null;
+          ruc_emisor: string | null;
           created_by: string | null;
           created_at: string;
           updated_at: string;
@@ -483,6 +485,8 @@ export type Database = {
           moneda_origen?: string | null;
           monto_origen?: number | null;
           tipo_cambio?: number | null;
+          numero_documento?: string | null;
+          ruc_emisor?: string | null;
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -508,6 +512,8 @@ export type Database = {
           moneda_origen?: string | null;
           monto_origen?: number | null;
           tipo_cambio?: number | null;
+          numero_documento?: string | null;
+          ruc_emisor?: string | null;
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -1099,6 +1105,9 @@ export type Database = {
           id: string;
           moneda_codigo: string | null;
           numero_documento: string | null;
+          clave_acceso: string | null;
+          es_reembolso: boolean;
+          gasto_empresa_id: string | null;
           observaciones: string | null;
           origen_gasto_id: string | null;
           proveedor_id: string | null;
@@ -1124,6 +1133,9 @@ export type Database = {
           id?: string;
           moneda_codigo?: string | null;
           numero_documento?: string | null;
+          clave_acceso?: string | null;
+          es_reembolso?: boolean;
+          gasto_empresa_id?: string | null;
           observaciones?: string | null;
           origen_gasto_id?: string | null;
           proveedor_id?: string | null;
@@ -1149,6 +1161,9 @@ export type Database = {
           id?: string;
           moneda_codigo?: string | null;
           numero_documento?: string | null;
+          clave_acceso?: string | null;
+          es_reembolso?: boolean;
+          gasto_empresa_id?: string | null;
           observaciones?: string | null;
           origen_gasto_id?: string | null;
           proveedor_id?: string | null;

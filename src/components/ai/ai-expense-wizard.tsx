@@ -262,6 +262,7 @@ export function AiExpenseWizard({
       documento_id: documentoId ?? null,
       descripcion: emptyToNull(values.descripcion),
       numero_documento: emptyToNull(values.numero_documento),
+      clave_acceso: values.clave_acceso ?? null,
       fecha: emptyToNull(values.fecha),
       categoria_gasto_id: values.categoria_gasto_id ?? null,
       estado_gasto_id: values.estado_gasto_id ?? null,
