@@ -7,7 +7,7 @@
  * - Ingreso manual
  * - KPIs: total año, deducible vs no deducible
  */
-import { Component, useRef, useState } from "react";
+import { Component, useRef, useState, useMemo } from "react";
 import type { ReactNode, ErrorInfo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import {
@@ -503,6 +503,18 @@ function GastosEmpresaContent() {
   const proveedorNombre = (id: string | null) =>
     id ? ((proveedores.data?.rows ?? []).find((p) => p.id === id)?.nombre ?? "—") : "—";
 
+  // Fallback: proveedor_id → ruc_emisor derivado de los gastos ya cargados.
+  // Cubre proveedores cuyo campo ruc en la tabla proveedores está vacío.
+  const rucPorProveedor = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const g of gastos.data ?? []) {
+      if (g.proveedor_id && g.ruc_emisor && !map.has(g.proveedor_id)) {
+        map.set(g.proveedor_id, g.ruc_emisor);
+      }
+    }
+    return map;
+  }, [gastos.data]);
+
   return (
     <>
       <PageHeader
@@ -899,18 +911,21 @@ function GastosEmpresaContent() {
                                     {provList.map((p) => (
                                       <CommandItem
                                         key={p.id}
-                                        value={`${p.nombre} ${p.ruc ?? ""}`}
+                                        value={`${p.nombre} ${p.ruc ?? rucPorProveedor.get(p.id) ?? ""}`}
                                         onSelect={() => {
                                           field.onChange(p.id);
-                                          if (p.ruc) form.setValue("ruc_emisor", p.ruc);
+                                          const ruc = p.ruc ?? rucPorProveedor.get(p.id) ?? null;
+                                          if (ruc) form.setValue("ruc_emisor", ruc);
                                           setProveedorOpen(false);
                                         }}
                                       >
                                         <Check className={cn("mr-2 size-4", field.value === p.id ? "opacity-100" : "opacity-0")} />
                                         <div>
                                           <div>{p.nombre}</div>
-                                          {p.ruc && (
-                                            <div className="text-xs text-muted-foreground">{p.ruc}</div>
+                                          {(p.ruc ?? rucPorProveedor.get(p.id)) && (
+                                            <div className="text-xs text-muted-foreground">
+                                              {p.ruc ?? rucPorProveedor.get(p.id)}
+                                            </div>
                                           )}
                                         </div>
                                       </CommandItem>
