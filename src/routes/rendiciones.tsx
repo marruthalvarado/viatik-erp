@@ -1,4 +1,10 @@
 import { useState } from "react";
+import {
+  SortableHeaderContent,
+  applySort,
+  nextSort,
+} from "@/components/common/sortable-header";
+import type { SortState } from "@/components/common/sortable-header";
 import { createFileRoute } from "@tanstack/react-router";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 
@@ -112,6 +118,22 @@ function RendicionesList({ onSelect }: RendicionesListProps) {
   const tipos = tiposData?.rows ?? [];
   const rolCodigo = rolData?.rol_codigo ?? null;
 
+  const [sort, setSort] = useState<SortState>({ col: null, dir: "asc" });
+  function handleSort(col: string) { setSort((prev) => nextSort(prev, col)); }
+  function getRend(row: Rendicion, col: string): string | number {
+    switch (col) {
+      case "numero": return row.numero ?? "";
+      case "descripcion": return row.descripcion ?? "";
+      case "proyecto": return proyectoNombre(row.proyecto_id);
+      case "fecha": return row.fecha_rendicion ?? "";
+      case "total": return Number(row.total_facturado ?? 0);
+      case "saldo": return Number(row.saldo ?? 0);
+      case "estado": return estadoNombreFn(row.estado_rendicion_id);
+      default: return "";
+    }
+  }
+  const sortedRows = applySort(data?.rows ?? [], sort, getRend);
+
   function proyectoNombre(id: string) {
     return proyectos.find((p) => p.id === id)?.nombre ?? id;
   }
@@ -125,13 +147,13 @@ function RendicionesList({ onSelect }: RendicionesListProps) {
   const columns: DataTableColumn<Rendicion>[] = [
     {
       key: "numero",
-      header: "Número",
+      header: <SortableHeaderContent label="Número" col="numero" sort={sort} onSort={handleSort} />,
       className: "w-32",
       cell: (row) => <span className="font-mono text-sm font-medium">{row.numero}</span>,
     },
     {
       key: "descripcion",
-      header: "Descripción / Proyecto",
+      header: <SortableHeaderContent label="Descripción / Proyecto" col="descripcion" sort={sort} onSort={handleSort} />,
       cell: (row) => (
         <div>
           {row.descripcion && <p className="text-sm font-medium">{row.descripcion}</p>}
@@ -141,7 +163,7 @@ function RendicionesList({ onSelect }: RendicionesListProps) {
     },
     {
       key: "fecha_rendicion",
-      header: "Fecha",
+      header: <SortableHeaderContent label="Fecha" col="fecha" sort={sort} onSort={handleSort} />,
       className: "w-28",
       cell: (row) => (
         <span className="text-sm tabular-nums">{formatDate(row.fecha_rendicion)}</span>
@@ -149,7 +171,7 @@ function RendicionesList({ onSelect }: RendicionesListProps) {
     },
     {
       key: "totales",
-      header: "Total facturado",
+      header: <SortableHeaderContent label="Total facturado" col="total" sort={sort} onSort={handleSort} align="right" />,
       align: "right",
       cell: (row) => (
         <span className="tabular-nums text-sm">{formatCurrency(row.total_facturado)}</span>
@@ -157,7 +179,7 @@ function RendicionesList({ onSelect }: RendicionesListProps) {
     },
     {
       key: "saldo",
-      header: "Saldo",
+      header: <SortableHeaderContent label="Saldo" col="saldo" sort={sort} onSort={handleSort} align="right" />,
       align: "right",
       cell: (row) => (
         <span className={`tabular-nums text-sm ${(row.saldo ?? 0) < 0 ? "text-destructive" : ""}`}>
@@ -167,7 +189,7 @@ function RendicionesList({ onSelect }: RendicionesListProps) {
     },
     {
       key: "estado",
-      header: "Estado",
+      header: <SortableHeaderContent label="Estado" col="estado" sort={sort} onSort={handleSort} />,
       cell: (row) => (
         <StatusBadge tone={estadoTone(estadoCodigo(row.estado_rendicion_id))}>
           {estadoNombreFn(row.estado_rendicion_id)}
@@ -342,7 +364,7 @@ function RendicionesList({ onSelect }: RendicionesListProps) {
         <>
           <DataTable
             columns={columns}
-            data={data?.rows ?? []}
+            data={sortedRows}
             isLoading={isLoading}
             getRowId={(row) => row.id}
             onRowClick={onSelect}

@@ -1,4 +1,10 @@
 import { useState } from "react";
+import {
+  SortableHeaderContent,
+  applySort,
+  nextSort,
+} from "@/components/common/sortable-header";
+import type { SortState } from "@/components/common/sortable-header";
 import { createFileRoute } from "@tanstack/react-router";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 
@@ -63,16 +69,30 @@ function ProveedoresContent() {
   const actualizar = useActualizarProveedor();
   const eliminar = useEliminarProveedor();
 
+  const [sort, setSort] = useState<SortState>({ col: null, dir: "asc" });
+  function handleSort(col: string) { setSort((prev) => nextSort(prev, col)); }
+  function getProv(row: Proveedor, col: string): string | number {
+    switch (col) {
+      case "codigo": return row.codigo ?? "";
+      case "nombre": return row.nombre ?? "";
+      case "contacto": return row.correo ?? "";
+      case "ubicacion": return [row.ciudad, row.pais].filter(Boolean).join(", ");
+      case "estado": return row.estado ?? "";
+      default: return "";
+    }
+  }
+  const sortedRows = applySort(data?.rows ?? [], sort, getProv);
+
   const columns: DataTableColumn<Proveedor>[] = [
     {
       key: "codigo",
-      header: "Código",
+      header: <SortableHeaderContent label="Código" col="codigo" sort={sort} onSort={handleSort} />,
       className: "w-24",
       cell: (row) => <span className="text-xs text-muted-foreground">{row.codigo ?? "—"}</span>,
     },
     {
       key: "nombre",
-      header: "Nombre",
+      header: <SortableHeaderContent label="Nombre" col="nombre" sort={sort} onSort={handleSort} />,
       cell: (row) => (
         <div>
           <p className="text-sm font-medium">{row.nombre}</p>
@@ -84,7 +104,7 @@ function ProveedoresContent() {
     },
     {
       key: "contacto",
-      header: "Contacto",
+      header: <SortableHeaderContent label="Contacto" col="contacto" sort={sort} onSort={handleSort} />,
       cell: (row) => (
         <div>
           {row.correo && <p className="text-sm">{row.correo}</p>}
@@ -95,12 +115,12 @@ function ProveedoresContent() {
     },
     {
       key: "ubicacion",
-      header: "Ubicación",
+      header: <SortableHeaderContent label="Ubicación" col="ubicacion" sort={sort} onSort={handleSort} />,
       cell: (row) => [row.ciudad, row.pais].filter(Boolean).join(", ") || "—",
     },
     {
       key: "estado",
-      header: "Estado",
+      header: <SortableHeaderContent label="Estado" col="estado" sort={sort} onSort={handleSort} />,
       cell: (row) => {
         if (!row.estado) return <span className="text-muted-foreground">—</span>;
         const tone =
@@ -243,7 +263,7 @@ function ProveedoresContent() {
         <>
           <DataTable
             columns={columns}
-            data={data?.rows ?? []}
+            data={sortedRows}
             isLoading={isLoading}
             getRowId={(row) => row.id}
             emptyTitle="Sin proveedores"

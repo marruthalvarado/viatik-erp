@@ -22,6 +22,7 @@ import {
   Loader2,
   ChevronsUpDown,
   Check,
+  Filter,
 } from "lucide-react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -67,6 +68,14 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
+import {
+  SortableHeader,
+  FilterCell,
+  applySort,
+  applyColFilters,
+  nextSort,
+} from "@/components/common/sortable-header";
+import type { SortState } from "@/components/common/sortable-header";
 
 import { useCompany } from "@/contexts/company-context";
 import { formatCurrency, formatDate } from "@/utils/formatters";
@@ -199,6 +208,21 @@ function GastosEmpresaContent() {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [filasTxt, setFilasTxt] = useState<FilaTxtSri[]>([]);
   const [proveedorOpen, setProveedorOpen] = useState(false);
+  const [sort, setSort] = useState<SortState>({ col: null, dir: "asc" });
+  const [colFilters, setColFilters] = useState<Record<string, string>>({});
+  const [showFilters, setShowFilters] = useState(false);
+
+  function handleSort(col: string) {
+    setSort((prev) => nextSort(prev, col));
+  }
+  function setColFilter(col: string, val: string) {
+    setColFilters((prev) => {
+      const next = { ...prev };
+      if (val) next[col] = val;
+      else delete next[col];
+      return next;
+    });
+  }
   const fileRef = useRef<HTMLInputElement>(null);
   const pdfRef = useRef<HTMLInputElement>(null);
   const txtRef = useRef<HTMLInputElement>(null);
@@ -515,6 +539,29 @@ function GastosEmpresaContent() {
     return map;
   }, [gastos.data]);
 
+  // ─── Sort + filter ───────────────────────────────────────────────────────────
+  function getGastoVal(g: (typeof lista)[0], col: string): string | number {
+    switch (col) {
+      case "fecha": return g.fecha ?? "";
+      case "descripcion": return g.descripcion;
+      case "categoria": return categoriaNombre(g.categoria_id);
+      case "proveedor": return proveedorNombre(g.proveedor_id);
+      case "ruc": return g.ruc_emisor ?? "";
+      case "proyecto": return proyectoNombre(g.proyecto_id);
+      case "subtotal": return Number(g.subtotal);
+      case "iva": return Number(g.iva);
+      case "total": return Number(g.total);
+      case "deducible": return g.es_deducible ? "sí" : "no";
+      default: return "";
+    }
+  }
+  const listaFiltrada = applySort(
+    applyColFilters(lista, colFilters, getGastoVal),
+    sort,
+    getGastoVal,
+  );
+  const hasFilters = Object.values(colFilters).some((v) => v);
+
   return (
     <>
       <PageHeader
@@ -617,6 +664,34 @@ function GastosEmpresaContent() {
         />
       </div>
 
+      {/* Barra sort/filter */}
+      {!gastos.isLoading && lista.length > 0 && (
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            {listaFiltrada.length !== lista.length
+              ? `${listaFiltrada.length} de ${lista.length} registros`
+              : `${lista.length} registro${lista.length !== 1 ? "s" : ""}`}
+            {hasFilters && (
+              <button
+                className="ml-2 text-xs text-blue-600 hover:underline"
+                onClick={() => setColFilters({})}
+              >
+                Limpiar filtros
+              </button>
+            )}
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowFilters((v) => !v)}
+            className={cn(showFilters && "bg-muted")}
+          >
+            <Filter className="size-3.5 mr-1.5" />
+            {showFilters ? "Ocultar filtros" : "Filtrar columnas"}
+          </Button>
+        </div>
+      )}
+
       {/* Tabla */}
       {gastos.isLoading ? (
         <LoadingState label="Cargando gastos..." />
@@ -631,22 +706,34 @@ function GastosEmpresaContent() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="border-b bg-muted/30">
-                <tr className="text-left text-xs uppercase text-muted-foreground">
-                  <th className="px-4 py-3 font-medium">Fecha</th>
-                  <th className="px-4 py-3 font-medium">Descripción</th>
-                  <th className="px-4 py-3 font-medium">Categoría</th>
-                  <th className="px-4 py-3 font-medium">Proveedor</th>
-                  <th className="px-4 py-3 font-medium">RUC</th>
-                  <th className="px-4 py-3 font-medium">Proyecto</th>
-                  <th className="px-4 py-3 font-medium text-right">Subtotal</th>
-                  <th className="px-4 py-3 font-medium text-right">IVA</th>
-                  <th className="px-4 py-3 font-medium text-right">Total</th>
-                  <th className="px-4 py-3 font-medium">Deducible</th>
+                <tr className="text-xs uppercase text-muted-foreground">
+                  <SortableHeader label="Fecha" col="fecha" sort={sort} onSort={handleSort} />
+                  <SortableHeader label="Descripción" col="descripcion" sort={sort} onSort={handleSort} />
+                  <SortableHeader label="Categoría" col="categoria" sort={sort} onSort={handleSort} />
+                  <SortableHeader label="Proveedor" col="proveedor" sort={sort} onSort={handleSort} />
+                  <SortableHeader label="RUC" col="ruc" sort={sort} onSort={handleSort} />
+                  <SortableHeader label="Proyecto" col="proyecto" sort={sort} onSort={handleSort} />
+                  <SortableHeader label="Subtotal" col="subtotal" sort={sort} onSort={handleSort} align="right" />
+                  <SortableHeader label="IVA" col="iva" sort={sort} onSort={handleSort} align="right" />
+                  <SortableHeader label="Total" col="total" sort={sort} onSort={handleSort} align="right" />
+                  <SortableHeader label="Deducible" col="deducible" sort={sort} onSort={handleSort} />
                   <th className="px-4 py-3" />
                 </tr>
+                {showFilters && (
+                  <tr className="border-t border-muted/50 bg-muted/5">
+                    {(["fecha","descripcion","categoria","proveedor","ruc","proyecto"] as const).map((col) => (
+                      <FilterCell key={col} col={col} filters={colFilters} onChange={setColFilter} />
+                    ))}
+                    <FilterCell col="subtotal" filters={colFilters} onChange={setColFilter} align="right" />
+                    <FilterCell col="iva" filters={colFilters} onChange={setColFilter} align="right" />
+                    <FilterCell col="total" filters={colFilters} onChange={setColFilter} align="right" />
+                    <FilterCell col="deducible" filters={colFilters} onChange={setColFilter} placeholder="sí/no" />
+                    <td />
+                  </tr>
+                )}
               </thead>
               <tbody className="divide-y">
-                {lista.map((g) => (
+                {listaFiltrada.map((g) => (
                   <tr key={g.id} className="hover:bg-muted/20 transition-colors">
                     <td className="px-4 py-3 tabular-nums text-xs">{formatDate(g.fecha)}</td>
                     <td className="px-4 py-3 max-w-[220px]">
@@ -719,16 +806,18 @@ function GastosEmpresaContent() {
               <tfoot className="border-t bg-muted/20">
                 <tr>
                   <td colSpan={6} className="px-4 py-2 text-xs font-semibold text-muted-foreground">
-                    {lista.length} gasto{lista.length !== 1 ? "s" : ""}
+                    {listaFiltrada.length !== lista.length
+                      ? `${listaFiltrada.length} de ${lista.length} gastos`
+                      : `${lista.length} gasto${lista.length !== 1 ? "s" : ""}`}
                   </td>
                   <td className="px-4 py-2 text-right tabular-nums text-xs font-semibold">
-                    {formatCurrency(lista.reduce((s, g) => s + g.subtotal, 0))}
+                    {formatCurrency(listaFiltrada.reduce((s, g) => s + g.subtotal, 0))}
                   </td>
                   <td className="px-4 py-2 text-right tabular-nums text-xs font-semibold text-muted-foreground">
-                    {formatCurrency(lista.reduce((s, g) => s + g.iva, 0))}
+                    {formatCurrency(listaFiltrada.reduce((s, g) => s + g.iva, 0))}
                   </td>
                   <td className="px-4 py-2 text-right tabular-nums text-sm font-bold text-rose-700">
-                    {formatCurrency(lista.reduce((s, g) => s + g.total, 0))}
+                    {formatCurrency(listaFiltrada.reduce((s, g) => s + g.total, 0))}
                   </td>
                   <td colSpan={2} />
                 </tr>

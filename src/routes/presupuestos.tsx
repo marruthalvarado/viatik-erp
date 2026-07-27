@@ -11,6 +11,12 @@
  * campos que en el formulario de Proyectos.
  */
 import { useState } from "react";
+import {
+  SortableHeaderContent,
+  applySort,
+  nextSort,
+} from "@/components/common/sortable-header";
+import type { SortState } from "@/components/common/sortable-header";
 import { createFileRoute } from "@tanstack/react-router";
 import { Pencil, TrendingDown, TrendingUp } from "lucide-react";
 import { z } from "zod";
@@ -111,6 +117,20 @@ function PresupuestosContent() {
   const actualizar = useActualizarProyecto();
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<ResumenFinancieroProyecto | null>(null);
+  const [sort, setSort] = useState<SortState>({ col: null, dir: "asc" });
+  function handleSort(col: string) { setSort((prev) => nextSort(prev, col)); }
+
+  function getPresVal(row: ResumenFinancieroProyecto, col: string): string | number {
+    switch (col) {
+      case "nombre": return row.nombre ?? "";
+      case "presupuesto": return Number(row.presupuesto);
+      case "valor_contrato": return Number(row.valor_contrato);
+      case "ejecutado": return Number(row.ejecutado);
+      case "ganancia": return Number(row.ganancia);
+      default: return "";
+    }
+  }
+  const sortedData = applySort(data ?? [], sort, getPresVal);
 
   const form = useForm<EditValues>({
     resolver: zodResolver(editSchema),
@@ -147,7 +167,7 @@ function PresupuestosContent() {
   const columns: DataTableColumn<ResumenFinancieroProyecto>[] = [
     {
       key: "nombre",
-      header: "Proyecto",
+      header: <SortableHeaderContent label="Proyecto" col="nombre" sort={sort} onSort={handleSort} />,
       cell: (row) => (
         <div>
           <p className="text-sm font-medium">{row.nombre}</p>
@@ -159,7 +179,7 @@ function PresupuestosContent() {
     },
     {
       key: "presupuesto",
-      header: "Presupuesto",
+      header: <SortableHeaderContent label="Presupuesto" col="presupuesto" sort={sort} onSort={handleSort} align="right" />,
       align: "right",
       cell: (row) =>
         row.presupuesto > 0 ? (
@@ -170,7 +190,7 @@ function PresupuestosContent() {
     },
     {
       key: "valor_contrato",
-      header: "Valor contrato",
+      header: <SortableHeaderContent label="Valor contrato" col="valor_contrato" sort={sort} onSort={handleSort} align="right" />,
       align: "right",
       cell: (row) =>
         row.valor_contrato > 0 ? (
@@ -196,7 +216,7 @@ function PresupuestosContent() {
     },
     {
       key: "ejecutado",
-      header: "Gastos (ejecutado)",
+      header: <SortableHeaderContent label="Gastos (ejecutado)" col="ejecutado" sort={sort} onSort={handleSort} align="right" />,
       align: "right",
       cell: (row) => {
         const max = row.facturado || row.valor_contrato || row.presupuesto;
@@ -221,7 +241,7 @@ function PresupuestosContent() {
     },
     {
       key: "ganancia",
-      header: "Ganancia",
+      header: <SortableHeaderContent label="Ganancia" col="ganancia" sort={sort} onSort={handleSort} />,
       cell: (row) =>
         row.valor_contrato > 0 ||
         ((row as ResumenFinancieroProyecto & { facturado?: number }).facturado ?? 0) > 0 ? (
@@ -269,7 +289,7 @@ function PresupuestosContent() {
       ) : (
         <DataTable
           columns={columns}
-          data={data ?? []}
+          data={sortedData}
           isLoading={false}
           getRowId={(row) => row.proyecto_id}
           emptyTitle="Sin proyectos"

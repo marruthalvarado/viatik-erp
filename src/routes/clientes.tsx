@@ -1,4 +1,10 @@
 import { useState } from "react";
+import {
+  SortableHeaderContent,
+  applySort,
+  nextSort,
+} from "@/components/common/sortable-header";
+import type { SortState } from "@/components/common/sortable-header";
 import { createFileRoute } from "@tanstack/react-router";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 
@@ -63,16 +69,31 @@ function ClientesContent() {
   const actualizar = useActualizarCliente();
   const eliminar = useEliminarCliente();
 
+  const [sort, setSort] = useState<SortState>({ col: null, dir: "asc" });
+  function handleSort(col: string) { setSort((prev) => nextSort(prev, col)); }
+  function getCliente(row: Cliente, col: string): string | number {
+    switch (col) {
+      case "codigo": return row.codigo ?? "";
+      case "nombre": return row.nombre ?? "";
+      case "ruc": return row.ruc ?? "";
+      case "contacto": return row.contacto_principal ?? "";
+      case "telefono": return row.telefono ?? "";
+      case "estado": return row.estado ?? "";
+      default: return "";
+    }
+  }
+  const sortedRows = applySort(data?.rows ?? [], sort, getCliente);
+
   const columns: DataTableColumn<Cliente>[] = [
     {
       key: "codigo",
-      header: "Código",
+      header: <SortableHeaderContent label="Código" col="codigo" sort={sort} onSort={handleSort} />,
       className: "w-24",
       cell: (row) => <span className="text-xs text-muted-foreground">{row.codigo ?? "—"}</span>,
     },
     {
       key: "nombre",
-      header: "Nombre",
+      header: <SortableHeaderContent label="Nombre" col="nombre" sort={sort} onSort={handleSort} />,
       cell: (row) => (
         <div>
           <p className="text-sm font-medium">{row.nombre}</p>
@@ -82,10 +103,10 @@ function ClientesContent() {
         </div>
       ),
     },
-    { key: "ruc", header: "RUC", cell: (row) => row.ruc ?? "—" },
+    { key: "ruc", header: <SortableHeaderContent label="RUC" col="ruc" sort={sort} onSort={handleSort} />, cell: (row) => row.ruc ?? "—" },
     {
       key: "contacto",
-      header: "Contacto",
+      header: <SortableHeaderContent label="Contacto" col="contacto" sort={sort} onSort={handleSort} />,
       cell: (row) => (
         <div>
           {row.contacto_principal && <p className="text-sm">{row.contacto_principal}</p>}
@@ -94,10 +115,10 @@ function ClientesContent() {
         </div>
       ),
     },
-    { key: "telefono", header: "Teléfono", cell: (row) => row.telefono ?? "—" },
+    { key: "telefono", header: <SortableHeaderContent label="Teléfono" col="telefono" sort={sort} onSort={handleSort} />, cell: (row) => row.telefono ?? "—" },
     {
       key: "estado",
-      header: "Estado",
+      header: <SortableHeaderContent label="Estado" col="estado" sort={sort} onSort={handleSort} />,
       cell: (row) => {
         if (!row.estado) return <span className="text-muted-foreground">—</span>;
         const tone =
@@ -242,7 +263,7 @@ function ClientesContent() {
         <>
           <DataTable
             columns={columns}
-            data={data?.rows ?? []}
+            data={sortedRows}
             isLoading={isLoading}
             getRowId={(row) => row.id}
             emptyTitle="Sin clientes"

@@ -1,4 +1,10 @@
 import { useState } from "react";
+import {
+  SortableHeaderContent,
+  applySort,
+  nextSort,
+} from "@/components/common/sortable-header";
+import type { SortState } from "@/components/common/sortable-header";
 import { createFileRoute } from "@tanstack/react-router";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 
@@ -71,16 +77,31 @@ function ProyectosContent() {
   const clientes = clientesData?.rows ?? [];
   const clienteNombre = (id: string) => clientes.find((c) => c.id === id)?.nombre ?? id;
 
+  const [sort, setSort] = useState<SortState>({ col: null, dir: "asc" });
+  function handleSort(col: string) { setSort((prev) => nextSort(prev, col)); }
+  function getProy(row: Proyecto, col: string): string | number {
+    switch (col) {
+      case "codigo": return row.codigo ?? "";
+      case "nombre": return row.nombre ?? "";
+      case "cliente": return clienteNombre(row.cliente_id);
+      case "fecha": return row.fecha_inicio ?? "";
+      case "presupuesto": return Number(row.presupuesto ?? 0);
+      case "estado": return row.estado_financiero ?? "";
+      default: return "";
+    }
+  }
+  const sortedRows = applySort(data?.rows ?? [], sort, getProy);
+
   const columns: DataTableColumn<Proyecto>[] = [
     {
       key: "codigo",
-      header: "Código",
+      header: <SortableHeaderContent label="Código" col="codigo" sort={sort} onSort={handleSort} />,
       className: "w-24",
       cell: (row) => <span className="text-xs text-muted-foreground">{row.codigo ?? "—"}</span>,
     },
     {
       key: "nombre",
-      header: "Nombre",
+      header: <SortableHeaderContent label="Nombre" col="nombre" sort={sort} onSort={handleSort} />,
       cell: (row) => (
         <div>
           <p className="text-sm font-medium">{row.nombre}</p>
@@ -92,12 +113,12 @@ function ProyectosContent() {
     },
     {
       key: "cliente",
-      header: "Cliente",
+      header: <SortableHeaderContent label="Cliente" col="cliente" sort={sort} onSort={handleSort} />,
       cell: (row) => <span className="text-sm">{clienteNombre(row.cliente_id)}</span>,
     },
     {
       key: "fechas",
-      header: "Fechas",
+      header: <SortableHeaderContent label="Fechas" col="fecha" sort={sort} onSort={handleSort} />,
       cell: (row) => (
         <div className="text-xs text-muted-foreground">
           {row.fecha_inicio ? <p>Inicio: {formatDate(row.fecha_inicio)}</p> : null}
@@ -108,7 +129,7 @@ function ProyectosContent() {
     },
     {
       key: "presupuesto",
-      header: "Presupuesto",
+      header: <SortableHeaderContent label="Presupuesto" col="presupuesto" sort={sort} onSort={handleSort} align="right" />,
       align: "right",
       cell: (row) =>
         row.presupuesto !== null && row.presupuesto !== undefined
@@ -117,7 +138,7 @@ function ProyectosContent() {
     },
     {
       key: "estado_financiero",
-      header: "Estado",
+      header: <SortableHeaderContent label="Estado" col="estado" sort={sort} onSort={handleSort} />,
       cell: (row) => {
         if (!row.estado_financiero) return <span className="text-muted-foreground">—</span>;
         const tone =
@@ -272,7 +293,7 @@ function ProyectosContent() {
         <>
           <DataTable
             columns={columns}
-            data={data?.rows ?? []}
+            data={sortedRows}
             isLoading={isLoading}
             getRowId={(row) => row.id}
             emptyTitle="Sin proyectos"
