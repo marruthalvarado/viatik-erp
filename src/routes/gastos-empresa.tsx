@@ -20,6 +20,8 @@ import {
   CheckCircle,
   XCircle,
   Loader2,
+  ChevronsUpDown,
+  Check,
 } from "lucide-react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -55,6 +57,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 
 import { useCompany } from "@/contexts/company-context";
 import { formatCurrency, formatDate } from "@/utils/formatters";
@@ -186,6 +198,7 @@ function GastosEmpresaContent() {
   const [loadingTxt, setLoadingTxt] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [filasTxt, setFilasTxt] = useState<FilaTxtSri[]>([]);
+  const [proveedorOpen, setProveedorOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const pdfRef = useRef<HTMLInputElement>(null);
   const txtRef = useRef<HTMLInputElement>(null);
@@ -611,6 +624,7 @@ function GastosEmpresaContent() {
                   <th className="px-4 py-3 font-medium">Descripción</th>
                   <th className="px-4 py-3 font-medium">Categoría</th>
                   <th className="px-4 py-3 font-medium">Proveedor</th>
+                  <th className="px-4 py-3 font-medium">RUC</th>
                   <th className="px-4 py-3 font-medium">Proyecto</th>
                   <th className="px-4 py-3 font-medium text-right">Subtotal</th>
                   <th className="px-4 py-3 font-medium text-right">IVA</th>
@@ -634,6 +648,9 @@ function GastosEmpresaContent() {
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground max-w-[150px] truncate">
                       {proveedorNombre(g.proveedor_id)}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground tabular-nums">
+                      {g.ruc_emisor ?? "—"}
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground max-w-[140px] truncate">
                       {proyectoNombre(g.proyecto_id)}
@@ -689,7 +706,7 @@ function GastosEmpresaContent() {
               </tbody>
               <tfoot className="border-t bg-muted/20">
                 <tr>
-                  <td colSpan={5} className="px-4 py-2 text-xs font-semibold text-muted-foreground">
+                  <td colSpan={6} className="px-4 py-2 text-xs font-semibold text-muted-foreground">
                     {lista.length} gasto{lista.length !== 1 ? "s" : ""}
                   </td>
                   <td className="px-4 py-2 text-right tabular-nums text-xs font-semibold">
@@ -842,30 +859,71 @@ function GastosEmpresaContent() {
                   <FormField
                     control={form.control}
                     name="proveedor_id"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Proveedor</FormLabel>
-                        <Select
-                          onValueChange={(v) => field.onChange(v === "__none__" ? null : v)}
-                          value={field.value ?? "__none__"}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Sin proveedor" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="__none__">Sin proveedor</SelectItem>
-                            {(proveedores.data?.rows ?? []).map((p) => (
-                              <SelectItem key={p.id} value={p.id}>
-                                {p.nombre}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+                    render={({ field }) => {
+                      const provList = proveedores.data?.rows ?? [];
+                      const selected = provList.find((p) => p.id === field.value);
+                      return (
+                        <FormItem>
+                          <FormLabel>Proveedor</FormLabel>
+                          <Popover open={proveedorOpen} onOpenChange={setProveedorOpen}>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button
+                                  variant="outline"
+                                  role="combobox"
+                                  className="w-full justify-between font-normal text-sm h-9 px-3"
+                                >
+                                  <span className={cn("truncate", !selected && "text-muted-foreground")}>
+                                    {selected ? selected.nombre : "Sin proveedor"}
+                                  </span>
+                                  <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[280px] p-0" align="start">
+                              <Command>
+                                <CommandInput placeholder="Buscar proveedor..." />
+                                <CommandList>
+                                  <CommandEmpty>Sin resultados.</CommandEmpty>
+                                  <CommandGroup>
+                                    <CommandItem
+                                      value="__none__"
+                                      onSelect={() => {
+                                        field.onChange(null);
+                                        setProveedorOpen(false);
+                                      }}
+                                    >
+                                      <Check className={cn("mr-2 size-4", !field.value ? "opacity-100" : "opacity-0")} />
+                                      Sin proveedor
+                                    </CommandItem>
+                                    {provList.map((p) => (
+                                      <CommandItem
+                                        key={p.id}
+                                        value={`${p.nombre} ${p.ruc ?? ""}`}
+                                        onSelect={() => {
+                                          field.onChange(p.id);
+                                          if (p.ruc) form.setValue("ruc_emisor", p.ruc);
+                                          setProveedorOpen(false);
+                                        }}
+                                      >
+                                        <Check className={cn("mr-2 size-4", field.value === p.id ? "opacity-100" : "opacity-0")} />
+                                        <div>
+                                          <div>{p.nombre}</div>
+                                          {p.ruc && (
+                                            <div className="text-xs text-muted-foreground">{p.ruc}</div>
+                                          )}
+                                        </div>
+                                      </CommandItem>
+                                    ))}
+                                  </CommandGroup>
+                                </CommandList>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
                   />
                 </div>
 
