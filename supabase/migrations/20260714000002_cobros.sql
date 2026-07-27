@@ -57,7 +57,9 @@ CREATE POLICY "cobros_empresa_delete" ON public.cobros
   );
 
 -- 3. Vista: facturas con saldo pendiente
-CREATE OR REPLACE VIEW public.facturas_con_saldo AS
+-- DROP primero: CREATE OR REPLACE no puede eliminar columnas de la vista existente
+DROP VIEW IF EXISTS public.facturas_con_saldo;
+CREATE VIEW public.facturas_con_saldo AS
 SELECT
   f.*,
   COALESCE(c.monto_cobrado, 0)                AS monto_cobrado,
