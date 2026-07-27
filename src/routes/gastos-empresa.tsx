@@ -784,6 +784,35 @@ function GastosEmpresaContent() {
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
+                    name="numero_documento"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>N° Factura <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
+                        <FormControl>
+                          <Input placeholder="001-001-000000123" {...field} value={field.value ?? ""} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="ruc_emisor"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>RUC emisor <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
+                        <FormControl>
+                          <Input placeholder="1790000000001" {...field} value={field.value ?? ""} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
                     name="categoria_id"
                     render={({ field }) => (
                       <FormItem>
