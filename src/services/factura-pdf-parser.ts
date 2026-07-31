@@ -113,35 +113,86 @@ function parsePdfText(text: string): FacturaXmlData {
   }
 
   // ── Razón social del cliente ──
-  // En pdfjs los valores (columna derecha) quedan típicamente UNA LÍNEA ANTES del label
-  // (columna izquierda) porque su baseline Y es 1-2 px mayor.
-  // Buscamos en este orden: rs-1 → rs+1 → rs-2 → rs+2 → rs-3 (prioridad al candidato
-  // más cercano) para evitar capturar labels previos como "Sucursal: CLAVE DE ACCESO".
+  // pdfjs agrupa el texto por coordenada Y. Dos layouts son posibles:
+  //   A) Label y valor en la MISMA línea: "Razón Social  MEDIMEC S.A.  Identificación  099..."
+  //   B) Label en una línea, valor en la adyacente (columnas separadas en el PDF).
+  // Tratamos ambos casos.
   const allLines = text.split("\n");
   const rsIdx = allLines.findIndex((l) => /Raz[oó]n\s+Social/i.test(l));
   const isKnownLabel = (s: string) =>
     /^(Raz[oó]n\s+Social|Identificaci[oó]n|Fecha|Direcci[oó]n|Placa|Gu[íi]a|Cod\.|Cantidad|Descripci|Precio|Subsidio|Descuento|OBLIG|AMBIENTE|EMISI|Sucursal|CLAVE|No\.|R\.U\.C|N[ÚU]MERO|FACTURA)/i.test(s);
   let razon_social = "";
   if (rsIdx >= 0) {
-    // Orden de búsqueda: inmediatamente antes → justo después → más atrás/adelante
-    const searchOrder = [rsIdx - 1, rsIdx + 1, rsIdx - 2, rsIdx + 2, rsIdx - 3, rsIdx + 3, rsIdx - 4, rsIdx + 4, rsIdx - 5, rsIdx + 5];
-    for (const i of searchOrder) {
-      if (i < 0 || i >= allLines.length) continue;
-      // Eliminar sufijos de label o RUC que puedan estar en la misma línea pdfjs
-      const clean = allLines[i]
-        .trim()
-        .replace(/\s*(Identificaci[oó]n|\d{10,13})[\s\S]*/i, "")
-        .trim();
-      if (clean && !isKnownLabel(clean) && !/^\d/.test(clean) && !/^\d{2}\/\d{2}\/\d{4}/.test(clean)) {
-        razon_social = clean;
-        break;
+    // Caso A: label + valor en la misma línea — quitar el label y lo que sigue a "Identificación"
+    const inlinePart = allLines[rsIdx]
+      .replace(/Raz[oó]n\s+Social\s*/i, "")
+      .replace(/\s*Identificaci[oó]n[\s\S]*/i, "")
+      .trim();
+    if (inlinePart && !isKnownLabel(inlinePart) && !/^\d/.test(inlinePart) && !/^\d{2}\/\d{2}\/\d{4}/.test(inlinePart)) {
+      razon_social = inlinePart;
+    }
+
+    // Caso B: valor en línea adyacente — misma lógica anterior
+    if (!razon_social) {
+      const searchOrder = [rsIdx - 1, rsIdx + 1, rsIdx - 2, rsIdx + 2, rsIdx - 3, rsIdx + 3, rsIdx - 4, rsIdx + 4, rsIdx - 5, rsIdx + 5];
+      for (const i of searchOrder) {
+        if (i < 0 || i >= allLines.length) continue;
+        const clean = allLines[i]
+          .trim()
+          .replace(/\s*(Identificaci[oó]n|\d{10,13})[\s\S]*/i, "")
+          .trim();
+        if (clean && !isKnownLabel(clean) && !/^\d/.test(clean) && !/^\d{2}\/\d{2}\/\d{4}/.test(clean)) {
+          razon_social = clean;
+          break;
+        }
       }
     }
   }
 
   // ── RUC / Identificación del cliente ──
-  const idMatch = text.match(/Identificaci[oó]n\s+(\d{10,13})/i);
-  const ruc_cliente = idMatch?.[1] ?? null;
+  // Usamos la línea "Identificación" más cercana a rsIdx para no capturar
+  // identificaciones de otras secciones del documento (header del emisor, info adicional).
+  let ruc_cliente: string | null = null;
+
+  // Primero: ¿está el RUC inline en la línea "Razón Social ...  Identificación  099..."?
+  if (rsIdx >= 0) {
+    const inlineRuc = allLines[rsIdx].match(/Identificaci[oó]n\s*[:\s]+(\d{10,13})/i);
+    if (inlineRuc) ruc_cliente = inlineRuc[1];
+  }
+
+  if (!ruc_cliente) {
+    // Encontrar el índice de "Identificación" más próximo a rsIdx
+    let bestIdIdx = -1;
+    let bestDist = Infinity;
+    allLines.forEach((l, i) => {
+      if (/Identificaci[oó]n/i.test(l)) {
+        const dist = Math.abs(i - (rsIdx >= 0 ? rsIdx : 0));
+        if (dist < bestDist) { bestDist = dist; bestIdIdx = i; }
+      }
+    });
+
+    if (bestIdIdx >= 0) {
+      // Caso A: inline en la línea del label
+      const inlineId = allLines[bestIdIdx].match(/Identificaci[oó]n\s*[:\s]+(\d{10,13})/i);
+      if (inlineId) {
+        ruc_cliente = inlineId[1];
+      } else {
+        // Caso B: número solo en línea adyacente
+        for (const offset of [1, -1, 2, -2, 3, -3]) {
+          const i = bestIdIdx + offset;
+          if (i < 0 || i >= allLines.length) continue;
+          const numMatch = allLines[i].trim().match(/^(\d{10,13})$/);
+          if (numMatch) { ruc_cliente = numMatch[1]; break; }
+        }
+      }
+    }
+  }
+
+  // Fallback: búsqueda en texto completo (comportamiento anterior)
+  if (!ruc_cliente) {
+    const idMatch = text.match(/Identificaci[oó]n\s+(\d{10,13})/i);
+    ruc_cliente = idMatch?.[1] ?? null;
+  }
 
   // ── Subtotal (SUBTOTAL SIN IMPUESTOS = suma de todos los subtotales) ──
   const subtotalMatch = text.match(/SUBTOTAL\s+SIN\s+IMPUESTOS\s+([\d.,]+)/i);
