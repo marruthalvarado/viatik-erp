@@ -120,11 +120,11 @@ function parsePdfText(text: string): FacturaXmlData {
   const allLines = text.split("\n");
   const rsIdx = allLines.findIndex((l) => /Raz[oó]n\s+Social/i.test(l));
   const isKnownLabel = (s: string) =>
-    /^(Raz[oó]n\s+Social|Identificaci[oó]n|Fecha|Direcci[oó]n|Placa|Gu[íi]a|Cod\.|Cantidad|Descripci|Precio|Subsidio|Descuento|OBLIG|AMBIENTE|EMISI|Sucursal|CLAVE|No\.|R\.U\.C|N[ÚU]MERO|FACTURA|PROTON|Direcci)/i.test(s);
+    /^(Raz[oó]n\s+Social|Identificaci[oó]n|Fecha|Direcci[oó]n|Placa|Gu[íi]a|Cod\.|Cantidad|Descripci|Precio|Subsidio|Descuento|OBLIG|AMBIENTE|EMISI|Sucursal|CLAVE|No\.|R\.U\.C|N[ÚU]MERO|FACTURA)/i.test(s);
   let razon_social = "";
   if (rsIdx >= 0) {
-    // Orden de búsqueda: inmediatamente antes → justo después → más atrás
-    const searchOrder = [rsIdx - 1, rsIdx + 1, rsIdx - 2, rsIdx + 2, rsIdx - 3];
+    // Orden de búsqueda: inmediatamente antes → justo después → más atrás/adelante
+    const searchOrder = [rsIdx - 1, rsIdx + 1, rsIdx - 2, rsIdx + 2, rsIdx - 3, rsIdx + 3, rsIdx - 4, rsIdx + 4, rsIdx - 5, rsIdx + 5];
     for (const i of searchOrder) {
       if (i < 0 || i >= allLines.length) continue;
       // Eliminar sufijos de label o RUC que puedan estar en la misma línea pdfjs
@@ -176,7 +176,7 @@ function parsePdfText(text: string): FacturaXmlData {
           !/^[\d.,\s]+$/.test(l) && // solo números → descartar
           !/^[A-Z]{1,6}-\d/.test(l) && // líneas que empiezan con código de ítem (SERV-012...) → descartar
           !/^(Cantidad|Descripci|Detalle|Precio|Subsidio|Descuento|Cod\.|Principal|Auxiliar)/i.test(l) &&
-          !/^(Sucursal|Direcci[oó]n|E-MAIL|Tel[eé]fono|Forma|Informaci[oó]n|NuclearMed)/i.test(l) &&
+          !/^(Sucursal|Direcci[oó]n|E-MAIL|Tel[eé]fono|Forma|Informaci[oó]n)/i.test(l) &&
           !/^SUBTOTAL/i.test(l), // líneas de subtotal antes de "SUBTOTAL SIN IMPUESTOS" → descartar
       );
     observacion = descLines.join(" ").trim() || null;
@@ -189,7 +189,7 @@ function parsePdfText(text: string): FacturaXmlData {
   // ── Validaciones mínimas ──
   if (!numero) throw new Error("No se pudo leer el número de factura. ¿Es un RIDE del SRI?");
   if (!fecha) throw new Error("No se pudo leer la fecha de emisión del PDF.");
-  if (!razon_social) throw new Error("No se pudo leer la razón social del cliente.");
+  // razon_social puede quedar vacío — el usuario la completa manualmente
 
   return {
     numero,

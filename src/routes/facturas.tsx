@@ -322,7 +322,11 @@ function FacturasContent() {
       if (checkDuplicado(parsed.numero)) return;
       setXmlParsed(parsed);
       openNueva(parsed);
-      toast.success(`PDF cargado: ${parsed.numero}`);
+      if (!parsed.razon_social) {
+        toast.error("PDF cargado pero no se pudo leer la razón social — complétala manualmente.");
+      } else {
+        toast.success(`PDF cargado: ${parsed.numero}`);
+      }
     } catch (err) {
       toast.error("Error al leer PDF: " + (err as Error).message);
     } finally {
