@@ -7,7 +7,7 @@
  * - Ingreso manual
  * - KPIs: total año, deducible vs no deducible
  */
-import { Component, useRef, useState, useMemo } from "react";
+import { Component, useRef, useState, useMemo, useEffect } from "react";
 import type { ReactNode, ErrorInfo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import {
@@ -169,6 +169,7 @@ const schema = z.object({
   proyecto_id: z.string().nullable().optional(),
   responsable: z.string().nullable().optional(),
   subtotal: z.coerce.number().min(0),
+  iva_pct: z.coerce.number().min(0).max(100).default(0),
   iva: z.coerce.number().min(0),
   total: z.coerce.number().min(0),
   es_deducible: z.boolean(),
@@ -181,6 +182,13 @@ const schema = z.object({
   tipo_cambio: z.coerce.number().nullable().optional(),
 });
 type FormValues = z.infer<typeof schema>;
+
+/** Detecta el % IVA a partir de subtotal e iva almacenados (0, 12, 15 o 0 si no coincide). */
+function deriveIvaPct(subtotal: number, iva: number): number {
+  if (!subtotal || !iva) return 0;
+  const pct = Math.round((iva / subtotal) * 100);
+  return [0, 12, 15].includes(pct) ? pct : 0;
+}
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -263,6 +271,7 @@ function GastosEmpresaContent() {
       proyecto_id: null,
       responsable: null,
       subtotal: 0,
+      iva_pct: 0,
       iva: 0,
       total: 0,
       es_deducible: true,
@@ -276,6 +285,17 @@ function GastosEmpresaContent() {
     },
   });
 
+  // ── Auto-cálculo: iva = subtotal * iva_pct/100, total = subtotal + iva ──────
+  const watchedSubtotal = form.watch("subtotal");
+  const watchedIvaPct = form.watch("iva_pct");
+  useEffect(() => {
+    const sub = Number(watchedSubtotal) || 0;
+    const pct = Number(watchedIvaPct) || 0;
+    const ivaAmt = Math.round(sub * pct) / 100;
+    form.setValue("iva", ivaAmt, { shouldValidate: false });
+    form.setValue("total", parseFloat((sub + ivaAmt).toFixed(2)), { shouldValidate: false });
+  }, [watchedSubtotal, watchedIvaPct]); // eslint-disable-line react-hooks/exhaustive-deps
+
   function openNueva(prefill?: FacturaXmlData) {
     setEditando(null);
     form.reset(
@@ -288,6 +308,7 @@ function GastosEmpresaContent() {
             proyecto_id: null,
             responsable: null,
             subtotal: prefill.subtotal,
+            iva_pct: deriveIvaPct(prefill.subtotal, prefill.iva),
             iva: prefill.iva,
             total: prefill.total,
             es_deducible: true,
@@ -307,6 +328,7 @@ function GastosEmpresaContent() {
             proyecto_id: null,
             responsable: null,
             subtotal: 0,
+            iva_pct: 0,
             iva: 0,
             total: 0,
             es_deducible: true,
@@ -332,6 +354,7 @@ function GastosEmpresaContent() {
       proyecto_id: g.proyecto_id,
       responsable: g.responsable,
       subtotal: g.subtotal,
+      iva_pct: deriveIvaPct(Number(g.subtotal), Number(g.iva)),
       iva: g.iva,
       total: g.total,
       es_deducible: g.es_deducible,
@@ -448,34 +471,35 @@ function GastosEmpresaContent() {
         // No bloquear el guardado si la consulta falla
       }
 
+      const { iva_pct: _ivaPct, ...dbValues } = values;
       if (editando) {
         await actualizar.mutateAsync({
           id: editando.id,
           payload: {
-            ...values,
-            numero_documento: values.numero_documento ?? null,
-            ruc_emisor: values.ruc_emisor ?? null,
-            moneda_origen: values.moneda_origen ?? null,
-            monto_origen: values.monto_origen ?? null,
-            tipo_cambio: values.tipo_cambio ?? null,
+            ...dbValues,
+            numero_documento: dbValues.numero_documento ?? null,
+            ruc_emisor: dbValues.ruc_emisor ?? null,
+            moneda_origen: dbValues.moneda_origen ?? null,
+            monto_origen: dbValues.monto_origen ?? null,
+            tipo_cambio: dbValues.tipo_cambio ?? null,
           },
         });
         toast.success("Gasto actualizado");
       } else {
         await crear.mutateAsync({
           empresa_id: empresaActivaId,
-          ...values,
-          categoria_id: values.categoria_id ?? null,
-          proveedor_id: values.proveedor_id ?? null,
-          proyecto_id: values.proyecto_id ?? null,
-          responsable: values.responsable ?? null,
-          clave_acceso: values.clave_acceso ?? null,
-          numero_documento: values.numero_documento ?? null,
-          ruc_emisor: values.ruc_emisor ?? null,
-          observacion: values.observacion ?? null,
-          moneda_origen: values.moneda_origen ?? null,
-          monto_origen: values.monto_origen ?? null,
-          tipo_cambio: values.tipo_cambio ?? null,
+          ...dbValues,
+          categoria_id: dbValues.categoria_id ?? null,
+          proveedor_id: dbValues.proveedor_id ?? null,
+          proyecto_id: dbValues.proyecto_id ?? null,
+          responsable: dbValues.responsable ?? null,
+          clave_acceso: dbValues.clave_acceso ?? null,
+          numero_documento: dbValues.numero_documento ?? null,
+          ruc_emisor: dbValues.ruc_emisor ?? null,
+          observacion: dbValues.observacion ?? null,
+          moneda_origen: dbValues.moneda_origen ?? null,
+          monto_origen: dbValues.monto_origen ?? null,
+          tipo_cambio: dbValues.tipo_cambio ?? null,
           xml_content: xmlParsed?.xml_content ?? null,
           comprobante_url: null,
           created_by: null,
@@ -1166,25 +1190,85 @@ function GastosEmpresaContent() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-3 gap-3">
-                  {(["subtotal", "iva", "total"] as const).map((f) => (
-                    <FormField
-                      key={f}
-                      control={form.control}
-                      name={f}
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="capitalize">
-                            {f === "iva" ? "IVA" : f.charAt(0).toUpperCase() + f.slice(1)}
-                          </FormLabel>
+                {/* Subtotal + % IVA */}
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField
+                    control={form.control}
+                    name="subtotal"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Subtotal (base)</FormLabel>
+                        <FormControl>
+                          <Input type="number" step="0.01" min="0" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="iva_pct"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>% IVA</FormLabel>
+                        <Select
+                          value={String(field.value ?? 0)}
+                          onValueChange={(v) => field.onChange(Number(v))}
+                        >
                           <FormControl>
-                            <Input type="number" step="0.01" min="0" {...field} />
+                            <SelectTrigger>
+                              <SelectValue placeholder="0%" />
+                            </SelectTrigger>
                           </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  ))}
+                          <SelectContent>
+                            <SelectItem value="0">0%</SelectItem>
+                            <SelectItem value="12">12%</SelectItem>
+                            <SelectItem value="15">15%</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                {/* IVA y Total (calculados automáticamente) */}
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField
+                    control={form.control}
+                    name="iva"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>IVA</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            {...field}
+                            readOnly
+                            className="bg-muted/40 cursor-default"
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="total"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Total</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            {...field}
+                            readOnly
+                            className="bg-muted/40 cursor-default font-medium"
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
                 </div>
 
                 <FormField
