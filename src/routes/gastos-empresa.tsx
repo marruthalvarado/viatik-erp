@@ -298,13 +298,19 @@ function GastosEmpresaContent() {
 
   function openNueva(prefill?: FacturaXmlData) {
     setEditando(null);
+    // Buscar proveedor existente por RUC cuando viene prefill de XML/PDF
+    const proveedorMatch = prefill?.ruc_emisor
+      ? (proveedores.data?.rows ?? []).find(
+          (p) => p.identificacion === prefill.ruc_emisor,
+        )
+      : null;
     form.reset(
       prefill
         ? {
             fecha: prefill.fecha,
             descripcion: prefill.observacion ?? prefill.razon_social ?? "",
             categoria_id: null,
-            proveedor_id: null,
+            proveedor_id: proveedorMatch?.id ?? null,
             proyecto_id: null,
             responsable: null,
             subtotal: prefill.subtotal,
