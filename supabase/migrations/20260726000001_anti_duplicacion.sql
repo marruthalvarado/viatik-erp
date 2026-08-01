@@ -74,7 +74,7 @@ BEGIN
         OR EXISTS (
           SELECT 1 FROM proveedores p
           WHERE p.id  = NEW.proveedor_id
-            AND p.ruc = ge.ruc_emisor
+            AND p.identificacion = ge.ruc_emisor
         )
       )
     LIMIT 1;
@@ -128,7 +128,7 @@ BEGIN
         OR EXISTS (
           SELECT 1 FROM proveedores p
           WHERE p.id  = g.proveedor_id
-            AND p.ruc = NEW.ruc_emisor
+            AND p.identificacion = NEW.ruc_emisor
         )
       );
   END IF;
