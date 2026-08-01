@@ -134,7 +134,7 @@ function parsePdfText(text: string): FacturaXmlData {
 
     // Caso B: valor en línea adyacente — misma lógica anterior
     if (!razon_social) {
-      const searchOrder = [rsIdx - 1, rsIdx + 1, rsIdx - 2, rsIdx + 2, rsIdx - 3, rsIdx + 3, rsIdx - 4, rsIdx + 4, rsIdx - 5, rsIdx + 5];
+      const searchOrder = [rsIdx - 1, rsIdx + 1, rsIdx - 2, rsIdx + 2, rsIdx - 3, rsIdx + 3, rsIdx - 4, rsIdx + 4, rsIdx - 5, rsIdx + 5, rsIdx - 6, rsIdx + 6, rsIdx - 7, rsIdx + 7, rsIdx - 8, rsIdx + 8];
       for (const i of searchOrder) {
         if (i < 0 || i >= allLines.length) continue;
         const clean = allLines[i]

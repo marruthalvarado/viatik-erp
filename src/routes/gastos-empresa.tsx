@@ -299,12 +299,17 @@ function GastosEmpresaContent() {
 
   function openNueva(prefill?: FacturaXmlData) {
     setEditando(null);
-    // Buscar proveedor existente por RUC cuando viene prefill de XML/PDF
+    // Buscar proveedor existente por RUC cuando viene prefill de XML/PDF.
+    // Estrategia triple: (1) campo identificacion, (2) ruc derivado de gastos previos,
+    // (3) proveedor_id almacenado en gastos previos para ese RUC.
+    const rows = proveedores.data?.rows ?? [];
     const proveedorMatch = prefill?.ruc_emisor
-      ? (proveedores.data?.rows ?? []).find(
-          (p) => p.identificacion === prefill.ruc_emisor,
-        )
+      ? (rows.find((p) => p.identificacion === prefill.ruc_emisor) ??
+         rows.find((p) => rucPorProveedor.get(p.id) === prefill.ruc_emisor) ??
+         rows.find((p) => p.id === proveedorPorRuc.get(prefill.ruc_emisor!)))
       : null;
+    // Si no encontramos aún, re-intentar cuando carguen los proveedores
+    setPendingRucLookup(prefill?.ruc_emisor && !proveedorMatch ? prefill.ruc_emisor : null);
     form.reset(
       prefill
         ? {
@@ -571,7 +576,7 @@ function GastosEmpresaContent() {
     id ? ((proveedores.data?.rows ?? []).find((p) => p.id === id)?.nombre ?? "—") : "—";
 
   // Fallback: proveedor_id → ruc_emisor derivado de los gastos ya cargados.
-  // Cubre proveedores cuyo campo ruc en la tabla proveedores está vacío.
+  // Cubre proveedores cuyo campo identificacion en la tabla proveedores está vacío.
   const rucPorProveedor = useMemo(() => {
     const map = new Map<string, string>();
     for (const g of gastos.data ?? []) {
@@ -581,6 +586,38 @@ function GastosEmpresaContent() {
     }
     return map;
   }, [gastos.data]);
+
+  // Reverse: ruc_emisor → proveedor_id (desde gastos ya cargados)
+  const proveedorPorRuc = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const [provId, ruc] of rucPorProveedor) {
+      if (!map.has(ruc)) map.set(ruc, provId);
+    }
+    return map;
+  }, [rucPorProveedor]);
+
+  // RUC pendiente de re-buscar una vez que carguen los proveedores
+  const [pendingRucLookup, setPendingRucLookup] = useState<string | null>(null);
+
+  // Cuando los proveedores cargan después de abrir el drawer, re-intentar el lookup
+  useEffect(() => {
+    if (!pendingRucLookup || !drawerOpen) return;
+    const rows = proveedores.data?.rows ?? [];
+    if (!rows.length) return;
+    const match =
+      rows.find((p) => p.identificacion === pendingRucLookup) ??
+      rows.find((p) => rucPorProveedor.get(p.id) === pendingRucLookup) ??
+      rows.find((p) => p.id === proveedorPorRuc.get(pendingRucLookup));
+    if (match) {
+      form.setValue("proveedor_id", match.id, { shouldValidate: false });
+      const obs = form.getValues("observacion");
+      if (!obs || obs === xmlParsed?.razon_social) {
+        form.setValue("observacion", match.nombre, { shouldValidate: false });
+      }
+      setPendingRucLookup(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingRucLookup, drawerOpen, proveedores.data?.rows]);
 
   // ─── Sort + filter ───────────────────────────────────────────────────────────
   function getGastoVal(g: (typeof lista)[0], col: string): string | number {
@@ -1074,10 +1111,10 @@ function GastosEmpresaContent() {
                                     {provList.map((p) => (
                                       <CommandItem
                                         key={p.id}
-                                        value={`${p.nombre} ${p.ruc ?? rucPorProveedor.get(p.id) ?? ""}`}
+                                        value={`${p.nombre} ${p.identificacion ?? rucPorProveedor.get(p.id) ?? ""}`}
                                         onSelect={() => {
                                           field.onChange(p.id);
-                                          const ruc = p.ruc ?? rucPorProveedor.get(p.id) ?? null;
+                                          const ruc = p.identificacion ?? rucPorProveedor.get(p.id) ?? null;
                                           if (ruc) form.setValue("ruc_emisor", ruc);
                                           setProveedorOpen(false);
                                         }}
@@ -1085,9 +1122,9 @@ function GastosEmpresaContent() {
                                         <Check className={cn("mr-2 size-4", field.value === p.id ? "opacity-100" : "opacity-0")} />
                                         <div>
                                           <div>{p.nombre}</div>
-                                          {(p.ruc ?? rucPorProveedor.get(p.id)) && (
+                                          {(p.identificacion ?? rucPorProveedor.get(p.id)) && (
                                             <div className="text-xs text-muted-foreground">
-                                              {p.ruc ?? rucPorProveedor.get(p.id)}
+                                              {p.identificacion ?? rucPorProveedor.get(p.id)}
                                             </div>
                                           )}
                                         </div>

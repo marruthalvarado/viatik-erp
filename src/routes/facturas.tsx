@@ -345,7 +345,18 @@ function FacturasContent() {
       setXmlParsed(parsed);
       openNueva(parsed);
       if (!parsed.razon_social) {
-        toast.error("PDF cargado pero no se pudo leer la razón social — complétala manualmente.");
+        // Fallback: buscar el nombre del cliente en facturas previas con el mismo RUC
+        const nombreDesdeHistorial = parsed.ruc_cliente
+          ? (facturas.data ?? []).find(
+              (f) => f.ruc_cliente === parsed.ruc_cliente && f.razon_social,
+            )?.razon_social
+          : null;
+        if (nombreDesdeHistorial) {
+          form.setValue("razon_social", nombreDesdeHistorial, { shouldValidate: false });
+          toast.success(`PDF cargado: ${parsed.numero} · Razón social tomada del historial`);
+        } else {
+          toast.error("PDF cargado pero no se pudo leer la razón social — complétala manualmente.");
+        }
       } else {
         toast.success(`PDF cargado: ${parsed.numero}`);
       }
