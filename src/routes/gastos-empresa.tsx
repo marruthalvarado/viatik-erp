@@ -205,6 +205,7 @@ function GastosEmpresaPage() {
 function GastosEmpresaContent() {
   const { empresaActivaId } = useCompany();
   const [anio, setAnio] = useState<number | null>(() => new Date().getFullYear());
+  const [mes, setMes] = useState<number | null>(null);
   const [filtroDeducible, setFiltroDeducible] = useState<"todos" | "si" | "no">("todos");
   const [filtroProyecto, setFiltroProyecto] = useState<string>("todos");
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -533,25 +534,34 @@ function GastosEmpresaContent() {
   }
 
   const listaBase = gastos.data ?? [];
-  const lista =
+  const listaProyecto =
     filtroProyecto === "todos"
       ? listaBase
       : filtroProyecto === "__sin_proyecto__"
         ? listaBase.filter((g) => !g.proyecto_id)
         : listaBase.filter((g) => g.proyecto_id === filtroProyecto);
+  // Filtro de mes (client-side, solo aplica cuando hay año seleccionado)
+  const lista =
+    mes !== null
+      ? listaProyecto.filter((g) => {
+          if (!g.fecha) return false;
+          return new Date(g.fecha + "T00:00:00").getMonth() + 1 === mes;
+        })
+      : listaProyecto;
 
-  // Cuando se muestran "todos los años", los KPIs se computan desde los datos en memoria
+  // KPIs: cuando hay filtro de mes o proyecto activo, los computamos en memoria
+  const usarKpiMemoria = anio === null || mes !== null || filtroProyecto !== "todos";
   const kpiEfectivo =
-    anio === null && gastos.data
+    usarKpiMemoria
       ? {
-          total_anio: gastos.data.reduce((s, g) => s + (Number(g.total) || 0), 0),
-          total_deducible: gastos.data
+          total_anio: lista.reduce((s, g) => s + (Number(g.total) || 0), 0),
+          total_deducible: lista
             .filter((g) => g.es_deducible)
             .reduce((s, g) => s + (Number(g.total) || 0), 0),
-          total_no_deducible: gastos.data
+          total_no_deducible: lista
             .filter((g) => !g.es_deducible)
             .reduce((s, g) => s + (Number(g.total) || 0), 0),
-          num_gastos: gastos.data.length,
+          num_gastos: lista.length,
         }
       : kpi.data;
 
@@ -607,6 +617,7 @@ function GastosEmpresaContent() {
               onChange={(e) => {
                 const v = e.target.value;
                 setAnio(v === "todos" ? null : Number(v));
+                setMes(null); // reset mes al cambiar año
               }}
               className="h-8 rounded-md border bg-background px-2 text-sm"
             >
@@ -617,6 +628,30 @@ function GastosEmpresaContent() {
                 </option>
               ))}
             </select>
+            {anio !== null && (
+              <select
+                value={mes ?? "todos"}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setMes(v === "todos" ? null : Number(v));
+                }}
+                className="h-8 rounded-md border bg-background px-2 text-sm"
+              >
+                <option value="todos">Todos los meses</option>
+                <option value="1">Enero</option>
+                <option value="2">Febrero</option>
+                <option value="3">Marzo</option>
+                <option value="4">Abril</option>
+                <option value="5">Mayo</option>
+                <option value="6">Junio</option>
+                <option value="7">Julio</option>
+                <option value="8">Agosto</option>
+                <option value="9">Septiembre</option>
+                <option value="10">Octubre</option>
+                <option value="11">Noviembre</option>
+                <option value="12">Diciembre</option>
+              </select>
+            )}
             <select
               value={filtroProyecto}
               onChange={(e) => setFiltroProyecto(e.target.value)}
@@ -679,7 +714,13 @@ function GastosEmpresaContent() {
       {/* KPIs */}
       <div className="mb-6 grid gap-4 sm:grid-cols-4">
         <KpiCard
-          label={anio !== null ? `Total gastos ${anio}` : "Total gastos (todos)"}
+          label={
+            anio !== null && mes !== null
+              ? `Total gastos ${["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"][mes - 1]} ${anio}`
+              : anio !== null
+                ? `Total gastos ${anio}`
+                : "Total gastos (todos)"
+          }
           value={formatCurrency(kpiEfectivo?.total_anio ?? 0)}
           icon={<TrendingDown className="size-4 text-rose-500" />}
         />
