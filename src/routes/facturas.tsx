@@ -8,7 +8,7 @@
  * - Panel de cobros (pagos recibidos) por factura
  * - Campos de retención fiscal (agente de retención Ecuador)
  */
-import { useRef, useState, Fragment } from "react";
+import { useRef, useState, Fragment, useMemo } from "react";
 import {
   BarChart,
   Bar,
@@ -34,6 +34,7 @@ import {
   X,
   Percent,
   Ban,
+  Filter,
 } from "lucide-react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -71,6 +72,14 @@ import {
 
 import { useCompany } from "@/contexts/company-context";
 import { formatCurrency, formatDate } from "@/utils/formatters";
+import {
+  SortableHeader,
+  FilterCell,
+  applySort,
+  applyColFilters,
+  nextSort,
+} from "@/components/common/sortable-header";
+import type { SortState } from "@/components/common/sortable-header";
 import { readFacturaXmlFile } from "@/services/factura-xml-parser";
 import type { FacturaXmlData } from "@/services/factura-xml-parser";
 import { readFacturaPdfFile } from "@/services/factura-pdf-parser";
@@ -177,12 +186,25 @@ function FacturasPage() {
 function FacturasContent() {
   const { empresaActivaId } = useCompany();
   const [anio, setAnio] = useState(() => new Date().getFullYear());
+  const [mes, setMes] = useState<number | null>(null);
+  const [sort, setSort] = useState<SortState>({ col: null, dir: "asc" });
+  const [colFilters, setColFilters] = useState<Record<string, string>>({});
+  const [showFilters, setShowFilters] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editando, setEditando] = useState<FacturaEmitida | null>(null);
   const [xmlParsed, setXmlParsed] = useState<FacturaXmlData | null>(null);
   const [loadingXml, setLoadingXml] = useState(false);
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [expandedFactura, setExpandedFactura] = useState<string | null>(null);
+
+  function handleSort(col: string) { setSort((p) => nextSort(p, col)); }
+  function setColFilter(col: string, val: string) {
+    setColFilters((prev) => {
+      const next = { ...prev };
+      if (val) next[col] = val; else delete next[col];
+      return next;
+    });
+  }
   const fileRef = useRef<HTMLInputElement>(null);
   const pdfRef = useRef<HTMLInputElement>(null);
 
@@ -397,28 +419,67 @@ function FacturasContent() {
     setExpandedFactura((prev) => (prev === facturaId ? null : facturaId));
   }
 
-  // KPIs rápidos
-  const lista = facturas.data ?? [];
-  const listaActiva = lista.filter((f) => f.estado_sri !== "ANULADA");
-  const cobrosMap = cobrosAgregados.data;
-  const totalAnio = listaActiva.reduce((s, f) => s + (Number(f.total) || 0), 0);
-  const numFacturas = listaActiva.length;
-  const totalPendiente = lista.reduce((s, f) => {
-    const vn = calcValorNeto(
-      Number(f.total),
-      Number(f.iva),
-      Number(f.subtotal),
-      Number(f.retencion_iva_pct ?? 0),
-      Number(f.retencion_ir_pct ?? 0),
-    );
-    const cobrado = cobrosMap?.get(f.id) ?? 0;
-    return s + Math.max(0, vn - cobrado);
-  }, 0);
-
   const proyectoNombre = (id: string | null) => {
     if (!id) return "—";
     return (proyectos.data?.rows ?? []).find((p) => p.id === id)?.nombre ?? "—";
   };
+
+  // ─── Filtro mes + sort + colFilters ──────────────────────────────────────────
+  const cobrosMap = cobrosAgregados.data;
+
+  const listaBase = facturas.data ?? [];
+  // Filtro de mes (client-side)
+  const lista = useMemo(
+    () =>
+      mes !== null
+        ? listaBase.filter((f) => {
+            if (!f.fecha) return false;
+            return new Date(f.fecha + "T00:00:00").getMonth() + 1 === mes;
+          })
+        : listaBase,
+    [listaBase, mes],
+  );
+
+  // Función de valor para sort/filter
+  function getFacturaVal(f: FacturaEmitida, col: string): string | number {
+    const vn = calcValorNeto(
+      Number(f.total), Number(f.iva), Number(f.subtotal),
+      Number(f.retencion_iva_pct ?? 0), Number(f.retencion_ir_pct ?? 0),
+    );
+    const cobrado = cobrosMap?.get(f.id) ?? 0;
+    switch (col) {
+      case "numero":   return f.numero ?? "";
+      case "fecha":    return f.fecha ?? "";
+      case "cliente":  return f.razon_social ?? "";
+      case "proyecto": return proyectoNombre(f.proyecto_id);
+      case "subtotal": return Number(f.subtotal);
+      case "iva":      return Number(f.iva);
+      case "total":    return Number(f.total);
+      case "saldo":    return Math.max(0, vn - cobrado);
+      case "estado":   return f.estado_sri ?? "";
+      default:         return "";
+    }
+  }
+
+  const listaFiltrada = applySort(
+    applyColFilters(lista, colFilters, getFacturaVal),
+    sort,
+    getFacturaVal,
+  );
+  const hasFilters = Object.values(colFilters).some((v) => v);
+
+  // KPIs sobre lista filtrada por mes
+  const listaActiva = lista.filter((f) => f.estado_sri !== "ANULADA");
+  const totalAnio = listaActiva.reduce((s, f) => s + (Number(f.total) || 0), 0);
+  const numFacturas = listaActiva.length;
+  const totalPendiente = lista.reduce((s, f) => {
+    const vn = calcValorNeto(
+      Number(f.total), Number(f.iva), Number(f.subtotal),
+      Number(f.retencion_iva_pct ?? 0), Number(f.retencion_ir_pct ?? 0),
+    );
+    const cobrado = cobrosMap?.get(f.id) ?? 0;
+    return s + Math.max(0, vn - cobrado);
+  }, 0);
 
   return (
     <>
@@ -429,14 +490,31 @@ function FacturasContent() {
           <div className="flex items-center gap-2">
             <select
               value={anio}
-              onChange={(e) => setAnio(Number(e.target.value))}
+              onChange={(e) => { setAnio(Number(e.target.value)); setMes(null); }}
               className="h-8 rounded-md border bg-background px-2 text-sm"
             >
               {anios.map((a) => (
-                <option key={a} value={a}>
-                  {a}
-                </option>
+                <option key={a} value={a}>{a}</option>
               ))}
+            </select>
+            <select
+              value={mes ?? "todos"}
+              onChange={(e) => setMes(e.target.value === "todos" ? null : Number(e.target.value))}
+              className="h-8 rounded-md border bg-background px-2 text-sm"
+            >
+              <option value="todos">Todos los meses</option>
+              <option value="1">Enero</option>
+              <option value="2">Febrero</option>
+              <option value="3">Marzo</option>
+              <option value="4">Abril</option>
+              <option value="5">Mayo</option>
+              <option value="6">Junio</option>
+              <option value="7">Julio</option>
+              <option value="8">Agosto</option>
+              <option value="9">Septiembre</option>
+              <option value="10">Octubre</option>
+              <option value="11">Noviembre</option>
+              <option value="12">Diciembre</option>
             </select>
             <input
               ref={fileRef}
@@ -481,7 +559,11 @@ function FacturasContent() {
       {/* KPIs rápidos */}
       <div className="mb-6 grid gap-4 sm:grid-cols-4">
         <KpiCard
-          label={`Total facturado ${anio}`}
+          label={
+            mes !== null
+              ? `Total facturado ${["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"][mes - 1]} ${anio}`
+              : `Total facturado ${anio}`
+          }
           value={formatCurrency(totalAnio)}
           icon={<TrendingUp className="size-4 text-emerald-600" />}
         />
@@ -506,33 +588,97 @@ function FacturasContent() {
       {/* Tabla */}
       {facturas.isLoading ? (
         <LoadingState label="Cargando facturas..." />
-      ) : lista.length === 0 ? (
+      ) : listaBase.length === 0 ? (
         <EmptyState
           icon={FileText}
           title="Sin facturas"
           description={`No hay facturas registradas para ${anio}. Carga un XML o agrega manualmente.`}
         />
       ) : (
+        <>
+          {/* Barra count + filtros */}
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              {listaFiltrada.length !== lista.length
+                ? `${listaFiltrada.length} de ${lista.length} facturas`
+                : `${lista.length} facturas`}
+            </p>
+            <div className="flex items-center gap-2">
+              {hasFilters && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs text-muted-foreground"
+                  onClick={() => setColFilters({})}
+                >
+                  Limpiar filtros
+                </Button>
+              )}
+              <Button
+                variant={showFilters ? "secondary" : "outline"}
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => setShowFilters((v) => !v)}
+              >
+                <Filter className="size-3 mr-1" />
+                {showFilters ? "Ocultar filtros" : "Filtrar columnas"}
+              </Button>
+            </div>
+          </div>
+
         <div className="rounded-xl border bg-card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="border-b bg-muted/30">
                 <tr className="text-left text-xs uppercase text-muted-foreground">
-                  <th className="px-4 py-3 font-medium">Número</th>
-                  <th className="px-4 py-3 font-medium">Fecha</th>
-                  <th className="px-4 py-3 font-medium">Cliente</th>
-                  <th className="px-4 py-3 font-medium">Proyecto</th>
-                  <th className="px-4 py-3 font-medium text-right">Subtotal</th>
-                  <th className="px-4 py-3 font-medium text-right">IVA</th>
-                  <th className="px-4 py-3 font-medium text-right">Total</th>
-                  <th className="px-4 py-3 font-medium text-right">Saldo</th>
-                  <th className="px-4 py-3 font-medium">Estado SRI</th>
+                  <th className="px-4 py-3 font-medium">
+                    <SortableHeader label="Número" col="numero" sort={sort} onSort={handleSort} />
+                  </th>
+                  <th className="px-4 py-3 font-medium">
+                    <SortableHeader label="Fecha" col="fecha" sort={sort} onSort={handleSort} />
+                  </th>
+                  <th className="px-4 py-3 font-medium">
+                    <SortableHeader label="Cliente" col="cliente" sort={sort} onSort={handleSort} />
+                  </th>
+                  <th className="px-4 py-3 font-medium">
+                    <SortableHeader label="Proyecto" col="proyecto" sort={sort} onSort={handleSort} />
+                  </th>
+                  <th className="px-4 py-3 font-medium text-right">
+                    <SortableHeader label="Subtotal" col="subtotal" sort={sort} onSort={handleSort} align="right" />
+                  </th>
+                  <th className="px-4 py-3 font-medium text-right">
+                    <SortableHeader label="IVA" col="iva" sort={sort} onSort={handleSort} align="right" />
+                  </th>
+                  <th className="px-4 py-3 font-medium text-right">
+                    <SortableHeader label="Total" col="total" sort={sort} onSort={handleSort} align="right" />
+                  </th>
+                  <th className="px-4 py-3 font-medium text-right">
+                    <SortableHeader label="Saldo" col="saldo" sort={sort} onSort={handleSort} align="right" />
+                  </th>
+                  <th className="px-4 py-3 font-medium">
+                    <SortableHeader label="Estado SRI" col="estado" sort={sort} onSort={handleSort} />
+                  </th>
                   <th className="px-4 py-3 font-medium">Cobros</th>
                   <th className="px-4 py-3" />
                 </tr>
+                {showFilters && (
+                  <tr className="border-t bg-muted/10">
+                    <FilterCell col="numero" colFilters={colFilters} setColFilter={setColFilter} />
+                    <FilterCell col="fecha" colFilters={colFilters} setColFilter={setColFilter} />
+                    <FilterCell col="cliente" colFilters={colFilters} setColFilter={setColFilter} />
+                    <FilterCell col="proyecto" colFilters={colFilters} setColFilter={setColFilter} />
+                    <FilterCell col="subtotal" colFilters={colFilters} setColFilter={setColFilter} />
+                    <FilterCell col="iva" colFilters={colFilters} setColFilter={setColFilter} />
+                    <FilterCell col="total" colFilters={colFilters} setColFilter={setColFilter} />
+                    <FilterCell col="saldo" colFilters={colFilters} setColFilter={setColFilter} />
+                    <FilterCell col="estado" colFilters={colFilters} setColFilter={setColFilter} />
+                    <th />
+                    <th />
+                  </tr>
+                )}
               </thead>
               <tbody className="divide-y">
-                {lista.map((f) => {
+                {listaFiltrada.map((f) => {
                   const valorNeto = calcValorNeto(
                     Number(f.total),
                     Number(f.iva),
@@ -708,6 +854,7 @@ function FacturasContent() {
             </table>
           </div>
         </div>
+        </>
       )}
 
       {/* Drawer form */}
