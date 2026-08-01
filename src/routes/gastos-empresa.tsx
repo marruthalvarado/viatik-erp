@@ -99,6 +99,7 @@ import {
 } from "@/hooks/entities/use-gastos-empresa";
 import { useCategoriasGasto } from "@/hooks/entities/use-catalogs";
 import { useProveedores } from "@/hooks/entities/use-proveedores";
+import { getProveedorPorRuc } from "@/services/proveedores";
 import { useProyectos } from "@/hooks/entities/use-proyectos";
 
 // ─── Error boundary local para el diálogo de importación ─────────────────────
@@ -615,6 +616,18 @@ function GastosEmpresaContent() {
         form.setValue("observacion", match.nombre, { shouldValidate: false });
       }
       setPendingRucLookup(null);
+    } else if (empresaActivaId) {
+      // Fallback: el proveedor existe en la BD pero tiene identificacion=null.
+      // Consultamos directamente por RUC para cubrir ese caso.
+      getProveedorPorRuc(empresaActivaId, pendingRucLookup).then((found) => {
+        if (!found) return;
+        form.setValue("proveedor_id", found.id, { shouldValidate: false });
+        const obs = form.getValues("observacion");
+        if (!obs || obs === xmlParsed?.razon_social) {
+          form.setValue("observacion", found.nombre, { shouldValidate: false });
+        }
+        setPendingRucLookup(null);
+      });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingRucLookup, drawerOpen, proveedores.data?.rows]);

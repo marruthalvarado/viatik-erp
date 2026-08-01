@@ -149,6 +149,61 @@ function parsePdfText(text: string): FacturaXmlData {
     }
   }
 
+  // ── Fallback razón social: buscar nombre del cliente anclándose en el RUC ya encontrado ──
+  // Se activa solo si los casos A y B anteriores fallaron, lo que indica que
+  // "Razón Social" y el valor están muy separados (layout en columnas complejas).
+  if (!razon_social) {
+    // Necesitamos un RUC candidato: si ya extrajimos ruc_cliente lo usamos.
+    // Como en este punto del código ruc_cliente aún no está definido, hacemos
+    // una extracción preliminar del número de 10-13 dígitos más cercano a rsIdx.
+    // Prioridad: patrón "Identificación" (específico del campo del comprador)
+    // Fallback: cualquier número 10-13 dígitos cerca del label "Razón Social"
+    const firstRucCandidate =
+      text.match(/Identificaci[oó]n\s*[:\s]*(\d{10,13})/i)?.[1] ??
+      (rsIdx >= 0
+        ? allLines
+            .slice(Math.max(0, rsIdx - 5), rsIdx + 10)
+            .flatMap((l) => l.match(/\b(\d{10,13})\b/g) ?? [])
+            .find(Boolean)
+        : null) ??
+      null;
+
+    if (firstRucCandidate) {
+      const rucLineIdx = allLines.findIndex((l) => l.includes(firstRucCandidate));
+      if (rucLineIdx >= 0) {
+        // Intento inline: texto antes del RUC en la misma línea
+        const beforeRuc = allLines[rucLineIdx]
+          .replace(new RegExp(`\\s*${firstRucCandidate}[\\s\\S]*`), "")
+          .replace(/\s*(Identificaci[oó]n|Raz[oó]n|Fecha|Direcci[oó]n)[\s\S]*/i, "")
+          .trim();
+        if (beforeRuc && !isKnownLabel(beforeRuc) && !/^\d/.test(beforeRuc) && beforeRuc.length > 3) {
+          razon_social = beforeRuc;
+        } else {
+          // Intento adyacente: líneas vecinas al RUC
+          for (const offset of [-1, 1, -2, 2, -3, 3]) {
+            const i = rucLineIdx + offset;
+            if (i < 0 || i >= allLines.length) continue;
+            const candidate = allLines[i]
+              .trim()
+              .replace(/\s*\d{10,13}[\s\S]*/, "")
+              .replace(/\s*(Identificaci[oó]n|Raz[oó]n|Fecha|Direcci[oó]n)[\s\S]*/i, "")
+              .trim();
+            if (
+              candidate &&
+              !isKnownLabel(candidate) &&
+              !/^\d/.test(candidate) &&
+              !/^\d{2}\/\d{2}\/\d{4}/.test(candidate) &&
+              candidate.length > 3
+            ) {
+              razon_social = candidate;
+              break;
+            }
+          }
+        }
+      }
+    }
+  }
+
   // ── RUC del emisor (el vendedor) — campo "R.U.C." en el header del RIDE ──
   // Para gastos de empresa (facturas recibidas), este es el RUC del proveedor.
   // Para facturas emitidas propias, es el RUC de la empresa emisora.
