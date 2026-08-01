@@ -99,7 +99,7 @@ import {
 } from "@/hooks/entities/use-gastos-empresa";
 import { useCategoriasGasto } from "@/hooks/entities/use-catalogs";
 import { useProveedores } from "@/hooks/entities/use-proveedores";
-import { getProveedorPorRuc } from "@/services/proveedores";
+import { getProveedorPorRuc, rucVariants } from "@/services/proveedores";
 import { useProyectos } from "@/hooks/entities/use-proyectos";
 
 // ─── Error boundary local para el diálogo de importación ─────────────────────
@@ -304,10 +304,14 @@ function GastosEmpresaContent() {
     // Estrategia triple: (1) campo identificacion, (2) ruc derivado de gastos previos,
     // (3) proveedor_id almacenado en gastos previos para ese RUC.
     const rows = proveedores.data?.rows ?? [];
+    const prefillRucVariants = prefill?.ruc_emisor ? rucVariants(prefill.ruc_emisor) : [];
     const proveedorMatch = prefill?.ruc_emisor
-      ? (rows.find((p) => p.identificacion === prefill.ruc_emisor) ??
-         rows.find((p) => rucPorProveedor.get(p.id) === prefill.ruc_emisor) ??
-         rows.find((p) => p.id === proveedorPorRuc.get(prefill.ruc_emisor!)))
+      ? (rows.find((p) => p.identificacion && prefillRucVariants.includes(p.identificacion)) ??
+         rows.find((p) => {
+           const rv = rucPorProveedor.get(p.id);
+           return rv ? prefillRucVariants.includes(rv) : false;
+         }) ??
+         rows.find((p) => prefillRucVariants.some((v) => p.id === proveedorPorRuc.get(v))))
       : null;
     // Si no encontramos aún, re-intentar cuando carguen los proveedores
     setPendingRucLookup(prefill?.ruc_emisor && !proveedorMatch ? prefill.ruc_emisor : null);
@@ -605,10 +609,15 @@ function GastosEmpresaContent() {
     if (!pendingRucLookup || !drawerOpen) return;
     const rows = proveedores.data?.rows ?? [];
     if (!rows.length) return;
+    // Comparación tolerante con/sin cero inicial (ej: "0704..." ↔ "704...")
+    const variants = rucVariants(pendingRucLookup);
     const match =
-      rows.find((p) => p.identificacion === pendingRucLookup) ??
-      rows.find((p) => rucPorProveedor.get(p.id) === pendingRucLookup) ??
-      rows.find((p) => p.id === proveedorPorRuc.get(pendingRucLookup));
+      rows.find((p) => p.identificacion && variants.includes(p.identificacion)) ??
+      rows.find((p) => {
+        const rv = rucPorProveedor.get(p.id);
+        return rv ? variants.includes(rv) : false;
+      }) ??
+      rows.find((p) => variants.some((v) => p.id === proveedorPorRuc.get(v)));
     if (match) {
       form.setValue("proveedor_id", match.id, { shouldValidate: false });
       const obs = form.getValues("observacion");
