@@ -176,7 +176,7 @@ export async function buscarReembolsoEnRendicion(
   if (numeroDocumento) {
     const { data } = await supabase
       .from("gastos")
-      .select("id, rendiciones(numero), proveedores(ruc)")
+      .select("id, rendiciones(numero), proveedores(identificacion)")
       .eq("empresa_id", empresaId)
       .eq("numero_documento", numeroDocumento)
       .is("deleted_at", null)
@@ -190,7 +190,7 @@ export async function buscarReembolsoEnRendicion(
         return { encontrado: true, rendicionNumero: num };
       }
       const match = rows.find(
-        (g) => (g.proveedores as { ruc?: string | null } | null)?.ruc === rucEmisor,
+        (g) => (g.proveedores as { identificacion?: string | null } | null)?.identificacion === rucEmisor,
       );
       if (match) {
         const num = (match.rendiciones as { numero?: string | null } | null)?.numero ?? null;
