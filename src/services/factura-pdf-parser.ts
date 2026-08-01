@@ -149,6 +149,27 @@ function parsePdfText(text: string): FacturaXmlData {
     }
   }
 
+  // ── RUC del emisor (el vendedor) — campo "R.U.C." en el header del RIDE ──
+  // Para gastos de empresa (facturas recibidas), este es el RUC del proveedor.
+  // Para facturas emitidas propias, es el RUC de la empresa emisora.
+  let ruc_emisor: string | null = null;
+  const rucHdrIdx = allLines.findIndex((l) => /\bR\.U\.C\b/i.test(l));
+  if (rucHdrIdx >= 0) {
+    // Caso A: inline "R.U.C.: 0704529593001"
+    const inlineRucEmisor = allLines[rucHdrIdx].match(/R\.U\.C\.\s*[:\s]+(\d{10,13})/i);
+    if (inlineRucEmisor) {
+      ruc_emisor = inlineRucEmisor[1];
+    } else {
+      // Caso B: número en línea adyacente
+      for (const offset of [1, -1, 2, -2]) {
+        const i = rucHdrIdx + offset;
+        if (i < 0 || i >= allLines.length) continue;
+        const numMatch = allLines[i].trim().match(/^(\d{10,13})$/);
+        if (numMatch) { ruc_emisor = numMatch[1]; break; }
+      }
+    }
+  }
+
   // ── RUC / Identificación del cliente ──
   // Usamos la línea "Identificación" más cercana a rsIdx para no capturar
   // identificaciones de otras secciones del documento (header del emisor, info adicional).
@@ -247,7 +268,7 @@ function parsePdfText(text: string): FacturaXmlData {
     fecha,
     tipo,
     ruc_cliente,
-    ruc_emisor: null, // PDFs RIDE no exponen el RUC del emisor directamente
+    ruc_emisor,
     razon_social,
     subtotal,
     descuento,

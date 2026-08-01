@@ -321,7 +321,10 @@ function GastosEmpresaContent() {
             clave_acceso: prefill.clave_acceso ?? null,
             numero_documento: prefill.numero ?? null,
             ruc_emisor: prefill.ruc_emisor ?? null,
-            observacion: prefill.razon_social ?? null,
+            // Para PDF RIDE: razon_social = nombre del CLIENTE (comprador), no del emisor.
+            // Si encontramos el proveedor por RUC, usamos su nombre como observación.
+            // Para XML: razon_social ya es el nombre del emisor (correcto).
+            observacion: proveedorMatch?.nombre ?? prefill.razon_social ?? null,
             moneda_origen: null,
             monto_origen: null,
             tipo_cambio: null,
