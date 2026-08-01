@@ -1,15 +1,16 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- CORRECCIÓN: subtotal / iva / total en gastos_empresa
--- Match: ge.ruc_emisor + ge.fecha + ge.total = sri.subtotal (IVA era 0 en DB)
--- Reemplaza <TU_EMPRESA_ID> con tu UUID (ej: 149fb49a-71ee-4c7a-851f-610e78914eee)
+-- CORRECCIÓN: subtotal / iva en gastos_empresa
+-- Match: ge.ruc_emisor + ge.fecha + ge.total = sri.total
+-- (El import guardó el total correcto pero IVA=0 y subtotal=total)
+-- Reemplaza <TU_EMPRESA_ID> con: 149fb49a-71ee-4c7a-851f-610e78914eee
 -- ─────────────────────────────────────────────────────────────────────────────
 
 UPDATE gastos_empresa ge
 SET
   subtotal   = sri.subtotal,
   iva        = sri.iva,
-  total      = sri.total,
   updated_at = now()
+  -- total NO se toca: ya está correcto en la DB
 FROM (VALUES
   ('2023-10-19'::date, '1792261848001', 18.00, 2.16, 20.16),
   ('2023-11-17'::date, '1790427692001', 250.00, 30.00, 280.00),
@@ -625,13 +626,14 @@ FROM (VALUES
 WHERE ge.empresa_id  = '<TU_EMPRESA_ID>'::uuid
   AND ge.ruc_emisor  = sri.ruc_emisor
   AND ge.fecha       = sri.fecha
-  AND ge.total       = sri.subtotal
+  AND ge.total       = sri.total  -- total en DB ya es correcto
   AND ge.iva         = 0
   AND ge.deleted_at  IS NULL;
 
 -- Verificación
-SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE iva=0) AS aun_iva_0,
+SELECT COUNT(*) AS total_reg,
+  COUNT(*) FILTER (WHERE iva=0) AS aun_iva_0,
   COUNT(*) FILTER (WHERE iva>0) AS con_iva,
-  ROUND(SUM(iva)::numeric,2) AS suma_iva
+  ROUND(SUM(iva)::numeric,2)    AS suma_iva
 FROM gastos_empresa
 WHERE empresa_id = '<TU_EMPRESA_ID>'::uuid AND deleted_at IS NULL;
