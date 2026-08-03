@@ -19,12 +19,8 @@ import {
   TrendingDown,
   CheckCircle,
   XCircle,
-  Loader2,
-  ChevronsUpDown,
-  Check,
   Filter,
 } from "lucide-react";
-import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
@@ -33,40 +29,7 @@ import { PageHeader } from "@/components/common/page-header";
 import { LoadingState } from "@/components/common/loading-state";
 import { EmptyState } from "@/components/common/empty-state";
 import { toast } from "@/components/common/toast";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerDescription,
-} from "@/components/common/drawer";
-import {
-  Form,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormControl,
-  FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import {
   SortableHeader,
@@ -76,6 +39,13 @@ import {
   nextSort,
 } from "@/components/common/sortable-header";
 import type { SortState } from "@/components/common/sortable-header";
+import { KpiCard } from "@/components/facturas/kpi-card";
+import { GastoEmpresaDrawer } from "@/components/gastos-empresa/gasto-empresa-drawer";
+import {
+  gastoEmpresaSchema,
+  type GastoEmpresaFormValues,
+  deriveIvaPct,
+} from "@/components/gastos-empresa/gasto-empresa-types";
 
 import { useCompany } from "@/contexts/company-context";
 import { formatCurrency, formatDate } from "@/utils/formatters";
@@ -147,50 +117,6 @@ export const Route = createFileRoute("/gastos-empresa")({
   component: GastosEmpresaPage,
 });
 
-// ─── Schema ───────────────────────────────────────────────────────────────────
-
-const MONEDAS_EXTRANJERAS = [
-  { code: "EUR", label: "EUR — Euro" },
-  { code: "GBP", label: "GBP — Libra esterlina" },
-  { code: "CHF", label: "CHF — Franco suizo" },
-  { code: "JPY", label: "JPY — Yen japonés" },
-  { code: "CNY", label: "CNY — Yuan chino" },
-  { code: "CAD", label: "CAD — Dólar canadiense" },
-  { code: "AUD", label: "AUD — Dólar australiano" },
-  { code: "SEK", label: "SEK — Corona sueca" },
-  { code: "DKK", label: "DKK — Corona danesa" },
-  { code: "NOK", label: "NOK — Corona noruega" },
-];
-
-const schema = z.object({
-  fecha: z.string().min(1, "Requerido"),
-  descripcion: z.string().min(1, "Requerido"),
-  categoria_id: z.string().nullable().optional(),
-  proveedor_id: z.string().nullable().optional(),
-  proyecto_id: z.string().nullable().optional(),
-  responsable: z.string().nullable().optional(),
-  subtotal: z.coerce.number().min(0),
-  iva_pct: z.coerce.number().min(0).max(100).default(0),
-  iva: z.coerce.number().min(0),
-  total: z.coerce.number().min(0),
-  es_deducible: z.boolean(),
-  clave_acceso: z.string().nullable().optional(),
-  numero_documento: z.string().nullable().optional(),
-  ruc_emisor: z.string().nullable().optional(),
-  observacion: z.string().nullable().optional(),
-  moneda_origen: z.string().nullable().optional(),
-  monto_origen: z.coerce.number().nullable().optional(),
-  tipo_cambio: z.coerce.number().nullable().optional(),
-});
-type FormValues = z.infer<typeof schema>;
-
-/** Detecta el % IVA a partir de subtotal e iva almacenados (0, 12, 15 o 0 si no coincide). */
-function deriveIvaPct(subtotal: number, iva: number): number {
-  if (!subtotal || !iva) return 0;
-  const pct = Math.round((iva / subtotal) * 100);
-  return [0, 12, 15].includes(pct) ? pct : 0;
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 function GastosEmpresaPage() {
@@ -217,7 +143,6 @@ function GastosEmpresaContent() {
   const [loadingTxt, setLoadingTxt] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [filasTxt, setFilasTxt] = useState<FilaTxtSri[]>([]);
-  const [proveedorOpen, setProveedorOpen] = useState(false);
   const [sort, setSort] = useState<SortState>({ col: null, dir: "asc" });
   const [colFilters, setColFilters] = useState<Record<string, string>>({});
   const [showFilters, setShowFilters] = useState(false);
@@ -243,7 +168,7 @@ function GastosEmpresaContent() {
   for (let y = currentYear; y >= 2020; y--) anios.push(y);
 
   const filtros = {
-    anio: anio ?? undefined, // null = sin filtro de año (todos)
+    anio: anio ?? undefined,
     soloDeducibles: filtroDeducible === "si" ? true : filtroDeducible === "no" ? false : undefined,
   };
 
@@ -263,8 +188,8 @@ function GastosEmpresaContent() {
   const actualizar = useActualizarGastoEmpresa();
   const eliminar = useEliminarGastoEmpresa();
 
-  const form = useForm<FormValues>({
-    resolver: zodResolver(schema),
+  const form = useForm<GastoEmpresaFormValues>({
+    resolver: zodResolver(gastoEmpresaSchema),
     defaultValues: {
       fecha: new Date().toISOString().split("T")[0],
       descripcion: "",
@@ -287,16 +212,66 @@ function GastosEmpresaContent() {
     },
   });
 
-  // ── Auto-cálculo: iva = subtotal * iva_pct/100, total = subtotal + iva ──────
-  const watchedSubtotal = form.watch("subtotal");
-  const watchedIvaPct = form.watch("iva_pct");
+  // Fallback: proveedor_id → ruc_emisor derivado de los gastos ya cargados.
+  // Cubre proveedores cuyo campo identificacion en la tabla proveedores está vacío.
+  const rucPorProveedor = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const g of gastos.data ?? []) {
+      if (g.proveedor_id && g.ruc_emisor && !map.has(g.proveedor_id)) {
+        map.set(g.proveedor_id, g.ruc_emisor);
+      }
+    }
+    return map;
+  }, [gastos.data]);
+
+  // Reverse: ruc_emisor → proveedor_id (desde gastos ya cargados)
+  const proveedorPorRuc = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const [provId, ruc] of rucPorProveedor) {
+      if (!map.has(ruc)) map.set(ruc, provId);
+    }
+    return map;
+  }, [rucPorProveedor]);
+
+  // RUC pendiente de re-buscar una vez que carguen los proveedores
+  const [pendingRucLookup, setPendingRucLookup] = useState<string | null>(null);
+
+  // Cuando los proveedores cargan después de abrir el drawer, re-intentar el lookup
   useEffect(() => {
-    const sub = Number(watchedSubtotal) || 0;
-    const pct = Number(watchedIvaPct) || 0;
-    const ivaAmt = Math.round(sub * pct) / 100;
-    form.setValue("iva", ivaAmt, { shouldValidate: false });
-    form.setValue("total", parseFloat((sub + ivaAmt).toFixed(2)), { shouldValidate: false });
-  }, [watchedSubtotal, watchedIvaPct]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!pendingRucLookup || !drawerOpen) return;
+    const rows = proveedores.data?.rows ?? [];
+    if (!rows.length) return;
+    // Comparación tolerante con/sin cero inicial (ej: "0704..." ↔ "704...")
+    const variants = rucVariants(pendingRucLookup);
+    const match =
+      rows.find((p) => p.identificacion && variants.includes(p.identificacion)) ??
+      rows.find((p) => {
+        const rv = rucPorProveedor.get(p.id);
+        return rv ? variants.includes(rv) : false;
+      }) ??
+      rows.find((p) => variants.some((v) => p.id === proveedorPorRuc.get(v)));
+    if (match) {
+      form.setValue("proveedor_id", match.id, { shouldValidate: false });
+      const obs = form.getValues("observacion");
+      if (!obs || obs === xmlParsed?.razon_social) {
+        form.setValue("observacion", match.nombre, { shouldValidate: false });
+      }
+      setPendingRucLookup(null);
+    } else if (empresaActivaId) {
+      // Fallback: el proveedor existe en la BD pero tiene identificacion=null.
+      // Consultamos directamente por RUC para cubrir ese caso.
+      getProveedorPorRuc(empresaActivaId, pendingRucLookup).then((found) => {
+        if (!found) return;
+        form.setValue("proveedor_id", found.id, { shouldValidate: false });
+        const obs = form.getValues("observacion");
+        if (!obs || obs === xmlParsed?.razon_social) {
+          form.setValue("observacion", found.nombre, { shouldValidate: false });
+        }
+        setPendingRucLookup(null);
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingRucLookup, drawerOpen, proveedores.data?.rows]);
 
   function openNueva(prefill?: FacturaXmlData) {
     setEditando(null);
@@ -472,7 +447,7 @@ function GastosEmpresaContent() {
     toast.success(`${n} comprobante${n !== 1 ? "s" : ""} importado${n !== 1 ? "s" : ""} correctamente`);
   }
 
-  async function onSubmit(values: FormValues) {
+  async function onSubmit(values: GastoEmpresaFormValues) {
     if (!empresaActivaId) return;
     try {
       // ── Capa 3: advertencia si la misma factura ya está en una rendición ──
@@ -580,67 +555,6 @@ function GastosEmpresaContent() {
   const proveedorNombre = (id: string | null) =>
     id ? ((proveedores.data?.rows ?? []).find((p) => p.id === id)?.nombre ?? "—") : "—";
 
-  // Fallback: proveedor_id → ruc_emisor derivado de los gastos ya cargados.
-  // Cubre proveedores cuyo campo identificacion en la tabla proveedores está vacío.
-  const rucPorProveedor = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const g of gastos.data ?? []) {
-      if (g.proveedor_id && g.ruc_emisor && !map.has(g.proveedor_id)) {
-        map.set(g.proveedor_id, g.ruc_emisor);
-      }
-    }
-    return map;
-  }, [gastos.data]);
-
-  // Reverse: ruc_emisor → proveedor_id (desde gastos ya cargados)
-  const proveedorPorRuc = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const [provId, ruc] of rucPorProveedor) {
-      if (!map.has(ruc)) map.set(ruc, provId);
-    }
-    return map;
-  }, [rucPorProveedor]);
-
-  // RUC pendiente de re-buscar una vez que carguen los proveedores
-  const [pendingRucLookup, setPendingRucLookup] = useState<string | null>(null);
-
-  // Cuando los proveedores cargan después de abrir el drawer, re-intentar el lookup
-  useEffect(() => {
-    if (!pendingRucLookup || !drawerOpen) return;
-    const rows = proveedores.data?.rows ?? [];
-    if (!rows.length) return;
-    // Comparación tolerante con/sin cero inicial (ej: "0704..." ↔ "704...")
-    const variants = rucVariants(pendingRucLookup);
-    const match =
-      rows.find((p) => p.identificacion && variants.includes(p.identificacion)) ??
-      rows.find((p) => {
-        const rv = rucPorProveedor.get(p.id);
-        return rv ? variants.includes(rv) : false;
-      }) ??
-      rows.find((p) => variants.some((v) => p.id === proveedorPorRuc.get(v)));
-    if (match) {
-      form.setValue("proveedor_id", match.id, { shouldValidate: false });
-      const obs = form.getValues("observacion");
-      if (!obs || obs === xmlParsed?.razon_social) {
-        form.setValue("observacion", match.nombre, { shouldValidate: false });
-      }
-      setPendingRucLookup(null);
-    } else if (empresaActivaId) {
-      // Fallback: el proveedor existe en la BD pero tiene identificacion=null.
-      // Consultamos directamente por RUC para cubrir ese caso.
-      getProveedorPorRuc(empresaActivaId, pendingRucLookup).then((found) => {
-        if (!found) return;
-        form.setValue("proveedor_id", found.id, { shouldValidate: false });
-        const obs = form.getValues("observacion");
-        if (!obs || obs === xmlParsed?.razon_social) {
-          form.setValue("observacion", found.nombre, { shouldValidate: false });
-        }
-        setPendingRucLookup(null);
-      });
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingRucLookup, drawerOpen, proveedores.data?.rows]);
-
   // ─── Sort + filter ───────────────────────────────────────────────────────────
   function getGastoVal(g: (typeof lista)[0], col: string): string | number {
     switch (col) {
@@ -676,15 +590,13 @@ function GastosEmpresaContent() {
               onChange={(e) => {
                 const v = e.target.value;
                 setAnio(v === "todos" ? null : Number(v));
-                setMes(null); // reset mes al cambiar año
+                setMes(null);
               }}
               className="h-8 rounded-md border bg-background px-2 text-sm"
             >
               <option value="todos">Todos los años</option>
               {anios.map((a) => (
-                <option key={a} value={a}>
-                  {a}
-                </option>
+                <option key={a} value={a}>{a}</option>
               ))}
             </select>
             {anio !== null && (
@@ -895,7 +807,10 @@ function GastosEmpresaContent() {
                       {formatCurrency(g.total)}
                       {g.moneda_origen && (
                         <div className="text-[10px] font-normal text-blue-600 tabular-nums">
-                          {Number(g.monto_origen).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{" "}
+                          {Number(g.monto_origen).toLocaleString("en-US", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}{" "}
                           {g.moneda_origen}
                         </div>
                       )}
@@ -974,491 +889,25 @@ function GastosEmpresaContent() {
         />
       </ImportDialogBoundary>
 
-      {/* Drawer form */}
-      <Drawer open={drawerOpen} onOpenChange={setDrawerOpen}>
-        <DrawerContent>
-          <DrawerHeader>
-            <DrawerTitle>{editando ? "Editar gasto" : "Nuevo gasto empresa"}</DrawerTitle>
-            <DrawerDescription>
-              {xmlParsed && !editando
-                ? `Datos del comprobante · ${xmlParsed.numero}`
-                : "Completa los datos del gasto operativo."}
-            </DrawerDescription>
-          </DrawerHeader>
-          <div className="overflow-y-auto p-4">
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="fecha"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Fecha</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="responsable"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Responsable <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
-                        <FormControl>
-                          <Input placeholder="Nombre del responsable" {...field} value={field.value ?? ""} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <FormField
-                  control={form.control}
-                  name="descripcion"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Descripción</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Servicio de internet, arriendo, suministros…" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="numero_documento"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>N° Factura <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
-                        <FormControl>
-                          <Input placeholder="001-001-000000123" {...field} value={field.value ?? ""} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="ruc_emisor"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>RUC emisor <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
-                        <FormControl>
-                          <Input placeholder="1790000000001" {...field} value={field.value ?? ""} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="categoria_id"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Categoría</FormLabel>
-                        <Select
-                          onValueChange={(v) => field.onChange(v === "__none__" ? null : v)}
-                          value={field.value ?? "__none__"}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Sin categoría" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="__none__">Sin categoría</SelectItem>
-                            {(categorias.data?.rows ?? []).map((c) => (
-                              <SelectItem key={c.id} value={c.id}>
-                                {c.nombre}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="proveedor_id"
-                    render={({ field }) => {
-                      const provList = proveedores.data?.rows ?? [];
-                      const selected = provList.find((p) => p.id === field.value);
-                      return (
-                        <FormItem>
-                          <FormLabel>Proveedor</FormLabel>
-                          <Popover open={proveedorOpen} onOpenChange={setProveedorOpen}>
-                            <PopoverTrigger asChild>
-                              <FormControl>
-                                <Button
-                                  variant="outline"
-                                  role="combobox"
-                                  className="w-full justify-between font-normal text-sm h-9 px-3"
-                                >
-                                  <span className={cn("truncate", !selected && "text-muted-foreground")}>
-                                    {selected ? selected.nombre : "Sin proveedor"}
-                                  </span>
-                                  <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
-                                </Button>
-                              </FormControl>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-[280px] p-0" align="start">
-                              <Command>
-                                <CommandInput placeholder="Buscar proveedor..." />
-                                <CommandList>
-                                  <CommandEmpty>Sin resultados.</CommandEmpty>
-                                  <CommandGroup>
-                                    <CommandItem
-                                      value="__none__"
-                                      onSelect={() => {
-                                        field.onChange(null);
-                                        setProveedorOpen(false);
-                                      }}
-                                    >
-                                      <Check className={cn("mr-2 size-4", !field.value ? "opacity-100" : "opacity-0")} />
-                                      Sin proveedor
-                                    </CommandItem>
-                                    {provList.map((p) => (
-                                      <CommandItem
-                                        key={p.id}
-                                        value={`${p.nombre} ${p.identificacion ?? rucPorProveedor.get(p.id) ?? ""}`}
-                                        onSelect={() => {
-                                          field.onChange(p.id);
-                                          const ruc = p.identificacion ?? rucPorProveedor.get(p.id) ?? null;
-                                          if (ruc) form.setValue("ruc_emisor", ruc);
-                                          setProveedorOpen(false);
-                                        }}
-                                      >
-                                        <Check className={cn("mr-2 size-4", field.value === p.id ? "opacity-100" : "opacity-0")} />
-                                        <div>
-                                          <div>{p.nombre}</div>
-                                          {(p.identificacion ?? rucPorProveedor.get(p.id)) && (
-                                            <div className="text-xs text-muted-foreground">
-                                              {p.identificacion ?? rucPorProveedor.get(p.id)}
-                                            </div>
-                                          )}
-                                        </div>
-                                      </CommandItem>
-                                    ))}
-                                  </CommandGroup>
-                                </CommandList>
-                              </Command>
-                            </PopoverContent>
-                          </Popover>
-                          <FormMessage />
-                        </FormItem>
-                      );
-                    }}
-                  />
-                </div>
-
-                <FormField
-                  control={form.control}
-                  name="proyecto_id"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Proyecto <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
-                      <Select
-                        onValueChange={(v) => field.onChange(v === "__none__" ? null : v)}
-                        value={field.value ?? "__none__"}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Sin proyecto" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="__none__">Sin proyecto</SelectItem>
-                          {(proyectos.data?.rows ?? []).map((p) => (
-                            <SelectItem key={p.id} value={p.id}>
-                              {p.nombre}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {/* ── Moneda de origen (importaciones) ─────────────────── */}
-                <div className="rounded-lg border border-dashed px-3 pt-3 pb-2 space-y-3">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                    Moneda de origen
-                  </p>
-                  <FormField
-                    control={form.control}
-                    name="moneda_origen"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Moneda</FormLabel>
-                        <Select
-                          value={field.value ?? "__usd__"}
-                          onValueChange={(v) => {
-                            field.onChange(v === "__usd__" ? null : v);
-                            if (v === "__usd__") {
-                              form.setValue("monto_origen", null);
-                              form.setValue("tipo_cambio", null);
-                            }
-                          }}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="USD — Dólar (por defecto)" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="__usd__">USD — Dólar (por defecto)</SelectItem>
-                            {MONEDAS_EXTRANJERAS.map((m) => (
-                              <SelectItem key={m.code} value={m.code}>
-                                {m.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  {form.watch("moneda_origen") && (
-                    <div className="grid grid-cols-2 gap-3">
-                      <FormField
-                        control={form.control}
-                        name="monto_origen"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>
-                              Monto ({form.watch("moneda_origen")})
-                            </FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                placeholder="0.00"
-                                value={field.value ?? ""}
-                                onChange={(e) => {
-                                  const v = parseFloat(e.target.value) || null;
-                                  field.onChange(v);
-                                  const tc = form.getValues("tipo_cambio") ?? 0;
-                                  if (v && tc) {
-                                    form.setValue("subtotal", parseFloat((v * tc).toFixed(2)));
-                                    form.setValue("total", parseFloat((v * tc).toFixed(2)));
-                                  }
-                                }}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="tipo_cambio"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Tipo de cambio (a USD)</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                step="0.000001"
-                                min="0"
-                                placeholder="1.000000"
-                                value={field.value ?? ""}
-                                onChange={(e) => {
-                                  const v = parseFloat(e.target.value) || null;
-                                  field.onChange(v);
-                                  const mo = form.getValues("monto_origen") ?? 0;
-                                  if (mo && v) {
-                                    form.setValue("subtotal", parseFloat((mo * v).toFixed(2)));
-                                    form.setValue("total", parseFloat((mo * v).toFixed(2)));
-                                  }
-                                }}
-                              />
-                            </FormControl>
-                            <p className="text-[11px] text-muted-foreground mt-1">
-                              Tipo indicado por el banco
-                            </p>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  )}
-                </div>
-
-                {/* Subtotal + % IVA */}
-                <div className="grid grid-cols-2 gap-3">
-                  <FormField
-                    control={form.control}
-                    name="subtotal"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Subtotal (base)</FormLabel>
-                        <FormControl>
-                          <Input type="number" step="0.01" min="0" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="iva_pct"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>% IVA</FormLabel>
-                        <Select
-                          value={String(field.value ?? 0)}
-                          onValueChange={(v) => field.onChange(Number(v))}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="0%" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="0">0%</SelectItem>
-                            <SelectItem value="12">12%</SelectItem>
-                            <SelectItem value="15">15%</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
-                {/* IVA y Total (calculados automáticamente) */}
-                <div className="grid grid-cols-2 gap-3">
-                  <FormField
-                    control={form.control}
-                    name="iva"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>IVA</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            {...field}
-                            readOnly
-                            className="bg-muted/40 cursor-default"
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="total"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Total</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            {...field}
-                            readOnly
-                            className="bg-muted/40 cursor-default font-medium"
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                </div>
-
-                <FormField
-                  control={form.control}
-                  name="es_deducible"
-                  render={({ field }) => (
-                    <FormItem className="flex items-center gap-3">
-                      <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                      <div>
-                        <FormLabel className="cursor-pointer">Gasto deducible</FormLabel>
-                        <p className="text-[11px] text-muted-foreground">
-                          Desmarca si este gasto no aplica para deducción de IR.
-                        </p>
-                      </div>
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="observacion"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Observación <span className="text-muted-foreground font-normal">(opcional)</span></FormLabel>
-                      <FormControl>
-                        <Input placeholder="Proveedor, número de comprobante, detalle…" {...field} value={field.value ?? ""} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <div className="flex justify-end gap-2 pt-2">
-                  <Button type="button" variant="outline" onClick={() => setDrawerOpen(false)}>
-                    Cancelar
-                  </Button>
-                  <Button type="submit" disabled={crear.isPending || actualizar.isPending}>
-                    {(crear.isPending || actualizar.isPending) && (
-                      <Loader2 className="size-3 mr-1.5 animate-spin" />
-                    )}
-                    {editando ? "Guardar cambios" : "Registrar gasto"}
-                  </Button>
-                </div>
-              </form>
-            </Form>
-          </div>
-        </DrawerContent>
-      </Drawer>
+      {/* Drawer de formulario */}
+      <GastoEmpresaDrawer
+        open={drawerOpen}
+        onOpenChange={setDrawerOpen}
+        form={form}
+        editando={editando}
+        xmlParsed={xmlParsed}
+        onSubmit={onSubmit}
+        categorias={(categorias.data?.rows ?? []).map((c) => ({ id: c.id, nombre: c.nombre }))}
+        proveedores={(proveedores.data?.rows ?? []).map((p) => ({
+          id: p.id,
+          nombre: p.nombre,
+          identificacion: p.identificacion,
+        }))}
+        proyectos={(proyectos.data?.rows ?? []).map((p) => ({ id: p.id, nombre: p.nombre }))}
+        rucPorProveedor={rucPorProveedor}
+        crearIsPending={crear.isPending}
+        actualizarIsPending={actualizar.isPending}
+      />
     </>
-  );
-}
-
-// ─── KPI Card ─────────────────────────────────────────────────────────────────
-
-function KpiCard({
-  label,
-  value,
-  icon,
-  highlight,
-}: {
-  label: string;
-  value: string;
-  icon?: React.ReactNode;
-  highlight?: boolean;
-}) {
-  return (
-    <div
-      className={`rounded-xl border bg-card p-4 ${highlight ? "border-amber-300 bg-amber-50/30" : ""}`}
-    >
-      <div className="flex items-center justify-between mb-1">
-        {icon && <span className="text-muted-foreground">{icon}</span>}
-        <span className="text-xs uppercase tracking-wide text-muted-foreground">{label}</span>
-      </div>
-      <p className={`text-2xl font-bold tabular-nums ${highlight ? "text-amber-700" : ""}`}>
-        {value}
-      </p>
-    </div>
   );
 }
