@@ -3,7 +3,7 @@
  * Gestion de usuarios de la empresa — visible solo para administradores.
  */
 import { useState } from "react";
-import { UserCheck, UserX, ShieldCheck, User, UserPlus, Pencil } from "lucide-react";
+import { UserCheck, UserX, ShieldCheck, User, UserPlus, Pencil, PlusCircle } from "lucide-react";
 
 import { DataTable } from "@/components/common/data-table";
 import { StatusBadge } from "@/components/common/status-badge";
@@ -27,6 +27,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 
 import {
   useEmpresaUsuarios,
@@ -34,6 +36,7 @@ import {
   useDesactivarUsuario,
   useReactivarUsuario,
   useInvitarUsuarioPorEmail,
+  useSetRolesAdicionales,
 } from "@/hooks/entities/use-empresa-usuarios";
 import { useAdminActualizarPerfil } from "@/hooks/entities/use-perfil";
 import { useRoles } from "@/hooks/entities/use-roles";
@@ -51,6 +54,7 @@ export function UsuariosSection() {
   const reactivar = useReactivarUsuario();
   const invitar = useInvitarUsuarioPorEmail();
   const actualizarPerfil = useAdminActualizarPerfil();
+  const setRolesAdicionales = useSetRolesAdicionales();
 
   const roles = rolesData?.rows ?? [];
   const [changingRol, setChangingRol] = useState<string | null>(null);
@@ -65,6 +69,7 @@ export function UsuariosSection() {
   const [editNombres, setEditNombres] = useState("");
   const [editApellidos, setEditApellidos] = useState("");
   const [editCargo, setEditCargo] = useState("");
+  const [editRolesAdicionales, setEditRolesAdicionales] = useState<string[]>([]);
   const [editError, setEditError] = useState<string | null>(null);
 
   function openEditDialog(m: EmpresaUsuario) {
@@ -72,7 +77,14 @@ export function UsuariosSection() {
     setEditNombres(m.nombres ?? "");
     setEditApellidos(m.apellidos ?? "");
     setEditCargo(m.cargo ?? "");
+    setEditRolesAdicionales(m.roles_adicionales ?? []);
     setEditError(null);
+  }
+
+  function toggleRolAdicional(rolId: string) {
+    setEditRolesAdicionales((prev) =>
+      prev.includes(rolId) ? prev.filter((r) => r !== rolId) : [...prev, rolId],
+    );
   }
 
   function extractMsg(err: unknown, fallback: string): string {
@@ -140,6 +152,17 @@ export function UsuariosSection() {
           cargo: editCargo.trim(),
         },
       });
+      // Guardar roles adicionales si cambiaron
+      const rolesActuales = editTarget.roles_adicionales ?? [];
+      const cambiaron =
+        editRolesAdicionales.length !== rolesActuales.length ||
+        editRolesAdicionales.some((r) => !rolesActuales.includes(r));
+      if (cambiaron) {
+        await setRolesAdicionales.mutateAsync({
+          euId: editTarget.id,
+          roles: editRolesAdicionales,
+        });
+      }
       toast.success("Perfil actualizado.");
       setEditTarget(null);
     } catch (err) {
@@ -180,25 +203,43 @@ export function UsuariosSection() {
     {
       key: "rol",
       header: "Rol",
-      className: "w-44",
-      cell: (row) => (
-        <Select
-          value={row.rol_id}
-          onValueChange={(v) => void handleCambiarRol(row.id, v)}
-          disabled={changingRol === row.id}
-        >
-          <SelectTrigger className="h-8 text-sm">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {roles.map((r) => (
-              <SelectItem key={r.id} value={r.id}>
-                {r.nombre}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      ),
+      className: "w-52",
+      cell: (row) => {
+        const adicionales = row.roles_adicionales ?? [];
+        const nombresAdicionales = roles
+          .filter((r) => adicionales.includes(r.id))
+          .map((r) => r.nombre);
+        return (
+          <div className="flex flex-col gap-1">
+            <Select
+              value={row.rol_id}
+              onValueChange={(v) => void handleCambiarRol(row.id, v)}
+              disabled={changingRol === row.id}
+            >
+              <SelectTrigger className="h-8 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {roles.map((r) => (
+                  <SelectItem key={r.id} value={r.id}>
+                    {r.nombre}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {nombresAdicionales.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {nombresAdicionales.map((n) => (
+                  <Badge key={n} variant="secondary" className="gap-1 text-xs py-0">
+                    <PlusCircle className="size-2.5" />
+                    {n}
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: "acciones",
@@ -369,6 +410,34 @@ export function UsuariosSection() {
                 placeholder="Gerente de Operaciones"
               />
             </div>
+            {/* Roles adicionales: todos los roles excepto el primario */}
+            {roles.filter((r) => r.id !== editTarget?.rol_id).length > 0 && (
+              <div className="grid gap-1.5">
+                <Label>Roles adicionales</Label>
+                <p className="text-xs text-muted-foreground">
+                  Permite que este usuario actúe en pasos del workflow que requieran estos roles.
+                </p>
+                <div className="flex flex-col gap-1.5 rounded-md border p-3">
+                  {roles
+                    .filter((r) => r.id !== editTarget?.rol_id)
+                    .map((r) => (
+                      <div key={r.id} className="flex items-center gap-2">
+                        <Checkbox
+                          id={`rol-adicional-${r.id}`}
+                          checked={editRolesAdicionales.includes(r.id)}
+                          onCheckedChange={() => toggleRolAdicional(r.id)}
+                        />
+                        <label
+                          htmlFor={`rol-adicional-${r.id}`}
+                          className="cursor-pointer text-sm"
+                        >
+                          {r.nombre}
+                        </label>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
             {editError && (
               <Alert variant="destructive">
                 <AlertDescription>{editError}</AlertDescription>

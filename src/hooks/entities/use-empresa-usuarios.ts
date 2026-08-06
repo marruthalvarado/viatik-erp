@@ -18,6 +18,7 @@ export interface EmpresaUsuario {
   activo: boolean | null;
   fecha_inicio: string | null;
   fecha_fin: string | null;
+  roles_adicionales: string[] | null;
   nombres: string;
   apellidos: string | null;
   cargo: string | null;
@@ -141,6 +142,26 @@ export function useInvitarUsuarioPorEmail() {
       });
       if (error) throw error;
       return data as { ok: boolean; ya_miembro: boolean };
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["empresa_usuarios", empresaActivaId] });
+    },
+  });
+}
+
+// ─── Hook: actualizar roles adicionales de un usuario ────────────────────────
+
+export function useSetRolesAdicionales() {
+  const qc = useQueryClient();
+  const { empresaActivaId } = useCompany();
+
+  return useMutation({
+    mutationFn: async ({ euId, roles }: { euId: string; roles: string[] }) => {
+      const { error } = await supabase.rpc("admin_set_roles_adicionales", {
+        p_eu_id: euId,
+        p_roles: roles,
+      });
+      if (error) throw error;
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["empresa_usuarios", empresaActivaId] });
