@@ -21,7 +21,7 @@ import type { OcrExtraccion, OcrExtraccionInsert } from "@/types/entities";
 import { uploadDocumento, type StorageUploadOptions } from "./ocr-storage";
 import { activeOcrProvider, type IOcrProvider } from "./ocr-provider";
 import { extractFromXml } from "./xml-extractor";
-import { readPdfAsBase64 } from "./pdf-extractor";
+import { readPdfAsBase64, extractPdfTextLocal } from "./pdf-extractor";
 import { EdgeFunctionDocumentProvider } from "@/services/ai/edge-function-provider";
 
 // ─── Tipos de entrada/salida ──────────────────────────────────────────────────
@@ -284,21 +284,37 @@ async function ejecutarExtraccionXml(file: File, extraccionId: string): Promise<
  */
 async function ejecutarExtraccionPdf(file: File, extraccionId: string): Promise<OcrExtraccion> {
   let textoExtraido: string | null = null;
+  let ocrProveedor = "pdf_text";
   let estado = "completado";
   let errorMensaje: string | null = null;
   const t0 = Date.now();
 
   try {
-    const { base64 } = await readPdfAsBase64(file);
-    // Llamamos directamente al provider para obtener la extracción IA
-    // y guardamos la representación textual del resultado como texto_extraido
-    const edgeProvider = new EdgeFunctionDocumentProvider();
-    const extraccion = await edgeProvider.extractExpenseFromPdf(base64);
-    // Serializar la extracción como texto estructurado para reutilizarla luego
-    textoExtraido = JSON.stringify(extraccion);
+    // 1. Intentar extracción local de texto con PDF.js (no requiere Edge Function)
+    const textoLocal = await extractPdfTextLocal(file);
+
+    if (textoLocal.trim().length >= 20) {
+      // PDF digital con capa de texto — lo guardamos directo
+      textoExtraido = textoLocal;
+      ocrProveedor = "pdf_text";
+    } else {
+      // PDF escaneado (sin texto extraíble) — intentar Edge Function con Vision
+      const { base64 } = await readPdfAsBase64(file);
+      const edgeProvider = new EdgeFunctionDocumentProvider();
+      const extraccion = await edgeProvider.extractExpenseFromPdf(base64);
+      textoExtraido = JSON.stringify(extraccion);
+      ocrProveedor = "openai_vision_pdf";
+    }
   } catch (err) {
-    estado = "error";
-    errorMensaje = err instanceof Error ? err.message : String(err);
+    if (textoExtraido) {
+      // Extracción local funcionó pero Edge Function falló en PDF escaneado
+      // Guardamos el texto parcial para que el usuario llene manualmente
+      ocrProveedor = "pdf_text";
+      estado = "completado";
+    } else {
+      estado = "error";
+      errorMensaje = err instanceof Error ? err.message : String(err);
+    }
   }
 
   const { data, error } = await supabase
@@ -307,7 +323,7 @@ async function ejecutarExtraccionPdf(file: File, extraccionId: string): Promise<
       estado,
       texto_extraido: textoExtraido,
       error_mensaje: errorMensaje,
-      ocr_proveedor: "openai_vision_pdf",
+      ocr_proveedor: ocrProveedor,
       tiempo_procesamiento_ms: Date.now() - t0,
     })
     .eq("id", extraccionId)

@@ -79,10 +79,12 @@ export async function extractExpenseFromDocumento(
   if (ocrData.estado !== "completado" || !ocrData.texto_extraido?.trim()) {
     const extra = (ocrData as Record<string, unknown>)["error_mensaje"];
     const detalle = typeof extra === "string" && extra ? `: ${extra}` : "";
-    throw new DocumentAIError(
-      `El documento no pudo procesarse (estado: ${ocrData.estado})${detalle}. Verifica que la Edge Function y la API Key de OpenAI estén configuradas.`,
-      "TEXT_TOO_SHORT",
-    );
+    // Mensaje diferenciado según el tipo de error
+    const esPdfEscaneado = detalle.includes("Edge Function") || detalle.includes("OpenAI");
+    const msgBase = esPdfEscaneado
+      ? `PDF escaneado: no se pudo extraer texto automáticamente${detalle}. Ingresa los datos manualmente.`
+      : `El documento no pudo procesarse (estado: ${ocrData.estado})${detalle}.`;
+    throw new DocumentAIError(msgBase, "TEXT_TOO_SHORT");
   }
 
   // Caso especial: PDF procesado por OpenAI Vision — el texto_extraido ya ES el JSON de extracción

@@ -283,7 +283,8 @@ export function AiExpenseWizard({
           .eq("id", documentoId);
       }
 
-      await queryClient.invalidateQueries({ queryKey: ["gastos"] });
+      // Invalidar la lista de gastos de la rendición (key usada en rendicion-tabs)
+      await queryClient.invalidateQueries({ queryKey: ["gastos-enriquecidos", values.rendicion_id] });
       await queryClient.invalidateQueries({ queryKey: ["documentos"] });
       setWizardEstado("completado");
       toast.success("Gasto creado correctamente.");
