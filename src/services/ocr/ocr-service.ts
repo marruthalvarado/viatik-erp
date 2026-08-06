@@ -23,6 +23,7 @@ import { activeOcrProvider, type IOcrProvider } from "./ocr-provider";
 import { extractFromXml } from "./xml-extractor";
 import { readPdfAsBase64, extractPdfTextLocal } from "./pdf-extractor";
 import { EdgeFunctionDocumentProvider } from "@/services/ai/edge-function-provider";
+import { parseSriReceipt } from "./sri-receipt-parser";
 
 // ─── Tipos de entrada/salida ──────────────────────────────────────────────────
 
@@ -212,13 +213,34 @@ async function ejecutarOcr(
     errorMensaje = err instanceof Error ? err.message : String(err);
   }
 
-  const update: Partial<OcrExtraccionInsert> = {
+  // Post-proceso: si Tesseract extrajo texto suficiente, correr parser SRI
+  // El parser detecta campos estructurados (RUC, factura, total, etc.) sin IA.
+  let jsonOcr: Json | null = (resultado?.jsonRaw ?? null) as Json | null;
+  let proveedorFinal = provider.name;
+  let confianzaFinal = resultado?.confianza ?? null;
+
+  if (estado === "completado" && resultado?.textoCompleto && resultado.textoCompleto.trim().length > 30) {
+    try {
+      const sriData = parseSriReceipt(resultado.textoCompleto);
+      if (sriData.confianza >= 40) {
+        // Parser encontró al menos RUC + un campo clave — guardar datos estructurados
+        jsonOcr = sriData as unknown as Json;
+        proveedorFinal = "tesseract_sri";
+        confianzaFinal = sriData.confianza;
+      }
+    } catch {
+      // Error en parser: no bloqueante, continúa con Tesseract raw
+    }
+  }
+
+  const update: Partial<OcrExtraccionInsert> & { ocr_proveedor?: string } = {
     estado,
     error_mensaje: errorMensaje,
     texto_extraido: resultado?.textoCompleto ?? null,
-    confianza: resultado?.confianza ?? null,
-    json_ocr: (resultado?.jsonRaw ?? null) as Json | null,
+    confianza: confianzaFinal,
+    json_ocr: jsonOcr,
     tiempo_procesamiento_ms: resultado?.tiempoMs ?? null,
+    ocr_proveedor: proveedorFinal,
   };
 
   const { data, error } = await supabase

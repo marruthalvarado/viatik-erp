@@ -27,11 +27,13 @@ export interface OcrUploadProps {
 const TIPOS_ACEPTADOS = [
   "image/jpeg",
   "image/png",
+  "image/webp",
+  "image/bmp",
   "application/pdf",
   "application/xml",
   "text/xml",
 ];
-const EXTENSIONES_LABEL = "JPG, PNG, PDF, XML";
+const EXTENSIONES_LABEL = "Foto, JPG, PNG, PDF, XML";
 const MAX_MB = 20;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -131,7 +133,7 @@ export function OcrUpload({ onFileSelected, disabled = false, className }: OcrUp
 
         <div className="flex flex-col gap-1">
           <p className="text-sm font-medium">
-            {dragging ? "Suelta el archivo aquí" : "Arrastra un documento o haz clic"}
+            {dragging ? "Suelta el archivo aquí" : "Arrastra un comprobante, foto o PDF"}
           </p>
           <p className="text-xs text-muted-foreground">
             {EXTENSIONES_LABEL} · Máx. {MAX_MB} MB
@@ -161,7 +163,7 @@ export function OcrUpload({ onFileSelected, disabled = false, className }: OcrUp
       <input
         ref={inputRef}
         type="file"
-        accept=".jpg,.jpeg,.png,.pdf,.xml"
+        accept=".jpg,.jpeg,.png,.webp,.bmp,.pdf,.xml"
         className="sr-only"
         aria-hidden="true"
         tabIndex={-1}

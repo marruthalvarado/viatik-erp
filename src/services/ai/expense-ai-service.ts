@@ -97,6 +97,30 @@ export async function extractExpenseFromDocumento(
     }
   }
 
+  // Caso especial: Tesseract + parser SRI — json_ocr tiene campos estructurados,
+  // no se necesita llamar a OpenAI.
+  if (ocrData.ocr_proveedor === "tesseract_sri" && ocrData.json_ocr) {
+    const d = ocrData.json_ocr as Record<string, unknown>;
+    const items = Array.isArray(d["items"]) ? (d["items"] as string[]) : [];
+    const catInferida =
+      typeof d["categoriaInferida"] === "string" ? d["categoriaInferida"] : null;
+    const obs = items.length ? items.join(", ") : null;
+    return postProcess({
+      proveedor: typeof d["razonSocial"] === "string" ? d["razonSocial"] : null,
+      ruc: typeof d["ruc"] === "string" ? d["ruc"] : null,
+      numeroFactura: typeof d["numeroFactura"] === "string" ? d["numeroFactura"] : null,
+      fecha: typeof d["fecha"] === "string" ? d["fecha"] : null,
+      moneda: typeof d["moneda"] === "string" ? d["moneda"] : "USD",
+      subtotal: typeof d["subtotal"] === "number" ? d["subtotal"] : null,
+      iva: typeof d["iva"] === "number" ? d["iva"] : null,
+      total: typeof d["total"] === "number" ? d["total"] : null,
+      categoriasSugeridas: catInferida ? [catInferida] : [],
+      confianza: typeof d["confianza"] === "number" ? d["confianza"] : 70,
+      observaciones: obs,
+      inconsistencias: [],
+    });
+  }
+
   // Caso especial: XML parseado directamente — usar json_ocr sin llamar a OpenAI
   if (ocrData.ocr_proveedor === "xml_parser" && ocrData.json_ocr) {
     const d = ocrData.json_ocr as Record<string, unknown>;
