@@ -15,6 +15,7 @@ import {
   GitBranch,
   FileSpreadsheet,
   Building2,
+  Settings,
 } from "lucide-react";
 
 import {
@@ -67,6 +68,7 @@ const financeItems: NavItem[] = [
 
 const systemItems: NavItem[] = [
   { title: "Administracion", url: "/administracion", icon: Shield, modulo: "administracion" },
+  { title: "Configuración", url: "/configuracion", icon: Settings, modulo: "configuracion" },
 ];
 
 /** Códigos de rol que siempre tienen acceso total (sin filtro de módulos) */
@@ -84,8 +86,12 @@ export function AppSidebar() {
   // - rol admin → siempre visible
   // - modulos_permitidos null → sin restricción (visible)
   // - modulos_permitidos array → solo los incluidos
+  // Módulos siempre accesibles para cualquier usuario autenticado
+  const MODULOS_PUBLICOS = ["configuracion", "dashboard"];
+
   function puedeVer(modulo: string): boolean {
     if (!rolActivo) return true; // mientras carga, mostrar todo
+    if (MODULOS_PUBLICOS.includes(modulo)) return true;
     if (ROLES_ADMIN.includes(rolActivo.codigo.toLowerCase())) return true;
     if (rolActivo.modulos_permitidos === null) return true;
     return rolActivo.modulos_permitidos.includes(modulo);

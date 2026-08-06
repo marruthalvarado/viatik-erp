@@ -33,7 +33,6 @@ export interface AiExpenseReviewProps {
   rendiciones: Array<{ id: string; numero: string }>;
   proveedores: Array<{ id: string; nombre: string }>;
   categorias: Array<{ id: string; nombre: string }>;
-  estados: Array<{ id: string; nombre: string; codigo: string }>;
   monedas: Array<{ codigo: string; nombre: string; simbolo: string | null }>;
   politica?: Politica | null;
 }
@@ -49,7 +48,6 @@ export function AiExpenseReview({
   rendiciones,
   proveedores,
   categorias,
-  estados,
   monedas,
   politica,
 }: AiExpenseReviewProps) {
@@ -129,7 +127,6 @@ export function AiExpenseReview({
         rendiciones={rendiciones}
         proveedores={proveedores}
         categorias={categorias}
-        estados={estados}
         monedas={monedas}
         politica={politica}
       />

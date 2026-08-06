@@ -262,7 +262,6 @@ function GastosContent() {
         numero_documento: emptyToNull(values.numero_documento),
         fecha: emptyToNull(values.fecha),
         categoria_gasto_id: values.categoria_gasto_id ?? null,
-        estado_gasto_id: values.estado_gasto_id ?? null,
         proveedor_id: values.proveedor_id ?? null,
         moneda_codigo: values.moneda_codigo ?? null,
         valor_factura: values.valor_factura ?? null,
@@ -281,7 +280,6 @@ function GastosContent() {
         numero_documento: emptyToNull(values.numero_documento),
         fecha: emptyToNull(values.fecha),
         categoria_gasto_id: values.categoria_gasto_id ?? null,
-        estado_gasto_id: values.estado_gasto_id ?? null,
         proveedor_id: values.proveedor_id ?? null,
         moneda_codigo: values.moneda_codigo ?? null,
         valor_factura: values.valor_factura ?? null,
@@ -431,7 +429,6 @@ function GastosContent() {
               rendiciones={rendiciones}
               proveedores={proveedores}
               categorias={categorias}
-              estados={estados}
               monedas={monedas}
             />
           </div>

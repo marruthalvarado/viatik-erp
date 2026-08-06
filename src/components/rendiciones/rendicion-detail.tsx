@@ -141,10 +141,13 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
             (1000 * 60 * 60 * 24),
         ) + 1
       : 0;
-  const kmPropio = viajes
-    .filter((v) => v.vehiculo_propio && (v.distancia_km ?? 0) > 0)
-    .reduce((s, v) => s + Number(v.distancia_km ?? 0) * 2 * valorKm, 0);
-  const kmCiudad = diasViaje > 0 && kmCiudadDia > 0 ? diasViaje * kmCiudadDia * valorKm : 0;
+  const viajesConKm = viajes.filter((v) => v.vehiculo_propio && (v.distancia_km ?? 0) > 0);
+  const kmPropio = viajesConKm.reduce((s, v) => s + Number(v.distancia_km ?? 0) * 2 * valorKm, 0);
+  // km_ciudad solo aplica cuando hay viajes con km registrados (distancia_km > 0)
+  const kmCiudad =
+    viajesConKm.length > 0 && diasViaje > 0 && kmCiudadDia > 0
+      ? diasViaje * kmCiudadDia * valorKm
+      : 0;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const gastosSum = (gastosRaw as any[]).reduce((s: number, g: any) => {

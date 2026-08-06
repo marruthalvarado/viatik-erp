@@ -475,13 +475,23 @@ function EnviarDialog({
   defaultAprobadorId: string | null;
 }) {
   const [open, setOpen] = useState(false);
-  const [aprobadorId, setAprobadorId] = useState(defaultAprobadorId ?? "");
+  const [aprobadorId, setAprobadorId] = useState("");
   const { data: aprobadores = [], isLoading } = useAprobadoresDisponibles();
   const enviar = useEnviarRendicion(rendicionId);
   void empresaId;
 
-  function handleOpen() {
-    setAprobadorId(defaultAprobadorId ?? "");
+  // If policy has a default approver, send directly without showing the dialog
+  async function handleClick() {
+    if (defaultAprobadorId) {
+      try {
+        await enviar.mutateAsync(defaultAprobadorId);
+        toast.success("Rendicion enviada para aprobacion.");
+      } catch (err) {
+        toast.error((err as Error).message ?? "Error al enviar.");
+      }
+      return;
+    }
+    setAprobadorId("");
     setOpen(true);
   }
 
@@ -498,9 +508,14 @@ function EnviarDialog({
 
   return (
     <>
-      <Button onClick={handleOpen} className="w-full gap-2" variant="default">
+      <Button
+        onClick={() => void handleClick()}
+        className="w-full gap-2"
+        variant="default"
+        disabled={enviar.isPending}
+      >
         <Send className="size-4" />
-        Enviar para aprobacion
+        {enviar.isPending ? "Enviando..." : "Enviar para aprobacion"}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-sm" onInteractOutside={(e) => e.preventDefault()}>
@@ -534,7 +549,7 @@ function EnviarDialog({
               Cancelar
             </Button>
             <Button
-              onClick={handleEnviar}
+              onClick={() => void handleEnviar()}
               disabled={!aprobadorId || aprobadorId === "__none__" || enviar.isPending}
               className="gap-2"
             >

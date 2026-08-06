@@ -36,8 +36,8 @@ import { GastoForm } from "@/components/gastos/gasto-form";
 import { EMPTY_FORM, gastoToForm } from "@/components/gastos/gasto-types";
 import type { GastoFormValues } from "@/components/gastos/gasto-types";
 import { useActualizarGasto, useCrearGasto, useEliminarGasto } from "@/hooks/entities/use-gastos";
-import { useProveedores } from "@/hooks/entities/use-proveedores";
-import { useCategoriasGasto, useEstadosGasto, useMonedas } from "@/hooks/entities/use-catalogs";
+import { useCrearProveedor, useProveedores } from "@/hooks/entities/use-proveedores";
+import { useCategoriasGasto, useMonedas } from "@/hooks/entities/use-catalogs";
 import { toast } from "@/components/common/toast";
 import { AiExpenseWizard } from "@/components/ai/ai-expense-wizard";
 import { useEnviarAprobacion } from "@/hooks/entities/use-workflow";
@@ -183,19 +183,18 @@ export function GastosTab({
   const enviarAprobacion = useEnviarAprobacion();
 
   // Catalog data for the gasto form
-  const { data: proveedoresData } = useProveedores({ pageSize: 200 });
+  const { data: proveedoresData, refetch: refetchProveedores } = useProveedores({ pageSize: 200 });
   const { data: categoriasData } = useCategoriasGasto({ pageSize: 200 });
-  const { data: estadosData } = useEstadosGasto({ pageSize: 200 });
   const { data: monedasData } = useMonedas({ pageSize: 200 });
   const crear = useCrearGasto();
   const actualizar = useActualizarGasto();
   const eliminar = useEliminarGasto();
+  const crearProveedor = useCrearProveedor();
   const [gastoEditar, setGastoEditar] = useState<Gasto | null>(null);
   const [gastoEliminar, setGastoEliminar] = useState<Gasto | null>(null);
 
   const proveedores = proveedoresData?.rows ?? [];
   const categorias = categoriasData?.rows ?? [];
-  const estados = estadosData?.rows ?? [];
   const monedas = monedasData?.rows ?? [];
 
   async function handleSaveGasto(values: GastoFormValues) {
@@ -211,7 +210,6 @@ export function GastosTab({
       clave_acceso: values.clave_acceso ?? null,
       fecha: emptyToNull(values.fecha),
       categoria_gasto_id: values.categoria_gasto_id ?? null,
-      estado_gasto_id: values.estado_gasto_id ?? null,
       proveedor_id: values.proveedor_id ?? null,
       moneda_codigo: values.moneda_codigo ?? null,
       valor_factura: values.valor_factura ?? null,
@@ -236,7 +234,6 @@ export function GastosTab({
       clave_acceso: values.clave_acceso ?? null,
       descripcion: values.descripcion ?? null,
       categoria_gasto_id: values.categoria_gasto_id ?? null,
-      estado_gasto_id: values.estado_gasto_id ?? null,
       proveedor_id: values.proveedor_id ?? null,
       moneda_codigo: values.moneda_codigo ?? null,
       valor_factura: values.valor_factura ?? null,
@@ -264,6 +261,20 @@ export function GastosTab({
       setGastoEliminar(null);
     } catch {
       toast.error("No se pudo eliminar el gasto.");
+    }
+  }
+
+  async function handleCrearProveedor(nombre: string): Promise<string | null> {
+    if (!empresaActivaId) return null;
+    try {
+      const nuevo = await crearProveedor.mutateAsync({
+        empresa_id: empresaActivaId,
+        nombre: nombre.toUpperCase(),
+      });
+      await refetchProveedores();
+      return (nuevo as { id: string }).id ?? null;
+    } catch {
+      return null;
     }
   }
 
@@ -354,8 +365,9 @@ export function GastosTab({
             (1000 * 60 * 60 * 24),
         ) + 1
       : diasViaje;
+  // km_ciudad solo aplica cuando hay viajes con vehículo propio y km registrados (distancia_km > 0)
   const kmCiudadTotal =
-    viajeVehiculo && diasVehiculo > 0 && kmCiudadDia > 0
+    viajesConVehiculoPropio.length > 0 && diasVehiculo > 0 && kmCiudadDia > 0
       ? diasVehiculo * kmCiudadDia * valorKm
       : 0;
 
@@ -639,8 +651,8 @@ export function GastosTab({
               rendiciones={[{ id: rendicionId, numero: rendicionNumero }]}
               proveedores={proveedores}
               categorias={categorias}
-              estados={estados}
               monedas={monedas}
+              onCrearProveedor={handleCrearProveedor}
               politica={politica}
               viajeNoches={diasViaje}
             />
@@ -698,8 +710,8 @@ export function GastosTab({
                 rendiciones={[{ id: rendicionId, numero: rendicionNumero }]}
                 proveedores={proveedores}
                 categorias={categorias}
-                estados={estados}
                 monedas={monedas}
+                onCrearProveedor={handleCrearProveedor}
                 politica={politica}
                 viajeNoches={diasViaje}
               />

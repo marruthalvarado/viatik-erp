@@ -30,7 +30,7 @@ import { useCrearGasto } from "@/hooks/entities/use-gastos";
 import { useRendiciones } from "@/hooks/entities/use-rendiciones";
 import { useProveedores, useCrearProveedor } from "@/hooks/entities/use-proveedores";
 import { supabase } from "@/integrations/supabase/client";
-import { useCategoriasGasto, useEstadosGasto, useMonedas } from "@/hooks/entities/use-catalogs";
+import { useCategoriasGasto, useMonedas } from "@/hooks/entities/use-catalogs";
 import { usePoliticas } from "@/hooks/entities/use-politicas";
 import { useCompany } from "@/contexts/company-context";
 import { toast } from "@/components/common/toast";
@@ -72,7 +72,6 @@ export function AiExpenseWizard({
   const { data: proveedoresData, refetch: refetchProveedores } = useProveedores({ pageSize: 200 });
   const crearProveedor = useCrearProveedor();
   const { data: categoriasData } = useCategoriasGasto({ pageSize: 200 });
-  const { data: estadosData } = useEstadosGasto({ pageSize: 200 });
   const { data: monedasData } = useMonedas({ pageSize: 200 });
 
   const { data: politicasData } = usePoliticas({ pageSize: 1 });
@@ -81,7 +80,6 @@ export function AiExpenseWizard({
   const rendiciones = rendicionesData?.rows ?? [];
   const proveedores = proveedoresData?.rows ?? [];
   const categorias = categoriasData?.rows ?? [];
-  const estados = estadosData?.rows ?? [];
   const monedas = monedasData?.rows ?? [];
 
   // ─── Hooks ─────────────────────────────────────────────────────────────
@@ -226,7 +224,6 @@ export function AiExpenseWizard({
       numero_documento: propuesta.numeroFactura ?? "",
       fecha: propuesta.fecha ?? "",
       categoria_gasto_id: catSugerida?.id ?? null,
-      estado_gasto_id: null,
       proveedor_id: (() => {
         if (!propuesta.proveedor) return null;
         const normaliza = (s: string) => s.trim().toLowerCase();
@@ -265,7 +262,6 @@ export function AiExpenseWizard({
       clave_acceso: values.clave_acceso ?? null,
       fecha: emptyToNull(values.fecha),
       categoria_gasto_id: values.categoria_gasto_id ?? null,
-      estado_gasto_id: values.estado_gasto_id ?? null,
       proveedor_id: values.proveedor_id ?? null,
       moneda_codigo: values.moneda_codigo ?? null,
       valor_factura: values.valor_factura ?? null,
@@ -367,11 +363,6 @@ export function AiExpenseWizard({
           categorias={categorias.map((c) => ({
             id: c.id,
             nombre: c.nombre,
-          }))}
-          estados={estados.map((e) => ({
-            id: e.id,
-            nombre: e.nombre,
-            codigo: e.codigo,
           }))}
           monedas={monedas.map((m) => ({
             codigo: m.codigo,

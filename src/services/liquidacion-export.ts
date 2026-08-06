@@ -379,7 +379,11 @@ export async function exportarLiquidacion(rendicion: Rendicion): Promise<void> {
       };
     });
 
-  const kmCiudadValor = diasViaje > 0 && kmCiudadDia > 0 ? diasViaje * kmCiudadDia * valorKm : 0;
+  // km_ciudad solo aplica cuando hay viajes con vehículo propio y km registrados (distancia_km > 0)
+  const kmCiudadValor =
+    kmRows.length > 0 && diasViaje > 0 && kmCiudadDia > 0
+      ? diasViaje * kmCiudadDia * valorKm
+      : 0;
 
   const toRow = (g: GastoEnriquecido): AoaRow =>
     row(
@@ -827,7 +831,11 @@ export async function exportarLiquidacionPDF(rendicion: Rendicion): Promise<void
       label: `Vehiculo propio - ${v.origen ? `${v.origen} - ${v.destino}` : v.destino} (${n(v.distancia_km)}km x2)`,
       valor: n(v.distancia_km) * 2 * valorKm,
     }));
-  const kmCiudadValor = diasViaje > 0 && kmCiudadDia > 0 ? diasViaje * kmCiudadDia * valorKm : 0;
+  // km_ciudad solo aplica cuando hay viajes con vehículo propio y km registrados (distancia_km > 0)
+  const kmCiudadValor =
+    kmRows.length > 0 && diasViaje > 0 && kmCiudadDia > 0
+      ? diasViaje * kmCiudadDia * valorKm
+      : 0;
 
   const fmt = (v: number | null | undefined) => `$${Number(v ?? 0).toFixed(2)}`;
   const toBodyRow = (g: GastoEnriquecido) => [
