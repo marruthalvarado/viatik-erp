@@ -253,9 +253,14 @@ export function AiExpenseWizard({
     }
     setWizardEstado("guardando");
 
+    // rendicionIdInicial es la fuente confiable (prop del padre).
+    // values.rendicion_id puede estar vacío si el Select no cargó sus opciones
+    // antes de que el usuario confirmara (stale data en el mount del form).
+    const rendicionIdFinal = values.rendicion_id || rendicionIdInicial;
+
     const payload: GastoInsert = {
       empresa_id: empresaActivaId,
-      rendicion_id: values.rendicion_id,
+      rendicion_id: rendicionIdFinal,
       documento_id: documentoId ?? null,
       descripcion: emptyToNull(values.descripcion),
       numero_documento: emptyToNull(values.numero_documento),
@@ -276,16 +281,26 @@ export function AiExpenseWizard({
       const nuevo = await crearGasto.mutateAsync(payload);
 
       // Vincular el documento a la misma rendición del gasto (si aún no está vinculado)
-      if (documentoId && values.rendicion_id) {
+      if (documentoId && rendicionIdFinal) {
         await supabase
           .from("documentos")
-          .update({ rendicion_id: values.rendicion_id })
+          .update({ rendicion_id: rendicionIdFinal })
           .eq("id", documentoId);
       }
 
-      // Invalidar la lista de gastos de la rendición (key usada en rendicion-tabs)
-      await queryClient.invalidateQueries({ queryKey: ["gastos-enriquecidos", values.rendicion_id] });
-      await queryClient.invalidateQueries({ queryKey: ["documentos"] });
+      // Forzar re-fetch inmediato de la lista de gastos en rendicion-tabs
+      // y del resumen de KPIs en rendicion-detail.
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["gastos-enriquecidos", rendicionIdFinal] }),
+        queryClient.invalidateQueries({ queryKey: ["gastos-summary", rendicionIdFinal] }),
+        queryClient.invalidateQueries({ queryKey: ["documentos"] }),
+      ]);
+      // refetchQueries fuerza re-fetch incluso si no hay observadores activos
+      await queryClient.refetchQueries({
+        queryKey: ["gastos-enriquecidos", rendicionIdFinal],
+        type: "active",
+      });
+
       setWizardEstado("completado");
       toast.success("Gasto creado correctamente.");
       onSuccess(documentoId ?? "", nuevo.id);

@@ -220,6 +220,7 @@ export function GastosTab({
     };
     await crear.mutateAsync(payload);
     await queryClient.invalidateQueries({ queryKey: ["gastos-enriquecidos", rendicionId] });
+    await queryClient.invalidateQueries({ queryKey: ["gastos-summary", rendicionId] });
     toast.success("Gasto registrado correctamente.");
     setDrawerOpen(false);
   }
@@ -245,6 +246,7 @@ export function GastosTab({
     try {
       await actualizar.mutateAsync({ id: gastoEditar.id, payload });
       await queryClient.invalidateQueries({ queryKey: ["gastos-enriquecidos", rendicionId] });
+      await queryClient.invalidateQueries({ queryKey: ["gastos-summary", rendicionId] });
       toast.success("Gasto actualizado.");
       setGastoEditar(null);
     } catch {
@@ -257,6 +259,7 @@ export function GastosTab({
     try {
       await eliminar.mutateAsync(gastoEliminar.id);
       await queryClient.invalidateQueries({ queryKey: ["gastos-enriquecidos", rendicionId] });
+      await queryClient.invalidateQueries({ queryKey: ["gastos-summary", rendicionId] });
       toast.success("Gasto eliminado.");
       setGastoEliminar(null);
     } catch {
@@ -623,9 +626,11 @@ export function GastosTab({
           <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-6">
             <AiExpenseWizard
               rendicionIdInicial={rendicionId}
-              onSuccess={async () => {
-                await queryClient.invalidateQueries({
-                  queryKey: ["gastos-enriquecidos", rendicionId],
+              onSuccess={() => {
+                // El wizard ya invalidó y refetchó "gastos-enriquecidos" en handleConfirmar.
+                // Solo invalidamos "gastos-summary" (KPI cards en rendicion-detail) y cerramos.
+                void queryClient.invalidateQueries({
+                  queryKey: ["gastos-summary", rendicionId],
                 });
                 setWizardOpen(false);
               }}

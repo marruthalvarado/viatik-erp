@@ -112,9 +112,11 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
     filters: { rendicion_id: rendicion.id },
   });
   const { data: politicasData } = usePoliticas({ pageSize: 1 });
+  // Nota: key diferente a "gastos-enriquecidos" para evitar conflicto de queryFn
+  // con GastosTab (que usa el mismo key pero distinto select + order).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: gastosRaw = [], isSuccess: gastosLoaded } = useQuery<any[]>({
-    queryKey: ["gastos-enriquecidos", rendicion.id],
+    queryKey: ["gastos-summary", rendicion.id],
     queryFn: async () => {
       const { data } = await supabase
         .from("gastos")
