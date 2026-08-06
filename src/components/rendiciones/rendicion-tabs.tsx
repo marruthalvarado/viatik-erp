@@ -221,6 +221,7 @@ export function GastosTab({
     await crear.mutateAsync(payload);
     await queryClient.invalidateQueries({ queryKey: ["gastos-enriquecidos", rendicionId] });
     await queryClient.invalidateQueries({ queryKey: ["gastos-summary", rendicionId] });
+    await queryClient.invalidateQueries({ queryKey: ["rendiciones"] });
     toast.success("Gasto registrado correctamente.");
     setDrawerOpen(false);
   }
@@ -247,6 +248,7 @@ export function GastosTab({
       await actualizar.mutateAsync({ id: gastoEditar.id, payload });
       await queryClient.invalidateQueries({ queryKey: ["gastos-enriquecidos", rendicionId] });
       await queryClient.invalidateQueries({ queryKey: ["gastos-summary", rendicionId] });
+      await queryClient.invalidateQueries({ queryKey: ["rendiciones"] });
       toast.success("Gasto actualizado.");
       setGastoEditar(null);
     } catch {
@@ -260,6 +262,7 @@ export function GastosTab({
       await eliminar.mutateAsync(gastoEliminar.id);
       await queryClient.invalidateQueries({ queryKey: ["gastos-enriquecidos", rendicionId] });
       await queryClient.invalidateQueries({ queryKey: ["gastos-summary", rendicionId] });
+      await queryClient.invalidateQueries({ queryKey: ["rendiciones"] });
       toast.success("Gasto eliminado.");
       setGastoEliminar(null);
     } catch {

@@ -112,12 +112,17 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
     filters: { rendicion_id: rendicion.id },
   });
   const { data: politicasData } = usePoliticas({ pageSize: 1 });
-  // Nota: key diferente a "gastos-enriquecidos" para evitar conflicto de queryFn
-  // con GastosTab (que usa el mismo key pero distinto select + order).
+  // Nota: key diferente a "gastos-enriquecidos" para evitar conflicto de queryFn.
+  // Usa el mismo RPC SECURITY DEFINER que GastosTab para garantizar acceso aunque
+  // el SELECT directo esté bloqueado por RLS.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: gastosRaw = [], isSuccess: gastosLoaded } = useQuery<any[]>({
     queryKey: ["gastos-summary", rendicion.id],
     queryFn: async () => {
+      const { data: rpcData, error: rpcError } = await supabase
+        .rpc("fn_get_gastos_rendicion", { p_rendicion_id: rendicion.id });
+      if (!rpcError && Array.isArray(rpcData)) return rpcData as any[];
+      // Fallback: query directa
       const { data } = await supabase
         .from("gastos")
         .select("*, categorias_gasto(nombre)")
