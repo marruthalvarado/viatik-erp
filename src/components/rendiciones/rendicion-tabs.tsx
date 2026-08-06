@@ -304,19 +304,38 @@ export function GastosTab({
     }
   }
 
-  // Fetch gastos enriched with category name for policy filtering
+  // Fetch gastos via RPC SECURITY DEFINER (bypasea RLS igual que fn_actualizar_totales_rendicion).
+  // Fallback: query directa con categorias_gasto(*).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: gastosRaw = [], isLoading } = useQuery<any[]>({
     queryKey: ["gastos-enriquecidos", rendicionId],
     queryFn: async () => {
-      const { data } = await supabase
+      // Ruta 1: RPC SECURITY DEFINER — bypasea RLS, siempre funciona si el usuario
+      // es miembro de la empresa o propietario/aprobador de la rendición.
+      const { data: rpcData, error: rpcError } = await supabase
+        .rpc("fn_get_gastos_rendicion", { p_rendicion_id: rendicionId });
+      if (!rpcError && Array.isArray(rpcData)) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return rpcData as any[];
+      }
+      // Ruta 2: query directa (fallback si el RPC aún no existe en la BD)
+      const { data, error } = await supabase
         .from("gastos")
-        .select("*, categorias_gasto(nombre, es_deducible)")
+        .select("*, categorias_gasto(*)")
         .eq("rendicion_id", rendicionId)
         .is("deleted_at", null)
         .order("fecha");
+      if (!error) return (data ?? []) as any[];
+      // Ruta 3: sin join (en caso de error de schema en el join)
+      const { data: plain, error: plainError } = await supabase
+        .from("gastos")
+        .select("*")
+        .eq("rendicion_id", rendicionId)
+        .is("deleted_at", null)
+        .order("fecha");
+      if (plainError) throw new Error(plainError.message);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (data ?? []) as any[];
+      return (plain ?? []) as any[];
     },
   });
 
