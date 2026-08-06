@@ -555,6 +555,7 @@ GRANT EXECUTE ON FUNCTION wf_enviar_aprobacion(uuid, uuid, uuid) TO authenticate
 
 -- ─── 7. Actualizar vw_empresa_usuarios para exponer roles_adicionales ─────────
 
+-- CREATE OR REPLACE VIEW no permite insertar columnas en medio; agregar al final.
 CREATE OR REPLACE VIEW vw_empresa_usuarios AS
 SELECT
   eu.id,
@@ -564,13 +565,13 @@ SELECT
   eu.activo,
   eu.fecha_inicio,
   eu.fecha_fin,
-  eu.roles_adicionales,
   u.nombres,
   u.apellidos,
   u.cargo,
   u.estado,
-  r.codigo  AS rol_codigo,
-  r.nombre  AS rol_nombre
+  r.codigo              AS rol_codigo,
+  r.nombre              AS rol_nombre,
+  eu.roles_adicionales
 FROM empresas_usuarios eu
 JOIN usuarios u ON u.id = eu.usuario_id
 JOIN roles    r ON r.id = eu.rol_id;
