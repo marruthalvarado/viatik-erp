@@ -168,7 +168,8 @@ export async function getFlujoCajaProyectado(
   if (error) throw new Error(error.message);
 
   const MESES_CORTOS = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
-  return (data ?? []).map((r) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data ?? []).map((r: any) => {
     const [anioStr, mesStr] = r.mes.split("-");
     const idx = parseInt(mesStr, 10) - 1;
     return {

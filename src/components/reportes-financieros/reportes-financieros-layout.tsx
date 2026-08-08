@@ -36,13 +36,15 @@ import {
   useRptEjecucionPresupuestaria,
   useRptEvolucionMensual,
 } from "@/hooks/entities/use-reportes-financieros";
+import { useEvolucionFinanciera } from "@/hooks/entities/use-dashboard";
+import { ReportePL } from "./reporte-pl";
 
 // ---------------------------------------------------------------------------
 
 export function ReportesFinancierosLayout() {
   const { empresaActivaId, empresaActiva, loading: loadingCompany } = useCompany();
   const [filtros, setFiltrosRaw] = useState<FiltrosFinancieros>(loadFiltrosFinancieros);
-  const [tab, setTab] = useState("gastos");
+  const [tab, setTab] = useState("pl");
 
   function setFiltros(f: FiltrosFinancieros) {
     setFiltrosRaw(f);
@@ -100,6 +102,9 @@ export function ReportesFinancierosLayout() {
     filtroFechas ? { ...filtroFechas, proyecto_id: filtros.proyecto_id } : null,
   );
 
+  // P&L mensual (ingresos vs costos por mes)
+  const pl = useEvolucionFinanciera(empresaId, filtros.anio);
+
   // evolucion disponible para uso futuro (Evolución mensual)
   const _evolucion = useRptEvolucionMensual(paramsEvolucion);
   void _evolucion; // consumido pero no renderizado en esta fase
@@ -140,6 +145,33 @@ export function ReportesFinancierosLayout() {
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const exportConfig = useMemo<ExportConfig>(() => {
     const periodo = `${filtros.fecha_desde} / ${filtros.fecha_hasta}`;
+    if (tab === "pl") {
+      const rows: ExportRow[] = (pl.data ?? []).map((r) => ({
+        mes: r.label,
+        ingresos: r.ingresos,
+        costos_empresa: r.costos_empresa,
+        costos_viaticos: r.costos_viaticos,
+        total_costos: r.costos_empresa + r.costos_viaticos,
+        margen: r.margen,
+        margen_pct: r.ingresos > 0 ? ((r.margen / r.ingresos) * 100).toFixed(1) : "—",
+      }));
+      return {
+        filename: `viatiq-pl-${filtros.anio}`,
+        title: "P&L Mensual",
+        empresa: empresaNombre,
+        filtros: { Año: String(filtros.anio) } as Record<string, string>,
+        rows,
+        columns: [
+          { key: "mes", header: "Mes", width: 14 },
+          { key: "ingresos", header: "Ingresos", width: 16, format: "currency", align: "right" },
+          { key: "costos_empresa", header: "Costos empresa", width: 18, format: "currency", align: "right" },
+          { key: "costos_viaticos", header: "Viáticos", width: 16, format: "currency", align: "right" },
+          { key: "total_costos", header: "Total costos", width: 16, format: "currency", align: "right" },
+          { key: "margen", header: "Margen", width: 16, format: "currency", align: "right" },
+          { key: "margen_pct", header: "% Margen", width: 12, align: "right" },
+        ],
+      };
+    }
     if (tab === "gastos") {
       const rows: ExportRow[] = (gastos.data ?? []).map((r) => ({
         numero: r.numero_documento,
@@ -230,7 +262,7 @@ export function ReportesFinancierosLayout() {
     };
   }, [tab, gastos.data, anticipos.data, ejecucion.data, empresaNombre, filtros]);
 
-  const exportLoading = gastos.isLoading || ejecucion.isLoading || anticipos.isLoading;
+  const exportLoading = pl.isLoading || gastos.isLoading || ejecucion.isLoading || anticipos.isLoading;
 
   // -------------------------------------------------------------------------
   // Render
@@ -254,6 +286,9 @@ export function ReportesFinancierosLayout() {
 
       <Tabs value={tab} onValueChange={setTab} className="space-y-6">
         <TabsList className="w-full justify-start overflow-x-auto sm:w-auto">
+          <TabsTrigger value="pl" aria-label="Ver P&L mensual">
+            P&amp;L
+          </TabsTrigger>
           <TabsTrigger value="gastos" aria-label="Ver reporte de gastos">
             Gastos
           </TabsTrigger>
@@ -270,6 +305,14 @@ export function ReportesFinancierosLayout() {
             Proyectos
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="pl">
+          <ReportePL
+            data={pl.data ?? []}
+            loading={pl.isLoading}
+            anio={filtros.anio}
+          />
+        </TabsContent>
 
         <TabsContent value="gastos">
           <ReporteGastos

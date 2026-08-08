@@ -1,16 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { AppShell } from "@/components/layout/app-shell";
-import { BiLayout } from "@/components/bi/bi-layout";
+import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/reportes")({
-  head: () => ({ meta: [{ title: "Dashboard BI · VIATIQ" }] }),
-  component: ReportesPage,
+  beforeLoad: ({ location }) => {
+    if (location.pathname === "/reportes" || location.pathname === "/reportes/") {
+      throw redirect({ to: "/dashboard", replace: true });
+    }
+  },
+  component: () => <Outlet />,
 });
-
-function ReportesPage() {
-  return (
-    <AppShell>
-      <BiLayout />
-    </AppShell>
-  );
-}

@@ -37,13 +37,15 @@ import {
 } from "@/hooks/entities/use-reportes-operativos";
 import { useRptEjecucionPresupuestaria } from "@/hooks/entities/use-reportes-financieros";
 import { useRptTopProveedores } from "@/hooks/entities/use-reportes-gerenciales";
+import { useTopViajeros } from "@/hooks/entities/use-dashboard";
+import { ReporteEmpleados } from "./reporte-empleados";
 
 // ---------------------------------------------------------------------------
 
 export function ReportesOperativosLayout() {
   const { empresaActivaId, empresaActiva, loading: loadingCompany } = useCompany();
   const [filtros, setFiltrosRaw] = useState<FiltrosOperativos>(loadFiltrosOperativos);
-  const [tab, setTab] = useState("viajes");
+  const [tab, setTab] = useState("empleados");
 
   function setFiltros(f: FiltrosOperativos) {
     setFiltrosRaw(f);
@@ -84,6 +86,7 @@ export function ReportesOperativosLayout() {
   // Hooks FASE 8A — sin acceso directo a Supabase
   // -------------------------------------------------------------------------
 
+  const empleados = useTopViajeros(empresaId, filtros.anio, 50);
   const viajes = useRptViajesDetalle(filtroFechas ?? null);
 
   const rendiciones = useRptRendicionesEstado(
@@ -147,6 +150,29 @@ export function ReportesOperativosLayout() {
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const exportConfig = useMemo<ExportConfig>(() => {
     const periodo = `${filtros.fecha_desde} / ${filtros.fecha_hasta}`;
+    if (tab === "empleados") {
+      const rows: ExportRow[] = (empleados.data ?? []).map((r, i) => ({
+        rank: i + 1,
+        nombre: r.nombre,
+        rendiciones: r.total_rendiciones,
+        total_gastado: r.total_gastado,
+        promedio: r.total_rendiciones > 0 ? r.total_gastado / r.total_rendiciones : 0,
+      }));
+      return {
+        filename: `viatiq-empleados-${filtros.anio}`,
+        title: "Gastos por Empleado",
+        empresa: empresaNombre,
+        filtros: { Año: String(filtros.anio) } as Record<string, string>,
+        rows,
+        columns: [
+          { key: "rank", header: "#", width: 6 },
+          { key: "nombre", header: "Empleado", width: 26 },
+          { key: "rendiciones", header: "Rendiciones", width: 14, format: "number", align: "right" },
+          { key: "total_gastado", header: "Total gastado", width: 16, format: "currency", align: "right" },
+          { key: "promedio", header: "Promedio", width: 16, format: "currency", align: "right" },
+        ],
+      };
+    }
     if (tab === "viajes") {
       const rows: ExportRow[] = (viajes.data ?? []).map((r) => ({
         numero: r.numero,
@@ -272,7 +298,7 @@ export function ReportesOperativosLayout() {
   ]);
 
   const exportLoading =
-    viajes.isLoading || rendiciones.isLoading || ejecucion.isLoading || proveedores.isLoading;
+    empleados.isLoading || viajes.isLoading || rendiciones.isLoading || ejecucion.isLoading || proveedores.isLoading;
 
   // -------------------------------------------------------------------------
   // Render
@@ -296,6 +322,9 @@ export function ReportesOperativosLayout() {
 
       <Tabs value={tab} onValueChange={setTab} className="space-y-6">
         <TabsList className="w-full justify-start overflow-x-auto sm:w-auto">
+          <TabsTrigger value="empleados" aria-label="Ver gasto por empleado">
+            Empleados
+          </TabsTrigger>
           <TabsTrigger value="viajes" aria-label="Ver reporte de viajes">
             Viajes
           </TabsTrigger>
@@ -312,6 +341,15 @@ export function ReportesOperativosLayout() {
             Proveedores
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="empleados">
+          <ReporteEmpleados
+            data={empleados.data ?? []}
+            loading={empleados.isLoading}
+            error={empleados.error}
+            onRetry={() => void empleados.refetch()}
+          />
+        </TabsContent>
 
         <TabsContent value="viajes">
           <ReporteViajes
