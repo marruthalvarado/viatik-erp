@@ -1,6 +1,6 @@
 /**
  * Filtros globales del Dashboard Ejecutivo.
- * Año, mes y proyecto.
+ * Año, mes, cliente y proyecto (proyectos filtrados por cliente).
  */
 import {
   Select,
@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
-import type { ProyectoSimple } from "@/services/dashboard";
+import type { ProyectoSimple, ClienteSimple } from "@/services/dashboard";
 
 const MES_LABELS = [
   "Enero","Febrero","Marzo","Abril","Mayo","Junio",
@@ -30,8 +30,11 @@ interface DashboardFiltersProps {
   onAnioChange: (anio: number) => void;
   mes: number | null;
   onMesChange: (mes: number | null) => void;
+  clienteId: string | null;
+  onClienteChange: (id: string | null) => void;
   proyectoId: string | null;
   onProyectoChange: (id: string | null) => void;
+  clientes: ClienteSimple[];
   proyectos: ProyectoSimple[];
 }
 
@@ -40,12 +43,25 @@ export function DashboardFilters({
   onAnioChange,
   mes,
   onMesChange,
+  clienteId,
+  onClienteChange,
   proyectoId,
   onProyectoChange,
+  clientes,
   proyectos,
 }: DashboardFiltersProps) {
   const years = buildYearOptions();
-  const hasFilters = mes !== null || proyectoId !== null;
+  const hasFilters = mes !== null || clienteId !== null || proyectoId !== null;
+
+  // Filtrar proyectos por cliente seleccionado
+  const proyectosFiltrados = clienteId
+    ? proyectos.filter((p) => p.cliente_id === clienteId)
+    : proyectos;
+
+  function handleClienteChange(id: string | null) {
+    onClienteChange(id);
+    onProyectoChange(null); // reset proyecto al cambiar cliente
+  }
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -77,8 +93,28 @@ export function DashboardFilters({
         </SelectContent>
       </Select>
 
-      {/* Proyecto */}
-      {proyectos.length > 0 && (
+      {/* Cliente */}
+      {clientes.length > 0 && (
+        <Select
+          value={clienteId ?? "__todos__"}
+          onValueChange={(v) => handleClienteChange(v === "__todos__" ? null : v)}
+        >
+          <SelectTrigger className="w-44 h-8 text-sm">
+            <SelectValue placeholder="Todos los clientes" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__todos__">Todos los clientes</SelectItem>
+            {clientes.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.nombre}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+
+      {/* Proyecto (filtrado por cliente si hay uno seleccionado) */}
+      {proyectosFiltrados.length > 0 && (
         <Select
           value={proyectoId ?? "__todos__"}
           onValueChange={(v) => onProyectoChange(v === "__todos__" ? null : v)}
@@ -88,7 +124,7 @@ export function DashboardFilters({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="__todos__">Todos los proyectos</SelectItem>
-            {proyectos.map((p) => (
+            {proyectosFiltrados.map((p) => (
               <SelectItem key={p.id} value={p.id}>
                 {p.nombre}
               </SelectItem>
@@ -103,7 +139,11 @@ export function DashboardFilters({
           variant="ghost"
           size="sm"
           className="h-8 gap-1 text-xs text-muted-foreground"
-          onClick={() => { onMesChange(null); onProyectoChange(null); }}
+          onClick={() => {
+            onMesChange(null);
+            onClienteChange(null);
+            onProyectoChange(null);
+          }}
         >
           <X className="size-3" />
           Limpiar

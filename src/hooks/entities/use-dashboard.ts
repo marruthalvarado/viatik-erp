@@ -19,6 +19,7 @@ import {
   getEvolucionFinanciera,
   getKpisNegocio,
   getProyectosSimples,
+  getClientesSimples,
 } from "@/services/dashboard";
 
 export function useDashboardEjecutivo(empresaId: string | null, anio?: number) {
@@ -121,10 +122,11 @@ export function useEvolucionFinanciera(
   empresaId: string | null,
   anio: number,
   proyectoId?: string | null,
+  clienteId?: string | null,
 ) {
   return useQuery({
-    queryKey: ["dashboard", "evolucion_financiera", empresaId, anio, proyectoId],
-    queryFn: () => getEvolucionFinanciera(empresaId!, anio, proyectoId),
+    queryKey: ["dashboard", "evolucion_financiera", empresaId, anio, proyectoId, clienteId],
+    queryFn: () => getEvolucionFinanciera(empresaId!, anio, proyectoId, clienteId),
     enabled: !!empresaId,
   });
 }
@@ -134,10 +136,11 @@ export function useKpisNegocio(
   anio?: number,
   proyectoId?: string | null,
   mes?: number | null,
+  clienteId?: string | null,
 ) {
   return useQuery({
-    queryKey: ["dashboard", "kpis_negocio", empresaId, anio, proyectoId, mes],
-    queryFn: () => getKpisNegocio(empresaId!, anio, proyectoId, mes),
+    queryKey: ["dashboard", "kpis_negocio", empresaId, anio, proyectoId, mes, clienteId],
+    queryFn: () => getKpisNegocio(empresaId!, anio, proyectoId, mes, clienteId),
     enabled: !!empresaId,
   });
 }
@@ -146,6 +149,15 @@ export function useProyectosSimples(empresaId: string | null) {
   return useQuery({
     queryKey: ["dashboard", "proyectos_simples", empresaId],
     queryFn: () => getProyectosSimples(empresaId!),
+    enabled: !!empresaId,
+    staleTime: 60_000,
+  });
+}
+
+export function useClientesSimples(empresaId: string | null) {
+  return useQuery({
+    queryKey: ["dashboard", "clientes_simples", empresaId],
+    queryFn: () => getClientesSimples(empresaId!),
     enabled: !!empresaId,
     staleTime: 60_000,
   });

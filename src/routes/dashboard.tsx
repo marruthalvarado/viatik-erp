@@ -36,6 +36,7 @@ import {
   useKpisNegocio,
   useEvolucionFinanciera,
   useProyectosSimples,
+  useClientesSimples,
 } from "@/hooks/entities/use-dashboard";
 import { useResumenCobros } from "@/hooks/entities/use-cobros";
 import { Building2 } from "lucide-react";
@@ -61,6 +62,7 @@ function DashboardContent() {
   const { empresaActivaId, empresaActiva, loading: loadingCompany } = useCompany();
   const [anio, setAnio] = useState(() => new Date().getFullYear());
   const [mes, setMes] = useState<number | null>(null);
+  const [clienteId, setClienteId] = useState<string | null>(null);
   const [proyectoId, setProyectoId] = useState<string | null>(null);
   const navigate = useNavigate();
 
@@ -86,9 +88,11 @@ function DashboardContent() {
       empresaId={empresaActivaId}
       empresaNombre={empresaActiva?.nombre ?? ""}
       anio={anio}
-      onAnioChange={(a) => { setAnio(a); setMes(null); }}
+      onAnioChange={(a) => { setAnio(a); setMes(null); setClienteId(null); setProyectoId(null); }}
       mes={mes}
       onMesChange={setMes}
+      clienteId={clienteId}
+      onClienteChange={(id) => { setClienteId(id); setProyectoId(null); }}
       proyectoId={proyectoId}
       onProyectoChange={setProyectoId}
       onNavigate={(path) => navigate({ to: path as "/" })}
@@ -105,6 +109,8 @@ interface DashboardMainProps {
   onAnioChange: (anio: number) => void;
   mes: number | null;
   onMesChange: (mes: number | null) => void;
+  clienteId: string | null;
+  onClienteChange: (id: string | null) => void;
   proyectoId: string | null;
   onProyectoChange: (id: string | null) => void;
   onNavigate: (path: string) => void;
@@ -117,6 +123,8 @@ function DashboardMain({
   onAnioChange,
   mes,
   onMesChange,
+  clienteId,
+  onClienteChange,
   proyectoId,
   onProyectoChange,
   onNavigate,
@@ -124,18 +132,20 @@ function DashboardMain({
   const anioFiltro = anio > 0 ? anio : undefined;
 
   // Datos financieros del negocio (fuentes correctas)
-  const kpisNegocio = useKpisNegocio(empresaId, anioFiltro, proyectoId, mes);
+  const kpisNegocio = useKpisNegocio(empresaId, anioFiltro, proyectoId, mes, clienteId);
   const evolucionFinanciera = useEvolucionFinanciera(
     empresaId,
     anio > 0 ? anio : new Date().getFullYear(),
     proyectoId,
+    clienteId,
   );
 
   // KPI ejecutivo (operativos: rendiciones, viajeros, proyectos)
   const ejecutivo = useDashboardEjecutivo(empresaId, anioFiltro);
   const ia = useDashboardIA(empresaId);
 
-  // Selector de proyectos para filtro
+  // Selectores de filtro
+  const clientesSimples = useClientesSimples(empresaId);
   const proyectosSimples = useProyectosSimples(empresaId);
 
   // Tablas de análisis
@@ -167,8 +177,11 @@ function DashboardMain({
             onAnioChange={onAnioChange}
             mes={mes}
             onMesChange={onMesChange}
+            clienteId={clienteId}
+            onClienteChange={onClienteChange}
             proyectoId={proyectoId}
             onProyectoChange={onProyectoChange}
+            clientes={clientesSimples.data ?? []}
             proyectos={proyectosSimples.data ?? []}
           />
         }

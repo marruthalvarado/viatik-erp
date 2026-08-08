@@ -49,10 +49,17 @@ export interface KpisNegocio {
   por_cobrar: number;
 }
 
+/** Cliente simple para selector de filtro */
+export interface ClienteSimple {
+  id: string;
+  nombre: string;
+}
+
 /** Proyecto simple para selectores */
 export interface ProyectoSimple {
   id: string;
   nombre: string;
+  cliente_id: string | null;
   cliente_nombre: string | null;
 }
 
@@ -861,7 +868,7 @@ export async function getResumenFinancieroProyectos(
 export async function getProyectosSimples(empresaId: string): Promise<ProyectoSimple[]> {
   const { data, error } = await supabase
     .from("proyectos")
-    .select("id, nombre, cliente:clientes(nombre)")
+    .select("id, nombre, cliente_id, cliente:clientes(nombre)")
     .eq("empresa_id", empresaId)
     .is("deleted_at", null)
     .order("nombre");
@@ -869,8 +876,40 @@ export async function getProyectosSimples(empresaId: string): Promise<ProyectoSi
   return (data ?? []).map((p) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const cli = (p as any).cliente as { nombre: string } | null;
-    return { id: p.id, nombre: p.nombre, cliente_nombre: cli?.nombre ?? null };
+    return {
+      id: p.id,
+      nombre: p.nombre,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      cliente_id: (p as any).cliente_id ?? null,
+      cliente_nombre: cli?.nombre ?? null,
+    };
   });
+}
+
+export async function getClientesSimples(empresaId: string): Promise<ClienteSimple[]> {
+  const { data, error } = await supabase
+    .from("clientes")
+    .select("id, nombre")
+    .eq("empresa_id", empresaId)
+    .is("deleted_at", null)
+    .order("nombre");
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((c) => ({ id: c.id, nombre: c.nombre }));
+}
+
+// ─── Helper: obtener IDs de proyectos de un cliente ──────────────────────────
+
+async function getProyectoIdsDeCliente(
+  empresaId: string,
+  clienteId: string,
+): Promise<string[]> {
+  const { data } = await supabase
+    .from("proyectos")
+    .select("id")
+    .eq("empresa_id", empresaId)
+    .eq("cliente_id", clienteId)
+    .is("deleted_at", null);
+  return (data ?? []).map((p) => p.id);
 }
 
 // ─── Evolución financiera mensual (Ingresos vs Costos) ───────────────────────
@@ -879,8 +918,25 @@ export async function getEvolucionFinanciera(
   empresaId: string,
   anio: number,
   proyectoId?: string | null,
+  clienteId?: string | null,
 ): Promise<EvolucionFinanciera[]> {
   const { gte, lte } = dateRange(anio);
+
+  // Resolver proyecto IDs cuando filtra por cliente
+  let proyectoIds: string[] | null = null;
+  if (!proyectoId && clienteId) {
+    proyectoIds = await getProyectoIdsDeCliente(empresaId, clienteId);
+    if (proyectoIds.length === 0) {
+      const MES_LBL2: Record<string, string> = {
+        "01":"Ene","02":"Feb","03":"Mar","04":"Abr","05":"May","06":"Jun",
+        "07":"Jul","08":"Ago","09":"Sep","10":"Oct","11":"Nov","12":"Dic",
+      };
+      return Array.from({ length: 12 }, (_, i) => {
+        const mm = String(i + 1).padStart(2, "0");
+        return { mes: `${anio}-${mm}`, label: MES_LBL2[mm] ?? mm, ingresos: 0, costos_empresa: 0, costos_viaticos: 0, margen: 0 };
+      });
+    }
+  }
 
   let qFact = supabase
     .from("facturas_emitidas")
@@ -891,6 +947,7 @@ export async function getEvolucionFinanciera(
     .gte("fecha", gte)
     .lte("fecha", lte);
   if (proyectoId) qFact = qFact.eq("proyecto_id", proyectoId);
+  else if (proyectoIds) qFact = qFact.in("proyecto_id", proyectoIds);
 
   let qGe = supabase
     .from("gastos_empresa")
@@ -900,6 +957,7 @@ export async function getEvolucionFinanciera(
     .gte("fecha", gte)
     .lte("fecha", lte);
   if (proyectoId) qGe = qGe.eq("proyecto_id", proyectoId);
+  else if (proyectoIds) qGe = qGe.in("proyecto_id", proyectoIds);
 
   let qRend = supabase
     .from("rendiciones")
@@ -909,6 +967,7 @@ export async function getEvolucionFinanciera(
     .gte("fecha_rendicion", gte)
     .lte("fecha_rendicion", lte);
   if (proyectoId) qRend = qRend.eq("proyecto_id", proyectoId);
+  else if (proyectoIds) qRend = qRend.in("proyecto_id", proyectoIds);
 
   const [factRes, geRes, rendRes] = await Promise.all([qFact, qGe, qRend]);
   if (factRes.error) throw new Error(factRes.error.message);
@@ -978,8 +1037,18 @@ export async function getKpisNegocio(
   anio?: number,
   proyectoId?: string | null,
   mes?: number | null,
+  clienteId?: string | null,
 ): Promise<KpisNegocio> {
   const { gte, lte } = buildDateRange(anio, mes);
+
+  // Resolver IDs de proyectos cuando filtra por cliente
+  let proyectoIds: string[] | null = null;
+  if (!proyectoId && clienteId) {
+    proyectoIds = await getProyectoIdsDeCliente(empresaId, clienteId);
+    if (proyectoIds.length === 0) {
+      return { ingresos: 0, costos: 0, margen: 0, margen_pct: null, cobrado: 0, por_cobrar: 0 };
+    }
+  }
 
   let qFact = supabase
     .from("facturas_emitidas")
@@ -989,6 +1058,7 @@ export async function getKpisNegocio(
     .neq("estado_sri", "ANULADA");
   if (gte) qFact = qFact.gte("fecha", gte).lte("fecha", lte!);
   if (proyectoId) qFact = qFact.eq("proyecto_id", proyectoId);
+  else if (proyectoIds) qFact = qFact.in("proyecto_id", proyectoIds);
 
   let qGe = supabase
     .from("gastos_empresa")
@@ -997,6 +1067,7 @@ export async function getKpisNegocio(
     .is("deleted_at", null);
   if (gte) qGe = qGe.gte("fecha", gte).lte("fecha", lte!);
   if (proyectoId) qGe = qGe.eq("proyecto_id", proyectoId);
+  else if (proyectoIds) qGe = qGe.in("proyecto_id", proyectoIds);
 
   let qRend = supabase
     .from("rendiciones")
@@ -1005,6 +1076,7 @@ export async function getKpisNegocio(
     .is("deleted_at", null);
   if (gte) qRend = qRend.gte("fecha_rendicion", gte).lte("fecha_rendicion", lte!);
   if (proyectoId) qRend = qRend.eq("proyecto_id", proyectoId);
+  else if (proyectoIds) qRend = qRend.in("proyecto_id", proyectoIds);
 
   const [factRes, geRes, rendRes] = await Promise.all([qFact, qGe, qRend]);
   if (factRes.error) throw new Error(factRes.error.message);
