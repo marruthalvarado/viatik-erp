@@ -3,7 +3,7 @@
  * Gestion de usuarios de la empresa — visible solo para administradores.
  */
 import { useState } from "react";
-import { UserCheck, UserX, ShieldCheck, User, UserPlus, Pencil, PlusCircle, Eye, EyeOff } from "lucide-react";
+import { UserCheck, UserX, ShieldCheck, User, UserPlus, Pencil, PlusCircle, Eye, EyeOff, Trash2 } from "lucide-react";
 
 import { DataTable } from "@/components/common/data-table";
 import { StatusBadge } from "@/components/common/status-badge";
@@ -41,7 +41,7 @@ import {
 import { useAdminActualizarPerfil } from "@/hooks/entities/use-perfil";
 import { useRoles } from "@/hooks/entities/use-roles";
 import { useCompany } from "@/contexts/company-context";
-import { useCrearUsuario } from "@/hooks/entities/use-admin-users";
+import { useCrearUsuario, useEliminarUsuario } from "@/hooks/entities/use-admin-users";
 
 import type { DataTableColumn } from "@/components/common/data-table";
 import type { EmpresaUsuario } from "@/hooks/entities/use-empresa-usuarios";
@@ -58,8 +58,13 @@ export function UsuariosSection() {
   const setRolesAdicionales = useSetRolesAdicionales();
 
   const crearUsuario = useCrearUsuario();
+  const eliminarUsuario = useEliminarUsuario();
 
   const roles = rolesData?.rows ?? [];
+
+  // Dialog: confirmar eliminación
+  const [deleteTarget, setDeleteTarget] = useState<EmpresaUsuario | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [changingRol, setChangingRol] = useState<string | null>(null);
 
   // Dialog: invitar
@@ -157,6 +162,22 @@ export function UsuariosSection() {
       setEmailInvite("");
     } catch (err) {
       setInviteError(extractMsg(err, "Error al agregar usuario."));
+    }
+  }
+
+  async function handleEliminarUsuario() {
+    if (!deleteTarget) return;
+    setDeleteError(null);
+    try {
+      const result = await eliminarUsuario.mutateAsync(deleteTarget.usuario_id);
+      toast.success(
+        result.full_delete
+          ? "Usuario eliminado completamente."
+          : "Usuario removido de la empresa. Su cuenta fue conservada por tener registros asociados.",
+      );
+      setDeleteTarget(null);
+    } catch (err) {
+      setDeleteError(extractMsg(err, "Error al eliminar el usuario."));
     }
   }
 
@@ -316,6 +337,15 @@ export function UsuariosSection() {
               <UserCheck className="size-3.5 text-success" />
             )}
           </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            title="Eliminar usuario"
+            onClick={() => { setDeleteError(null); setDeleteTarget(row); }}
+          >
+            <Trash2 className="size-3.5 text-destructive/70 hover:text-destructive" />
+          </Button>
         </div>
       ),
     },
@@ -422,6 +452,46 @@ export function UsuariosSection() {
               onClick={() => void handleInvitar()}
             >
               {invitar.isPending ? "Agregando..." : "Agregar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: confirmar eliminación */}
+      <Dialog
+        open={!!deleteTarget}
+        onOpenChange={(v) => { if (!v) { setDeleteTarget(null); setDeleteError(null); } }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Eliminar usuario</DialogTitle>
+            <DialogDescription>
+              ¿Eliminar a{" "}
+              <span className="font-semibold text-foreground">
+                {deleteTarget?.nombres} {deleteTarget?.apellidos ?? ""}
+              </span>
+              ?{" "}
+              Si no tiene registros asociados se eliminará completamente. Si tiene rendiciones u otros datos, solo se le removerá de esta empresa.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteError && (
+            <Alert variant="destructive">
+              <AlertDescription>{deleteError}</AlertDescription>
+            </Alert>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => { setDeleteTarget(null); setDeleteError(null); }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={eliminarUsuario.isPending}
+              onClick={() => void handleEliminarUsuario()}
+            >
+              {eliminarUsuario.isPending ? "Eliminando..." : "Eliminar"}
             </Button>
           </DialogFooter>
         </DialogContent>

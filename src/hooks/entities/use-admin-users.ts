@@ -4,7 +4,7 @@
  */
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCompany } from "@/contexts/company-context";
-import { crearUsuario, marcarClaveCambiada } from "@/services/admin-users";
+import { crearUsuario, eliminarUsuario, marcarClaveCambiada } from "@/services/admin-users";
 import type { CrearUsuarioPayload } from "@/services/admin-users";
 
 /**
@@ -17,6 +17,25 @@ export function useCrearUsuario() {
 
   return useMutation({
     mutationFn: (payload: CrearUsuarioPayload) => crearUsuario(payload),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["empresa_usuarios", empresaActivaId] });
+    },
+  });
+}
+
+/**
+ * Mutación para eliminar un usuario de la empresa.
+ * La Edge Function decide si borrarlo completamente o solo removerlo de la empresa.
+ */
+export function useEliminarUsuario() {
+  const qc = useQueryClient();
+  const { empresaActivaId } = useCompany();
+
+  return useMutation({
+    mutationFn: (usuario_id: string) => {
+      if (!empresaActivaId) throw new Error("Sin empresa activa");
+      return eliminarUsuario(usuario_id, empresaActivaId);
+    },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["empresa_usuarios", empresaActivaId] });
     },

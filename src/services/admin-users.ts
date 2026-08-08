@@ -1,7 +1,7 @@
 /**
  * admin-users.ts
  * Servicio para operaciones administrativas de usuarios.
- * Las operaciones que requieren service_role se delegan a la Edge Function admin-create-user.
+ * Las operaciones que requieren service_role se delegan a Edge Functions.
  */
 import { supabase } from "@/integrations/supabase/client";
 
@@ -33,6 +33,39 @@ export async function crearUsuario(payload: CrearUsuarioPayload): Promise<CrearU
     // La Edge Function devuelve { error: string } en el body cuando falla.
     // supabase.functions.invoke lanza FunctionsHttpError cuando el status >= 400.
     // Intentamos parsear el mensaje del contexto.
+    const msg = (error as { context?: Response }).context
+      ? await (error as { context: Response }).context
+          .json()
+          .then((j: { error?: string }) => j.error ?? error.message)
+          .catch(() => error.message)
+      : error.message;
+    throw new Error(msg);
+  }
+
+  if (!data?.ok) throw new Error("Respuesta inesperada del servidor");
+  return data;
+}
+
+export interface EliminarUsuarioResult {
+  ok: boolean;
+  /** true = borrado completamente de auth + perfil; false = solo removido de esta empresa */
+  full_delete: boolean;
+}
+
+/**
+ * Elimina un usuario de la empresa llamando a la Edge Function admin-delete-user.
+ * Si el usuario no tiene datos asociados ni otras membresías, se borra completamente.
+ */
+export async function eliminarUsuario(
+  usuario_id: string,
+  empresa_id: string,
+): Promise<EliminarUsuarioResult> {
+  const { data, error } = await supabase.functions.invoke<EliminarUsuarioResult>(
+    "admin-delete-user",
+    { body: { usuario_id, empresa_id } },
+  );
+
+  if (error) {
     const msg = (error as { context?: Response }).context
       ? await (error as { context: Response }).context
           .json()
