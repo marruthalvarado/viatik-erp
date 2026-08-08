@@ -124,7 +124,7 @@ function DashboardMain({
   const anioFiltro = anio > 0 ? anio : undefined;
 
   // Datos financieros del negocio (fuentes correctas)
-  const kpisNegocio = useKpisNegocio(empresaId, anioFiltro, proyectoId);
+  const kpisNegocio = useKpisNegocio(empresaId, anioFiltro, proyectoId, mes);
   const evolucionFinanciera = useEvolucionFinanciera(
     empresaId,
     anio > 0 ? anio : new Date().getFullYear(),

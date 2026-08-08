@@ -133,10 +133,11 @@ export function useKpisNegocio(
   empresaId: string | null,
   anio?: number,
   proyectoId?: string | null,
+  mes?: number | null,
 ) {
   return useQuery({
-    queryKey: ["dashboard", "kpis_negocio", empresaId, anio, proyectoId],
-    queryFn: () => getKpisNegocio(empresaId!, anio, proyectoId),
+    queryKey: ["dashboard", "kpis_negocio", empresaId, anio, proyectoId, mes],
+    queryFn: () => getKpisNegocio(empresaId!, anio, proyectoId, mes),
     enabled: !!empresaId,
   });
 }

@@ -960,12 +960,26 @@ export async function getEvolucionFinanciera(
 
 // ─── KPIs de negocio (Ingresos / Costos / Margen / Por cobrar) ───────────────
 
+function buildDateRange(anio?: number, mes?: number | null): { gte?: string; lte?: string } {
+  if (!anio) return {};
+  if (mes) {
+    const mm = String(mes).padStart(2, "0");
+    const lastDay = new Date(anio, mes, 0).getDate();
+    return {
+      gte: `${anio}-${mm}-01`,
+      lte: `${anio}-${mm}-${String(lastDay).padStart(2, "0")}`,
+    };
+  }
+  return { gte: `${anio}-01-01`, lte: `${anio}-12-31` };
+}
+
 export async function getKpisNegocio(
   empresaId: string,
   anio?: number,
   proyectoId?: string | null,
+  mes?: number | null,
 ): Promise<KpisNegocio> {
-  const { gte, lte } = anio ? dateRange(anio) : { gte: undefined, lte: undefined };
+  const { gte, lte } = buildDateRange(anio, mes);
 
   let qFact = supabase
     .from("facturas_emitidas")
