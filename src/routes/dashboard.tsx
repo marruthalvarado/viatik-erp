@@ -10,7 +10,7 @@ import { useCompany } from "@/contexts/company-context";
 import { DashboardFilters } from "@/components/dashboard/dashboard-filters";
 import { DashboardKpis } from "@/components/dashboard/dashboard-kpis";
 import {
-  EvolucionMensualChart,
+  EvolucionFinancieraChart,
   ResumenProyectosChart,
   GastosCategoriaChart,
   GastosClienteChart,
@@ -30,12 +30,12 @@ import {
   useDashboardProveedores,
   useDashboardIA,
   useGastosPorCategoria,
-  useEvolucionMensual,
   useRendicionesPendientes,
   useTopViajeros,
-  usePresupuestoTotal,
   useResumenFinancieroProyectos,
-  useTotalReembolsos,
+  useKpisNegocio,
+  useEvolucionFinanciera,
+  useProyectosSimples,
 } from "@/hooks/entities/use-dashboard";
 import { useResumenCobros } from "@/hooks/entities/use-cobros";
 import { Building2 } from "lucide-react";
@@ -60,6 +60,8 @@ function DashboardPage() {
 function DashboardContent() {
   const { empresaActivaId, empresaActiva, loading: loadingCompany } = useCompany();
   const [anio, setAnio] = useState(() => new Date().getFullYear());
+  const [mes, setMes] = useState<number | null>(null);
+  const [proyectoId, setProyectoId] = useState<string | null>(null);
   const navigate = useNavigate();
 
   if (loadingCompany) {
@@ -84,7 +86,11 @@ function DashboardContent() {
       empresaId={empresaActivaId}
       empresaNombre={empresaActiva?.nombre ?? ""}
       anio={anio}
-      onAnioChange={setAnio}
+      onAnioChange={(a) => { setAnio(a); setMes(null); }}
+      mes={mes}
+      onMesChange={setMes}
+      proyectoId={proyectoId}
+      onProyectoChange={setProyectoId}
       onNavigate={(path) => navigate({ to: path as "/" })}
     />
   );
@@ -97,6 +103,10 @@ interface DashboardMainProps {
   empresaNombre: string;
   anio: number;
   onAnioChange: (anio: number) => void;
+  mes: number | null;
+  onMesChange: (mes: number | null) => void;
+  proyectoId: string | null;
+  onProyectoChange: (id: string | null) => void;
   onNavigate: (path: string) => void;
 }
 
@@ -105,19 +115,30 @@ function DashboardMain({
   empresaNombre,
   anio,
   onAnioChange,
+  mes,
+  onMesChange,
+  proyectoId,
+  onProyectoChange,
   onNavigate,
 }: DashboardMainProps) {
   const anioFiltro = anio > 0 ? anio : undefined;
 
-  // KPI data
+  // Datos financieros del negocio (fuentes correctas)
+  const kpisNegocio = useKpisNegocio(empresaId, anioFiltro, proyectoId);
+  const evolucionFinanciera = useEvolucionFinanciera(
+    empresaId,
+    anio > 0 ? anio : new Date().getFullYear(),
+    proyectoId,
+  );
+
+  // KPI ejecutivo (operativos: rendiciones, viajeros, proyectos)
   const ejecutivo = useDashboardEjecutivo(empresaId, anioFiltro);
   const ia = useDashboardIA(empresaId);
-  const presupuesto = usePresupuestoTotal(empresaId);
-  const reembolsos = useTotalReembolsos(empresaId, anioFiltro);
 
-  // Charts
-  const evolucion = useEvolucionMensual(empresaId, anio > 0 ? anio : new Date().getFullYear());
-  const proyectos = useDashboardProyectos(empresaId, 10, anioFiltro);
+  // Selector de proyectos para filtro
+  const proyectosSimples = useProyectosSimples(empresaId);
+
+  // Tablas de análisis
   const resumenProyectos = useResumenFinancieroProyectos(empresaId);
   const categorias = useGastosPorCategoria(empresaId, anioFiltro);
   const clientes = useDashboardClientes(empresaId, 10, anioFiltro);
@@ -125,15 +146,13 @@ function DashboardMain({
   // Rankings
   const proveedores = useDashboardProveedores(empresaId, 8, anioFiltro);
   const viajeros = useTopViajeros(empresaId, anioFiltro, 8);
+  const proyectos = useDashboardProyectos(empresaId, 10, anioFiltro);
 
-  // Rendiciones pendientes
+  // Pendientes
   const rendiciones = useRendicionesPendientes(empresaId, 10);
-
-  // Cuentas por cobrar
   const cobros = useResumenCobros(empresaId);
 
-  const kpiLoading =
-    ejecutivo.isLoading || ia.isLoading || presupuesto.isLoading || reembolsos.isLoading;
+  const kpiLoading = kpisNegocio.isLoading || ejecutivo.isLoading || ia.isLoading;
 
   return (
     <>
@@ -142,23 +161,32 @@ function DashboardMain({
         description={
           empresaNombre ? `Resumen ejecutivo de ${empresaNombre}.` : "Resumen ejecutivo."
         }
-        actions={<DashboardFilters anio={anio} onAnioChange={onAnioChange} />}
+        actions={
+          <DashboardFilters
+            anio={anio}
+            onAnioChange={onAnioChange}
+            mes={mes}
+            onMesChange={onMesChange}
+            proyectoId={proyectoId}
+            onProyectoChange={onProyectoChange}
+            proyectos={proyectosSimples.data ?? []}
+          />
+        }
       />
 
       {/* KPIs */}
       <DashboardKpis
         ejecutivo={ejecutivo.data}
-        presupuestoTotal={presupuesto.data ?? 0}
+        kpisNegocio={kpisNegocio.data}
         ia={ia.data}
-        totalReembolsos={reembolsos.data ?? 0}
         loading={kpiLoading}
       />
 
-      {/* Evolucion + Presupuesto vs ejecutado */}
+      {/* Evolución financiera + Rentabilidad por proyecto */}
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <EvolucionMensualChart
-          data={evolucion.data ?? []}
-          loading={evolucion.isLoading}
+        <EvolucionFinancieraChart
+          data={evolucionFinanciera.data ?? []}
+          loading={evolucionFinanciera.isLoading}
           anio={anio}
         />
         <ResumenProyectosChart

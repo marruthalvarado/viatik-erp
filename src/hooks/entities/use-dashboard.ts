@@ -16,6 +16,9 @@ import {
   getPresupuestoTotal,
   getResumenFinancieroProyectos,
   getTotalReembolsos,
+  getEvolucionFinanciera,
+  getKpisNegocio,
+  getProyectosSimples,
 } from "@/services/dashboard";
 
 export function useDashboardEjecutivo(empresaId: string | null, anio?: number) {
@@ -111,5 +114,38 @@ export function useTotalReembolsos(empresaId: string | null, anio?: number) {
     queryKey: ["dashboard", "reembolsos", empresaId, anio],
     queryFn: () => getTotalReembolsos(empresaId!, anio),
     enabled: !!empresaId,
+  });
+}
+
+export function useEvolucionFinanciera(
+  empresaId: string | null,
+  anio: number,
+  proyectoId?: string | null,
+) {
+  return useQuery({
+    queryKey: ["dashboard", "evolucion_financiera", empresaId, anio, proyectoId],
+    queryFn: () => getEvolucionFinanciera(empresaId!, anio, proyectoId),
+    enabled: !!empresaId,
+  });
+}
+
+export function useKpisNegocio(
+  empresaId: string | null,
+  anio?: number,
+  proyectoId?: string | null,
+) {
+  return useQuery({
+    queryKey: ["dashboard", "kpis_negocio", empresaId, anio, proyectoId],
+    queryFn: () => getKpisNegocio(empresaId!, anio, proyectoId),
+    enabled: !!empresaId,
+  });
+}
+
+export function useProyectosSimples(empresaId: string | null) {
+  return useQuery({
+    queryKey: ["dashboard", "proyectos_simples", empresaId],
+    queryFn: () => getProyectosSimples(empresaId!),
+    enabled: !!empresaId,
+    staleTime: 60_000,
   });
 }

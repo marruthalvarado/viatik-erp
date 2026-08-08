@@ -1,8 +1,8 @@
 /**
- * Graficos del Dashboard Ejecutivo:
- * - Evolucion mensual de gastos (BarChart)
- * - Contrato vs Ejecutado por proyecto (tabla con indicadores)
- * - Gastos por categoria (PieChart)
+ * Gráficos del Dashboard Ejecutivo:
+ * - Evolución financiera mensual: Ingresos (line) vs Costos empresa + Viáticos (bars apiladas)
+ * - Resumen por proyecto: tabla con Facturado / Gastos / Margen
+ * - Gastos por categoría (PieChart)
  * - Gastos por cliente (BarChart horizontal)
  */
 import {
@@ -17,6 +17,8 @@ import {
   Pie,
   Cell,
   ResponsiveContainer,
+  ComposedChart,
+  Line,
 } from "recharts";
 import { TrendingUp, TrendingDown } from "lucide-react";
 
@@ -25,6 +27,7 @@ import { EmptyState } from "@/components/common/empty-state";
 import { formatCurrency } from "@/utils/formatters";
 import type {
   EvolucionMensual,
+  EvolucionFinanciera,
   GastoCategoria,
   DashboardProyecto,
   DashboardCliente,
@@ -82,7 +85,109 @@ function currencyTick(value: number) {
   return `$${value}`;
 }
 
-// Evolucion mensual
+// ─── Evolución financiera: Ingresos vs Costos ─────────────────────────────────
+
+interface EvolucionFinancieraChartProps {
+  data: EvolucionFinanciera[];
+  loading: boolean;
+  anio: number;
+}
+
+export function EvolucionFinancieraChart({ data, loading, anio }: EvolucionFinancieraChartProps) {
+  const hasData = data.some(
+    (d) => d.ingresos > 0 || d.costos_empresa > 0 || d.costos_viaticos > 0,
+  );
+
+  const totalIngresos = data.reduce((s, d) => s + d.ingresos, 0);
+  const totalCostosEmpresa = data.reduce((s, d) => s + d.costos_empresa, 0);
+  const totalViaticos = data.reduce((s, d) => s + d.costos_viaticos, 0);
+  const totalMargen = totalIngresos - totalCostosEmpresa - totalViaticos;
+  const margenPositivo = totalMargen >= 0;
+
+  return (
+    <ChartPanel
+      title={`Evolución financiera ${anio}`}
+      loading={loading}
+      empty={!loading && !hasData}
+    >
+      <ResponsiveContainer width="100%" height={240}>
+        <ComposedChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+          <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+          <YAxis tickFormatter={currencyTick} tick={{ fontSize: 11 }} width={60} />
+          <Tooltip
+            formatter={(value: number, name: string) => [
+              formatCurrency(value),
+              name === "ingresos"
+                ? "Ingresos"
+                : name === "costos_empresa"
+                  ? "Gastos empresa"
+                  : name === "costos_viaticos"
+                    ? "Viáticos"
+                    : name,
+            ]}
+          />
+          <Legend
+            formatter={(v) =>
+              v === "ingresos"
+                ? "Ingresos"
+                : v === "costos_empresa"
+                  ? "Gastos empresa"
+                  : v === "costos_viaticos"
+                    ? "Viáticos"
+                    : v
+            }
+            wrapperStyle={{ fontSize: 11 }}
+          />
+          <Bar
+            dataKey="costos_empresa"
+            stackId="costos"
+            fill="#6366f1"
+            name="costos_empresa"
+            radius={[0, 0, 0, 0]}
+          />
+          <Bar
+            dataKey="costos_viaticos"
+            stackId="costos"
+            fill="#f59e0b"
+            name="costos_viaticos"
+            radius={[3, 3, 0, 0]}
+          />
+          <Line
+            type="monotone"
+            dataKey="ingresos"
+            name="ingresos"
+            stroke="#10b981"
+            strokeWidth={2.5}
+            dot={{ r: 3, fill: "#10b981" }}
+            activeDot={{ r: 5 }}
+          />
+        </ComposedChart>
+      </ResponsiveContainer>
+
+      {/* Resumen totales del año */}
+      <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground border-t pt-2">
+        <span>
+          <span className="inline-block size-2 rounded-full bg-emerald-500 mr-1 align-middle" />
+          Ingresos: <span className="font-medium text-foreground">{formatCurrency(totalIngresos)}</span>
+        </span>
+        <span>
+          <span className="inline-block size-2 rounded-full bg-indigo-500 mr-1 align-middle" />
+          Gastos empresa: <span className="font-medium text-foreground">{formatCurrency(totalCostosEmpresa)}</span>
+        </span>
+        <span>
+          <span className="inline-block size-2 rounded-full bg-amber-500 mr-1 align-middle" />
+          Viáticos: <span className="font-medium text-foreground">{formatCurrency(totalViaticos)}</span>
+        </span>
+        <span className={margenPositivo ? "text-emerald-600 font-medium" : "text-red-500 font-medium"}>
+          {margenPositivo ? "▲" : "▼"} Margen: {formatCurrency(Math.abs(totalMargen))}
+        </span>
+      </div>
+    </ChartPanel>
+  );
+}
+
+// Evolucion mensual (legacy — se mantiene para backward compatibility)
 
 interface EvolucionChartProps {
   data: EvolucionMensual[];
@@ -139,62 +244,67 @@ interface ResumenProyectosChartProps {
 }
 
 export function ResumenProyectosChart({ data, loading }: ResumenProyectosChartProps) {
-  const rows = data.filter((p) => p.valor_contrato > 0 || p.ejecutado > 0).slice(0, 8);
+  const rows = data
+    .filter((p) => p.facturado > 0 || p.ejecutado > 0 || p.valor_contrato > 0)
+    .slice(0, 8);
 
   return (
     <ChartPanel
-      title="Contrato vs ejecutado por proyecto"
+      title="Rentabilidad por proyecto"
       loading={loading}
       empty={!loading && rows.length === 0}
     >
-      <div className="space-y-3">
-        {rows.map((p) => {
-          const pct =
-            p.valor_contrato > 0
-              ? Math.min(100, Math.round((p.ejecutado / p.valor_contrato) * 100))
-              : 0;
-          const over = p.ejecutado > p.valor_contrato && p.valor_contrato > 0;
-          const gananciaPos = p.ganancia >= 0;
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b text-muted-foreground">
+              <th className="pb-2 text-left font-medium pr-2">Proyecto</th>
+              <th className="pb-2 text-right font-medium pr-2 tabular-nums">Facturado</th>
+              <th className="pb-2 text-right font-medium pr-2 tabular-nums">Gastos</th>
+              <th className="pb-2 text-right font-medium tabular-nums">Margen</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {rows.map((p) => {
+              const margen = p.facturado > 0
+                ? p.facturado - p.ejecutado
+                : p.ganancia;
+              const margenPos = margen >= 0;
+              const pct = p.facturado > 0
+                ? Math.round((margen / p.facturado) * 100)
+                : p.valor_contrato > 0
+                  ? Math.round((p.ganancia / p.valor_contrato) * 100)
+                  : null;
 
-          return (
-            <div key={p.proyecto_id} className="space-y-1">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-medium truncate max-w-[160px]" title={p.nombre}>
-                  {p.nombre}
-                </span>
-                <div className="flex items-center gap-1 shrink-0">
-                  {p.valor_contrato > 0 && (
-                    <span
-                      className={`flex items-center gap-0.5 text-xs font-medium ${gananciaPos ? "text-emerald-600" : "text-red-500"}`}
-                    >
-                      {gananciaPos ? (
-                        <TrendingUp className="size-3" />
-                      ) : (
-                        <TrendingDown className="size-3" />
-                      )}
-                      {formatCurrency(Math.abs(p.ganancia))}
+              return (
+                <tr key={p.proyecto_id} className="hover:bg-muted/30 transition-colors">
+                  <td className="py-2 pr-2">
+                    <span className="truncate block max-w-[130px] font-medium" title={p.nombre}>
+                      {p.nombre}
                     </span>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
-                  <div
-                    className={`h-full rounded-full ${over ? "bg-red-500" : "bg-indigo-500"}`}
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
-                <span className="text-[10px] tabular-nums text-muted-foreground w-8 text-right">
-                  {pct}%
-                </span>
-              </div>
-              <div className="flex justify-between text-[10px] text-muted-foreground tabular-nums">
-                <span>Ejecutado: {formatCurrency(p.ejecutado)}</span>
-                {p.valor_contrato > 0 && <span>Contrato: {formatCurrency(p.valor_contrato)}</span>}
-              </div>
-            </div>
-          );
-        })}
+                    {p.cliente_nombre && (
+                      <span className="text-[10px] text-muted-foreground">{p.cliente_nombre}</span>
+                    )}
+                  </td>
+                  <td className="py-2 pr-2 text-right tabular-nums text-foreground">
+                    {formatCurrency(p.facturado > 0 ? p.facturado : p.valor_contrato)}
+                  </td>
+                  <td className="py-2 pr-2 text-right tabular-nums text-foreground">
+                    {formatCurrency(p.ejecutado)}
+                  </td>
+                  <td className="py-2 text-right tabular-nums">
+                    <span
+                      className={`flex items-center justify-end gap-0.5 font-medium ${margenPos ? "text-emerald-600" : "text-red-500"}`}
+                    >
+                      {margenPos ? <TrendingUp className="size-3" /> : <TrendingDown className="size-3" />}
+                      {pct !== null ? `${pct}%` : formatCurrency(Math.abs(margen))}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </ChartPanel>
   );

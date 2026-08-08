@@ -29,6 +29,33 @@ export interface EvolucionMensual {
   total_km_vehiculo: number;
 }
 
+/** Evolución mensual financiera: Ingresos vs Costos */
+export interface EvolucionFinanciera {
+  mes: string;
+  label: string;
+  ingresos: number;        // facturas_emitidas.total
+  costos_empresa: number;  // gastos_empresa.total
+  costos_viaticos: number; // rendiciones.total_facturado (gastos de viaje)
+  margen: number;          // ingresos - costos_empresa - costos_viaticos
+}
+
+/** KPIs de negocio: Ingresos, Costos, Margen, Cobros */
+export interface KpisNegocio {
+  ingresos: number;
+  costos: number;
+  margen: number;
+  margen_pct: number | null;
+  cobrado: number;
+  por_cobrar: number;
+}
+
+/** Proyecto simple para selectores */
+export interface ProyectoSimple {
+  id: string;
+  nombre: string;
+  cliente_nombre: string | null;
+}
+
 export interface RendicionPendiente {
   id: string;
   numero: string;
@@ -827,6 +854,167 @@ export async function getResumenFinancieroProyectos(
       margen_pct,
     };
   });
+}
+
+// ─── Proyectos simples para selector de filtro ────────────────────────────────
+
+export async function getProyectosSimples(empresaId: string): Promise<ProyectoSimple[]> {
+  const { data, error } = await supabase
+    .from("proyectos")
+    .select("id, nombre, cliente:clientes(nombre)")
+    .eq("empresa_id", empresaId)
+    .is("deleted_at", null)
+    .order("nombre");
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((p) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cli = (p as any).cliente as { nombre: string } | null;
+    return { id: p.id, nombre: p.nombre, cliente_nombre: cli?.nombre ?? null };
+  });
+}
+
+// ─── Evolución financiera mensual (Ingresos vs Costos) ───────────────────────
+
+export async function getEvolucionFinanciera(
+  empresaId: string,
+  anio: number,
+  proyectoId?: string | null,
+): Promise<EvolucionFinanciera[]> {
+  const { gte, lte } = dateRange(anio);
+
+  let qFact = supabase
+    .from("facturas_emitidas")
+    .select("fecha, total")
+    .eq("empresa_id", empresaId)
+    .is("deleted_at", null)
+    .neq("estado", "anulada")
+    .gte("fecha", gte)
+    .lte("fecha", lte);
+  if (proyectoId) qFact = qFact.eq("proyecto_id", proyectoId);
+
+  let qGe = supabase
+    .from("gastos_empresa")
+    .select("fecha, total")
+    .eq("empresa_id", empresaId)
+    .is("deleted_at", null)
+    .gte("fecha", gte)
+    .lte("fecha", lte);
+  if (proyectoId) qGe = qGe.eq("proyecto_id", proyectoId);
+
+  let qRend = supabase
+    .from("rendiciones")
+    .select("fecha_rendicion, total_facturado")
+    .eq("empresa_id", empresaId)
+    .is("deleted_at", null)
+    .gte("fecha_rendicion", gte)
+    .lte("fecha_rendicion", lte);
+  if (proyectoId) qRend = qRend.eq("proyecto_id", proyectoId);
+
+  const [factRes, geRes, rendRes] = await Promise.all([qFact, qGe, qRend]);
+  if (factRes.error) throw new Error(factRes.error.message);
+
+  type MesData = { ingresos: number; costos_empresa: number; costos_viaticos: number };
+  const map = new Map<string, MesData>();
+
+  for (const f of factRes.data ?? []) {
+    if (!f.fecha) continue;
+    const mes = f.fecha.slice(0, 7);
+    const e = map.get(mes) ?? { ingresos: 0, costos_empresa: 0, costos_viaticos: 0 };
+    e.ingresos += Number(f.total) || 0;
+    map.set(mes, e);
+  }
+  for (const g of geRes.data ?? []) {
+    if (!g.fecha) continue;
+    const mes = g.fecha.slice(0, 7);
+    const e = map.get(mes) ?? { ingresos: 0, costos_empresa: 0, costos_viaticos: 0 };
+    e.costos_empresa += Number(g.total) || 0;
+    map.set(mes, e);
+  }
+  for (const r of rendRes.data ?? []) {
+    if (!r.fecha_rendicion) continue;
+    const mes = r.fecha_rendicion.slice(0, 7);
+    const e = map.get(mes) ?? { ingresos: 0, costos_empresa: 0, costos_viaticos: 0 };
+    e.costos_viaticos += Number(r.total_facturado) || 0;
+    map.set(mes, e);
+  }
+
+  const MES_LBL: Record<string, string> = {
+    "01":"Ene","02":"Feb","03":"Mar","04":"Abr","05":"May","06":"Jun",
+    "07":"Jul","08":"Ago","09":"Sep","10":"Oct","11":"Nov","12":"Dic",
+  };
+
+  const result: EvolucionFinanciera[] = [];
+  for (let m = 1; m <= 12; m++) {
+    const mm = String(m).padStart(2, "0");
+    const mes = `${anio}-${mm}`;
+    const val = map.get(mes) ?? { ingresos: 0, costos_empresa: 0, costos_viaticos: 0 };
+    result.push({
+      mes,
+      label: MES_LBL[mm] ?? mm,
+      ...val,
+      margen: val.ingresos - val.costos_empresa - val.costos_viaticos,
+    });
+  }
+  return result;
+}
+
+// ─── KPIs de negocio (Ingresos / Costos / Margen / Por cobrar) ───────────────
+
+export async function getKpisNegocio(
+  empresaId: string,
+  anio?: number,
+  proyectoId?: string | null,
+): Promise<KpisNegocio> {
+  const { gte, lte } = anio ? dateRange(anio) : { gte: undefined, lte: undefined };
+
+  let qFact = supabase
+    .from("facturas_emitidas")
+    .select("id, total")
+    .eq("empresa_id", empresaId)
+    .is("deleted_at", null)
+    .neq("estado", "anulada");
+  if (gte) qFact = qFact.gte("fecha", gte).lte("fecha", lte!);
+  if (proyectoId) qFact = qFact.eq("proyecto_id", proyectoId);
+
+  let qGe = supabase
+    .from("gastos_empresa")
+    .select("total")
+    .eq("empresa_id", empresaId)
+    .is("deleted_at", null);
+  if (gte) qGe = qGe.gte("fecha", gte).lte("fecha", lte!);
+  if (proyectoId) qGe = qGe.eq("proyecto_id", proyectoId);
+
+  let qRend = supabase
+    .from("rendiciones")
+    .select("total_facturado")
+    .eq("empresa_id", empresaId)
+    .is("deleted_at", null);
+  if (gte) qRend = qRend.gte("fecha_rendicion", gte).lte("fecha_rendicion", lte!);
+  if (proyectoId) qRend = qRend.eq("proyecto_id", proyectoId);
+
+  const [factRes, geRes, rendRes] = await Promise.all([qFact, qGe, qRend]);
+  if (factRes.error) throw new Error(factRes.error.message);
+
+  const facturas = factRes.data ?? [];
+  const ingresos = facturas.reduce((s, f) => s + (Number(f.total) || 0), 0);
+  const costos_empresa = (geRes.data ?? []).reduce((s, g) => s + (Number(g.total) || 0), 0);
+  const costos_viaticos = (rendRes.data ?? []).reduce((s, r) => s + (Number(r.total_facturado) || 0), 0);
+  const costos = costos_empresa + costos_viaticos;
+  const margen = ingresos - costos;
+  const margen_pct = ingresos > 0 ? Math.round((margen / ingresos) * 100) : null;
+
+  // Cobros de facturas en scope
+  const factIds = facturas.map((f) => f.id);
+  let cobrado = 0;
+  if (factIds.length > 0) {
+    const { data: cobrosData } = await supabase
+      .from("cobros")
+      .select("monto")
+      .in("factura_id", factIds);
+    cobrado = (cobrosData ?? []).reduce((s, c) => s + (Number(c.monto) || 0), 0);
+  }
+
+  return { ingresos, costos, margen, margen_pct, cobrado, por_cobrar: Math.max(0, ingresos - cobrado) };
 }
 
 // ─── Reembolsos (gastos en rendiciones ya registrados en gastos_empresa) ──────
