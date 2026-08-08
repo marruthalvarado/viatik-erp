@@ -887,7 +887,7 @@ export async function getEvolucionFinanciera(
     .select("fecha, total")
     .eq("empresa_id", empresaId)
     .is("deleted_at", null)
-    .neq("estado", "anulada")
+    .neq("estado_sri", "ANULADA")
     .gte("fecha", gte)
     .lte("fecha", lte);
   if (proyectoId) qFact = qFact.eq("proyecto_id", proyectoId);
@@ -972,7 +972,7 @@ export async function getKpisNegocio(
     .select("id, total")
     .eq("empresa_id", empresaId)
     .is("deleted_at", null)
-    .neq("estado", "anulada");
+    .neq("estado_sri", "ANULADA");
   if (gte) qFact = qFact.gte("fecha", gte).lte("fecha", lte!);
   if (proyectoId) qFact = qFact.eq("proyecto_id", proyectoId);
 
