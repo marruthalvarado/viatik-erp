@@ -7,12 +7,14 @@ import { Topbar } from "./topbar";
 import { UnirseEmpresaDialog } from "./unirse-empresa-dialog";
 import { useAuth } from "@/contexts/auth-context";
 import { LoadingState } from "@/components/common/loading-state";
+import { supabase } from "@/integrations/supabase/client";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Guard 1: redirigir al login si no hay sesión
   useEffect(() => {
     if (loading) return;
     if (!user && location.pathname !== "/auth") {
@@ -24,6 +26,24 @@ export function AppShell({ children }: { children: ReactNode }) {
       });
     }
   }, [loading, user, location.pathname, location.searchStr, location.hash, navigate]);
+
+  // Guard 2: si el usuario debe cambiar su clave, redirigirlo antes de cargar cualquier pantalla
+  useEffect(() => {
+    if (!user) return;
+    if (location.pathname === "/cambiar-clave") return;
+    supabase
+      .from("usuarios")
+      .select("debe_cambiar_clave")
+      .eq("id", user.id)
+      .single()
+      .then(({ data }) => {
+        if (data?.debe_cambiar_clave) {
+          void navigate({ to: "/cambiar-clave", replace: true });
+        }
+      });
+    // Solo ejecutar cuando cambia el usuario activo (login/logout)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   if (loading || !user) {
     return (

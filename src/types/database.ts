@@ -2296,6 +2296,7 @@ export type Database = {
           apellidos: string | null;
           cargo: string | null;
           created_at: string | null;
+          debe_cambiar_clave: boolean;
           deleted_at: string | null;
           estado: string | null;
           foto_url: string | null;
@@ -2309,6 +2310,7 @@ export type Database = {
           apellidos?: string | null;
           cargo?: string | null;
           created_at?: string | null;
+          debe_cambiar_clave?: boolean;
           deleted_at?: string | null;
           estado?: string | null;
           foto_url?: string | null;
@@ -2322,6 +2324,7 @@ export type Database = {
           apellidos?: string | null;
           cargo?: string | null;
           created_at?: string | null;
+          debe_cambiar_clave?: boolean;
           deleted_at?: string | null;
           estado?: string | null;
           foto_url?: string | null;
@@ -2842,6 +2845,11 @@ export type Database = {
       crear_empresa_y_unirse: {
         Args: { p_nombre: string; p_codigo?: string };
         Returns: Json;
+      };
+      // Gestión de clave temporal
+      marcar_clave_cambiada: {
+        Args: Record<PropertyKey, never>;
+        Returns: void;
       };
       // Admin mutations para empresas_usuarios (SECURITY DEFINER, evitan RLS)
       admin_cambiar_rol_usuario: {

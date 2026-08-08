@@ -3,7 +3,7 @@
  * Gestion de usuarios de la empresa — visible solo para administradores.
  */
 import { useState } from "react";
-import { UserCheck, UserX, ShieldCheck, User, UserPlus, Pencil, PlusCircle } from "lucide-react";
+import { UserCheck, UserX, ShieldCheck, User, UserPlus, Pencil, PlusCircle, Eye, EyeOff } from "lucide-react";
 
 import { DataTable } from "@/components/common/data-table";
 import { StatusBadge } from "@/components/common/status-badge";
@@ -41,6 +41,7 @@ import {
 import { useAdminActualizarPerfil } from "@/hooks/entities/use-perfil";
 import { useRoles } from "@/hooks/entities/use-roles";
 import { useCompany } from "@/contexts/company-context";
+import { useCrearUsuario } from "@/hooks/entities/use-admin-users";
 
 import type { DataTableColumn } from "@/components/common/data-table";
 import type { EmpresaUsuario } from "@/hooks/entities/use-empresa-usuarios";
@@ -56,6 +57,8 @@ export function UsuariosSection() {
   const actualizarPerfil = useAdminActualizarPerfil();
   const setRolesAdicionales = useSetRolesAdicionales();
 
+  const crearUsuario = useCrearUsuario();
+
   const roles = rolesData?.rows ?? [];
   const [changingRol, setChangingRol] = useState<string | null>(null);
 
@@ -63,6 +66,26 @@ export function UsuariosSection() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [emailInvite, setEmailInvite] = useState("");
   const [inviteError, setInviteError] = useState<string | null>(null);
+
+  // Dialog: crear usuario nuevo
+  const [crearOpen, setCrearOpen] = useState(false);
+  const [crearNombres, setCrearNombres] = useState("");
+  const [crearApellidos, setCrearApellidos] = useState("");
+  const [crearEmail, setCrearEmail] = useState("");
+  const [crearPassword, setCrearPassword] = useState("");
+  const [crearShowPassword, setCrearShowPassword] = useState(false);
+  const [crearRolId, setCrearRolId] = useState("");
+  const [crearError, setCrearError] = useState<string | null>(null);
+
+  function resetCrearDialog() {
+    setCrearNombres("");
+    setCrearApellidos("");
+    setCrearEmail("");
+    setCrearPassword("");
+    setCrearShowPassword(false);
+    setCrearRolId("");
+    setCrearError(null);
+  }
 
   // Dialog: editar perfil de usuario
   const [editTarget, setEditTarget] = useState<EmpresaUsuario | null>(null);
@@ -134,6 +157,30 @@ export function UsuariosSection() {
       setEmailInvite("");
     } catch (err) {
       setInviteError(extractMsg(err, "Error al agregar usuario."));
+    }
+  }
+
+  async function handleCrearUsuario() {
+    if (!crearNombres.trim()) { setCrearError("El nombre es requerido."); return; }
+    if (!crearEmail.trim()) { setCrearError("El correo es requerido."); return; }
+    if (crearPassword.length < 8) { setCrearError("La clave temporal debe tener al menos 8 caracteres."); return; }
+    if (!crearRolId) { setCrearError("Selecciona un rol."); return; }
+    if (!empresaActiva) { setCrearError("Sin empresa activa."); return; }
+    setCrearError(null);
+    try {
+      await crearUsuario.mutateAsync({
+        email: crearEmail.trim(),
+        password: crearPassword,
+        nombres: crearNombres.trim(),
+        apellidos: crearApellidos.trim() || undefined,
+        empresa_id: empresaActiva.id,
+        rol_id: crearRolId,
+      });
+      toast.success("Usuario creado. Deberá cambiar su clave al primer inicio de sesión.");
+      setCrearOpen(false);
+      resetCrearDialog();
+    } catch (err) {
+      setCrearError(extractMsg(err, "Error al crear el usuario."));
     }
   }
 
@@ -284,19 +331,32 @@ export function UsuariosSection() {
             automaticamente.
           </p>
         </div>
-        <Button
-          size="sm"
-          variant="outline"
-          className="shrink-0 gap-1.5"
-          onClick={() => {
-            setInviteError(null);
-            setEmailInvite("");
-            setDialogOpen(true);
-          }}
-        >
-          <UserPlus className="size-4" />
-          Agregar usuario
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="shrink-0 gap-1.5"
+            onClick={() => {
+              setInviteError(null);
+              setEmailInvite("");
+              setDialogOpen(true);
+            }}
+          >
+            <UserPlus className="size-4" />
+            Agregar existente
+          </Button>
+          <Button
+            size="sm"
+            className="shrink-0 gap-1.5"
+            onClick={() => {
+              resetCrearDialog();
+              setCrearOpen(true);
+            }}
+          >
+            <UserPlus className="size-4" />
+            Crear usuario
+          </Button>
+        </div>
       </div>
 
       <DataTable
@@ -362,6 +422,113 @@ export function UsuariosSection() {
               onClick={() => void handleInvitar()}
             >
               {invitar.isPending ? "Agregando..." : "Agregar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: crear usuario nuevo */}
+      <Dialog
+        open={crearOpen}
+        onOpenChange={(v) => {
+          if (!v) { setCrearOpen(false); resetCrearDialog(); }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Crear usuario</DialogTitle>
+            <DialogDescription>
+              Se creará una cuenta nueva. El usuario deberá cambiar su clave temporal al primer inicio de sesión.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label htmlFor="crear-nombres">Nombre(s) *</Label>
+                <Input
+                  id="crear-nombres"
+                  value={crearNombres}
+                  onChange={(e) => setCrearNombres(e.target.value)}
+                  placeholder="Daniel"
+                  autoFocus
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="crear-apellidos">Apellido(s)</Label>
+                <Input
+                  id="crear-apellidos"
+                  value={crearApellidos}
+                  onChange={(e) => setCrearApellidos(e.target.value)}
+                  placeholder="Zhunio"
+                />
+              </div>
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="crear-email">Correo electrónico *</Label>
+              <Input
+                id="crear-email"
+                type="email"
+                value={crearEmail}
+                onChange={(e) => setCrearEmail(e.target.value)}
+                placeholder="usuario@empresa.com"
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="crear-password">Clave temporal *</Label>
+              <div className="relative">
+                <Input
+                  id="crear-password"
+                  type={crearShowPassword ? "text" : "password"}
+                  value={crearPassword}
+                  onChange={(e) => setCrearPassword(e.target.value)}
+                  placeholder="Mínimo 8 caracteres"
+                  className="pr-9"
+                />
+                <button
+                  type="button"
+                  className="absolute inset-y-0 right-2.5 flex items-center text-muted-foreground"
+                  onClick={() => setCrearShowPassword((v) => !v)}
+                  tabIndex={-1}
+                >
+                  {crearShowPassword
+                    ? <EyeOff className="size-4" />
+                    : <Eye className="size-4" />}
+                </button>
+              </div>
+            </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="crear-rol">Rol *</Label>
+              <Select value={crearRolId} onValueChange={setCrearRolId}>
+                <SelectTrigger id="crear-rol">
+                  <SelectValue placeholder="Seleccionar rol..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {roles.map((r) => (
+                    <SelectItem key={r.id} value={r.id}>
+                      {r.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {crearError && (
+              <Alert variant="destructive">
+                <AlertDescription>{crearError}</AlertDescription>
+              </Alert>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => { setCrearOpen(false); resetCrearDialog(); }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              disabled={crearUsuario.isPending}
+              onClick={() => void handleCrearUsuario()}
+            >
+              {crearUsuario.isPending ? "Creando..." : "Crear usuario"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WorkflowRouteImport } from './routes/workflow'
+import { Route as CambiarClaveRouteImport } from './routes/cambiar-clave'
 import { Route as ReportesRouteImport } from './routes/reportes'
 import { Route as RendicionesRouteImport } from './routes/rendiciones'
 import { Route as ProyectosRouteImport } from './routes/proyectos'
@@ -32,6 +33,11 @@ import { Route as ReportesFinancierosRouteImport } from './routes/reportes.finan
 const WorkflowRoute = WorkflowRouteImport.update({
   id: '/workflow',
   path: '/workflow',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CambiarClaveRoute = CambiarClaveRouteImport.update({
+  id: '/cambiar-clave',
+  path: '/cambiar-clave',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ReportesRoute = ReportesRouteImport.update({
@@ -129,6 +135,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/administracion': typeof AdministracionRoute
   '/auth': typeof AuthRoute
+  '/cambiar-clave': typeof CambiarClaveRoute
   '/clientes': typeof ClientesRoute
   '/configuracion': typeof ConfiguracionRoute
   '/dashboard': typeof DashboardRoute
@@ -150,6 +157,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/administracion': typeof AdministracionRoute
   '/auth': typeof AuthRoute
+  '/cambiar-clave': typeof CambiarClaveRoute
   '/clientes': typeof ClientesRoute
   '/configuracion': typeof ConfiguracionRoute
   '/dashboard': typeof DashboardRoute
@@ -172,6 +180,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/administracion': typeof AdministracionRoute
   '/auth': typeof AuthRoute
+  '/cambiar-clave': typeof CambiarClaveRoute
   '/clientes': typeof ClientesRoute
   '/configuracion': typeof ConfiguracionRoute
   '/dashboard': typeof DashboardRoute
@@ -195,6 +204,7 @@ export interface FileRouteTypes {
     | '/'
     | '/administracion'
     | '/auth'
+    | '/cambiar-clave'
     | '/clientes'
     | '/configuracion'
     | '/dashboard'
@@ -216,6 +226,7 @@ export interface FileRouteTypes {
     | '/'
     | '/administracion'
     | '/auth'
+    | '/cambiar-clave'
     | '/clientes'
     | '/configuracion'
     | '/dashboard'
@@ -237,6 +248,7 @@ export interface FileRouteTypes {
     | '/'
     | '/administracion'
     | '/auth'
+    | '/cambiar-clave'
     | '/clientes'
     | '/configuracion'
     | '/dashboard'
@@ -259,6 +271,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdministracionRoute: typeof AdministracionRoute
   AuthRoute: typeof AuthRoute
+  CambiarClaveRoute: typeof CambiarClaveRoute
   ClientesRoute: typeof ClientesRoute
   ConfiguracionRoute: typeof ConfiguracionRoute
   DashboardRoute: typeof DashboardRoute
@@ -374,6 +387,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/cambiar-clave': {
+      id: '/cambiar-clave'
+      path: '/cambiar-clave'
+      fullPath: '/cambiar-clave'
+      preLoaderRoute: typeof CambiarClaveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/administracion': {
       id: '/administracion'
       path: '/administracion'
@@ -432,6 +452,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdministracionRoute: AdministracionRoute,
   AuthRoute: AuthRoute,
+  CambiarClaveRoute: CambiarClaveRoute,
   ClientesRoute: ClientesRoute,
   ConfiguracionRoute: ConfiguracionRoute,
   DashboardRoute: DashboardRoute,
