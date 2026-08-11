@@ -4,6 +4,21 @@
  * Las operaciones que requieren service_role se delegan a Edge Functions.
  */
 import { supabase } from "@/integrations/supabase/client";
+import { FunctionsHttpError } from "@supabase/supabase-js";
+
+/** Extrae el mensaje de error de una Edge Function. */
+async function parseFunctionError(error: unknown): Promise<string> {
+  if (error instanceof FunctionsHttpError) {
+    try {
+      const body = (await error.context.json()) as { error?: string };
+      if (body.error) return body.error;
+    } catch {
+      // fall through to generic message
+    }
+  }
+  if (error instanceof Error) return error.message;
+  return "Error desconocido";
+}
 
 export interface CrearUsuarioPayload {
   email: string;
@@ -30,16 +45,7 @@ export async function crearUsuario(payload: CrearUsuarioPayload): Promise<CrearU
   );
 
   if (error) {
-    // La Edge Function devuelve { error: string } en el body cuando falla.
-    // supabase.functions.invoke lanza FunctionsHttpError cuando el status >= 400.
-    // Intentamos parsear el mensaje del contexto.
-    const msg = (error as { context?: Response }).context
-      ? await (error as { context: Response }).context
-          .json()
-          .then((j: { error?: string }) => j.error ?? error.message)
-          .catch(() => error.message)
-      : error.message;
-    throw new Error(msg);
+    throw new Error(await parseFunctionError(error));
   }
 
   if (!data?.ok) throw new Error("Respuesta inesperada del servidor");
@@ -66,13 +72,7 @@ export async function eliminarUsuario(
   );
 
   if (error) {
-    const msg = (error as { context?: Response }).context
-      ? await (error as { context: Response }).context
-          .json()
-          .then((j: { error?: string }) => j.error ?? error.message)
-          .catch(() => error.message)
-      : error.message;
-    throw new Error(msg);
+    throw new Error(await parseFunctionError(error));
   }
 
   if (!data?.ok) throw new Error("Respuesta inesperada del servidor");
