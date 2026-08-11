@@ -437,6 +437,275 @@ export type Database = {
           },
         ];
       };
+      productos_catalogo: {
+        Row: {
+          id: string;
+          empresa_id: string;
+          codigo: string | null;
+          nombre: string;
+          descripcion: string | null;
+          tipo_seguimiento: string;
+          unidad_medida: string;
+          categoria_id: string | null;
+          especificaciones: Record<string, unknown> | null;
+          estado: string;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          empresa_id: string;
+          codigo?: string | null;
+          nombre: string;
+          descripcion?: string | null;
+          tipo_seguimiento?: string;
+          unidad_medida?: string;
+          categoria_id?: string | null;
+          especificaciones?: Record<string, unknown> | null;
+          estado?: string;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          deleted_at?: string | null;
+        };
+        Update: {
+          nombre?: string;
+          descripcion?: string | null;
+          tipo_seguimiento?: string;
+          unidad_medida?: string;
+          categoria_id?: string | null;
+          especificaciones?: Record<string, unknown> | null;
+          estado?: string;
+          updated_at?: string;
+          deleted_at?: string | null;
+        };
+        Relationships: [{ foreignKeyName: "productos_catalogo_empresa_id_fkey"; columns: ["empresa_id"]; referencedRelation: "empresas"; referencedColumns: ["id"]; }];
+      };
+      importaciones: {
+        Row: {
+          id: string;
+          empresa_id: string;
+          numero_liquidacion: string | null;
+          referencia_dai: string | null;
+          fecha: string;
+          proveedor_id: string | null;
+          gasto_empresa_id: string | null;
+          bodega_destino_id: string | null;
+          pais_origen: string | null;
+          fob_total: number;
+          seguro: number;
+          flete: number;
+          ajustes: number;
+          valor_aduanas: number;
+          arancel: number;
+          fodinfa: number;
+          iva_importacion: number;
+          total_liquidado: number;
+          estado: string;
+          observacion: string | null;
+          comprobante_url: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          empresa_id: string;
+          numero_liquidacion?: string | null;
+          referencia_dai?: string | null;
+          fecha: string;
+          proveedor_id?: string | null;
+          gasto_empresa_id?: string | null;
+          bodega_destino_id?: string | null;
+          pais_origen?: string | null;
+          fob_total?: number;
+          seguro?: number;
+          flete?: number;
+          ajustes?: number;
+          valor_aduanas?: number;
+          arancel?: number;
+          fodinfa?: number;
+          iva_importacion?: number;
+          total_liquidado?: number;
+          estado?: string;
+          observacion?: string | null;
+          comprobante_url?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          deleted_at?: string | null;
+        };
+        Update: {
+          numero_liquidacion?: string | null;
+          referencia_dai?: string | null;
+          fecha?: string;
+          proveedor_id?: string | null;
+          gasto_empresa_id?: string | null;
+          bodega_destino_id?: string | null;
+          pais_origen?: string | null;
+          fob_total?: number;
+          seguro?: number;
+          flete?: number;
+          ajustes?: number;
+          valor_aduanas?: number;
+          arancel?: number;
+          fodinfa?: number;
+          iva_importacion?: number;
+          total_liquidado?: number;
+          estado?: string;
+          observacion?: string | null;
+          comprobante_url?: string | null;
+          updated_at?: string;
+          deleted_at?: string | null;
+        };
+        Relationships: [{ foreignKeyName: "importaciones_empresa_id_fkey"; columns: ["empresa_id"]; referencedRelation: "empresas"; referencedColumns: ["id"]; }];
+      };
+      importacion_lineas: {
+        Row: {
+          id: string;
+          importacion_id: string;
+          producto_id: string | null;
+          descripcion_original: string;
+          fob_linea: number;
+          cantidad: number;
+          unidad_medida: string | null;
+          peso_kg: number | null;
+          pais_origen: string | null;
+          costo_unitario_calculado: number | null;
+          observacion: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          importacion_id: string;
+          producto_id?: string | null;
+          descripcion_original: string;
+          fob_linea?: number;
+          cantidad?: number;
+          unidad_medida?: string | null;
+          peso_kg?: number | null;
+          pais_origen?: string | null;
+          costo_unitario_calculado?: number | null;
+          observacion?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          producto_id?: string | null;
+          descripcion_original?: string;
+          fob_linea?: number;
+          cantidad?: number;
+          unidad_medida?: string | null;
+          peso_kg?: number | null;
+          pais_origen?: string | null;
+          costo_unitario_calculado?: number | null;
+          observacion?: string | null;
+        };
+        Relationships: [{ foreignKeyName: "importacion_lineas_importacion_id_fkey"; columns: ["importacion_id"]; referencedRelation: "importaciones"; referencedColumns: ["id"]; }];
+      };
+      inventario_unidades: {
+        Row: {
+          id: string;
+          empresa_id: string;
+          codigo: string | null;
+          producto_id: string;
+          importacion_linea_id: string | null;
+          cantidad_original: number;
+          cantidad_actual: number;
+          bodega_id: string | null;
+          estado: string;
+          proyecto_id: string | null;
+          cliente_id: string | null;
+          factura_emitida_id: string | null;
+          costo_unitario: number | null;
+          serial: string | null;
+          fecha_ingreso: string | null;
+          fecha_salida: string | null;
+          observacion: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          empresa_id: string;
+          codigo?: string | null;
+          producto_id: string;
+          importacion_linea_id?: string | null;
+          cantidad_original?: number;
+          cantidad_actual?: number;
+          bodega_id?: string | null;
+          estado?: string;
+          proyecto_id?: string | null;
+          cliente_id?: string | null;
+          factura_emitida_id?: string | null;
+          costo_unitario?: number | null;
+          serial?: string | null;
+          fecha_ingreso?: string | null;
+          fecha_salida?: string | null;
+          observacion?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          deleted_at?: string | null;
+        };
+        Update: {
+          bodega_id?: string | null;
+          estado?: string;
+          proyecto_id?: string | null;
+          cliente_id?: string | null;
+          factura_emitida_id?: string | null;
+          cantidad_actual?: number;
+          serial?: string | null;
+          fecha_ingreso?: string | null;
+          fecha_salida?: string | null;
+          observacion?: string | null;
+          updated_at?: string;
+          deleted_at?: string | null;
+        };
+        Relationships: [{ foreignKeyName: "inventario_unidades_empresa_id_fkey"; columns: ["empresa_id"]; referencedRelation: "empresas"; referencedColumns: ["id"]; }];
+      };
+      inventario_movimientos: {
+        Row: {
+          id: string;
+          empresa_id: string;
+          unidad_id: string;
+          tipo: string;
+          fecha: string;
+          cantidad: number;
+          bodega_origen_id: string | null;
+          bodega_destino_id: string | null;
+          proyecto_id: string | null;
+          cliente_id: string | null;
+          factura_id: string | null;
+          usuario_id: string | null;
+          observacion: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          empresa_id: string;
+          unidad_id: string;
+          tipo: string;
+          fecha?: string;
+          cantidad?: number;
+          bodega_origen_id?: string | null;
+          bodega_destino_id?: string | null;
+          proyecto_id?: string | null;
+          cliente_id?: string | null;
+          factura_id?: string | null;
+          usuario_id?: string | null;
+          observacion?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          observacion?: string | null;
+        };
+        Relationships: [{ foreignKeyName: "inventario_movimientos_empresa_id_fkey"; columns: ["empresa_id"]; referencedRelation: "empresas"; referencedColumns: ["id"]; }];
+      };
       gastos_empresa: {
         Row: {
           id: string;
@@ -2847,6 +3116,14 @@ export type Database = {
         Returns: Json;
       };
       // Gestión de clave temporal
+      inv_calcular_prorrateo: {
+        Args: { p_importacion_id: string };
+        Returns: void;
+      };
+      inv_generar_unidades: {
+        Args: { p_importacion_id: string };
+        Returns: number;
+      };
       marcar_clave_cambiada: {
         Args: Record<PropertyKey, never>;
         Returns: void;
