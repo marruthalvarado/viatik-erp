@@ -99,15 +99,16 @@ Deno.serve(async (req: Request) => {
 
   const userId = newUser.user.id;
 
-  // Insertar en public.usuarios
+  // Upsert en public.usuarios — el trigger on_auth_user_created ya insertó la fila
+  // con el prefijo del email como nombre; aquí la actualizamos con los datos reales.
   const { error: usuarioError } = await supabaseAdmin
     .from("usuarios")
-    .insert({
+    .upsert({
       id: userId,
       nombres,
       apellidos: apellidos?.trim() || null,
       debe_cambiar_clave: true,
-    } as never);
+    } as never, { onConflict: "id" });
 
   if (usuarioError) {
     // Revertir: eliminar usuario de auth
