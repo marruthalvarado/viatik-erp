@@ -15,6 +15,7 @@ import {
   FileSpreadsheet,
   Building2,
   Settings,
+  Archive,
 } from "lucide-react";
 
 import {
@@ -59,6 +60,7 @@ const financeItems: NavItem[] = [
   { title: "Presupuestos", url: "/presupuestos", icon: Wallet, modulo: "presupuestos" },
   { title: "Facturas emit.", url: "/facturas", icon: FileSpreadsheet, modulo: "facturas" },
   { title: "Gastos empresa", url: "/gastos-empresa", icon: Building2, modulo: "gastos_empresa" },
+  { title: "Inventario", url: "/inventario", icon: Archive, modulo: "inventario" },
   { title: "Rpt. Financieros", url: "/reportes/financieros", icon: TrendingUp, modulo: "reportes" },
   { title: "Rpt. Operativos", url: "/reportes/operativos", icon: Activity, modulo: "reportes" },
   { title: "Workflow Rpt.", url: "/reportes/workflow", icon: Network, modulo: "reportes" },
