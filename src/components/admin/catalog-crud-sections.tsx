@@ -239,7 +239,7 @@ export function CatGastoSection() {
       ) : filtered.length === 0 && !isLoading ? (
         <EmptyState title="Sin categorías" description="Crea la primera categoría de gasto." />
       ) : (
-        <DataTable columns={columns} rows={filtered} isLoading={isLoading} />
+        <DataTable columns={columns} data={filtered} isLoading={isLoading} />
       )}
 
       {/* Drawer form */}
