@@ -334,7 +334,12 @@ export function CatGastoSection() {
             toast.success("Categoría eliminada.");
             setDeletingRow(null);
           } catch (err) {
-            toast.error(err instanceof Error ? err.message : "Error al eliminar la categoría.");
+            const msg = err instanceof Error ? err.message : "";
+            if (msg.includes("foreign key") || msg.includes("fkey")) {
+              toast.error("No se puede eliminar: esta categoría tiene gastos asociados. Reasigna esos gastos primero.");
+            } else {
+              toast.error(msg || "Error al eliminar la categoría.");
+            }
           }
         }}
         loading={eliminar.isPending}
