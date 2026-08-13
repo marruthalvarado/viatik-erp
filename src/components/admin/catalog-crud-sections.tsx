@@ -150,21 +150,25 @@ export function CatGastoSection() {
   }
 
   async function handleSubmit(values: CatGastoForm) {
-    const payload: CategoriaGastoInsert = {
-      codigo: values.codigo,
-      nombre: values.nombre,
-      codigo_contable: emptyToNull(values.codigo_contable) ?? null,
-      es_deducible: values.es_deducible,
-    };
-    if (editingRow) {
-      await actualizar.mutateAsync({ id: editingRow.id, payload: payload as CategoriaGastoUpdate });
-      toast.success("Categoría actualizada.");
-    } else {
-      await crear.mutateAsync(payload);
-      toast.success("Categoría creada.");
+    try {
+      const payload: CategoriaGastoInsert = {
+        codigo: values.codigo,
+        nombre: values.nombre,
+        codigo_contable: emptyToNull(values.codigo_contable) ?? null,
+        es_deducible: values.es_deducible,
+      };
+      if (editingRow) {
+        await actualizar.mutateAsync({ id: editingRow.id, payload: payload as CategoriaGastoUpdate });
+        toast.success("Categoría actualizada.");
+      } else {
+        await crear.mutateAsync(payload);
+        toast.success("Categoría creada.");
+      }
+      setDrawerOpen(false);
+      setEditingRow(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al guardar la categoría.");
     }
-    setDrawerOpen(false);
-    setEditingRow(null);
   }
 
   const columns: DataTableColumn<CategoriaGasto>[] = [
@@ -325,9 +329,13 @@ export function CatGastoSection() {
         entityLabel={`"${deletingRow?.nombre ?? ""}"`}
         onConfirm={async () => {
           if (!deletingRow) return;
-          await eliminar.mutateAsync(deletingRow.id);
-          toast.success("Categoría eliminada.");
-          setDeletingRow(null);
+          try {
+            await eliminar.mutateAsync(deletingRow.id);
+            toast.success("Categoría eliminada.");
+            setDeletingRow(null);
+          } catch (err) {
+            toast.error(err instanceof Error ? err.message : "Error al eliminar la categoría.");
+          }
         }}
         loading={eliminar.isPending}
       />
