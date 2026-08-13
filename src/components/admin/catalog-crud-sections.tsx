@@ -23,8 +23,7 @@ import {
   DrawerTitle,
   DrawerDescription,
 } from "@/components/common/drawer";
-import { EntityForm } from "@/components/common/entity-form";
-import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
+import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -251,86 +250,87 @@ export function CatGastoSection() {
               Código contable según el Plan de Cuentas de la empresa.
             </DrawerDescription>
           </DrawerHeader>
-          <EntityForm
-            form={form}
-            onSubmit={handleSubmit}
-            isPending={editingRow ? actualizar.isPending : crear.isPending}
-            submitLabel={editingRow ? "Guardar cambios" : "Crear categoría"}
-          >
-            <FormField
-              control={form.control}
-              name="codigo"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Código interno</FormLabel>
-                  <FormControl><Input {...field} placeholder="ALIM" /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="nombre"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nombre</FormLabel>
-                  <FormControl><Input {...field} placeholder="Alimentación" /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="codigo_contable"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Cuenta contable <span className="text-muted-foreground">(opcional)</span></FormLabel>
-                  <FormControl>
-                    <Input
-                      {...field}
-                      value={field.value ?? ""}
-                      placeholder="6.1.2.001"
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="es_deducible"
-              render={({ field }) => (
-                <FormItem className="flex items-center justify-between rounded-lg border p-3">
-                  <div className="space-y-0.5">
-                    <FormLabel className="text-sm font-medium">Gasto deducible de IR</FormLabel>
-                    <p className="text-xs text-muted-foreground">
-                      Desactiva para categorías no deducibles (taxis, multas, sin sustento…)
-                    </p>
-                  </div>
-                  <FormControl>
-                    <Switch checked={field.value} onCheckedChange={field.onChange} />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-          </EntityForm>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 px-4 pb-4">
+              <FormField
+                control={form.control}
+                name="codigo"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Código interno</FormLabel>
+                    <FormControl><Input {...field} placeholder="ALIM" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="nombre"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nombre</FormLabel>
+                    <FormControl><Input {...field} placeholder="Alimentación" /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="codigo_contable"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Cuenta contable <span className="text-muted-foreground">(opcional)</span></FormLabel>
+                    <FormControl>
+                      <Input {...field} value={field.value ?? ""} placeholder="6.1.2.001" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="es_deducible"
+                render={({ field }) => (
+                  <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                    <div className="space-y-0.5">
+                      <FormLabel className="text-sm font-medium">Gasto deducible de IR</FormLabel>
+                      <p className="text-xs text-muted-foreground">
+                        Desactiva para categorías no deducibles (taxis, multas, sin sustento…)
+                      </p>
+                    </div>
+                    <FormControl>
+                      <Switch checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => setDrawerOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={editingRow ? actualizar.isPending : crear.isPending}>
+                  {(editingRow ? actualizar.isPending : crear.isPending)
+                    ? "Guardando…"
+                    : editingRow ? "Guardar cambios" : "Crear categoría"}
+                </Button>
+              </div>
+            </form>
+          </Form>
         </DrawerContent>
       </Drawer>
 
-      {deletingRow && (
-        <DeleteDialog
-          open
-          title={`¿Eliminar "${deletingRow.nombre}"?`}
-          description="Esta categoría será eliminada permanentemente."
-          isPending={eliminar.isPending}
-          onConfirm={async () => {
-            await eliminar.mutateAsync(deletingRow.id);
-            toast.success("Categoría eliminada.");
-            setDeletingRow(null);
-          }}
-          onCancel={() => setDeletingRow(null)}
-        />
-      )}
+      <DeleteDialog
+        open={!!deletingRow}
+        onOpenChange={(o) => { if (!o) setDeletingRow(null); }}
+        entityLabel={`"${deletingRow?.nombre ?? ""}"`}
+        onConfirm={async () => {
+          if (!deletingRow) return;
+          await eliminar.mutateAsync(deletingRow.id);
+          toast.success("Categoría eliminada.");
+          setDeletingRow(null);
+        }}
+        loading={eliminar.isPending}
+      />
     </div>
   );
 }
