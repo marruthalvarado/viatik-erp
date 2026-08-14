@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-import { useEmpresas, useActualizarEmpresa } from "@/hooks/entities/use-empresas";
+import { useEmpresa, useActualizarEmpresa } from "@/hooks/entities/use-empresas";
 import { useMonedas } from "@/hooks/entities/use-catalogs";
 import { useCompany } from "@/contexts/company-context";
 import { emptyToNull } from "@/utils/formatters";
@@ -51,11 +51,9 @@ export function EmpresaSection() {
   const { empresaActivaId } = useCompany();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const { data } = useEmpresas({ pageSize: 100 });
+  const { data: empresa } = useEmpresa(empresaActivaId);
   const actualizar = useActualizarEmpresa();
   const { data: monedasData } = useMonedas({ pageSize: 200 });
-
-  const empresa = data?.rows.find((e) => e.id === empresaActivaId) ?? null;
   const monedas = monedasData?.rows ?? [];
 
   function toForm(e: Empresa): EmpresaFormValues {
