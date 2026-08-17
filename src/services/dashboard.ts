@@ -707,7 +707,7 @@ export async function getTopViajeros(
 ): Promise<TopViajero[]> {
   let q = supabase
     .from("rendiciones")
-    .select(`usuario_id, total_facturado, usuarios(nombres, apellidos)`)
+    .select(`usuario_id, total_facturado, usuarios!usuario_id(nombres, apellidos)`)
     .eq("empresa_id", empresaId)
     .is("deleted_at", null);
 

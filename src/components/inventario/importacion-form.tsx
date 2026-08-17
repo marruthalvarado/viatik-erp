@@ -118,13 +118,14 @@ export function ImportacionForm({ onSubmit, submitting }: Props) {
         </div>
       </div>
 
+      {/* Fecha + Proveedor (col-span-2 para el flex con botón) */}
       <div className="grid grid-cols-3 gap-3">
         <div>
           <Label>Fecha *</Label>
           <Input type="date" {...register("fecha")} />
           {errors.fecha && <p className="mt-1 text-xs text-destructive">{errors.fecha.message}</p>}
         </div>
-        <div>
+        <div className="col-span-2">
           <Label>Proveedor internacional</Label>
           <div className="flex gap-1.5">
             <Select
@@ -153,6 +154,14 @@ export function ImportacionForm({ onSubmit, submitting }: Props) {
             </Button>
           </div>
         </div>
+      </div>
+
+      {/* País de origen + Bodega destino + Estado */}
+      <div className="grid grid-cols-3 gap-3">
+        <div>
+          <Label>País de origen</Label>
+          <Input {...register("pais_origen")} placeholder="Ej. China" />
+        </div>
         <div>
           <Label>Bodega destino</Label>
           <Select
@@ -167,13 +176,6 @@ export function ImportacionForm({ onSubmit, submitting }: Props) {
               ))}
             </SelectContent>
           </Select>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <Label>País de origen</Label>
-          <Input {...register("pais_origen")} placeholder="Ej. China" />
         </div>
         <div>
           <Label>Estado</Label>
