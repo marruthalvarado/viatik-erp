@@ -1,6 +1,7 @@
 import { EntityForm } from "@/components/common/entity-form";
 import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -145,7 +146,7 @@ export function ProveedorForm({
             control={form.control}
             name="estado"
             render={({ field }) => (
-              <FormItem className="col-span-2">
+              <FormItem>
                 <FormLabel>Estado</FormLabel>
                 <Select onValueChange={field.onChange} value={field.value ?? "activo"}>
                   <FormControl>
@@ -160,6 +161,29 @@ export function ProveedorForm({
                   </SelectContent>
                 </Select>
                 <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="es_internacional"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-center gap-3 space-y-0 pt-6">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value ?? false}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <div>
+                  <FormLabel className="cursor-pointer font-normal">
+                    Proveedor internacional
+                  </FormLabel>
+                  <p className="text-xs text-muted-foreground">
+                    Fabricante o distribuidor del exterior
+                  </p>
+                </div>
               </FormItem>
             )}
           />

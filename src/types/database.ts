@@ -2026,6 +2026,7 @@ export type Database = {
           created_at: string | null;
           deleted_at: string | null;
           empresa_id: string;
+          es_internacional: boolean;
           estado: string | null;
           id: string;
           identificacion: string | null;
@@ -2041,6 +2042,7 @@ export type Database = {
           created_at?: string | null;
           deleted_at?: string | null;
           empresa_id: string;
+          es_internacional?: boolean;
           estado?: string | null;
           id?: string;
           identificacion?: string | null;
@@ -2056,6 +2058,7 @@ export type Database = {
           created_at?: string | null;
           deleted_at?: string | null;
           empresa_id?: string;
+          es_internacional?: boolean;
           estado?: string | null;
           id?: string;
           identificacion?: string | null;

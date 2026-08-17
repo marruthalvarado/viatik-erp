@@ -102,7 +102,7 @@ const catGastoSchema = z.object({
   codigo: z.string().min(1, "El código es requerido"),
   nombre: z.string().min(1, "El nombre es requerido"),
   codigo_contable: z.string().nullable().optional(),
-  es_deducible: z.boolean().default(true),
+  es_deducible: z.boolean(),
 });
 type CatGastoForm = z.infer<typeof catGastoSchema>;
 

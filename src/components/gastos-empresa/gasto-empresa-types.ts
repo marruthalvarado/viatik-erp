@@ -21,7 +21,7 @@ export const gastoEmpresaSchema = z.object({
   proyecto_id: z.string().nullable().optional(),
   responsable: z.string().nullable().optional(),
   subtotal: z.coerce.number().min(0),
-  iva_pct: z.coerce.number().min(0).max(100).default(0),
+  iva_pct: z.coerce.number().min(0).max(100),
   iva: z.coerce.number().min(0),
   total: z.coerce.number().min(0),
   es_deducible: z.boolean(),

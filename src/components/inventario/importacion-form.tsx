@@ -2,10 +2,10 @@
  * importacion-form.tsx
  * Formulario de liquidación aduanera (DAI) con líneas de productos.
  */
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,10 +13,15 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { useProveedores } from "@/hooks/entities/use-proveedores";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
+import { useProveedores, useCrearProveedor } from "@/hooks/entities/use-proveedores";
 import { useBodegas } from "@/hooks/entities/use-inventario";
 import { useProductosCatalogo } from "@/hooks/entities/use-inventario";
 import { useCompany } from "@/contexts/company-context";
+import { toast } from "@/components/common/toast";
+import { emptyToNull } from "@/utils/formatters";
 import {
   importacionSchema, type ImportacionFormValues, EMPTY_IMPORTACION,
   type LineaFormValues, EMPTY_LINEA,
@@ -29,12 +34,22 @@ interface Props {
 
 export function ImportacionForm({ onSubmit, submitting }: Props) {
   const { empresaActivaId } = useCompany();
-  const { data: proveedoresData } = useProveedores({ pageSize: 200 });
+  // Solo proveedores internacionales en el form de importación
+  const { data: proveedoresData, refetch: refetchProveedores } = useProveedores({
+    pageSize: 200,
+    filters: { es_internacional: true },
+  });
   const proveedores = proveedoresData?.rows ?? [];
+  const crearProveedor = useCrearProveedor();
   const { data: bodegas = [] } = useBodegas();
   const { data: productos = [] } = useProductosCatalogo();
 
   const [lineas, setLineas] = useState<LineaFormValues[]>([{ ...EMPTY_LINEA }]);
+
+  // Estado del mini-form de proveedor internacional
+  const [nuevoProvDialog, setNuevoProvDialog] = useState(false);
+  const [nuevoProvNombre, setNuevoProvNombre] = useState("");
+  const [nuevoProvPais, setNuevoProvPais] = useState("");
 
   const {
     register, handleSubmit, setValue, watch,
@@ -68,6 +83,27 @@ export function ImportacionForm({ onSubmit, submitting }: Props) {
     onSubmit(values, lineas);
   }
 
+  async function handleCrearProveedorInternacional() {
+    if (!nuevoProvNombre.trim() || !empresaActivaId) return;
+    try {
+      const nuevo = await crearProveedor.mutateAsync({
+        empresa_id: empresaActivaId,
+        nombre: nuevoProvNombre.trim(),
+        pais: emptyToNull(nuevoProvPais),
+        es_internacional: true,
+        estado: "activo",
+      });
+      await refetchProveedores();
+      setValue("proveedor_id", nuevo.id);
+      setNuevoProvDialog(false);
+      setNuevoProvNombre("");
+      setNuevoProvPais("");
+      toast.success(`Proveedor "${nuevo.nombre}" creado.`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al crear el proveedor.");
+    }
+  }
+
   return (
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-5">
       {/* Datos generales */}
@@ -89,19 +125,33 @@ export function ImportacionForm({ onSubmit, submitting }: Props) {
           {errors.fecha && <p className="mt-1 text-xs text-destructive">{errors.fecha.message}</p>}
         </div>
         <div>
-          <Label>Proveedor</Label>
-          <Select
-            value={watch("proveedor_id") ?? ""}
-            onValueChange={(v) => setValue("proveedor_id", v === "_none" ? "" : v)}
-          >
-            <SelectTrigger><SelectValue placeholder="Seleccionar…" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="_none">— Sin proveedor —</SelectItem>
-              {proveedores.map((p) => (
-                <SelectItem key={p.id} value={p.id}>{p.nombre}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Label>Proveedor internacional</Label>
+          <div className="flex gap-1.5">
+            <Select
+              value={watch("proveedor_id") ?? ""}
+              onValueChange={(v) => setValue("proveedor_id", v === "_none" ? "" : v)}
+            >
+              <SelectTrigger className="flex-1"><SelectValue placeholder="Seleccionar…" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_none">— Sin proveedor —</SelectItem>
+                {proveedores.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.nombre}{p.pais ? ` · ${p.pais}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="shrink-0"
+              title="Agregar proveedor internacional"
+              onClick={() => setNuevoProvDialog(true)}
+            >
+              <Plus className="size-4" />
+            </Button>
+          </div>
         </div>
         <div>
           <Label>Bodega destino</Label>
@@ -283,6 +333,59 @@ export function ImportacionForm({ onSubmit, submitting }: Props) {
           {submitting ? "Guardando…" : "Crear importación"}
         </Button>
       </div>
+
+      {/* Mini-form: nuevo proveedor internacional */}
+      <Dialog open={nuevoProvDialog} onOpenChange={setNuevoProvDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Globe className="size-4 text-muted-foreground" />
+              Nuevo proveedor internacional
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            <div>
+              <Label htmlFor="np-nombre">Nombre *</Label>
+              <Input
+                id="np-nombre"
+                value={nuevoProvNombre}
+                onChange={(e) => setNuevoProvNombre(e.target.value)}
+                placeholder="Ej. Hikvision Co., Ltd."
+                autoFocus
+              />
+            </div>
+            <div>
+              <Label htmlFor="np-pais">País</Label>
+              <Input
+                id="np-pais"
+                value={nuevoProvPais}
+                onChange={(e) => setNuevoProvPais(e.target.value)}
+                placeholder="Ej. China"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setNuevoProvDialog(false);
+                setNuevoProvNombre("");
+                setNuevoProvPais("");
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              disabled={!nuevoProvNombre.trim() || crearProveedor.isPending}
+              onClick={handleCrearProveedorInternacional}
+            >
+              {crearProveedor.isPending ? "Creando…" : "Crear proveedor"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </form>
   );
 }

@@ -6,7 +6,7 @@ import {
 } from "@/components/common/sortable-header";
 import type { SortState } from "@/components/common/sortable-header";
 import { createFileRoute } from "@tanstack/react-router";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Globe, MapPin } from "lucide-react";
 
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/common/page-header";
@@ -25,6 +25,14 @@ import {
   DrawerDescription,
 } from "@/components/common/drawer";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 import {
   useProveedores,
@@ -60,11 +68,19 @@ function ProveedoresContent() {
   const { empresaActivaId } = useCompany();
   const [params, setParams] = useState<ListParams>({ page: 1, pageSize: 25 });
   const [search, setSearch] = useState("");
+  const [filtroTipo, setFiltroTipo] = useState<"todos" | "nacional" | "internacional">("todos");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingProveedor, setEditingProveedor] = useState<Proveedor | null>(null);
   const [deletingProveedor, setDeletingProveedor] = useState<Proveedor | null>(null);
 
-  const { data, isLoading, error } = useProveedores({ ...params, search });
+  const tipoFilter =
+    filtroTipo === "internacional"
+      ? { es_internacional: true }
+      : filtroTipo === "nacional"
+        ? { es_internacional: false }
+        : undefined;
+
+  const { data, isLoading, error } = useProveedores({ ...params, search, filters: tipoFilter });
   const crear = useCrearProveedor();
   const actualizar = useActualizarProveedor();
   const eliminar = useEliminarProveedor();
@@ -95,7 +111,18 @@ function ProveedoresContent() {
       header: <SortableHeaderContent label="Nombre" col="nombre" sort={sort} onSort={handleSort} />,
       cell: (row) => (
         <div>
-          <p className="text-sm font-medium">{row.nombre}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-medium">{row.nombre}</p>
+            {row.es_internacional ? (
+              <Badge variant="secondary" className="gap-1 text-xs py-0">
+                <Globe className="size-2.5" /> Internacional
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="gap-1 text-xs py-0 text-muted-foreground">
+                <MapPin className="size-2.5" /> Local
+              </Badge>
+            )}
+          </div>
           {row.identificacion && (
             <p className="text-xs text-muted-foreground">{row.identificacion}</p>
           )}
@@ -193,6 +220,7 @@ function ProveedoresContent() {
           ciudad: emptyToNull(values.ciudad),
           pais: emptyToNull(values.pais),
           estado: values.estado ?? null,
+          es_internacional: values.es_internacional ?? false,
         };
         await actualizar.mutateAsync({ id: editingProveedor.id, payload });
         toast.success("Proveedor actualizado correctamente.");
@@ -207,6 +235,7 @@ function ProveedoresContent() {
           ciudad: emptyToNull(values.ciudad),
           pais: emptyToNull(values.pais),
           estado: values.estado ?? "activo",
+          es_internacional: values.es_internacional ?? false,
         };
         await crear.mutateAsync(payload);
         toast.success("Proveedor creado correctamente.");
@@ -252,6 +281,26 @@ function ProveedoresContent() {
           }}
           placeholder="Buscar por nombre, identificación, correo, ciudad..."
         />
+        <Select
+          value={filtroTipo}
+          onValueChange={(v) => {
+            setFiltroTipo(v as typeof filtroTipo);
+            setParams((p) => ({ ...p, page: 1 }));
+          }}
+        >
+          <SelectTrigger className="w-44 shrink-0">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos</SelectItem>
+            <SelectItem value="internacional">
+              <span className="flex items-center gap-1.5"><Globe className="size-3.5" /> Internacional</span>
+            </SelectItem>
+            <SelectItem value="nacional">
+              <span className="flex items-center gap-1.5"><MapPin className="size-3.5" /> Local</span>
+            </SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {error ? (
