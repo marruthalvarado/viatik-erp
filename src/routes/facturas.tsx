@@ -23,6 +23,7 @@ import {
   Ban,
   Filter,
   Percent,
+  Send,
 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -70,6 +71,7 @@ import { KpiCard } from "@/components/facturas/kpi-card";
 import { FlujoCajaChart } from "@/components/facturas/flujo-caja-chart";
 import { CobroPanel } from "@/components/facturas/cobro-panel";
 import { FacturaDrawer } from "@/components/facturas/factura-drawer";
+import { EmitirSriDialog } from "@/components/facturas/emitir-sri-dialog";
 
 export const Route = createFileRoute("/facturas")({
   head: () => ({ meta: [{ title: "Facturas Emitidas · VIATIQ" }] }),
@@ -101,6 +103,7 @@ function FacturasContent() {
   const [loadingXml, setLoadingXml] = useState(false);
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [expandedFactura, setExpandedFactura] = useState<string | null>(null);
+  const [emitirSriFactura, setEmitirSriFactura] = useState<FacturaEmitida | null>(null);
 
   function handleSort(col: string) { setSort((p) => nextSort(p, col)); }
   function setColFilter(col: string, val: string) {
@@ -647,6 +650,17 @@ function FacturasContent() {
                                   <ChevronDown className="size-3.5" />
                                 )}
                               </Button>
+                              {!isAnulada && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="size-7 text-blue-600 hover:text-blue-700"
+                                  onClick={() => setEmitirSriFactura(f)}
+                                  title="Emitir al SRI"
+                                >
+                                  <Send className="size-3.5" />
+                                </Button>
+                              )}
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -733,6 +747,15 @@ function FacturasContent() {
             </div>
           </div>
         </>
+      )}
+
+      {emitirSriFactura && empresaActivaId && (
+        <EmitirSriDialog
+          open={!!emitirSriFactura}
+          onOpenChange={(v) => { if (!v) setEmitirSriFactura(null); }}
+          factura={emitirSriFactura}
+          empresaId={empresaActivaId}
+        />
       )}
 
       <FacturaDrawer

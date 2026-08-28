@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Building2, Users, Shield, Settings, Sliders, BookOpen, Tag, Layers } from "lucide-react";
+import { Building2, Users, Shield, Settings, Sliders, BookOpen, Tag, Layers, Receipt } from "lucide-react";
 
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/common/page-header";
@@ -10,6 +10,7 @@ import { UsuariosSection } from "@/components/admin/usuarios-section";
 import { RolesSection } from "@/components/admin/roles-section";
 import { ParametrosSection } from "@/components/admin/parametros-section";
 import { PoliticasSection } from "@/components/admin/politicas-section";
+import { FacturacionSriSection } from "@/components/admin/facturacion-sri-section";
 import {
   CatGastoSection,
   CatDocumentoSection,
@@ -41,7 +42,8 @@ type AdminSection =
   | "est-gastos"
   | "est-rendicion"
   | "tip-rendicion"
-  | "tip-documento";
+  | "tip-documento"
+  | "facturacion-sri";
 
 interface NavGroup {
   label: string;
@@ -78,6 +80,12 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: "est-gastos", label: "Estados de Gasto", icon: Layers },
       { id: "est-rendicion", label: "Estados de Rendición", icon: Layers },
+    ],
+  },
+  {
+    label: "Facturación Electrónica",
+    items: [
+      { id: "facturacion-sri", label: "Configuración SRI", icon: Receipt },
     ],
   },
   {
@@ -163,6 +171,7 @@ function AdminContent() {
           {activeSection === "est-rendicion" && <EstadoRendicionSection />}
           {activeSection === "tip-rendicion" && <TipoRendicionSection />}
           {activeSection === "tip-documento" && <TipoDocumentoSection />}
+          {activeSection === "facturacion-sri" && <FacturacionSriSection />}
         </div>
       </div>
     </>
