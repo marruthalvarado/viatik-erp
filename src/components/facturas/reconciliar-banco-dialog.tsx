@@ -195,7 +195,6 @@ export function ReconciliarBancoDialog({
       fecha_cobro: m.credit.fecha,
       monto: m.credit.monto,
       referencia: m.credit.descripcion || "Conciliación bancaria ProCredit",
-      metodo_pago: "transferencia",
     }));
 
     const manualPayloads: CobroInsert[] = manualEntries.map(([idxStr, facturaId]) => {
@@ -206,8 +205,7 @@ export function ReconciliarBancoDialog({
         fecha_cobro: credit.fecha,
         monto: credit.monto,
         referencia: credit.descripcion || "Conciliación bancaria ProCredit",
-        metodo_pago: "transferencia",
-      };
+        };
     });
 
     const total = autoSelected.length + manualEntries.length;
