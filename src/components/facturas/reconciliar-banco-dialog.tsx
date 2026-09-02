@@ -204,7 +204,7 @@ export function ReconciliarBancoDialog({
         empresa_id: empresaId,
         fecha_cobro: credit.fecha,
         monto: credit.monto,
-        referencia: credit.descripcion || "Conciliación bancaria ProCredit",
+        observacion: credit.descripcion || "Conciliación bancaria ProCredit",
         };
     });
 
