@@ -194,7 +194,7 @@ export function ReconciliarBancoDialog({
       empresa_id: empresaId,
       fecha_cobro: m.credit.fecha,
       monto: m.credit.monto,
-      referencia: m.credit.descripcion || "Conciliación bancaria ProCredit",
+      observacion: m.credit.descripcion || "Conciliación bancaria ProCredit",
     }));
 
     const manualPayloads: CobroInsert[] = manualEntries.map(([idxStr, facturaId]) => {
