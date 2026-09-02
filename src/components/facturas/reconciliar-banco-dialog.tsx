@@ -29,6 +29,10 @@ interface MatchRow {
   factura: FacturaEmitida;
   valorNeto: number;
   selected: boolean;
+  /** Factura ya tiene cobros que cubren el valor_neto (ya registrada) */
+  yaCobrada: boolean;
+  /** Días de diferencia entre crédito y fecha factura */
+  diasDif: number;
 }
 
 interface UnmatchedCredit {
@@ -73,50 +77,57 @@ export function ReconciliarBancoDialog({
     try {
       const credits = await parseProcreditXLS(file);
 
-      // Facturas que tienen saldo pendiente
-      const facturasConSaldo = facturas.filter((f) => {
-        if (f.estado_sri === "ANULADA") return false;
-        const vn = calcValorNeto(
+      // Todas las facturas no anuladas como candidatas (incluye ya cobradas)
+      const candidatas = facturas.filter((f) => f.estado_sri !== "ANULADA");
+
+      const matchRows: MatchRow[] = [];
+      const unmatchedRows: UnmatchedCredit[] = [];
+      // Evitar asociar la misma factura a dos créditos distintos
+      const usadas = new Set<string>();
+
+      const facturaVN = (f: FacturaEmitida) =>
+        calcValorNeto(
           Number(f.total),
           Number(f.iva),
           Number(f.subtotal),
           Number(f.retencion_iva_pct ?? 0),
           Number(f.retencion_ir_pct ?? 0),
         );
-        const cobrado = cobrosMap.get(f.id) ?? 0;
-        return vn - cobrado > 0.005;
-      });
-
-      const matchRows: MatchRow[] = [];
-      const unmatchedRows: UnmatchedCredit[] = [];
 
       for (const credit of credits) {
-        // Buscar factura cuyo valor_neto coincida exactamente (±1 centavo)
-        const match = facturasConSaldo.find((f) => {
-          const vn = calcValorNeto(
-            Number(f.total),
-            Number(f.iva),
-            Number(f.subtotal),
-            Number(f.retencion_iva_pct ?? 0),
-            Number(f.retencion_ir_pct ?? 0),
-          );
-          const cobrado = cobrosMap.get(f.id) ?? 0;
-          const saldo = vn - cobrado;
-          return Math.abs(saldo - credit.monto) < 0.015;
-        });
+        const creditMs = new Date(credit.fecha + "T00:00:00").getTime();
 
-        if (match) {
-          const vn = calcValorNeto(
-            Number(match.total),
-            Number(match.iva),
-            Number(match.subtotal),
-            Number(match.retencion_iva_pct ?? 0),
-            Number(match.retencion_ir_pct ?? 0),
-          );
-          matchRows.push({ credit, factura: match, valorNeto: vn, selected: true });
-        } else {
+        // 1. Filtrar por monto exacto (±1.5¢)
+        const porMonto = candidatas.filter(
+          (f) => !usadas.has(f.id) && Math.abs(facturaVN(f) - credit.monto) < 0.015,
+        );
+
+        if (porMonto.length === 0) {
           unmatchedRows.push({ credit });
+          continue;
         }
+
+        // 2. Ordenar por proximidad de fecha (crédito vs. fecha de factura)
+        const calcDias = (f: FacturaEmitida) =>
+          Math.abs(creditMs - new Date(f.fecha + "T00:00:00").getTime()) / 86_400_000;
+
+        porMonto.sort((a, b) => calcDias(a) - calcDias(b));
+        const best = porMonto[0];
+        const vn = facturaVN(best);
+        const cobrado = cobrosMap.get(best.id) ?? 0;
+        const yaCobrada = vn - cobrado <= 0.005;
+        const diasDif = Math.round(calcDias(best));
+
+        usadas.add(best.id);
+        matchRows.push({
+          credit,
+          factura: best,
+          valorNeto: vn,
+          // No pre-seleccionar si ya está cobrada
+          selected: !yaCobrada,
+          yaCobrada,
+          diasDif,
+        });
       }
 
       setMatches(matchRows);
@@ -259,16 +270,17 @@ export function ReconciliarBancoDialog({
                         {matches.map((m, idx) => (
                           <tr
                             key={idx}
-                            className={`cursor-pointer hover:bg-muted/20 transition-colors ${m.selected ? "bg-emerald-50/50 dark:bg-emerald-950/20" : ""}`}
-                            onClick={() => toggleSelect(idx)}
+                            className={`transition-colors ${m.yaCobrada ? "opacity-60" : "cursor-pointer hover:bg-muted/20"} ${m.selected ? "bg-emerald-50/50 dark:bg-emerald-950/20" : ""}`}
+                            onClick={() => !m.yaCobrada && toggleSelect(idx)}
                           >
                             <td className="px-3 py-2 text-center">
                               <input
                                 type="checkbox"
                                 checked={m.selected}
+                                disabled={m.yaCobrada}
                                 onChange={() => toggleSelect(idx)}
                                 onClick={(e) => e.stopPropagation()}
-                                className="rounded"
+                                className="rounded disabled:cursor-not-allowed"
                               />
                             </td>
                             <td className="px-3 py-2 tabular-nums">
@@ -280,12 +292,24 @@ export function ReconciliarBancoDialog({
                             <td className="px-3 py-2 text-right tabular-nums font-medium text-emerald-700">
                               {formatCurrency(m.credit.monto)}
                             </td>
-                            <td className="px-3 py-2 font-mono">{m.factura.numero}</td>
+                            <td className="px-3 py-2">
+                              <span className="font-mono">{m.factura.numero}</span>
+                              {m.yaCobrada && (
+                                <span className="ml-1.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-medium text-amber-700">
+                                  Ya registrada
+                                </span>
+                              )}
+                            </td>
                             <td className="px-3 py-2 max-w-[160px] truncate">
                               {m.factura.razon_social}
                             </td>
                             <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
                               {formatCurrency(m.valorNeto)}
+                              {m.diasDif > 0 && (
+                                <div className="text-[9px] text-muted-foreground/70">
+                                  {m.diasDif}d de diferencia
+                                </div>
+                              )}
                             </td>
                           </tr>
                         ))}
