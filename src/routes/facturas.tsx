@@ -387,10 +387,10 @@ function FacturasContent() {
   );
   const hasFilters = Object.values(colFilters).some((v) => v);
 
-  const listaActiva = lista.filter((f) => f.estado_sri !== "ANULADA");
+  const listaActiva = listaFiltrada.filter((f) => f.estado_sri !== "ANULADA");
   const totalAnio = listaActiva.reduce((s, f) => s + (Number(f.total) || 0), 0);
   const numFacturas = listaActiva.length;
-  const totalPendiente = lista.reduce((s, f) => {
+  const totalPendiente = listaFiltrada.reduce((s, f) => {
     const vn = calcValorNeto(
       Number(f.total), Number(f.iva), Number(f.subtotal),
       Number(f.retencion_iva_pct ?? 0), Number(f.retencion_ir_pct ?? 0),
@@ -740,10 +740,10 @@ function FacturasContent() {
                       {numFacturas} factura{numFacturas !== 1 ? "s" : ""}
                     </td>
                     <td className="px-4 py-2 text-right tabular-nums text-xs font-semibold">
-                      {formatCurrency(lista.reduce((s, f) => s + f.subtotal, 0))}
+                      {formatCurrency(listaFiltrada.reduce((s, f) => s + f.subtotal, 0))}
                     </td>
                     <td className="px-4 py-2 text-right tabular-nums text-xs font-semibold text-muted-foreground">
-                      {formatCurrency(lista.reduce((s, f) => s + f.iva, 0))}
+                      {formatCurrency(listaFiltrada.reduce((s, f) => s + f.iva, 0))}
                     </td>
                     <td className="px-4 py-2 text-right tabular-nums text-sm font-bold text-emerald-700">
                       {formatCurrency(totalAnio)}
