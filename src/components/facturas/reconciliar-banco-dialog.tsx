@@ -77,9 +77,14 @@ export function ReconciliarBancoDialog({
       Number(f.retencion_iva_pct ?? 0), Number(f.retencion_ir_pct ?? 0),
     );
 
-  /** Facturas no anuladas ordenadas para el selector manual */
+  /** Facturas con saldo pendiente (pendiente, parcial o vencida) para el selector manual */
   const facturasParaSelector = facturas
-    .filter((f) => f.estado_sri !== "ANULADA")
+    .filter((f) => {
+      if (f.estado_sri === "ANULADA") return false;
+      const vn = getVN(f);
+      const cobrado = cobrosMap.get(f.id) ?? 0;
+      return vn - cobrado > 0.005; // saldo pendiente
+    })
     .sort((a, b) => b.fecha.localeCompare(a.fecha));
 
   // ─── Parsear XLS ────────────────────────────────────────────────────────────
