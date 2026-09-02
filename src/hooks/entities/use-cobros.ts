@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   listarCobros,
   crearCobro,
+  crearCobrosLote,
   eliminarCobro,
   getCobrosAgregadosPorEmpresa,
   getResumenCobros,
@@ -43,6 +44,19 @@ export function useEliminarCobro(facturaId: string) {
       void qc.invalidateQueries({ queryKey: ["facturas_emitidas"] });
       void qc.invalidateQueries({ queryKey: ["cobros_agregados"] });
       void qc.invalidateQueries({ queryKey: ["resumen_cobros"] });
+    },
+  });
+}
+
+/** Crea múltiples cobros de una sola vez (reconciliación bancaria). */
+export function useCrearCobrosLote(empresaId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payloads: CobroInsert[]) => crearCobrosLote(payloads),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["facturas_emitidas"] });
+      void qc.invalidateQueries({ queryKey: ["cobros_agregados", empresaId] });
+      void qc.invalidateQueries({ queryKey: ["resumen_cobros", empresaId] });
     },
   });
 }

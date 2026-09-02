@@ -24,6 +24,14 @@ export async function crearCobro(payload: CobroInsert): Promise<Cobro> {
   return data;
 }
 
+/** Crea varios cobros en una sola transacción (reconciliación bancaria). */
+export async function crearCobrosLote(payloads: CobroInsert[]): Promise<Cobro[]> {
+  if (payloads.length === 0) return [];
+  const { data, error } = await supabase.from("cobros").insert(payloads).select();
+  if (error) throw new Error(`[cobros] ${error.message}`);
+  return data ?? [];
+}
+
 /** Elimina un cobro por id. */
 export async function eliminarCobro(id: string): Promise<void> {
   const { error } = await supabase.from("cobros").delete().eq("id", id);

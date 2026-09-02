@@ -24,6 +24,7 @@ import {
   Filter,
   Percent,
   Send,
+  Landmark,
 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -72,6 +73,7 @@ import { FlujoCajaChart } from "@/components/facturas/flujo-caja-chart";
 import { CobroPanel } from "@/components/facturas/cobro-panel";
 import { FacturaDrawer } from "@/components/facturas/factura-drawer";
 import { EmitirSriDialog } from "@/components/facturas/emitir-sri-dialog";
+import { ReconciliarBancoDialog } from "@/components/facturas/reconciliar-banco-dialog";
 
 export const Route = createFileRoute("/facturas")({
   head: () => ({ meta: [{ title: "Facturas Emitidas · VIATIQ" }] }),
@@ -104,6 +106,7 @@ function FacturasContent() {
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [expandedFactura, setExpandedFactura] = useState<string | null>(null);
   const [emitirSriFactura, setEmitirSriFactura] = useState<FacturaEmitida | null>(null);
+  const [reconciliarOpen, setReconciliarOpen] = useState(false);
 
   function handleSort(col: string) { setSort((p) => nextSort(p, col)); }
   function setColFilter(col: string, val: string) {
@@ -451,6 +454,14 @@ function FacturasContent() {
               <Upload className="size-4 mr-1.5" />
               {loadingPdf ? "Leyendo..." : "Cargar PDF"}
             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setReconciliarOpen(true)}
+            >
+              <Landmark className="size-4 mr-1.5" />
+              Conciliar banco
+            </Button>
             <Button size="sm" onClick={() => openNueva()}>
               <Plus className="size-4 mr-1.5" />
               Nueva factura
@@ -754,6 +765,16 @@ function FacturasContent() {
           open={!!emitirSriFactura}
           onOpenChange={(v) => { if (!v) setEmitirSriFactura(null); }}
           factura={emitirSriFactura}
+          empresaId={empresaActivaId}
+        />
+      )}
+
+      {empresaActivaId && (
+        <ReconciliarBancoDialog
+          open={reconciliarOpen}
+          onOpenChange={setReconciliarOpen}
+          facturas={facturas.data ?? []}
+          cobrosMap={cobrosMap ?? new Map()}
           empresaId={empresaActivaId}
         />
       )}
