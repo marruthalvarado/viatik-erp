@@ -1052,7 +1052,7 @@ export async function getKpisNegocio(
 
   let qFact = supabase
     .from("facturas_emitidas")
-    .select("id, total")
+    .select("id, total, subtotal, iva, retencion_iva_pct, retencion_ir_pct")
     .eq("empresa_id", empresaId)
     .is("deleted_at", null)
     .neq("estado_sri", "ANULADA");
@@ -1083,6 +1083,15 @@ export async function getKpisNegocio(
 
   const facturas = factRes.data ?? [];
   const ingresos = facturas.reduce((s, f) => s + (Number(f.total) || 0), 0);
+  // Valor neto por cobrar (total − retenciones)
+  const valor_neto_total = facturas.reduce((s, f) => {
+    const total = Number(f.total ?? 0);
+    const iva = Number(f.iva ?? 0);
+    const sub = Number(f.subtotal ?? 0);
+    const retIva = Math.round(iva * Number(f.retencion_iva_pct ?? 0)) / 100;
+    const retIr = Math.round(sub * Number(f.retencion_ir_pct ?? 0)) / 100;
+    return s + Math.round((total - retIva - retIr) * 100) / 100;
+  }, 0);
   const costos_empresa = (geRes.data ?? []).reduce((s, g) => s + (Number(g.total) || 0), 0);
   const costos_viaticos = (rendRes.data ?? []).reduce((s, r) => s + (Number(r.total_facturado) || 0), 0);
   const costos = costos_empresa + costos_viaticos;
@@ -1100,7 +1109,7 @@ export async function getKpisNegocio(
     cobrado = (cobrosData ?? []).reduce((s, c) => s + (Number(c.monto) || 0), 0);
   }
 
-  return { ingresos, costos, margen, margen_pct, cobrado, por_cobrar: Math.max(0, ingresos - cobrado) };
+  return { ingresos, costos, margen, margen_pct, cobrado, por_cobrar: Math.max(0, valor_neto_total - cobrado) };
 }
 
 // ─── Reembolsos (gastos en rendiciones ya registrados en gastos_empresa) ──────
