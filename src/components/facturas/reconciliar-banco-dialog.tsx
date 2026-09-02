@@ -65,8 +65,22 @@ export function ReconciliarBancoDialog({
   const [matches, setMatches] = useState<MatchRow[]>([]);
   const [unmatched, setUnmatched] = useState<UnmatchedCredit[]>([]);
   const [parsed, setParsed] = useState(false);
+  /** facturaId elegida manualmente para cada crédito sin coincidencia (clave = índice en unmatched) */
+  const [manual, setManual] = useState<Record<number, string>>({});
 
   const crearLote = useCrearCobrosLote(empresaId);
+
+  /** Valor neto de una factura (helper sin depender de closures internos) */
+  const getVN = (f: FacturaEmitida) =>
+    calcValorNeto(
+      Number(f.total), Number(f.iva), Number(f.subtotal),
+      Number(f.retencion_iva_pct ?? 0), Number(f.retencion_ir_pct ?? 0),
+    );
+
+  /** Facturas no anuladas ordenadas para el selector manual */
+  const facturasParaSelector = facturas
+    .filter((f) => f.estado_sri !== "ANULADA")
+    .sort((a, b) => b.fecha.localeCompare(a.fecha));
 
   // ─── Parsear XLS ────────────────────────────────────────────────────────────
 
@@ -162,13 +176,15 @@ export function ReconciliarBancoDialog({
   // ─── Confirmar cobros ────────────────────────────────────────────────────────
 
   async function handleConfirm() {
-    const selected = matches.filter((m) => m.selected);
-    if (selected.length === 0) {
+    const autoSelected = matches.filter((m) => m.selected && !m.yaCobrada);
+    const manualEntries = Object.entries(manual).filter(([, id]) => id);
+
+    if (autoSelected.length === 0 && manualEntries.length === 0) {
       toast.error("No hay cobros seleccionados.");
       return;
     }
 
-    const payloads: CobroInsert[] = selected.map((m) => ({
+    const autoPayloads: CobroInsert[] = autoSelected.map((m) => ({
       factura_id: m.factura.id,
       empresa_id: empresaId,
       fecha_cobro: m.credit.fecha,
@@ -177,11 +193,22 @@ export function ReconciliarBancoDialog({
       metodo_pago: "transferencia",
     }));
 
+    const manualPayloads: CobroInsert[] = manualEntries.map(([idxStr, facturaId]) => {
+      const credit = unmatched[Number(idxStr)].credit;
+      return {
+        factura_id: facturaId,
+        empresa_id: empresaId,
+        fecha_cobro: credit.fecha,
+        monto: credit.monto,
+        referencia: credit.descripcion || "Conciliación bancaria ProCredit",
+        metodo_pago: "transferencia",
+      };
+    });
+
+    const total = autoSelected.length + manualEntries.length;
     try {
-      await crearLote.mutateAsync(payloads);
-      toast.success(
-        `${selected.length} cobro${selected.length !== 1 ? "s" : ""} registrado${selected.length !== 1 ? "s" : ""} correctamente.`,
-      );
+      await crearLote.mutateAsync([...autoPayloads, ...manualPayloads]);
+      toast.success(`${total} cobro${total !== 1 ? "s" : ""} registrado${total !== 1 ? "s" : ""} correctamente.`);
       handleClose();
     } catch (err) {
       toast.error((err as Error).message);
@@ -190,16 +217,18 @@ export function ReconciliarBancoDialog({
 
   function handleClose() {
     onOpenChange(false);
-    // Reset state after close animation
     setTimeout(() => {
       setMatches([]);
       setUnmatched([]);
       setParsed(false);
+      setManual({});
     }, 300);
   }
 
-  const selectedCount = matches.filter((m) => m.selected).length;
-  const allSelected = matches.length > 0 && matches.every((m) => m.selected);
+  const selectedCount = matches.filter((m) => m.selected && !m.yaCobrada).length;
+  const manualCount = Object.values(manual).filter(Boolean).length;
+  const totalToRegister = selectedCount + manualCount;
+  const allSelected = matches.length > 0 && matches.filter((m) => !m.yaCobrada).every((m) => m.selected);
 
   // ─── Render ─────────────────────────────────────────────────────────────────
 
@@ -322,10 +351,13 @@ export function ReconciliarBancoDialog({
               {/* Sin coincidencia */}
               {unmatched.length > 0 && (
                 <div>
-                  <h3 className="text-sm font-semibold flex items-center gap-1.5 mb-2">
+                  <h3 className="text-sm font-semibold flex items-center gap-1.5 mb-1">
                     <Link2Off className="size-4 text-amber-500" />
                     Sin coincidencia ({unmatched.length})
                   </h3>
+                  <p className="text-[11px] text-muted-foreground mb-2">
+                    Asigna manualmente a una factura si corresponde a una cuota o pago parcial.
+                  </p>
                   <div className="rounded-lg border overflow-hidden">
                     <table className="w-full text-xs">
                       <thead className="bg-muted/30 border-b text-[10px] uppercase text-muted-foreground">
@@ -333,22 +365,53 @@ export function ReconciliarBancoDialog({
                           <th className="px-3 py-2 text-left">Fecha banco</th>
                           <th className="px-3 py-2 text-left">Descripción</th>
                           <th className="px-3 py-2 text-right">Monto</th>
+                          <th className="px-3 py-2 text-left">Asignar a factura</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y">
-                        {unmatched.map((u, idx) => (
-                          <tr key={idx} className="text-muted-foreground">
-                            <td className="px-3 py-2 tabular-nums">
-                              {formatDate(u.credit.fecha)}
-                            </td>
-                            <td className="px-3 py-2 max-w-[240px] truncate">
-                              {u.credit.descripcion || "—"}
-                            </td>
-                            <td className="px-3 py-2 text-right tabular-nums">
-                              {formatCurrency(u.credit.monto)}
-                            </td>
-                          </tr>
-                        ))}
+                        {unmatched.map((u, idx) => {
+                          const asignadaId = manual[idx] ?? "";
+                          const asignada = asignadaId
+                            ? facturas.find((f) => f.id === asignadaId)
+                            : undefined;
+                          return (
+                            <tr
+                              key={idx}
+                              className={asignadaId ? "bg-blue-50/40 dark:bg-blue-950/20" : ""}
+                            >
+                              <td className="px-3 py-2 tabular-nums whitespace-nowrap">
+                                {formatDate(u.credit.fecha)}
+                              </td>
+                              <td className="px-3 py-2 max-w-[180px] truncate text-muted-foreground">
+                                {u.credit.descripcion || "—"}
+                              </td>
+                              <td className="px-3 py-2 text-right tabular-nums font-medium">
+                                {formatCurrency(u.credit.monto)}
+                                {asignada && (
+                                  <div className="text-[9px] text-blue-600 font-normal">
+                                    → {formatCurrency(getVN(asignada))} neto
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-3 py-2 min-w-[200px]">
+                                <select
+                                  value={asignadaId}
+                                  onChange={(e) =>
+                                    setManual((prev) => ({ ...prev, [idx]: e.target.value }))
+                                  }
+                                  className="w-full rounded border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                                >
+                                  <option value="">— Seleccionar —</option>
+                                  {facturasParaSelector.map((f) => (
+                                    <option key={f.id} value={f.id}>
+                                      {f.numero} · {f.razon_social.slice(0, 22)} · {formatCurrency(getVN(f))}
+                                    </option>
+                                  ))}
+                                </select>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -370,14 +433,14 @@ export function ReconciliarBancoDialog({
           <Button variant="outline" onClick={handleClose}>
             Cancelar
           </Button>
-          {parsed && matches.length > 0 && (
+          {parsed && totalToRegister > 0 && (
             <Button
               onClick={handleConfirm}
-              disabled={selectedCount === 0 || crearLote.isPending}
+              disabled={crearLote.isPending}
             >
               {crearLote.isPending
                 ? "Registrando..."
-                : `Registrar ${selectedCount} cobro${selectedCount !== 1 ? "s" : ""}`}
+                : `Registrar ${totalToRegister} cobro${totalToRegister !== 1 ? "s" : ""}`}
             </Button>
           )}
         </DialogFooter>
