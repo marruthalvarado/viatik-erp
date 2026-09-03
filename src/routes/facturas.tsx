@@ -59,6 +59,8 @@ import {
 } from "@/hooks/entities/use-facturas-emitidas";
 import { useProyectos } from "@/hooks/entities/use-proyectos";
 import { useCobrosAgregados } from "@/hooks/entities/use-cobros";
+import { useClientes } from "@/hooks/entities/use-clientes";
+import { useParametros } from "@/hooks/entities/use-parametros";
 
 import {
   facturaSchema,
@@ -122,10 +124,54 @@ function FacturasContent() {
   const facturas = useFacturasEmitidas(empresaActivaId, anio);
   const flujoCaja = useFlujoCajaProyectado(empresaActivaId, anio);
   const proyectos = useProyectos({ empresaId: empresaActivaId ?? undefined, pageSize: 200 });
+  const clientesQuery = useClientes({ empresaId: empresaActivaId ?? undefined, pageSize: 500 });
+  const parametrosQuery = useParametros({ empresaId: empresaActivaId ?? undefined, pageSize: 100 });
   const crear = useCrearFactura();
   const actualizar = useActualizarFactura();
   const eliminar = useEliminarFactura();
   const cobrosAgregados = useCobrosAgregados(empresaActivaId);
+
+  /** IVA % por defecto desde parametros_sistema (fallback: 15) */
+  const defaultIvaPct = useMemo(() => {
+    const rows = Array.isArray(parametrosQuery.data)
+      ? parametrosQuery.data
+      : (parametrosQuery.data as { rows?: unknown[] } | null)?.rows ?? [];
+    const param = (rows as Array<{ clave: string; valor: string | null }>).find(
+      (p) => p.clave === "iva_pct_default",
+    );
+    return param ? Number(param.valor) || 15 : 15;
+  }, [parametrosQuery.data]);
+
+  /** Lista de clientes simplificada para el combobox del drawer */
+  const clientesSimples = useMemo(() => {
+    const rows = Array.isArray(clientesQuery.data)
+      ? clientesQuery.data
+      : (clientesQuery.data as { rows?: unknown[] } | null)?.rows ?? [];
+    return (rows as Array<{ id: string; nombre: string; ruc: string | null }>).map((c) => ({
+      id: c.id,
+      nombre: c.nombre,
+      ruc: c.ruc ?? null,
+    }));
+  }, [clientesQuery.data]);
+
+  /** Siguiente número de factura sugerido, basado en el mayor número registrado */
+  const siguienteNumero = useMemo(() => {
+    const base = facturas.data ?? [];
+    let maxSeq = 0;
+    let prefix = "001-001";
+    for (const f of base) {
+      const m = f.numero.match(/^(\d{1,3}-\d{3})-(\d{9})$/);
+      if (m) {
+        const seq = parseInt(m[2], 10);
+        if (seq > maxSeq) {
+          maxSeq = seq;
+          prefix = m[1];
+        }
+      }
+    }
+    const next = String(maxSeq + 1).padStart(9, "0");
+    return `${prefix}-${next}`;
+  }, [facturas.data]);
 
   const anios = [
     new Date().getFullYear(),
@@ -176,7 +222,7 @@ function FacturasContent() {
             fecha_vencimiento: null,
           }
         : {
-            numero: "",
+            numero: siguienteNumero,
             fecha: new Date().toISOString().split("T")[0],
             tipo: "factura",
             ruc_cliente: null,
@@ -464,7 +510,7 @@ function FacturasContent() {
             </Button>
             <Button size="sm" onClick={() => openNueva()}>
               <Plus className="size-4 mr-1.5" />
-              Nueva factura
+              Registrar factura
             </Button>
           </div>
         }
@@ -789,6 +835,8 @@ function FacturasContent() {
         proyectos={proyectos.data?.rows ?? []}
         crearIsPending={crear.isPending}
         actualizarIsPending={actualizar.isPending}
+        clientes={clientesSimples}
+        defaultIvaPct={defaultIvaPct}
       />
     </>
   );
