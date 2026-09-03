@@ -220,6 +220,9 @@ export function FacturaDrawer({
                       <FormControl>
                         <Input placeholder="001-001-000000001" {...field} />
                       </FormControl>
+                      <p className="text-[10px] text-amber-600 flex items-start gap-1 mt-0.5">
+                        ⚠ Verifica que coincida con tu facturador (SRI u otro sistema).
+                      </p>
                       <FormMessage />
                     </FormItem>
                   )}
