@@ -261,25 +261,31 @@ function firmarXadesBeS(xmlSinFirma: string, p12Bytes: Uint8Array, clave: string
   contentMd.update(forge.util.encodeUtf8(xmlBody));
   const contentDigest = forge.util.encode64(contentMd.digest().getBytes());
 
-  // ── C14N INCLUSIVE — regla clave ──────────────────────────────────────────────
-  // <ds:Signature xmlns:ds="..." xmlns:xades="..."> declara AMBOS namespaces.
-  // En C14N inclusive, los descendientes NO re-emiten namespaces ya declarados
-  // por un ancestro en el canonical form. Por eso signedInfoXml y signedPropsXml
-  // se escriben SIN declaraciones de namespace: eso produce exactamente los mismos
-  // bytes que el SRI calcula al canonicalizar en el contexto del documento.
-  // Además: tags self-closing → start-end; attrs regulares en orden alfabético.
+  // ── EXCLUSIVE C14N (exc-c14n) ────────────────────────────────────────────────
+  // Con exc-c14n el canonical form NO depende del contexto de ancestros:
+  // cada elemento emite SOLO los namespaces que él/su subtree utilizan y que
+  // no hayan sido emitidos por un ancestro DENTRO DEL MISMO SUBTREE.
+  // Resultado: hash standalone == hash en-documento → siempre coinciden.
+  //
+  // Reglas aplicadas:
+  // 1. signedInfoXml: xmlns:ds en <ds:SignedInfo>; hijos ds:* lo heredan.
+  // 2. signedPropsXml: xmlns:xades en raíz; cada ds:* HERMANO necesita xmlns:ds propio
+  //    (hermanos no se heredan entre sí en exc-c14n).
+  // 3. Tags self-closing → start-end. Attrs regulares: orden alfabético.
   // ─────────────────────────────────────────────────────────────────────────────
 
-  // 9. Construir SignedProperties (sin namespace decls — ya declarados en ancestro)
-  const signedPropsXml = `<xades:SignedProperties Id="Signature-SignedProperties"><xades:SignedSignatureProperties><xades:SigningTime>${signingTime}</xades:SigningTime><xades:SigningCertificate><xades:Cert><xades:CertDigest><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${certDigest}</ds:DigestValue></xades:CertDigest><xades:IssuerSerial><ds:X509IssuerName>${escXml(issuerAttrs)}</ds:X509IssuerName><ds:X509SerialNumber>${serialNumber}</ds:X509SerialNumber></xades:IssuerSerial></xades:Cert></xades:SigningCertificate></xades:SignedSignatureProperties><xades:SignedDataObjectProperties></xades:SignedDataObjectProperties></xades:SignedProperties>`;
+  // 9. Construir SignedProperties — exc-c14n
+  const signedPropsXml = `<xades:SignedProperties xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" Id="Signature-SignedProperties"><xades:SignedSignatureProperties><xades:SigningTime>${signingTime}</xades:SigningTime><xades:SigningCertificate><xades:Cert><xades:CertDigest><ds:DigestMethod xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue xmlns:ds="http://www.w3.org/2000/09/xmldsig#">${certDigest}</ds:DigestValue></xades:CertDigest><xades:IssuerSerial><ds:X509IssuerName xmlns:ds="http://www.w3.org/2000/09/xmldsig#">${escXml(issuerAttrs)}</ds:X509IssuerName><ds:X509SerialNumber xmlns:ds="http://www.w3.org/2000/09/xmldsig#">${serialNumber}</ds:X509SerialNumber></xades:IssuerSerial></xades:Cert></xades:SigningCertificate></xades:SignedSignatureProperties><xades:SignedDataObjectProperties></xades:SignedDataObjectProperties></xades:SignedProperties>`;
 
   // 10. SHA-1 de SignedProperties
   const spMd = forge.md.sha1.create();
   spMd.update(forge.util.encodeUtf8(signedPropsXml));
   const spDigest = forge.util.encode64(spMd.digest().getBytes());
 
-  // 11. Construir SignedInfo (sin namespace decls; Reference attrs: Id < Type < URI)
-  const signedInfoXml = `<ds:SignedInfo Id="Signature-SignedInfo"><ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:CanonicalizationMethod><ds:SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"></ds:SignatureMethod><ds:Reference Id="SignedPropertiesID" Type="http://uri.etsi.org/01903#SignedProperties" URI="#Signature-SignedProperties"><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${spDigest}</ds:DigestValue></ds:Reference><ds:Reference URI="#comprobante"><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"></ds:Transform></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${contentDigest}</ds:DigestValue></ds:Reference></ds:SignedInfo>`;
+  // 11. Construir SignedInfo — exc-c14n
+  // xmlns:ds en <ds:SignedInfo>; hijos ds:* heredan (mismo subtree).
+  // CanonicalizationMethod apunta a exc-c14n. Reference attrs: Id < Type < URI.
+  const signedInfoXml = `<ds:SignedInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Id="Signature-SignedInfo"><ds:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"></ds:CanonicalizationMethod><ds:SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"></ds:SignatureMethod><ds:Reference Id="SignedPropertiesID" Type="http://uri.etsi.org/01903#SignedProperties" URI="#Signature-SignedProperties"><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${spDigest}</ds:DigestValue></ds:Reference><ds:Reference URI="#comprobante"><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"></ds:Transform></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${contentDigest}</ds:DigestValue></ds:Reference></ds:SignedInfo>`;
 
   // 12. Firmar SignedInfo con RSA-SHA1
   const signMd = forge.md.sha1.create();
@@ -287,9 +293,7 @@ function firmarXadesBeS(xmlSinFirma: string, p12Bytes: Uint8Array, clave: string
   const signatureBytes = privateKey.sign(signMd);
   const signatureValue = forge.util.encode64(signatureBytes);
 
-  // 13. Ensamblar XML firmado
-  // <ds:Signature> declara xmlns:ds y xmlns:xades → heredados por todos los descendientes.
-  // signedPropsXml se inserta verbatim (mismo string que fue hasheado).
+  // 13. Ensamblar XML firmado — signedPropsXml verbatim (mismo string hasheado)
   const signatureBlock = `<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" Id="Signature">${signedInfoXml}<ds:SignatureValue Id="SignatureValue">${signatureValue}</ds:SignatureValue><ds:KeyInfo Id="Certificate"><ds:X509Data><ds:X509Certificate>${certBase64}</ds:X509Certificate></ds:X509Data></ds:KeyInfo><ds:Object Id="Signature-QualifyingProperties"><xades:QualifyingProperties Target="#Signature">${signedPropsXml}</xades:QualifyingProperties></ds:Object></ds:Signature>`;
 
   // Insertar firma antes del cierre del elemento raíz
