@@ -85,9 +85,14 @@ function codigoPorcentajeIva(tasa: number): { codigo: string; porcentaje: string
   return { codigo: "4", porcentaje: "15" };
 }
 
-/** Format number to 2 decimals for XML */
+/** Format number to 2 decimals for XML (montos, valores) */
 function fmt(n: number): string {
   return n.toFixed(2);
+}
+
+/** Format number to 6 decimals for XML (precioUnitario, cantidad unitaria) */
+function fmt6(n: number): string {
+  return n.toFixed(6);
 }
 
 /** Format date dd/MM/yyyy */
@@ -180,7 +185,7 @@ function generarXmlFactura(d: FacturaData): string {
       <codigoPrincipal>SERV-001</codigoPrincipal>
       <descripcion>${escXml(d.descripcionServicio)}</descripcion>
       <cantidad>1.000000</cantidad>
-      <precioUnitario>${fmt(baseImponible)}</precioUnitario>
+      <precioUnitario>${fmt6(baseImponible)}</precioUnitario>
       <descuento>${fmt(d.descuento)}</descuento>
       <precioTotalSinImpuesto>${fmt(baseImponible)}</precioTotalSinImpuesto>
       <impuestos>
