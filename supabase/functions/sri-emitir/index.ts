@@ -270,7 +270,10 @@ function firmarXadesBeS(xmlSinFirma: string, p12Bytes: Uint8Array, clave: string
   const spDigest = forge.util.encode64(spMd.digest().getBytes());
 
   // 11. Construir SignedInfo
-  const signedInfoXml = `<ds:SignedInfo Id="Signature-SignedInfo" xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/><ds:SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"/><ds:Reference Id="SignedPropertiesID" URI="#Signature-SignedProperties" Type="http://uri.etsi.org/01903#SignedProperties"><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/><ds:DigestValue>${spDigest}</ds:DigestValue></ds:Reference><ds:Reference URI="#comprobante"><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/><ds:DigestValue>${contentDigest}</ds:DigestValue></ds:Reference></ds:SignedInfo>`;
+  // La referencia al comprobante incluye enveloped-signature transform para que
+  // el verificador excluya el bloque <ds:Signature> al calcular el digest,
+  // coincidiendo con el hash calculado sobre xmlSinFirma.
+  const signedInfoXml = `<ds:SignedInfo Id="Signature-SignedInfo" xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/><ds:SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"/><ds:Reference Id="SignedPropertiesID" URI="#Signature-SignedProperties" Type="http://uri.etsi.org/01903#SignedProperties"><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/><ds:DigestValue>${spDigest}</ds:DigestValue></ds:Reference><ds:Reference URI="#comprobante"><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/><ds:DigestValue>${contentDigest}</ds:DigestValue></ds:Reference></ds:SignedInfo>`;
 
   // 12. Firmar SignedInfo con RSA-SHA1
   const signMd = forge.md.sha1.create();
@@ -279,7 +282,9 @@ function firmarXadesBeS(xmlSinFirma: string, p12Bytes: Uint8Array, clave: string
   const signatureValue = forge.util.encode64(signatureBytes);
 
   // 13. Ensamblar XML firmado
-  const signatureBlock = `<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" Id="Signature">${signedInfoXml}<ds:SignatureValue Id="SignatureValue">${signatureValue}</ds:SignatureValue><ds:KeyInfo Id="Certificate"><ds:X509Data><ds:X509Certificate>${certBase64}</ds:X509Certificate></ds:X509Data></ds:KeyInfo><ds:Object Id="Signature-QualifyingProperties"><xades:QualifyingProperties Target="#Signature"><xades:SignedProperties Id="Signature-SignedProperties"><xades:SignedSignatureProperties><xades:SigningTime>${signingTime}</xades:SigningTime><xades:SigningCertificate><xades:Cert><xades:CertDigest><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/><ds:DigestValue>${certDigest}</ds:DigestValue></xades:CertDigest><xades:IssuerSerial><ds:X509IssuerName>${escXml(issuerAttrs)}</ds:X509IssuerName><ds:X509SerialNumber>${serialNumber}</ds:X509SerialNumber></xades:IssuerSerial></xades:Cert></xades:SigningCertificate></xades:SignedSignatureProperties><xades:SignedDataObjectProperties/></xades:SignedProperties></xades:QualifyingProperties></ds:Object></ds:Signature>`;
+  // Se reutiliza signedPropsXml exacto (mismo string que fue hasheado) para que
+  // el SRI calcule el mismo digest al verificar URI="#Signature-SignedProperties".
+  const signatureBlock = `<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" Id="Signature">${signedInfoXml}<ds:SignatureValue Id="SignatureValue">${signatureValue}</ds:SignatureValue><ds:KeyInfo Id="Certificate"><ds:X509Data><ds:X509Certificate>${certBase64}</ds:X509Certificate></ds:X509Data></ds:KeyInfo><ds:Object Id="Signature-QualifyingProperties"><xades:QualifyingProperties Target="#Signature">${signedPropsXml}</xades:QualifyingProperties></ds:Object></ds:Signature>`;
 
   // Insertar firma antes del cierre del elemento raíz
   const xmlFirmado = xmlSinFirma.replace(/(<\/factura>)$/, `${signatureBlock}</factura>`);
