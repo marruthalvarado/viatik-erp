@@ -274,18 +274,22 @@ function firmarXadesBeS(xmlSinFirma: string, p12Bytes: Uint8Array, clave: string
   // 3. Tags self-closing → start-end. Attrs regulares: orden alfabético.
   // ─────────────────────────────────────────────────────────────────────────────
 
-  // 9. Construir SignedProperties — exc-c14n
-  const signedPropsXml = `<xades:SignedProperties xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" Id="Signature-SignedProperties"><xades:SignedSignatureProperties><xades:SigningTime>${signingTime}</xades:SigningTime><xades:SigningCertificate><xades:Cert><xades:CertDigest><ds:DigestMethod xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue xmlns:ds="http://www.w3.org/2000/09/xmldsig#">${certDigest}</ds:DigestValue></xades:CertDigest><xades:IssuerSerial><ds:X509IssuerName xmlns:ds="http://www.w3.org/2000/09/xmldsig#">${escXml(issuerAttrs)}</ds:X509IssuerName><ds:X509SerialNumber xmlns:ds="http://www.w3.org/2000/09/xmldsig#">${serialNumber}</ds:X509SerialNumber></xades:IssuerSerial></xades:Cert></xades:SigningCertificate></xades:SignedSignatureProperties><xades:SignedDataObjectProperties></xades:SignedDataObjectProperties></xades:SignedProperties>`;
+  // 9. Construir SignedProperties — inclusive C14N
+  // La referencia #Signature-SignedProperties no tiene transform C14N explícito,
+  // por lo que el SRI aplica inclusive C14N por defecto. Con inclusive C14N,
+  // xmlns:ds (en scope desde <ds:Signature>) se emite en la raíz de
+  // <xades:SignedProperties> (no en cada hijo ds:*).
+  const signedPropsXml = `<xades:SignedProperties xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" Id="Signature-SignedProperties"><xades:SignedSignatureProperties><xades:SigningTime>${signingTime}</xades:SigningTime><xades:SigningCertificate><xades:Cert><xades:CertDigest><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${certDigest}</ds:DigestValue></xades:CertDigest><xades:IssuerSerial><ds:X509IssuerName>${escXml(issuerAttrs)}</ds:X509IssuerName><ds:X509SerialNumber>${serialNumber}</ds:X509SerialNumber></xades:IssuerSerial></xades:Cert></xades:SigningCertificate></xades:SignedSignatureProperties><xades:SignedDataObjectProperties></xades:SignedDataObjectProperties></xades:SignedProperties>`;
 
   // 10. SHA-1 de SignedProperties
   const spMd = forge.md.sha1.create();
   spMd.update(forge.util.encodeUtf8(signedPropsXml));
   const spDigest = forge.util.encode64(spMd.digest().getBytes());
 
-  // 11. Construir SignedInfo — exc-c14n
-  // xmlns:ds en <ds:SignedInfo>; hijos ds:* heredan (mismo subtree).
-  // CanonicalizationMethod apunta a exc-c14n. Reference attrs: Id < Type < URI.
-  const signedInfoXml = `<ds:SignedInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Id="Signature-SignedInfo"><ds:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"></ds:CanonicalizationMethod><ds:SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"></ds:SignatureMethod><ds:Reference Id="SignedPropertiesID" Type="http://uri.etsi.org/01903#SignedProperties" URI="#Signature-SignedProperties"><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${spDigest}</ds:DigestValue></ds:Reference><ds:Reference URI="#comprobante"><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"></ds:Transform></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${contentDigest}</ds:DigestValue></ds:Reference></ds:SignedInfo>`;
+  // 11. Construir SignedInfo — inclusive C14N
+  // CanonicalizationMethod = inclusive C14N (estándar SRI Ecuador).
+  // xmlns:ds en raíz; hijos heredan. Reference attrs: Id < Type < URI.
+  const signedInfoXml = `<ds:SignedInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Id="Signature-SignedInfo"><ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:CanonicalizationMethod><ds:SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"></ds:SignatureMethod><ds:Reference Id="SignedPropertiesID" Type="http://uri.etsi.org/01903#SignedProperties" URI="#Signature-SignedProperties"><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${spDigest}</ds:DigestValue></ds:Reference><ds:Reference URI="#comprobante"><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"></ds:Transform></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${contentDigest}</ds:DigestValue></ds:Reference></ds:SignedInfo>`;
 
   // 12. Firmar SignedInfo con RSA-SHA1
   const signMd = forge.md.sha1.create();
