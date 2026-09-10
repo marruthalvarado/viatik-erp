@@ -215,15 +215,35 @@ function escXml(s: string): string {
 
 interface SignedResult {
   xml: string;
+  debug: {
+    certSubject: string;
+    certSerial: string;
+    certExpiry: string;
+    contentDigest: string;
+    spDigest: string;
+    signedInfoSnippet: string;
+  };
 }
 
-function firmarXadesBeS(xmlSinFirma: string, p12Bytes: Uint8Array, clave: string): SignedResult {
-  // 1. Parsear .p12
+/** Bytes a base64 (sin encapsulación PEM) */
+function toB64(bytes: Uint8Array): string {
+  let bin = "";
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin);
+}
+
+/** SHA-1 via Web Crypto → base64 */
+async function sha1b64(data: Uint8Array): Promise<string> {
+  return toB64(new Uint8Array(await crypto.subtle.digest("SHA-1", data)));
+}
+
+async function firmarXadesBeS(xmlSinFirma: string, p12Bytes: Uint8Array, clave: string): Promise<SignedResult> {
+  // 1. Parsear .p12 con forge (sólo para PKCS12 unpacking)
   const p12Der = forge.util.binary.raw.encode(p12Bytes);
   const p12Asn1 = forge.asn1.fromDer(p12Der);
   const p12 = forge.pkcs12.pkcs12FromAsn1(p12Asn1, clave);
 
-  // 2. Extraer clave privada (shrouded primero, fallback a keyBag normal)
+  // 2. Extraer clave privada
   let privateKey: forge.pki.rsa.PrivateKey | null = null;
   const shroudedBags = p12.getBags({ bagType: forge.pki.oids.pkcs8ShroudedKeyBag });
   const shroudedKey = shroudedBags[forge.pki.oids.pkcs8ShroudedKeyBag]?.[0];
@@ -235,7 +255,7 @@ function firmarXadesBeS(xmlSinFirma: string, p12Bytes: Uint8Array, clave: string
   }
   if (!privateKey) throw new Error("No se pudo extraer la clave privada del .p12");
 
-  // 3. Extraer certificado — buscar el que corresponde a la clave privada por módulo RSA
+  // 3. Extraer certificado (por módulo RSA)
   const allCertBags = (p12.getBags({ bagType: forge.pki.oids.certBag })[forge.pki.oids.certBag]) ?? [];
   const keyModulus = (privateKey as forge.pki.rsa.PrivateKey).n.toString(16);
   let cert: forge.pki.Certificate | null = null;
@@ -244,88 +264,70 @@ function firmarXadesBeS(xmlSinFirma: string, p12Bytes: Uint8Array, clave: string
     try {
       const pubKey = bag.cert.publicKey as forge.pki.rsa.PublicKey;
       if (pubKey?.n && pubKey.n.toString(16) === keyModulus) { cert = bag.cert; break; }
-    } catch { /* ignorar bags inválidos */ }
+    } catch { /* skip */ }
   }
-  if (!cert) cert = allCertBags[0]?.cert ?? null; // fallback al primero
+  if (!cert) cert = allCertBags[0]?.cert ?? null;
   if (!cert) throw new Error("No se pudo extraer el certificado del .p12");
 
-  // 4. Certificado en base64 DER
+  // 4. Cert DER → base64
   const certAsn1 = forge.pki.certificateToAsn1(cert);
-  const certDer = forge.asn1.toDer(certAsn1).getBytes();
-  const certBase64 = forge.util.encode64(certDer);
+  const certDerStr = forge.asn1.toDer(certAsn1).getBytes();
+  const certDerBytes = Uint8Array.from(certDerStr, c => c.charCodeAt(0));
+  const certBase64 = toB64(certDerBytes);
 
-  // 5. SHA-1 del certificado (para CertDigest)
-  const certMd = forge.md.sha1.create();
-  certMd.update(certDer);
-  const certDigest = forge.util.encode64(certMd.digest().getBytes());
+  // 5. SHA-1 del cert (Web Crypto)
+  const certDigest = await sha1b64(certDerBytes);
 
-  // 6. Issuer y serial
+  // 6. Issuer DN y serial
   const issuerAttrs = cert.issuer.attributes
     .map((a: forge.pki.CertificateField) => `${a.shortName}=${a.value}`)
     .join(",");
   const serialNumber = new forge.jsbn.BigInteger(cert.serialNumber, 16).toString(10);
 
-  // 7. Signing time (sin milisegundos, timezone Ecuador UTC-5)
+  // 7. Signing time (ISO sin ms, offset Ecuador)
   const now = new Date();
   const signingTime = now.toISOString().split(".")[0] + "-05:00";
 
-  // 8. SHA-1 del contenido del XML (sin declaración XML)
+  // 8. Content digest — C14N del documento sin declaración XML (Web Crypto SHA-1)
   const xmlBody = xmlSinFirma.replace(/^<\?xml[^?]*\?>\n?/, "");
-  const contentMd = forge.md.sha1.create();
-  contentMd.update(forge.util.encodeUtf8(xmlBody));
-  const contentDigest = forge.util.encode64(contentMd.digest().getBytes());
+  const contentDigest = await sha1b64(new TextEncoder().encode(xmlBody));
 
-  // ── EXCLUSIVE C14N (exc-c14n) ────────────────────────────────────────────────
-  // Con exc-c14n el canonical form NO depende del contexto de ancestros:
-  // cada elemento emite SOLO los namespaces que él/su subtree utilizan y que
-  // no hayan sido emitidos por un ancestro DENTRO DEL MISMO SUBTREE.
-  // Resultado: hash standalone == hash en-documento → siempre coinciden.
-  //
-  // Reglas aplicadas:
-  // 1. signedInfoXml: xmlns:ds en <ds:SignedInfo>; hijos ds:* lo heredan.
-  // 2. signedPropsXml: xmlns:xades en raíz; cada ds:* HERMANO necesita xmlns:ds propio
-  //    (hermanos no se heredan entre sí en exc-c14n).
-  // 3. Tags self-closing → start-end. Attrs regulares: orden alfabético.
-  // ─────────────────────────────────────────────────────────────────────────────
-
-  // 9. Construir SignedProperties — inclusive C14N
-  // La referencia #Signature-SignedProperties no tiene transform C14N explícito,
-  // por lo que el SRI aplica inclusive C14N por defecto. Con inclusive C14N,
-  // xmlns:ds (en scope desde <ds:Signature>) se emite en la raíz de
-  // <xades:SignedProperties> (no en cada hijo ds:*).
-  // signedPropsXml — inclusive C14N standalone:
-  // xmlns:ds y xmlns:xades en raíz (simulan el in-scope desde <ds:Signature>);
-  // hijos ds:* NO redeclaran xmlns:ds (heredan del ancestro en canonical form).
-  // Sin <xades:SignedDataObjectProperties> vacío (schema XAdES requiere content si está presente).
+  // 9. SignedProperties (xmlns:ds < xmlns:xades por orden C14N; Id al final)
   const signedPropsXml = `<xades:SignedProperties xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" Id="Signature-SignedProperties"><xades:SignedSignatureProperties><xades:SigningTime>${signingTime}</xades:SigningTime><xades:SigningCertificate><xades:Cert><xades:CertDigest><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${certDigest}</ds:DigestValue></xades:CertDigest><xades:IssuerSerial><ds:X509IssuerName>${escXml(issuerAttrs)}</ds:X509IssuerName><ds:X509SerialNumber>${serialNumber}</ds:X509SerialNumber></xades:IssuerSerial></xades:Cert></xades:SigningCertificate></xades:SignedSignatureProperties></xades:SignedProperties>`;
 
-  // 10. SHA-1 de SignedProperties
-  const spMd = forge.md.sha1.create();
-  spMd.update(forge.util.encodeUtf8(signedPropsXml));
-  const spDigest = forge.util.encode64(spMd.digest().getBytes());
+  // 10. SP digest (Web Crypto SHA-1)
+  const spDigest = await sha1b64(new TextEncoder().encode(signedPropsXml));
 
-  // 11. Construir SignedInfo — inclusive C14N
-  // URI="" en la referencia al documento (NO URI="#comprobante"):
-  //   Los parsers Java del SRI usan Document.getElementById() que requiere que el atributo
-  //   esté declarado como xs:ID en el schema. Sin declaración, id="comprobante" (minúscula)
-  //   no se resuelve → digest falla → FIRMA INVALIDA.
-  //   Con URI="" se referencia el documento entero; enveloped-signature quita <ds:Signature>.
-  // Orden estándar: referencia al documento primero, SignedProperties segundo.
-  const signedInfoXml = `<ds:SignedInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Id="Signature-SignedInfo"><ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:CanonicalizationMethod><ds:SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"></ds:SignatureMethod><ds:Reference URI=""><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"></ds:Transform><ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:Transform></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${contentDigest}</ds:DigestValue></ds:Reference><ds:Reference Type="http://uri.etsi.org/01903#SignedProperties" URI="#Signature-SignedProperties"><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:Transform></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${spDigest}</ds:DigestValue></ds:Reference></ds:SignedInfo>`;
+  // 11. SignedInfo — inclusive C14N, URI="" (documento completo), SP reference sin Id
+  const signedInfoXml = `<ds:SignedInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:CanonicalizationMethod><ds:SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"></ds:SignatureMethod><ds:Reference URI=""><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"></ds:Transform><ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:Transform></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${contentDigest}</ds:DigestValue></ds:Reference><ds:Reference Type="http://uri.etsi.org/01903#SignedProperties" URI="#Signature-SignedProperties"><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:Transform></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${spDigest}</ds:DigestValue></ds:Reference></ds:SignedInfo>`;
 
-  // 12. Firmar SignedInfo con RSA-SHA1
-  const signMd = forge.md.sha1.create();
-  signMd.update(forge.util.encodeUtf8(signedInfoXml));
-  const signatureBytes = privateKey.sign(signMd);
-  const signatureValue = forge.util.encode64(signatureBytes);
+  // 12. Firmar con Web Crypto RSASSA-PKCS1-v1_5 SHA-1 (no forge)
+  const pkcs8Asn1 = forge.pki.wrapRsaPrivateKey(forge.pki.privateKeyToAsn1(privateKey));
+  const pkcs8Bytes = Uint8Array.from(forge.asn1.toDer(pkcs8Asn1).getBytes(), c => c.charCodeAt(0));
+  const cryptoKey = await crypto.subtle.importKey(
+    "pkcs8", pkcs8Bytes,
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-1" },
+    false, ["sign"],
+  );
+  const sigAB = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", cryptoKey, new TextEncoder().encode(signedInfoXml));
+  const signatureValue = toB64(new Uint8Array(sigAB));
 
-  // 13. Ensamblar XML firmado — signedPropsXml verbatim (mismo string hasheado)
+  // 13. Ensamblar bloque de firma
   const signatureBlock = `<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" Id="Signature">${signedInfoXml}<ds:SignatureValue Id="SignatureValue">${signatureValue}</ds:SignatureValue><ds:KeyInfo Id="Certificate"><ds:X509Data><ds:X509Certificate>${certBase64}</ds:X509Certificate></ds:X509Data></ds:KeyInfo><ds:Object Id="Signature-QualifyingProperties"><xades:QualifyingProperties Target="#Signature">${signedPropsXml}</xades:QualifyingProperties></ds:Object></ds:Signature>`;
 
-  // Insertar firma antes del cierre del elemento raíz
   const xmlFirmado = xmlSinFirma.replace(/(<\/factura>)$/, `${signatureBlock}</factura>`);
 
-  return { xml: xmlFirmado };
+  return {
+    xml: xmlFirmado,
+    debug: {
+      certSubject: cert.subject.attributes.map((a: forge.pki.CertificateField) => `${a.shortName}=${a.value}`).join(","),
+      certSerial: serialNumber,
+      certExpiry: cert.validity.notAfter.toISOString(),
+      contentDigest,
+      spDigest,
+      signedInfoSnippet: signedInfoXml.substring(0, 300),
+    },
+  };
 }
 
 // ─── SOAP SRI ─────────────────────────────────────────────────────────────────
@@ -561,9 +563,11 @@ Deno.serve(async (req: Request) => {
 
   // Firmar XAdES-BES
   let xmlFirmado: string;
+  let debugInfo: Record<string, unknown> = {};
   try {
-    const resultado = firmarXadesBeS(xmlSinFirma, certBytes, config.cert_clave);
+    const resultado = await firmarXadesBeS(xmlSinFirma, certBytes, config.cert_clave);
     xmlFirmado = resultado.xml;
+    debugInfo = resultado.debug;
   } catch (e) {
     return json({ error: `Error firmando: ${e instanceof Error ? e.message : String(e)}` }, 500);
   }
@@ -666,5 +670,6 @@ Deno.serve(async (req: Request) => {
     numero,
     estado: estadoFinal,
     mensaje_sri: mensajeSri,
+    ...(config.ambiente !== "produccion" ? { debug: debugInfo } : {}),
   });
 });
