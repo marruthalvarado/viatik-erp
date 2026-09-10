@@ -223,17 +223,31 @@ function firmarXadesBeS(xmlSinFirma: string, p12Bytes: Uint8Array, clave: string
   const p12Asn1 = forge.asn1.fromDer(p12Der);
   const p12 = forge.pkcs12.pkcs12FromAsn1(p12Asn1, clave);
 
-  // 2. Extraer clave privada
-  const keyBags = p12.getBags({ bagType: forge.pki.oids.pkcs8ShroudedKeyBag });
-  const keyBag = keyBags[forge.pki.oids.pkcs8ShroudedKeyBag]?.[0];
-  if (!keyBag?.key) throw new Error("No se pudo extraer la clave privada del .p12");
-  const privateKey = keyBag.key as forge.pki.rsa.PrivateKey;
+  // 2. Extraer clave privada (shrouded primero, fallback a keyBag normal)
+  let privateKey: forge.pki.rsa.PrivateKey | null = null;
+  const shroudedBags = p12.getBags({ bagType: forge.pki.oids.pkcs8ShroudedKeyBag });
+  const shroudedKey = shroudedBags[forge.pki.oids.pkcs8ShroudedKeyBag]?.[0];
+  if (shroudedKey?.key) privateKey = shroudedKey.key as forge.pki.rsa.PrivateKey;
+  if (!privateKey) {
+    const plainBags = p12.getBags({ bagType: forge.pki.oids.keyBag });
+    const plainKey = plainBags[forge.pki.oids.keyBag]?.[0];
+    if (plainKey?.key) privateKey = plainKey.key as forge.pki.rsa.PrivateKey;
+  }
+  if (!privateKey) throw new Error("No se pudo extraer la clave privada del .p12");
 
-  // 3. Extraer certificado
-  const certBags = p12.getBags({ bagType: forge.pki.oids.certBag });
-  const certBag = certBags[forge.pki.oids.certBag]?.[0];
-  if (!certBag?.cert) throw new Error("No se pudo extraer el certificado del .p12");
-  const cert = certBag.cert as forge.pki.Certificate;
+  // 3. Extraer certificado — buscar el que corresponde a la clave privada por módulo RSA
+  const allCertBags = (p12.getBags({ bagType: forge.pki.oids.certBag })[forge.pki.oids.certBag]) ?? [];
+  const keyModulus = (privateKey as forge.pki.rsa.PrivateKey).n.toString(16);
+  let cert: forge.pki.Certificate | null = null;
+  for (const bag of allCertBags) {
+    if (!bag.cert) continue;
+    try {
+      const pubKey = bag.cert.publicKey as forge.pki.rsa.PublicKey;
+      if (pubKey?.n && pubKey.n.toString(16) === keyModulus) { cert = bag.cert; break; }
+    } catch { /* ignorar bags inválidos */ }
+  }
+  if (!cert) cert = allCertBags[0]?.cert ?? null; // fallback al primero
+  if (!cert) throw new Error("No se pudo extraer el certificado del .p12");
 
   // 4. Certificado en base64 DER
   const certAsn1 = forge.pki.certificateToAsn1(cert);
@@ -251,9 +265,9 @@ function firmarXadesBeS(xmlSinFirma: string, p12Bytes: Uint8Array, clave: string
     .join(",");
   const serialNumber = new forge.jsbn.BigInteger(cert.serialNumber, 16).toString(10);
 
-  // 7. Signing time
+  // 7. Signing time (sin milisegundos, timezone Ecuador UTC-5)
   const now = new Date();
-  const signingTime = now.toISOString().replace("Z", "-05:00");
+  const signingTime = now.toISOString().split(".")[0] + "-05:00";
 
   // 8. SHA-1 del contenido del XML (sin declaración XML)
   const xmlBody = xmlSinFirma.replace(/^<\?xml[^?]*\?>\n?/, "");
@@ -279,7 +293,11 @@ function firmarXadesBeS(xmlSinFirma: string, p12Bytes: Uint8Array, clave: string
   // por lo que el SRI aplica inclusive C14N por defecto. Con inclusive C14N,
   // xmlns:ds (en scope desde <ds:Signature>) se emite en la raíz de
   // <xades:SignedProperties> (no en cada hijo ds:*).
-  const signedPropsXml = `<xades:SignedProperties xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" Id="Signature-SignedProperties"><xades:SignedSignatureProperties><xades:SigningTime>${signingTime}</xades:SigningTime><xades:SigningCertificate><xades:Cert><xades:CertDigest><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${certDigest}</ds:DigestValue></xades:CertDigest><xades:IssuerSerial><ds:X509IssuerName>${escXml(issuerAttrs)}</ds:X509IssuerName><ds:X509SerialNumber>${serialNumber}</ds:X509SerialNumber></xades:IssuerSerial></xades:Cert></xades:SigningCertificate></xades:SignedSignatureProperties><xades:SignedDataObjectProperties></xades:SignedDataObjectProperties></xades:SignedProperties>`;
+  // signedPropsXml — inclusive C14N standalone:
+  // xmlns:ds y xmlns:xades en raíz (simulan el in-scope desde <ds:Signature>);
+  // hijos ds:* NO redeclaran xmlns:ds (heredan del ancestro en canonical form).
+  // Sin <xades:SignedDataObjectProperties> vacío (schema XAdES requiere content si está presente).
+  const signedPropsXml = `<xades:SignedProperties xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" Id="Signature-SignedProperties"><xades:SignedSignatureProperties><xades:SigningTime>${signingTime}</xades:SigningTime><xades:SigningCertificate><xades:Cert><xades:CertDigest><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${certDigest}</ds:DigestValue></xades:CertDigest><xades:IssuerSerial><ds:X509IssuerName>${escXml(issuerAttrs)}</ds:X509IssuerName><ds:X509SerialNumber>${serialNumber}</ds:X509SerialNumber></xades:IssuerSerial></xades:Cert></xades:SigningCertificate></xades:SignedSignatureProperties></xades:SignedProperties>`;
 
   // 10. SHA-1 de SignedProperties
   const spMd = forge.md.sha1.create();
@@ -289,7 +307,10 @@ function firmarXadesBeS(xmlSinFirma: string, p12Bytes: Uint8Array, clave: string
   // 11. Construir SignedInfo — inclusive C14N
   // CanonicalizationMethod = inclusive C14N (estándar SRI Ecuador).
   // xmlns:ds en raíz; hijos heredan. Reference attrs: Id < Type < URI.
-  const signedInfoXml = `<ds:SignedInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Id="Signature-SignedInfo"><ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:CanonicalizationMethod><ds:SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"></ds:SignatureMethod><ds:Reference Id="SignedPropertiesID" Type="http://uri.etsi.org/01903#SignedProperties" URI="#Signature-SignedProperties"><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${spDigest}</ds:DigestValue></ds:Reference><ds:Reference URI="#comprobante"><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"></ds:Transform></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${contentDigest}</ds:DigestValue></ds:Reference></ds:SignedInfo>`;
+  // signedInfoXml — transforms C14N explícitos en ambas referencias (patrón estándar SRI Ecuador):
+  // - SignedProperties: C14N explícito → SRI aplica el mismo C14N que usamos para el hash
+  // - comprobante: enveloped-signature + C14N explícito → quita <ds:Signature> y canonicaliza
+  const signedInfoXml = `<ds:SignedInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Id="Signature-SignedInfo"><ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:CanonicalizationMethod><ds:SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"></ds:SignatureMethod><ds:Reference Id="SignedPropertiesID" Type="http://uri.etsi.org/01903#SignedProperties" URI="#Signature-SignedProperties"><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:Transform></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${spDigest}</ds:DigestValue></ds:Reference><ds:Reference URI="#comprobante"><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"></ds:Transform><ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:Transform></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${contentDigest}</ds:DigestValue></ds:Reference></ds:SignedInfo>`;
 
   // 12. Firmar SignedInfo con RSA-SHA1
   const signMd = forge.md.sha1.create();
