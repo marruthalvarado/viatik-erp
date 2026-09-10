@@ -319,8 +319,16 @@ const SRI_ENDPOINTS = {
   },
 };
 
+/** Encode a string to base64 using UTF-8 byte representation (not Latin-1) */
+function base64Utf8(str: string): string {
+  const bytes = new TextEncoder().encode(str);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+
 async function enviarSoap(url: string, xmlFirmado: string): Promise<{ estado: string; mensajes: string }> {
-  const xmlB64 = btoa(xmlFirmado);
+  const xmlB64 = base64Utf8(xmlFirmado);
   const soapEnv = `<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ec="http://ec.gob.sri.ws.recepcion">
   <soapenv:Header/>
   <soapenv:Body>
