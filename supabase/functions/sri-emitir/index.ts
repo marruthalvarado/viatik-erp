@@ -279,8 +279,10 @@ async function firmarXadesBeS(xmlSinFirma: string, p12Bytes: Uint8Array, clave: 
   const certDigest = await sha1b64(certDerBytes);
 
   // 6. Issuer DN y serial
+  // a.shortName ?? a.type: fallback a OID string para atributos Ecuador-específicos
+  // (p.ej. cédula/RUC con OID no conocido por forge → shortName undefined → "undefined=...")
   const issuerAttrs = cert.issuer.attributes
-    .map((a: forge.pki.CertificateField) => `${a.shortName}=${a.value}`)
+    .map((a: forge.pki.CertificateField) => `${a.shortName ?? a.type}=${a.value}`)
     .join(",");
   const serialNumber = new forge.jsbn.BigInteger(cert.serialNumber, 16).toString(10);
 
@@ -292,13 +294,14 @@ async function firmarXadesBeS(xmlSinFirma: string, p12Bytes: Uint8Array, clave: 
   const xmlBody = xmlSinFirma.replace(/^<\?xml[^?]*\?>\n?/, "");
   const contentDigest = await sha1b64(new TextEncoder().encode(xmlBody));
 
-  // 9. SignedProperties (xmlns:ds < xmlns:xades por orden C14N; Id al final)
+  // 9. SignedProperties — xmlns:ds declarado en root para que el hash standalone
+  //    coincida con el C14N que hace el validador SRI cuando extrae el elemento del doc.
   const signedPropsXml = `<xades:SignedProperties xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" Id="Signature-SignedProperties"><xades:SignedSignatureProperties><xades:SigningTime>${signingTime}</xades:SigningTime><xades:SigningCertificate><xades:Cert><xades:CertDigest><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${certDigest}</ds:DigestValue></xades:CertDigest><xades:IssuerSerial><ds:X509IssuerName>${escXml(issuerAttrs)}</ds:X509IssuerName><ds:X509SerialNumber>${serialNumber}</ds:X509SerialNumber></xades:IssuerSerial></xades:Cert></xades:SigningCertificate></xades:SignedSignatureProperties></xades:SignedProperties>`;
 
   // 10. SP digest (Web Crypto SHA-1)
   const spDigest = await sha1b64(new TextEncoder().encode(signedPropsXml));
 
-  // 11. SignedInfo — inclusive C14N, URI="" (documento completo), SP reference sin Id
+  // 11. SignedInfo — inclusive C14N, URI="" (documento completo), SP reference con C14N transform
   const signedInfoXml = `<ds:SignedInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:CanonicalizationMethod><ds:SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"></ds:SignatureMethod><ds:Reference URI=""><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"></ds:Transform><ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:Transform></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${contentDigest}</ds:DigestValue></ds:Reference><ds:Reference Type="http://uri.etsi.org/01903#SignedProperties" URI="#Signature-SignedProperties"><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:Transform></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${spDigest}</ds:DigestValue></ds:Reference></ds:SignedInfo>`;
 
   // 12. Firmar con Web Crypto RSASSA-PKCS1-v1_5 SHA-1 (no forge)
