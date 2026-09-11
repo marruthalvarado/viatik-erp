@@ -282,9 +282,11 @@ async function firmarXadesBeS(xmlSinFirma: string, p12Bytes: Uint8Array, clave: 
   const certDigest = await sha1b64(certDerBytes);
 
   // 6. Issuer DN y serial
-  // a.shortName ?? a.type: fallback a OID string para atributos Ecuador-específicos
-  // (p.ej. cédula/RUC con OID no conocido por forge → shortName undefined → "undefined=...")
+  // RFC 2253 requiere orden INVERSO al DER (CN,...,C). forge devuelve orden DER.
+  // El validador SRI usa X500Principal.getName() que produce RFC 2253 (invertido).
   const issuerAttrs = cert.issuer.attributes
+    .slice()
+    .reverse()
     .map((a: forge.pki.CertificateField) => `${a.shortName ?? a.type}=${a.value}`)
     .join(",");
   const serialNumber = new forge.jsbn.BigInteger(cert.serialNumber, 16).toString(10);
@@ -307,16 +309,23 @@ async function firmarXadesBeS(xmlSinFirma: string, p12Bytes: Uint8Array, clave: 
   //    → C14N de SignedProperties embebido = string SIN esas declaraciones.
   //    → Debemos hashear el mismo string (sin declaraciones) para que spDigest coincida.
   //
-  //    Lo mismo aplica a SignedInfo: el validador C14N-iza <ds:SignedInfo> dentro de
-  //    <ds:Signature xmlns:ds="...">; la declaración xmlns:ds ya está en el padre,
-  //    no se incluye en el C14N output. Firmamos el mismo string sin xmlns:ds.
-  const signedPropsXml = `<xades:SignedProperties Id="Signature-SignedProperties"><xades:SignedSignatureProperties><xades:SigningTime>${signingTime}</xades:SigningTime><xades:SigningCertificate><xades:Cert><xades:CertDigest><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${certDigest}</ds:DigestValue></xades:CertDigest><xades:IssuerSerial><ds:X509IssuerName>${escXml(issuerAttrs)}</ds:X509IssuerName><ds:X509SerialNumber>${serialNumber}</ds:X509SerialNumber></xades:IssuerSerial></xades:Cert></xades:SigningCertificate></xades:SignedSignatureProperties></xades:SignedProperties>`;
+  //    REGLA C14N SUBTREE (W3C Canonical XML 1.0, sec 2.3):
+  //    Cuando el validador SRI extrae un nodo por URI="#Signature-SignedProperties"
+  //    y aplica C14N, el nodo raíz del subtree NO tiene ancestor en el output →
+  //    TODOS los namespaces en-scope desde el documento se renderizan EN el nodo raíz.
+  //    El parent <ds:Signature xmlns:ds="..." xmlns:xades="..."> no está en el subtree
+  //    → sus namespaces se "re-declaran" en <xades:SignedProperties>.
+  //    Lo mismo para <ds:SignedInfo> al canonicalizar para verificar la firma RSA.
+  //    → Debemos incluir xmlns:ds y xmlns:xades en AMBOS elementos (orden alfabético).
+  const NS_DS = `xmlns:ds="http://www.w3.org/2000/09/xmldsig#"`;
+  const NS_XADES = `xmlns:xades="http://uri.etsi.org/01903/v1.3.2#"`;
+  const signedPropsXml = `<xades:SignedProperties ${NS_DS} ${NS_XADES} Id="Signature-SignedProperties"><xades:SignedSignatureProperties><xades:SigningTime>${signingTime}</xades:SigningTime><xades:SigningCertificate><xades:Cert><xades:CertDigest><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${certDigest}</ds:DigestValue></xades:CertDigest><xades:IssuerSerial><ds:X509IssuerName>${escXml(issuerAttrs)}</ds:X509IssuerName><ds:X509SerialNumber>${serialNumber}</ds:X509SerialNumber></xades:IssuerSerial></xades:Cert></xades:SigningCertificate></xades:SignedSignatureProperties></xades:SignedProperties>`;
 
   // 10. SP digest — hashear el mismo string que el validador obtiene de C14N
   const spDigest = await sha1b64(new TextEncoder().encode(signedPropsXml));
 
-  // 11. SignedInfo SIN xmlns:ds (heredado del <ds:Signature> padre en el documento)
-  const signedInfoXml = `<ds:SignedInfo><ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:CanonicalizationMethod><ds:SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"></ds:SignatureMethod><ds:Reference URI=""><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"></ds:Transform><ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:Transform></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${contentDigest}</ds:DigestValue></ds:Reference><ds:Reference Type="http://uri.etsi.org/01903#SignedProperties" URI="#Signature-SignedProperties"><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:Transform></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${spDigest}</ds:DigestValue></ds:Reference></ds:SignedInfo>`;
+  // 11. SignedInfo CON xmlns:ds y xmlns:xades (subtree C14N los incluye desde ancestor)
+  const signedInfoXml = `<ds:SignedInfo ${NS_DS} ${NS_XADES}><ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:CanonicalizationMethod><ds:SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"></ds:SignatureMethod><ds:Reference URI=""><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"></ds:Transform><ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:Transform></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${contentDigest}</ds:DigestValue></ds:Reference><ds:Reference Type="http://uri.etsi.org/01903#SignedProperties" URI="#Signature-SignedProperties"><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:Transform></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${spDigest}</ds:DigestValue></ds:Reference></ds:SignedInfo>`;
 
   // 12. Firmar con forge RSA-SHA1 nativo (evita el pipeline PKCS8 de Web Crypto
   //     y el posible problema con SHA-1 deprecado en ring/Deno crypto.subtle)
