@@ -219,9 +219,12 @@ interface SignedResult {
     certSubject: string;
     certSerial: string;
     certExpiry: string;
+    issuerAttrs: string;
     contentDigest: string;
     spDigest: string;
-    signedInfoSnippet: string;
+    signedPropsXml: string;
+    signedInfoXml: string;
+    signingMethod: string;
   };
 }
 
@@ -315,18 +318,12 @@ async function firmarXadesBeS(xmlSinFirma: string, p12Bytes: Uint8Array, clave: 
   // 11. SignedInfo SIN xmlns:ds (heredado del <ds:Signature> padre en el documento)
   const signedInfoXml = `<ds:SignedInfo><ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:CanonicalizationMethod><ds:SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"></ds:SignatureMethod><ds:Reference URI=""><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"></ds:Transform><ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:Transform></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${contentDigest}</ds:DigestValue></ds:Reference><ds:Reference Type="http://uri.etsi.org/01903#SignedProperties" URI="#Signature-SignedProperties"><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:Transform></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${spDigest}</ds:DigestValue></ds:Reference></ds:SignedInfo>`;
 
-  // 12. Firmar con Web Crypto RSASSA-PKCS1-v1_5 SHA-1
-  //     Firmamos el raw string de signedInfoXml (sin xmlns:ds) que coincide con
-  //     el C14N que el validador SRI computa sobre el elemento embebido.
-  const pkcs8Asn1 = forge.pki.wrapRsaPrivateKey(forge.pki.privateKeyToAsn1(privateKey));
-  const pkcs8Bytes = Uint8Array.from(forge.asn1.toDer(pkcs8Asn1).getBytes(), c => c.charCodeAt(0));
-  const cryptoKey = await crypto.subtle.importKey(
-    "pkcs8", pkcs8Bytes,
-    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-1" },
-    false, ["sign"],
-  );
-  const sigAB = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", cryptoKey, new TextEncoder().encode(signedInfoXml));
-  const signatureValue = toB64(new Uint8Array(sigAB));
+  // 12. Firmar con forge RSA-SHA1 nativo (evita el pipeline PKCS8 de Web Crypto
+  //     y el posible problema con SHA-1 deprecado en ring/Deno crypto.subtle)
+  const md = forge.md.sha1.create();
+  md.update(signedInfoXml, "utf8");
+  const sigBinary = privateKey.sign(md);
+  const signatureValue = forge.util.encode64(sigBinary);
 
   // 13. Ensamblar bloque de firma.
   //     xmlns:ds y xmlns:xades se declaran UNA SOLA VEZ en <ds:Signature>.
@@ -338,12 +335,15 @@ async function firmarXadesBeS(xmlSinFirma: string, p12Bytes: Uint8Array, clave: 
   return {
     xml: xmlFirmado,
     debug: {
-      certSubject: cert.subject.attributes.map((a: forge.pki.CertificateField) => `${a.shortName}=${a.value}`).join(","),
+      certSubject: cert.subject.attributes.map((a: forge.pki.CertificateField) => `${a.shortName ?? a.type}=${a.value}`).join(","),
       certSerial: serialNumber,
       certExpiry: cert.validity.notAfter.toISOString(),
+      issuerAttrs,
       contentDigest,
       spDigest,
-      signedInfoSnippet: signedInfoXml.substring(0, 300),
+      signedPropsXml,
+      signedInfoXml,
+      signingMethod: "forge-rsa-sha1",
     },
   };
 }
