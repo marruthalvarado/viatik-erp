@@ -294,17 +294,30 @@ async function firmarXadesBeS(xmlSinFirma: string, p12Bytes: Uint8Array, clave: 
   const xmlBody = xmlSinFirma.replace(/^<\?xml[^?]*\?>\n?/, "");
   const contentDigest = await sha1b64(new TextEncoder().encode(xmlBody));
 
-  // 9. SignedProperties — xmlns:ds declarado en root para que el hash standalone
-  //    coincida con el C14N que hace el validador SRI cuando extrae el elemento del doc.
-  const signedPropsXml = `<xades:SignedProperties xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" Id="Signature-SignedProperties"><xades:SignedSignatureProperties><xades:SigningTime>${signingTime}</xades:SigningTime><xades:SigningCertificate><xades:Cert><xades:CertDigest><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${certDigest}</ds:DigestValue></xades:CertDigest><xades:IssuerSerial><ds:X509IssuerName>${escXml(issuerAttrs)}</ds:X509IssuerName><ds:X509SerialNumber>${serialNumber}</ds:X509SerialNumber></xades:IssuerSerial></xades:Cert></xades:SigningCertificate></xades:SignedSignatureProperties></xades:SignedProperties>`;
+  // 9. SignedProperties SIN namespace declarations en el root.
+  //
+  //    REGLA C14N (W3C Canonical XML 1.0):
+  //    Un namespace NO se re-renderiza en un elemento hijo si ya está declarado
+  //    en un antecesor con el mismo valor. El validador SRI (Java/Apache XMLSec)
+  //    hace C14N del <xades:SignedProperties> *dentro del documento*, donde
+  //    xmlns:ds y xmlns:xades ya vienen del <ds:Signature> padre.
+  //    → C14N de SignedProperties embebido = string SIN esas declaraciones.
+  //    → Debemos hashear el mismo string (sin declaraciones) para que spDigest coincida.
+  //
+  //    Lo mismo aplica a SignedInfo: el validador C14N-iza <ds:SignedInfo> dentro de
+  //    <ds:Signature xmlns:ds="...">; la declaración xmlns:ds ya está en el padre,
+  //    no se incluye en el C14N output. Firmamos el mismo string sin xmlns:ds.
+  const signedPropsXml = `<xades:SignedProperties Id="Signature-SignedProperties"><xades:SignedSignatureProperties><xades:SigningTime>${signingTime}</xades:SigningTime><xades:SigningCertificate><xades:Cert><xades:CertDigest><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${certDigest}</ds:DigestValue></xades:CertDigest><xades:IssuerSerial><ds:X509IssuerName>${escXml(issuerAttrs)}</ds:X509IssuerName><ds:X509SerialNumber>${serialNumber}</ds:X509SerialNumber></xades:IssuerSerial></xades:Cert></xades:SigningCertificate></xades:SignedSignatureProperties></xades:SignedProperties>`;
 
-  // 10. SP digest (Web Crypto SHA-1)
+  // 10. SP digest — hashear el mismo string que el validador obtiene de C14N
   const spDigest = await sha1b64(new TextEncoder().encode(signedPropsXml));
 
-  // 11. SignedInfo — inclusive C14N, URI="" (documento completo), SP reference con C14N transform
-  const signedInfoXml = `<ds:SignedInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#"><ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:CanonicalizationMethod><ds:SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"></ds:SignatureMethod><ds:Reference URI=""><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"></ds:Transform><ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:Transform></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${contentDigest}</ds:DigestValue></ds:Reference><ds:Reference Type="http://uri.etsi.org/01903#SignedProperties" URI="#Signature-SignedProperties"><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:Transform></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${spDigest}</ds:DigestValue></ds:Reference></ds:SignedInfo>`;
+  // 11. SignedInfo SIN xmlns:ds (heredado del <ds:Signature> padre en el documento)
+  const signedInfoXml = `<ds:SignedInfo><ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:CanonicalizationMethod><ds:SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"></ds:SignatureMethod><ds:Reference URI=""><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"></ds:Transform><ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:Transform></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${contentDigest}</ds:DigestValue></ds:Reference><ds:Reference Type="http://uri.etsi.org/01903#SignedProperties" URI="#Signature-SignedProperties"><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:Transform></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${spDigest}</ds:DigestValue></ds:Reference></ds:SignedInfo>`;
 
-  // 12. Firmar con Web Crypto RSASSA-PKCS1-v1_5 SHA-1 (no forge)
+  // 12. Firmar con Web Crypto RSASSA-PKCS1-v1_5 SHA-1
+  //     Firmamos el raw string de signedInfoXml (sin xmlns:ds) que coincide con
+  //     el C14N que el validador SRI computa sobre el elemento embebido.
   const pkcs8Asn1 = forge.pki.wrapRsaPrivateKey(forge.pki.privateKeyToAsn1(privateKey));
   const pkcs8Bytes = Uint8Array.from(forge.asn1.toDer(pkcs8Asn1).getBytes(), c => c.charCodeAt(0));
   const cryptoKey = await crypto.subtle.importKey(
@@ -315,7 +328,9 @@ async function firmarXadesBeS(xmlSinFirma: string, p12Bytes: Uint8Array, clave: 
   const sigAB = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", cryptoKey, new TextEncoder().encode(signedInfoXml));
   const signatureValue = toB64(new Uint8Array(sigAB));
 
-  // 13. Ensamblar bloque de firma
+  // 13. Ensamblar bloque de firma.
+  //     xmlns:ds y xmlns:xades se declaran UNA SOLA VEZ en <ds:Signature>.
+  //     Los elementos hijos (SignedInfo, SignedProperties) los heredan — no los repiten.
   const signatureBlock = `<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:xades="http://uri.etsi.org/01903/v1.3.2#" Id="Signature">${signedInfoXml}<ds:SignatureValue Id="SignatureValue">${signatureValue}</ds:SignatureValue><ds:KeyInfo Id="Certificate"><ds:X509Data><ds:X509Certificate>${certBase64}</ds:X509Certificate></ds:X509Data></ds:KeyInfo><ds:Object Id="Signature-QualifyingProperties"><xades:QualifyingProperties Target="#Signature">${signedPropsXml}</xades:QualifyingProperties></ds:Object></ds:Signature>`;
 
   const xmlFirmado = xmlSinFirma.replace(/(<\/factura>)$/, `${signatureBlock}</factura>`);
