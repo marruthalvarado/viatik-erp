@@ -225,6 +225,8 @@ interface SignedResult {
     signedPropsXml: string;
     signedInfoXml: string;
     signingMethod: string;
+    sigVerified: boolean;
+    xmlFirmadoEnd: string;
   };
 }
 
@@ -332,7 +334,18 @@ async function firmarXadesBeS(xmlSinFirma: string, p12Bytes: Uint8Array, clave: 
   const md = forge.md.sha1.create();
   md.update(signedInfoXml, "utf8");
   const sigBinary = privateKey.sign(md);
-  const signatureValue = forge.util.encode64(sigBinary);
+  // Use toB64 (btoa-based, no line breaks) instead of forge.util.encode64
+  const sigBytes = Uint8Array.from(sigBinary as string, (c: string) => c.charCodeAt(0));
+  const signatureValue = toB64(sigBytes);
+
+  // 12b. Local RSA self-verification (diagnostic)
+  const pubKey = cert.publicKey as forge.pki.rsa.PublicKey;
+  const mdVerify = forge.md.sha1.create();
+  mdVerify.update(signedInfoXml, "utf8");
+  let sigVerified = false;
+  try {
+    sigVerified = pubKey.verify(mdVerify.digest().bytes(), sigBinary as string);
+  } catch { sigVerified = false; }
 
   // 13. Ensamblar bloque de firma.
   //     xmlns:ds y xmlns:xades se declaran UNA SOLA VEZ en <ds:Signature>.
@@ -353,6 +366,8 @@ async function firmarXadesBeS(xmlSinFirma: string, p12Bytes: Uint8Array, clave: 
       signedPropsXml,
       signedInfoXml,
       signingMethod: "forge-rsa-sha1",
+      sigVerified,
+      xmlFirmadoEnd: xmlFirmado.substring(xmlFirmado.length - 200),
     },
   };
 }
@@ -410,7 +425,7 @@ async function enviarSoap(url: string, xmlFirmado: string): Promise<{ estado: st
     .filter(Boolean)
     .join("; ");
 
-  return { estado, mensajes };
+  return { estado, mensajes, rawText: respText.substring(0, 2000) };
 }
 
 async function consultarAutorizacion(
@@ -452,7 +467,7 @@ async function consultarAutorizacion(
     .filter(Boolean)
     .join("; ");
 
-  return { estado, numeroAutorizacion, fechaAutorizacion, mensajes };
+  return { estado, numeroAutorizacion, fechaAutorizacion, mensajes, rawText: respText.substring(0, 2000) };
 }
 
 // ─── Handler ─────────────────────────────────────────────────────────────────
@@ -636,17 +651,21 @@ Deno.serve(async (req: Request) => {
   const endpoints = SRI_ENDPOINTS[config.ambiente as "pruebas" | "produccion"] ?? SRI_ENDPOINTS.pruebas;
   let estadoFinal = "enviado";
   let mensajeSri = "";
+  let rawRecepcion = "";
+  let rawAutorizacion = "";
 
   try {
     const recv = await enviarSoap(endpoints.recepcion, xmlFirmado);
+    rawRecepcion = recv.rawText ?? "";
     mensajeSri = recv.mensajes;
 
     if (recv.estado === "RECIBIDA") {
       // Consultar autorización (puede demorar, reintentar 3 veces)
-      let autorizacion = { estado: "PENDIENTE", numeroAutorizacion: "", fechaAutorizacion: "", mensajes: "" };
+      let autorizacion = { estado: "PENDIENTE", numeroAutorizacion: "", fechaAutorizacion: "", mensajes: "", rawText: "" };
       for (let i = 0; i < 3; i++) {
         await new Promise((r) => setTimeout(r, 1500));
         autorizacion = await consultarAutorizacion(endpoints.autorizacion, claveAcceso);
+        rawAutorizacion = autorizacion.rawText ?? "";
         if (autorizacion.estado === "AUTORIZADO") break;
       }
 
@@ -697,6 +716,12 @@ Deno.serve(async (req: Request) => {
     numero,
     estado: estadoFinal,
     mensaje_sri: mensajeSri,
-    ...(config.ambiente !== "produccion" ? { debug: debugInfo } : {}),
+    ...(config.ambiente !== "produccion" ? {
+      debug: {
+        ...debugInfo,
+        rawRecepcion,
+        rawAutorizacion,
+      },
+    } : {}),
   });
 });
