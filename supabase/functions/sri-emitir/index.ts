@@ -203,12 +203,13 @@ function generarXmlFactura(d: FacturaData): string {
 }
 
 function escXml(s: string): string {
+  // Para nodos de texto XML: sólo &, <, > requieren escape.
+  // C14N NO encode " → &quot; ni ' → &apos; en contenido de texto;
+  // usar esas entidades causaría un hash diferente al que el validador SRI computa.
   return (s ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
+    .replace(/>/g, "&gt;");
 }
 
 // ─── XAdES-BES Signing ────────────────────────────────────────────────────────
@@ -264,20 +265,38 @@ async function firmarXadesBeS(xmlSinFirma: string, p12Bytes: Uint8Array, clave: 
   const allCertBags = (p12.getBags({ bagType: forge.pki.oids.certBag })[forge.pki.oids.certBag]) ?? [];
   const keyModulus = (privateKey as forge.pki.rsa.PrivateKey).n.toString(16);
   let cert: forge.pki.Certificate | null = null;
+  let certBagFound: Record<string, unknown> | null = null;
   for (const bag of allCertBags) {
     if (!bag.cert) continue;
     try {
       const pubKey = bag.cert.publicKey as forge.pki.rsa.PublicKey;
-      if (pubKey?.n && pubKey.n.toString(16) === keyModulus) { cert = bag.cert; break; }
+      if (pubKey?.n && pubKey.n.toString(16) === keyModulus) { cert = bag.cert; certBagFound = bag as unknown as Record<string, unknown>; break; }
     } catch { /* skip */ }
   }
-  if (!cert) cert = allCertBags[0]?.cert ?? null;
+  if (!cert) { cert = allCertBags[0]?.cert ?? null; certBagFound = (allCertBags[0] as unknown as Record<string, unknown>) ?? null; }
   if (!cert) throw new Error("No se pudo extraer el certificado del .p12");
 
   // 4. Cert DER → base64
-  const certAsn1 = forge.pki.certificateToAsn1(cert);
-  const certDerStr = forge.asn1.toDer(certAsn1).getBytes();
-  const certDerBytes = Uint8Array.from(certDerStr, c => c.charCodeAt(0));
+  // Usar el ASN1 crudo del bag (evitar posibles diferencias en el re-encoding de forge).
+  // bag.asn1 contiene el CertBag; el certificado DER está en bag.asn1.value[0].
+  // Si no está disponible, caer en el re-encoding via pki.certificateToAsn1.
+  let certDerBytes: Uint8Array;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rawBagAsn1 = (certBagFound as any)?.asn1;
+    const certAsn1Raw = rawBagAsn1?.value?.[0] ?? rawBagAsn1;
+    if (certAsn1Raw && typeof certAsn1Raw === "object" && certAsn1Raw.tagClass !== undefined) {
+      const derStr = forge.asn1.toDer(certAsn1Raw).getBytes();
+      certDerBytes = Uint8Array.from(derStr, c => c.charCodeAt(0));
+    } else {
+      throw new Error("no raw asn1");
+    }
+  } catch {
+    // Fallback: re-encode desde el objeto cert
+    const certAsn1 = forge.pki.certificateToAsn1(cert);
+    const certDerStr = forge.asn1.toDer(certAsn1).getBytes();
+    certDerBytes = Uint8Array.from(certDerStr, c => c.charCodeAt(0));
+  }
   const certBase64 = toB64(certDerBytes);
 
   // 5. SHA-1 del cert (Web Crypto)
@@ -293,12 +312,18 @@ async function firmarXadesBeS(xmlSinFirma: string, p12Bytes: Uint8Array, clave: 
     .join(",");
   const serialNumber = new forge.jsbn.BigInteger(cert.serialNumber, 16).toString(10);
 
-  // 7. Signing time (ISO sin ms, offset Ecuador)
+  // 7. Signing time (ISO sin ms, offset Ecuador UTC-5)
+  // El Edge Function corre en UTC. Para expresar la hora en Ecuador (-05:00) hay que
+  // restar 5h al tiempo UTC y luego agregarle el offset literal "-05:00".
   const now = new Date();
-  const signingTime = now.toISOString().split(".")[0] + "-05:00";
+  const ecuadorMs = now.getTime() - 5 * 60 * 60 * 1000;
+  const signingTime = new Date(ecuadorMs).toISOString().split(".")[0] + "-05:00";
 
-  // 8. Content digest — C14N del documento sin declaración XML (Web Crypto SHA-1)
-  const xmlBody = xmlSinFirma.replace(/^<\?xml[^?]*\?>\n?/, "");
+  // 8. Content digest — C14N del documento sin declaración XML (Web Crypto SHA-1).
+  //    C14N normaliza \r\n y \r → \n en nodos de texto. Lo aplicamos antes de hashear
+  //    para que coincida con lo que Apache XMLSec computa en el servidor SRI.
+  const xmlBodyRaw = xmlSinFirma.replace(/^<\?xml[^?]*\?>\n?/, "");
+  const xmlBody = xmlBodyRaw.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
   const contentDigest = await sha1b64(new TextEncoder().encode(xmlBody));
 
   // 9. SignedProperties SIN namespace declarations en el root.
@@ -326,8 +351,52 @@ async function firmarXadesBeS(xmlSinFirma: string, p12Bytes: Uint8Array, clave: 
   // 10. SP digest — hashear el mismo string que el validador obtiene de C14N
   const spDigest = await sha1b64(new TextEncoder().encode(signedPropsXml));
 
-  // 11. SignedInfo CON xmlns:ds y xmlns:xades (subtree C14N los incluye desde ancestor)
-  const signedInfoXml = `<ds:SignedInfo ${NS_DS} ${NS_XADES}><ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:CanonicalizationMethod><ds:SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"></ds:SignatureMethod><ds:Reference URI=""><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"></ds:Transform><ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:Transform></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${contentDigest}</ds:DigestValue></ds:Reference><ds:Reference Type="http://uri.etsi.org/01903#SignedProperties" URI="#Signature-SignedProperties"><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:Transform></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${spDigest}</ds:DigestValue></ds:Reference></ds:SignedInfo>`;
+  // 11. SignedInfo — SÓLO xmlns:ds, NO xmlns:xades.
+  //
+  //    REGLA C14N CRÍTICA: Apache XMLSec canonicaliza <ds:SignedInfo> DESDE el documento
+  //    parsed. En-scope en ese contexto: xmlns:ds (utilizado — todos los elementos usan ds:)
+  //    y xmlns:xades (en-scope desde <ds:Signature> pero NO utilizado en <ds:SignedInfo>
+  //    — ningún elemento ni atributo usa el prefijo xades: dentro de SignedInfo).
+  //    C14N SÓLO renderiza namespaces "visibly utilized" (W3C C14N 1.0 sec 2.3).
+  //    → C14N produce: <ds:SignedInfo xmlns:ds="..."> SIN xmlns:xades.
+  //    → Debemos firmar ese mismo string (sin xmlns:xades) para que la verificación RSA
+  //      del SRI coincida con nuestra firma.
+  //
+  //    sigVerified=true localmente no detectaba este bug porque verificábamos contra
+  //    el mismo string que firmamos (con xmlns:xades extra), no contra el C14N real.
+  // 11. SignedInfo — URI="#comprobante" (obligatorio SRI Ecuador).
+  //
+  //    El SRI Ecuador valida explícitamente que exista una <ds:Reference URI="#comprobante">
+  //    que apunte al elemento <factura id="comprobante">. Usar URI="" produce el error
+  //    "El nodo [comprobante] no se encuentra firmado."
+  //
+  //    Con URI="#comprobante" + enveloped-signature + C14N:
+  //    – El validador extrae el elemento <factura id="comprobante"> y sus descendientes
+  //    – Enveloped-signature elimina <ds:Signature> del node-set
+  //    – C14N del node-set restante = idéntico a nuestro xmlBody (sin declaración XML)
+  //    – El contentDigest calculado sobre xmlSinFirma sigue siendo correcto.
+  //
+  //    SÓLO xmlns:ds (no xmlns:xades): C14N de <ds:SignedInfo> sólo renderiza namespaces
+  //    utilizados en el subtree; xades: no aparece en ningún elemento/atributo de SignedInfo.
+  // 11. SignedInfo SIN declaraciones de namespace.
+  //
+  //    REGLA C14N (full-document context, NO subtree):
+  //    Apache XMLSec canonicaliza <ds:SignedInfo> dentro del documento completo.
+  //    El padre <ds:Signature xmlns:ds="..." xmlns:xades="..."> ya renderizó xmlns:ds.
+  //    C14N considera esa declaración REDUNDANTE en el hijo <ds:SignedInfo> → no la emite.
+  //    → C14N produce: <ds:SignedInfo>...(sin namespaces)...</ds:SignedInfo>
+  //    → Debemos firmar ese mismo string (sin xmlns:ds ni xmlns:xades).
+  //
+  //    Contraste con signedPropsXml:
+  //    <xades:SignedProperties> se extrae por ID reference (subtree C14N) → los ancestros
+  //    están FUERA del node-set → C14N re-declara todos los namespaces en-scope en la raíz
+  //    del subtree → signedPropsXml sí debe llevar xmlns:ds y xmlns:xades.
+  //
+  //    Lo mismo aplica a <ds:SignedInfo>: Apache XMLSec también lo canonicaliza como
+  //    subtree extraction. Los namespaces en-scope desde <ds:Signature> (ds y xades) son
+  //    ancestros FUERA del node-set → C14N Inclusivo los re-declara en <ds:SignedInfo>.
+  //    Orden C14N: namespaces antes que atributos, ordenados por prefijo (ds < xades).
+  const signedInfoXml = `<ds:SignedInfo xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:xades="http://uri.etsi.org/01903/v1.3.2#"><ds:CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:CanonicalizationMethod><ds:SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"></ds:SignatureMethod><ds:Reference URI="#comprobante"><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"></ds:Transform><ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:Transform></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${contentDigest}</ds:DigestValue></ds:Reference><ds:Reference Type="http://uri.etsi.org/01903#SignedProperties" URI="#Signature-SignedProperties"><ds:Transforms><ds:Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"></ds:Transform></ds:Transforms><ds:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"></ds:DigestMethod><ds:DigestValue>${spDigest}</ds:DigestValue></ds:Reference></ds:SignedInfo>`;
 
   // 12. Firmar con forge RSA-SHA1 nativo (evita el pipeline PKCS8 de Web Crypto
   //     y el posible problema con SHA-1 deprecado en ring/Deno crypto.subtle)
@@ -461,13 +530,23 @@ async function consultarAutorizacion(
   const fechaMatch = respText.match(/<fechaAutorizacion>([^<]+)<\/fechaAutorizacion>/);
   const fechaAutorizacion = fechaMatch?.[1] ?? "";
 
-  const mensajesMatch = respText.match(/<mensaje>([^<]*)<\/mensaje>/g) ?? [];
-  const mensajes = mensajesMatch
-    .map((m) => m.replace(/<\/?mensaje>/g, "").trim())
-    .filter(Boolean)
-    .join("; ");
+  // Extraer errores — el bloque <mensajes> está DESPUÉS del <comprobante> enorme (base64)
+  // Capturar el bloque mensajes directamente; si no cabe en el inicio, buscar desde el final
+  const mensajesBlockMatch = respText.match(/<mensajes>([\s\S]*?)<\/mensajes>/);
+  const mensajesBlock = mensajesBlockMatch?.[0] ?? "";
 
-  return { estado, numeroAutorizacion, fechaAutorizacion, mensajes, rawText: respText.substring(0, 2000) };
+  const identificadores = [...respText.matchAll(/<identificador>([^<]*)<\/identificador>/g)].map(m => m[1]);
+  const tiposErr = [...respText.matchAll(/<tipo>([^<]*)<\/tipo>/g)].map(m => m[1]);
+  const mensajeTextos = [...respText.matchAll(/<mensaje>([^<]{1,200})<\/mensaje>/g)].map(m => m[1]).filter(t => !t.includes("<"));
+  const infoAdicional = [...respText.matchAll(/<informacionAdicional>([^<]{1,500})<\/informacionAdicional>/g)].map(m => m[1]);
+  const mensajes = identificadores.length
+    ? identificadores.map((id, i) => `${id}:${tiposErr[i] ?? ""}:${mensajeTextos[i] ?? ""}${infoAdicional[i] ? " [" + infoAdicional[i] + "]" : ""}`).join("; ")
+    : mensajeTextos.join("; ");
+
+  // rawText: primeros 500 chars + bloque mensajes completo + últimos 500 chars
+  const rawSnippet = respText.substring(0, 500) + "\n...\n" + mensajesBlock + "\n...\n" + respText.substring(Math.max(0, respText.length - 500));
+
+  return { estado, numeroAutorizacion, fechaAutorizacion, mensajes, rawText: rawSnippet };
 }
 
 // ─── Handler ─────────────────────────────────────────────────────────────────
