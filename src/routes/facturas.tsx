@@ -25,6 +25,7 @@ import {
   Percent,
   Send,
   Landmark,
+  FileDown,
 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -76,6 +77,21 @@ import { CobroPanel } from "@/components/facturas/cobro-panel";
 import { FacturaDrawer } from "@/components/facturas/factura-drawer";
 import { EmitirSriDialog } from "@/components/facturas/emitir-sri-dialog";
 import { ReconciliarBancoDialog } from "@/components/facturas/reconciliar-banco-dialog";
+import { RideDownloadButtons } from "@/components/facturas/ride-download-buttons";
+import { useComprobanteByReferencia } from "@/hooks/entities/use-facturacion-sri";
+
+/** Botones XML + PDF RIDE para facturas autorizadas (lazy: solo carga cuando estado_sri = AUTORIZADO) */
+function FacturaRideActions({ factura, empresaId }: { factura: FacturaEmitida; empresaId: string }) {
+  const { data: comprobante } = useComprobanteByReferencia(factura.id, "factura");
+  if (!comprobante || comprobante.estado !== "autorizado") return null;
+  return (
+    <RideDownloadButtons
+      factura={factura}
+      comprobante={comprobante}
+      empresaId={empresaId}
+    />
+  );
+}
 
 export const Route = createFileRoute("/facturas")({
   head: () => ({ meta: [{ title: "Facturas Emitidas · VIATIQ" }] }),
@@ -717,6 +733,9 @@ function FacturasContent() {
                                 >
                                   <Send className="size-3.5" />
                                 </Button>
+                              )}
+                              {f.estado_sri === "AUTORIZADO" && empresaActivaId && (
+                                <FacturaRideActions factura={f} empresaId={empresaActivaId} />
                               )}
                               <Button
                                 variant="ghost"

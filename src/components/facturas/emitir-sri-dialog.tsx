@@ -3,6 +3,7 @@
  */
 import { useState } from "react";
 import { Send, CheckCircle2, XCircle, Loader2, RefreshCw, Copy } from "lucide-react";
+import { RideDownloadButtons } from "@/components/facturas/ride-download-buttons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -156,6 +157,17 @@ export function EmitirSriDialog({ open, onOpenChange, factura, empresaId }: Prop
               )}
               {comprobante.mensaje_sri && (
                 <p className="text-xs text-muted-foreground">{comprobante.mensaje_sri}</p>
+              )}
+              {autorizada && (
+                <div className="pt-1 border-t border-emerald-200">
+                  <p className="text-xs text-muted-foreground mb-1.5">Descargar comprobante</p>
+                  <RideDownloadButtons
+                    factura={factura}
+                    comprobante={comprobante}
+                    empresaId={empresaId}
+                    showLabels
+                  />
+                </div>
               )}
             </div>
           )}

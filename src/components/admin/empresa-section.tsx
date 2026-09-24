@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { z } from "zod";
-import { Pencil } from "lucide-react";
+import { Pencil, Upload, Loader2 } from "lucide-react";
 
 import { EmptyState } from "@/components/common/empty-state";
 import { EntityForm } from "@/components/common/entity-form";
@@ -27,6 +27,8 @@ import { useEmpresa, useActualizarEmpresa } from "@/hooks/entities/use-empresas"
 import { useMonedas } from "@/hooks/entities/use-catalogs";
 import { useCompany } from "@/contexts/company-context";
 import { emptyToNull } from "@/utils/formatters";
+import { uploadLogoEmpresa } from "@/services/logo-upload";
+import { useQueryClient } from "@tanstack/react-query";
 
 import type { Empresa, EmpresaUpdate } from "@/types/entities";
 
@@ -50,11 +52,30 @@ type EmpresaFormValues = z.infer<typeof empresaSchema>;
 export function EmpresaSection() {
   const { empresaActivaId } = useCompany();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const logoRef = useRef<HTMLInputElement>(null);
+  const qc = useQueryClient();
 
   const { data: empresa } = useEmpresa(empresaActivaId);
   const actualizar = useActualizarEmpresa();
   const { data: monedasData } = useMonedas({ pageSize: 200 });
   const monedas = monedasData?.rows ?? [];
+
+  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !empresaActivaId) return;
+    setUploadingLogo(true);
+    try {
+      await uploadLogoEmpresa(empresaActivaId, file);
+      await qc.invalidateQueries({ queryKey: ["empresa", empresaActivaId] });
+      toast.success("Logo actualizado.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error subiendo el logo.");
+    } finally {
+      setUploadingLogo(false);
+      if (logoRef.current) logoRef.current.value = "";
+    }
+  }
 
   function toForm(e: Empresa): EmpresaFormValues {
     return {
@@ -125,6 +146,48 @@ export function EmpresaSection() {
               <p className="mt-0.5 text-sm font-medium">{value}</p>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Logo de la empresa */}
+      <div className="rounded-lg border bg-card p-4">
+        <p className="text-sm font-medium mb-3">Logo de la empresa</p>
+        <div className="flex items-center gap-4">
+          {empresa.logo_url ? (
+            <img
+              src={empresa.logo_url}
+              alt="Logo empresa"
+              className="h-16 w-auto max-w-[160px] object-contain rounded border bg-white p-1"
+            />
+          ) : (
+            <div className="h-16 w-32 rounded border border-dashed flex items-center justify-center bg-muted/30">
+              <span className="text-xs text-muted-foreground">Sin logo</span>
+            </div>
+          )}
+          <div>
+            <input
+              ref={logoRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              className="hidden"
+              onChange={handleLogoUpload}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              disabled={uploadingLogo}
+              onClick={() => logoRef.current?.click()}
+            >
+              {uploadingLogo
+                ? <Loader2 className="size-3.5 animate-spin" />
+                : <Upload className="size-3.5" />}
+              {empresa.logo_url ? "Cambiar logo" : "Subir logo"}
+            </Button>
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              PNG, JPG, WebP o SVG · máx. 2 MB
+            </p>
+          </div>
         </div>
       </div>
 

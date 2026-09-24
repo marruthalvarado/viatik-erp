@@ -13,12 +13,19 @@ import {
 import { toast } from "@/components/common/toast";
 import { useCompany } from "@/contexts/company-context";
 import { useEmpresaFacConfig, useGuardarFacConfig } from "@/hooks/entities/use-facturacion-sri";
+import { useEmpresa } from "@/hooks/entities/use-empresas";
+import { uploadLogoEmpresa } from "@/services/logo-upload";
+import { useQueryClient } from "@tanstack/react-query";
 
 export function FacturacionSriSection() {
   const { empresaActivaId } = useCompany();
   const { data: config, isLoading } = useEmpresaFacConfig(empresaActivaId);
+  const { data: empresa } = useEmpresa(empresaActivaId);
   const guardar = useGuardarFacConfig();
   const fileRef = useRef<HTMLInputElement>(null);
+  const logoRef = useRef<HTMLInputElement>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const qc = useQueryClient();
 
   const [form, setForm] = useState({
     ruc: "",
@@ -55,6 +62,22 @@ export function FacturacionSriSection() {
 
   function set(field: string, value: unknown) {
     setForm((p) => ({ ...p, [field]: value }));
+  }
+
+  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !empresaActivaId) return;
+    setUploadingLogo(true);
+    try {
+      await uploadLogoEmpresa(empresaActivaId, file);
+      await qc.invalidateQueries({ queryKey: ["empresa", empresaActivaId] });
+      toast.success("Logo actualizado.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error subiendo el logo.");
+    } finally {
+      setUploadingLogo(false);
+      if (logoRef.current) logoRef.current.value = "";
+    }
   }
 
   async function handleGuardar() {
@@ -238,6 +261,53 @@ export function FacturacionSriSection() {
               Ya hay un certificado almacenado. Selecciona un nuevo archivo solo si deseas reemplazarlo.
             </p>
           )}
+        </div>
+      </div>
+
+      {/* Logo del emisor (aparece en el RIDE) */}
+      <div>
+        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+          Logo del emisor (RIDE)
+        </h3>
+        <div className="rounded-lg border border-dashed p-4">
+          <p className="text-xs text-muted-foreground mb-3">
+            Este logo se imprime en la cabecera del PDF RIDE de cada factura electrónica.
+          </p>
+          <div className="flex items-center gap-4">
+            {empresa?.logo_url ? (
+              <img
+                src={empresa.logo_url}
+                alt="Logo emisor"
+                className="h-16 w-auto max-w-[160px] object-contain rounded border bg-white p-1"
+              />
+            ) : (
+              <div className="h-16 w-32 rounded border flex items-center justify-center bg-muted/30">
+                <span className="text-xs text-muted-foreground">Sin logo</span>
+              </div>
+            )}
+            <div>
+              <input
+                ref={logoRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                className="hidden"
+                onChange={handleLogoUpload}
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                disabled={uploadingLogo || !empresaActivaId}
+                onClick={() => logoRef.current?.click()}
+              >
+                {uploadingLogo
+                  ? <Loader2 className="size-3.5 animate-spin" />
+                  : <Upload className="size-3.5" />}
+                {empresa?.logo_url ? "Cambiar logo" : "Subir logo"}
+              </Button>
+              <p className="mt-1.5 text-xs text-muted-foreground">PNG, JPG, WebP o SVG · máx. 2 MB</p>
+            </div>
+          </div>
         </div>
       </div>
 
