@@ -154,12 +154,12 @@ export async function generarYDescargarRIDE(data: RideData): Promise<void> {
   // Logo: ~20mm + datos emisor ~35mm = ~55mm mínimo
   const HDR_H = 58;
 
-  // Divisor vertical
+  // Borde columna izquierda + divisor vertical + borde inferior
   doc.setDrawColor(160, 160, 160);
   doc.setLineWidth(0.2);
-  vline(doc, COL2_X, y, y + HDR_H);
-  // Borde inferior bloque cabecera
-  hline(doc, M, y + HDR_H, PW - M);
+  doc.rect(M, y, COL1_W, HDR_H);          // caja del emisor con borde
+  vline(doc, COL2_X, y, y + HDR_H);       // divisor (ya incluido en rect pero refuerza)
+  hline(doc, M, y + HDR_H, PW - M);       // borde inferior cabecera
 
   // ── Columna izquierda ──
   let lY = y + 3;
@@ -318,7 +318,7 @@ export async function generarYDescargarRIDE(data: RideData): Promise<void> {
   // ─────────────────────────────────────────────────────────────────────────
   const clave = comprobante.clave_acceso ?? numAut;
   const barcodeImg = await generarCodigoBarras(clave);
-  const CLAVE_H = barcodeImg ? 22 : 14;
+  const CLAVE_H = barcodeImg ? 26 : 15;
 
   hline(doc, M, y + CLAVE_H, PW - M);
   doc.setDrawColor(160, 160, 160);
@@ -326,20 +326,19 @@ export async function generarYDescargarRIDE(data: RideData): Promise<void> {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(7.5);
   doc.setTextColor(0, 0, 0);
-  doc.text("CLAVE DE ACCESO", M + 3, y + 4);
+  doc.text("CLAVE DE ACCESO", M + 3, y + 4.5);
 
   if (barcodeImg) {
-    // Barcode ocupa el ancho central, dejando margen
     const bW = CW - 6;
-    const bH = 11;
-    doc.addImage(barcodeImg, "PNG", M + 3, y + 5.5, bW, bH, undefined, "FAST");
-    // Número debajo del barcode
+    const bH = 12;
+    doc.addImage(barcodeImg, "PNG", M + 3, y + 6, bW, bH, undefined, "FAST");
+    // Número debajo del barcode con espacio suficiente
     doc.setFont("courier", "normal");
     doc.setFontSize(6.5);
     doc.setTextColor(60, 60, 60);
     const mid = Math.ceil(clave.length / 2);
-    doc.text(clave.substring(0, mid), PW / 2, y + 18, { align: "center" });
-    doc.text(clave.substring(mid), PW / 2, y + 21.5, { align: "center" });
+    doc.text(clave.substring(0, mid), PW / 2, y + 20.5, { align: "center" });
+    doc.text(clave.substring(mid), PW / 2, y + 24.5, { align: "center" });
   } else {
     doc.setFont("courier", "normal");
     doc.setFontSize(7);
@@ -446,8 +445,8 @@ export async function generarYDescargarRIDE(data: RideData): Promise<void> {
   doc.text("Cod.", tx[1] + 1, y + 4);      doc.text("Auxiliar", tx[1] + 1, y + 8);
   doc.text("Cantidad", tx[2] + 1, y + 6.5);
   doc.text("Descripción", tx[3] + 1, y + 6.5);
-  doc.text("Detalle Adicional", tx[4] + 1, y + 6.5);
-  doc.text("Precio Unitario", tx[5] + 1, y + 6.5);
+  doc.text("Det.", tx[4] + 1, y + 4);       doc.text("Adicional", tx[4] + 1, y + 8);
+  doc.text("Precio", tx[5] + 1, y + 4);   doc.text("Unitario", tx[5] + 1, y + 8);
   doc.text("Subsidio", tx[6] + 1, y + 6.5);
   doc.text("Precio sin", tx[7] + 1, y + 4); doc.text("Subsidio", tx[7] + 1, y + 8);
   doc.text("Descuento", tx[8] + 1, y + 6.5);
@@ -477,10 +476,10 @@ export async function generarYDescargarRIDE(data: RideData): Promise<void> {
   doc.text("1.00", tx[2] + 1, y + 7);
   doc.text(descLines, tx[3] + 1, y + 7);
   // tx[4] (DetAd) vacío
-  // Precio Unitario — right-aligned dentro de su columna
-  doc.text(fmt(precioUnit), tx[6] - 2, y + 7, { align: "right" });
+  // Precio Unitario — right-aligned dentro de su columna (tx[5]→tx[6])
+  doc.text(fmt(precioUnit), tx[6] - 1, y + 7, { align: "right" });
   // Subsidio
-  doc.text(fmt(0), tx[6] + 1, y + 7);
+  doc.text(fmt(0), tx[6] + 2, y + 7);
   // Precio sin Subsidio
   doc.text(fmt(0), tx[7] + 1, y + 7);
   // Descuento
