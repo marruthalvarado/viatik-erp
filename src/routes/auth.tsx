@@ -80,11 +80,14 @@ function AuthPage() {
           )}
         </div>
 
-        <div className="space-y-0.5 text-center text-[11px] text-muted-foreground">
-          <p>
-            Diseñado y desarrollado por <span className="font-medium">Nuclearpet S.A.S.</span>
-          </p>
-          <p>© 2026 Nuclearpet S.A.S. Todos los derechos reservados.</p>
+        <div className="flex flex-col items-center gap-1.5 text-center text-[11px] text-muted-foreground">
+          <p>Diseñado y desarrollado por</p>
+          <img
+            src="/nahdan-logo.png"
+            alt="Nahdan"
+            className="h-5 w-auto object-contain opacity-80"
+          />
+          <p>© 2026 Nahdan. Todos los derechos reservados.</p>
         </div>
       </div>
     </div>

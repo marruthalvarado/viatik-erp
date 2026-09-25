@@ -1048,7 +1048,7 @@ export async function exportarLiquidacionPDF(rendicion: Rendicion): Promise<void
   doc.setFontSize(7);
   doc.setTextColor(150, 150, 150);
   doc.text(
-    `VIATIQ · Nuclearpet S.A.S. · Generado ${new Date().toLocaleDateString("es-EC")}`,
+    `VIATIQ · Nahdan · Generado ${new Date().toLocaleDateString("es-EC")}`,
     pageW / 2,
     doc.internal.pageSize.getHeight() - 6,
     { align: "center" },

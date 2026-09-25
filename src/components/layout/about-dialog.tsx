@@ -8,11 +8,12 @@
 import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { BrandLogo } from "./brand-logo";
+import nahdanLogo from "@/assets/branding/nahdan-logo-color.png";
 
 const APP_NAME = "VIATIQ";
 const APP_VERSION = "v1.0 RC1";
 const APP_PRODUCT = "Plataforma Inteligente para Gestión de Viáticos y Gastos";
-const COMPANY = "Nuclearpet S.A.S.";
+const COMPANY = "Nahdan";
 const COPYRIGHT = `© 2026 ${COMPANY}`;
 const LICENSE = "Software propietario.";
 const LEGAL_NOTICE =
@@ -42,7 +43,10 @@ export function AboutDialog({ open, onOpenChange }: AboutDialogProps) {
 
         <div className="mt-1 space-y-2.5 text-sm">
           <InfoRow label="Versión" value={APP_VERSION} />
-          <InfoRow label="Desarrollado por" value={COMPANY} />
+          <div className="flex gap-2">
+            <span className="w-36 shrink-0 text-muted-foreground">Desarrollado por</span>
+            <img src={nahdanLogo} alt="Nahdan" className="h-5 w-auto object-contain" />
+          </div>
           <InfoRow label="Copyright" value={`${COPYRIGHT} Todos los derechos reservados.`} />
           <InfoRow label="Licencia" value={LICENSE} />
 

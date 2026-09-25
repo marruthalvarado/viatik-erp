@@ -111,11 +111,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "apple-mobile-web-app-title", content: "VIATIQ" },
       { name: "theme-color", content: "#002A72" },
       { title: "VIATIQ" },
-      { name: "author", content: "Nuclearpet S.A.S." },
+      { name: "author", content: "Nahdan" },
       {
         name: "description",
         content:
-          "VIATIQ — Plataforma Inteligente para Gestión de Viáticos y Gastos. Desarrollado por Nuclearpet S.A.S.",
+          "VIATIQ — Plataforma Inteligente para Gestión de Viáticos y Gastos. Desarrollado por Nahdan",
       },
       { property: "og:title", content: "VIATIQ" },
       {

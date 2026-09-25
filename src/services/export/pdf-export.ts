@@ -123,7 +123,7 @@ export async function exportToPdf(config: ExportConfig): Promise<ExportResult> {
         doc.text(config.title, 14, pageH - 9);
         // Pie central: aviso legal
         doc.text(
-          "VIATIQ · © 2026 Nuclearpet S.A.S. Todos los derechos reservados. · Software propietario.",
+          "VIATIQ · © 2026 Nahdan Todos los derechos reservados. · Software propietario.",
           pageW / 2,
           pageH - 9,
           { align: "center" },

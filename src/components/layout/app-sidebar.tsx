@@ -151,7 +151,7 @@ export function AppSidebar() {
         {!collapsed && (
           <div className="px-2 py-1.5 text-[11px] text-muted-foreground leading-tight">
             <span className="font-medium">VIATIQ</span> v1.0 RC1
-            <br />© 2026 Nuclearpet S.A.S.
+            <br />© 2026 Nahdan
           </div>
         )}
       </SidebarFooter>
