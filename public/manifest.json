@@ -1,0 +1,29 @@
+{
+  "name": "VIATIQ",
+  "short_name": "VIATIQ",
+  "description": "Plataforma Inteligente para Gestión de Viáticos y Gastos",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#000B38",
+  "theme_color": "#002A72",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}
