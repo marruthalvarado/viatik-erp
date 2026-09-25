@@ -193,29 +193,27 @@ export async function generarYDescargarRIDE(data: RideData): Promise<void> {
   doc.setFontSize(7.5);
   doc.setTextColor(40, 40, 40);
 
-  // Dir. Matriz con etiqueta en negrita
+  // Dir. Matriz con etiqueta en negrita (label + valor en la misma línea)
   lY += 1;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(7);
-  doc.text("Dirección", M + 3, lY);
-  doc.text("Matriz:", M + 3, lY + 3.5);
+  doc.text("Dir. Matriz:", M + 3, lY);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7.5);
-  const dmLines = doc.splitTextToSize(config.dir_matriz, COL1_W - 20);
-  doc.text(dmLines, M + 19, lY);
-  lY += Math.max(7.5, dmLines.length * 4) + 1;
+  const dmLines = doc.splitTextToSize(config.dir_matriz, COL1_W - 24);
+  doc.text(dmLines, M + 23, lY);
+  lY += Math.max(5, dmLines.length * 4.5) + 2;
 
   // Dir. Sucursal (si aplica)
   if (config.dir_establecimiento && config.dir_establecimiento !== config.dir_matriz) {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(7);
-    doc.text("Dirección", M + 3, lY);
-    doc.text("Sucursal:", M + 3, lY + 3.5);
+    doc.text("Dir. Sucursal:", M + 3, lY);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7.5);
-    const dsLines = doc.splitTextToSize(config.dir_establecimiento, COL1_W - 20);
-    doc.text(dsLines, M + 19, lY);
-    lY += Math.max(7.5, dsLines.length * 4) + 1;
+    const dsLines = doc.splitTextToSize(config.dir_establecimiento, COL1_W - 27);
+    doc.text(dsLines, M + 26, lY);
+    lY += Math.max(5, dsLines.length * 4.5) + 2;
   }
 
   lY += 1;
@@ -388,7 +386,10 @@ export async function generarYDescargarRIDE(data: RideData): Promise<void> {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
   const fechaEmision = factura.fecha
-    ? new Date(factura.fecha + "T00:00:00").toLocaleDateString("es-EC")
+    ? (() => {
+        const d = new Date(factura.fecha + "T00:00:00");
+        return `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()}`;
+      })()
     : "—";
   doc.text(fechaEmision, col_fe_x + 2, y + 11.5);
   y += F1_H;
