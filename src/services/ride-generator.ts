@@ -5,8 +5,7 @@
  */
 import { jsPDF } from "jspdf";
 import type { FacturaEmitida } from "@/services/facturas-emitidas";
-import type { ComprobanteElectronico } from "@/types/facturacion-sri";
-import type { EmpresaFacConfig } from "@/types/facturacion-sri";
+import type { ComprobanteElectronico, EmpresaFacConfig } from "@/types/facturacion-sri";
 import { FORMAS_PAGO_SRI } from "@/types/facturacion-sri";
 
 export interface RideData {
@@ -17,7 +16,10 @@ export interface RideData {
   descripcionServicio?: string;
 }
 
-/** Carga una imagen desde URL como base64, convirtiendo WebP → PNG vía canvas */
+// ─────────────────────────────────────────────────────────────────────────────
+// UTILIDADES
+// ─────────────────────────────────────────────────────────────────────────────
+
 async function fetchImageAsBase64(
   url: string,
 ): Promise<{ data: string; format: "PNG" | "JPEG" } | null> {
@@ -25,43 +27,34 @@ async function fetchImageAsBase64(
     const resp = await fetch(url);
     if (!resp.ok) return null;
     const blob = await resp.blob();
-    const mime = blob.type; // "image/png", "image/jpeg", "image/webp", etc.
+    const mime = blob.type;
 
-    // WebP → convertir a PNG via canvas (jsPDF no soporta WebP nativo)
-    if (mime === "image/webp" || url.includes(".webp")) {
+    if (mime === "image/svg+xml" || url.split("?")[0].endsWith(".svg")) return null;
+
+    // WebP → convertir a PNG via canvas
+    if (mime === "image/webp" || url.split("?")[0].endsWith(".webp")) {
       return new Promise((resolve) => {
         const img = new Image();
-        const objectUrl = URL.createObjectURL(blob);
+        const objUrl = URL.createObjectURL(blob);
         img.onload = () => {
           const canvas = document.createElement("canvas");
-          canvas.width = img.naturalWidth;
-          canvas.height = img.naturalHeight;
+          canvas.width = img.naturalWidth || 200;
+          canvas.height = img.naturalHeight || 80;
           canvas.getContext("2d")?.drawImage(img, 0, 0);
-          const pngData = canvas.toDataURL("image/png");
-          URL.revokeObjectURL(objectUrl);
-          resolve({ data: pngData, format: "PNG" });
+          URL.revokeObjectURL(objUrl);
+          resolve({ data: canvas.toDataURL("image/png"), format: "PNG" });
         };
-        img.onerror = () => {
-          URL.revokeObjectURL(objectUrl);
-          resolve(null);
-        };
-        img.src = objectUrl;
+        img.onerror = () => { URL.revokeObjectURL(objUrl); resolve(null); };
+        img.src = objUrl;
       });
     }
 
-    // SVG → jsPDF no soporta SVG; omitir logo
-    if (mime === "image/svg+xml" || url.includes(".svg")) return null;
-
-    // PNG / JPEG
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onloadend = () => {
         const b64 = reader.result as string;
-        const fmt =
-          mime === "image/jpeg" || url.includes(".jpg") || url.includes(".jpeg")
-            ? "JPEG"
-            : "PNG";
-        resolve({ data: b64, format: fmt });
+        const isJpeg = mime === "image/jpeg" || /\.(jpg|jpeg)(\?|$)/i.test(url);
+        resolve({ data: b64, format: isJpeg ? "JPEG" : "PNG" });
       };
       reader.onerror = () => resolve(null);
       reader.readAsDataURL(blob);
@@ -71,14 +64,44 @@ async function fetchImageAsBase64(
   }
 }
 
+/** Genera imagen de código de barras Code 128 en canvas y devuelve base64 */
+async function generarCodigoBarras(texto: string): Promise<string | null> {
+  try {
+    // Cargar JsBarcode desde CDN si no está disponible
+    if (typeof window !== "undefined" && !(window as unknown as Record<string, unknown>)["JsBarcode"]) {
+      await new Promise<void>((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = "https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js";
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error("No se pudo cargar JsBarcode"));
+        document.head.appendChild(script);
+      });
+    }
+    const canvas = document.createElement("canvas");
+    const JsBarcode = (window as unknown as Record<string, unknown>)["JsBarcode"] as (
+      el: HTMLCanvasElement,
+      text: string,
+      opts: Record<string, unknown>
+    ) => void;
+    JsBarcode(canvas, texto, {
+      format: "CODE128",
+      displayValue: false,
+      width: 2,
+      height: 50,
+      margin: 0,
+      background: "#ffffff",
+    });
+    return canvas.toDataURL("image/png");
+  } catch {
+    return null;
+  }
+}
+
 function fmt(n: number | null | undefined, decimals = 2): string {
   return Number(n ?? 0).toFixed(decimals);
 }
 
-/** Parsea el código de forma de pago del XML */
-function parsearFormaPago(
-  xmlStr: string | null | undefined,
-): { codigo: string; nombre: string } | null {
+function parsearFormaPago(xmlStr: string | null | undefined): { codigo: string; nombre: string } | null {
   if (!xmlStr) return null;
   const match = xmlStr.match(/<formaPago>(\d+)<\/formaPago>/);
   if (!match) return null;
@@ -87,383 +110,485 @@ function parsearFormaPago(
   return { codigo, nombre: found?.nombre ?? `Código ${codigo}` };
 }
 
-/** Calcula la tasa IVA real desde los datos de la factura */
-function calcularTasaIVA(subtotal: number, iva: number): string {
-  if (!subtotal || !iva) return "0";
-  const rate = Math.round((iva / subtotal) * 100);
-  return String(rate);
+function calcularTasaIVA(subtotal: number, iva: number): number {
+  if (!subtotal || !iva) return 0;
+  return Math.round((iva / subtotal) * 100);
 }
 
-/** Genera el PDF RIDE y lo descarga en el navegador */
+// ─────────────────────────────────────────────────────────────────────────────
+// GENERADOR PRINCIPAL
+// ─────────────────────────────────────────────────────────────────────────────
+
 export async function generarYDescargarRIDE(data: RideData): Promise<void> {
   const { factura, comprobante, config, logoUrl, descripcionServicio } = data;
 
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-  const PW = 210; // ancho A4
-  const PH = 297; // alto A4
-  const M = 10;   // margen exterior
-  const CONTENT_W = PW - 2 * M;
+  const PW = 210;
+  const PH = 297;
+  const M = 8; // margen
+
+  // Helpers de dibujo
+  const lw = (w: number) => { doc.setLineWidth(w); };
+  const gray = (g: number) => { doc.setDrawColor(g, g, g); };
+  const fillGray = (g: number) => { doc.setFillColor(g, g, g); };
+  const textColor = (r: number, g: number, b: number) => { doc.setTextColor(r, g, b); };
+  const font = (style: "normal" | "bold" | "italic", size: number, family: "helvetica" | "courier" = "helvetica") => {
+    doc.setFont(family, style);
+    doc.setFontSize(size);
+  };
 
   let y = M;
 
   // ── BORDE EXTERIOR ─────────────────────────────────────────────────────────
-  doc.setDrawColor(0, 0, 0);
-  doc.setLineWidth(0.4);
-  doc.rect(M, M, CONTENT_W, PH - 2 * M);
+  gray(0); lw(0.5);
+  doc.rect(M, M, PW - 2 * M, PH - 2 * M);
 
-  // Padding interno (el contenido empieza dentro del borde)
-  const P = 3; // padding interno
-  const IX = M + P;   // x inicio contenido
-  const IW = CONTENT_W - 2 * P; // ancho contenido interno
+  // ── CABECERA: 2 COLUMNAS ──────────────────────────────────────────────────
+  const COL1_W = 65;
+  const COL2_X = M + COL1_W;
+  const COL2_W = PW - M - COL2_X - M;
+  const HDR_H = 70; // altura total bloque cabecera
 
-  y = M + P;
+  // Línea vertical divisoria de columnas
+  gray(160); lw(0.2);
+  doc.line(COL2_X, y, COL2_X, y + HDR_H);
+  // Borde inferior de cabecera
+  doc.line(M, y + HDR_H, PW - M, y + HDR_H);
 
-  // ── LOGO + CABECERA EMISOR ─────────────────────────────────────────────────
-  const COL1_W = 62;               // columna logo/emisor
-  const COL2_X = IX + COL1_W + 3;
-  const COL2_W = IW - COL1_W - 3; // columna datos comprobante
-  const HEADER_H = 44;             // altura del bloque cabecera
+  // — COLUMNA IZQUIERDA: logo + datos emisor —————————————————————————————
+  let leftY = y + 3;
 
-  // Caja del logo (borde visible)
-  doc.setDrawColor(180, 180, 180);
-  doc.setLineWidth(0.2);
-  doc.rect(IX, y, COL1_W, HEADER_H);
-
-  // Logo
-  let logoOk = false;
+  // Logo (sin caja, flota libre)
   if (logoUrl) {
     const imgResult = await fetchImageAsBase64(logoUrl);
     if (imgResult) {
       try {
-        // Ajustar dimensiones manteniendo aspecto dentro de la caja
-        const maxW = COL1_W - 4;
-        const maxH = 20;
-        doc.addImage(imgResult.data, imgResult.format, IX + 2, y + 2, maxW, maxH, undefined, "FAST");
-        logoOk = true;
+        const maxW = COL1_W - 6;
+        const maxH = 18;
+        doc.addImage(imgResult.data, imgResult.format, M + 3, leftY, maxW, maxH, undefined, "FAST");
+        leftY += 21;
       } catch {
-        // Si falla (SVG u otro), logoOk queda false
+        // Si falla el logo, continúa sin él
       }
     }
   }
 
-  // Datos emisor (debajo del logo si hay logo, o centrado si no)
-  const emisorTextY = logoOk ? y + 26 : y + 6;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
-  const rsLines = doc.splitTextToSize(config.razon_social, COL1_W - 4);
-  doc.text(rsLines, IX + 2, emisorTextY);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(7.5);
-  let etY = emisorTextY + rsLines.length * 4;
+  // Razón social en negrita
+  font("bold", 10);
+  textColor(0, 0, 0);
+  const rsLines = doc.splitTextToSize(config.razon_social.toUpperCase(), COL1_W - 6);
+  doc.text(rsLines, M + 3, leftY);
+  leftY += rsLines.length * 4.5;
+
+  // Nombre comercial
   if (config.nombre_comercial && config.nombre_comercial !== config.razon_social) {
-    const ncLines = doc.splitTextToSize(config.nombre_comercial, COL1_W - 4);
-    doc.text(ncLines, IX + 2, etY);
-    etY += ncLines.length * 4;
+    font("bold", 9);
+    const ncLines = doc.splitTextToSize(config.nombre_comercial, COL1_W - 6);
+    doc.text(ncLines, M + 3, leftY);
+    leftY += ncLines.length * 4;
   }
-  const dirMatrizLines = doc.splitTextToSize(`Dir: ${config.dir_matriz}`, COL1_W - 4);
-  doc.text(dirMatrizLines, IX + 2, etY);
-  etY += dirMatrizLines.length * 4;
-  if (config.dir_establecimiento && config.dir_establecimiento !== config.dir_matriz) {
-    const dirEstLines = doc.splitTextToSize(`Est: ${config.dir_establecimiento}`, COL1_W - 4);
-    doc.text(dirEstLines, IX + 2, etY);
-    etY += dirEstLines.length * 4;
+
+  font("normal", 7.5);
+  textColor(50, 50, 50);
+
+  // Dirección Matriz
+  leftY += 1;
+  font("bold", 7);
+  doc.text("Dirección", M + 3, leftY);
+  doc.text("Matriz:", M + 3, leftY + 3.5);
+  font("normal", 7);
+  const dmLines = doc.splitTextToSize(config.dir_matriz, COL1_W - 22);
+  doc.text(dmLines, M + 20, leftY);
+  leftY += Math.max(7, dmLines.length * 3.5 + 3);
+
+  // Dirección Establecimiento/Sucursal
+  if (config.dir_establecimiento) {
+    font("bold", 7);
+    doc.text("Dirección", M + 3, leftY);
+    doc.text("Sucursal:", M + 3, leftY + 3.5);
+    font("normal", 7);
+    const dsLines = doc.splitTextToSize(config.dir_establecimiento, COL1_W - 22);
+    doc.text(dsLines, M + 20, leftY);
+    leftY += Math.max(7, dsLines.length * 3.5 + 3);
   }
-  doc.text(
-    `Obligado contab.: ${config.obligado_contabilidad ? "SI" : "NO"}`,
-    IX + 2, etY,
-  );
 
-  // Box datos comprobante (columna derecha)
-  doc.setDrawColor(180, 180, 180);
-  doc.setLineWidth(0.2);
-  doc.rect(COL2_X, y, COL2_W, HEADER_H);
+  leftY += 2;
+  font("bold", 7.5);
+  textColor(0, 0, 0);
+  doc.text("OBLIGADO A LLEVAR CONTABILIDAD", M + 3, leftY);
+  font("normal", 7.5);
+  doc.text(config.obligado_contabilidad ? "SI" : "NO", COL1_W - 5, leftY, { align: "right" });
 
-  // Línea separadora horizontal: RUC | FACTURA | No.
-  const LINE1_Y = y + 8;
-  const LINE2_Y = y + 18;
-  const LINE3_Y = y + 26;
+  // — COLUMNA DERECHA: datos comprobante ————————————————————————————————
+  const R = COL2_X + 3;
+  const RW = COL2_W - 4;
+  let rightY = y + 3;
 
-  doc.setLineWidth(0.2);
-  doc.line(COL2_X, LINE1_Y, COL2_X + COL2_W, LINE1_Y);
-  doc.line(COL2_X, LINE2_Y, COL2_X + COL2_W, LINE2_Y);
-  doc.line(COL2_X, LINE3_Y, COL2_X + COL2_W, LINE3_Y);
+  // Fila RUC
+  gray(180); lw(0.2);
+  doc.line(COL2_X, rightY + 8, PW - M, rightY + 8);
+  font("bold", 8);
+  textColor(0, 0, 0);
+  doc.text("R.U.C.:", R, rightY + 5.5);
+  font("normal", 9);
+  doc.text(config.ruc, R + 16, rightY + 5.5);
+  rightY += 8;
 
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(7.5);
-  doc.text("R.U.C:", COL2_X + 2, y + 5.5);
-  doc.setFont("helvetica", "normal");
-  doc.text(config.ruc, COL2_X + 18, y + 5.5);
+  // FACTURA
+  doc.line(COL2_X, rightY + 10, PW - M, rightY + 10);
+  font("bold", 12);
+  doc.text("FACTURA", COL2_X + COL2_W / 2, rightY + 7, { align: "center" });
+  rightY += 10;
 
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-  doc.text("FACTURA", COL2_X + COL2_W / 2, LINE1_Y + 6, { align: "center" });
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8);
+  // No.
+  doc.line(COL2_X, rightY + 8, PW - M, rightY + 8);
+  font("normal", 9);
   doc.text(
     `No. ${config.establecimiento}-${config.punto_emision}-${factura.numero.split("-").pop() ?? factura.numero}`,
-    COL2_X + COL2_W / 2, LINE2_Y + 5, { align: "center" },
+    COL2_X + COL2_W / 2, rightY + 5.5, { align: "center" },
   );
+  rightY += 8;
 
-  const autLabel = "NÚMERO DE AUTORIZACIÓN";
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(7);
-  doc.text(autLabel, COL2_X + 2, LINE3_Y + 4);
-  doc.setFont("courier", "normal");
-  doc.setFontSize(6.5);
+  // NÚMERO DE AUTORIZACIÓN
+  doc.line(COL2_X, rightY + 15, PW - M, rightY + 15);
+  font("bold", 7.5);
+  doc.text("NÚMERO DE AUTORIZACIÓN", R, rightY + 4);
+  font("normal", 7);
   const numAut = comprobante.numero_autorizacion ?? comprobante.clave_acceso ?? "—";
-  const autLines = doc.splitTextToSize(numAut, COL2_W - 4);
-  doc.text(autLines, COL2_X + 2, LINE3_Y + 9);
+  const autLines = doc.splitTextToSize(numAut, RW);
+  doc.text(autLines, R, rightY + 9);
+  rightY += 15;
 
-  const ambienteLabel = config.ambiente === "produccion" ? "PRODUCCIÓN" : "PRUEBAS";
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(7);
-  doc.setTextColor(config.ambiente === "produccion" ? 0 : 180, 0, 0);
-  doc.text(`AMBIENTE: ${ambienteLabel}`, COL2_X + COL2_W / 2, y + HEADER_H - 2, { align: "center" });
-  doc.setTextColor(0, 0, 0);
+  // FECHA Y HORA DE AUTORIZACIÓN
+  doc.line(COL2_X, rightY + 8, PW - M, rightY + 8);
+  font("bold", 7);
+  doc.text("FECHA Y HORA DE", R, rightY + 3.5);
+  doc.text("AUTORIZACIÓN:", R, rightY + 7);
+  font("normal", 7.5);
+  const fechaAut = comprobante.fecha_autorizacion
+    ? new Date(comprobante.fecha_autorizacion).toLocaleString("es-EC")
+    : "—";
+  doc.text(fechaAut, R + 35, rightY + 5);
+  rightY += 8;
 
-  y += HEADER_H + 2;
-
-  // ── CLAVE DE ACCESO ────────────────────────────────────────────────────────
-  if (comprobante.clave_acceso) {
-    const clave = comprobante.clave_acceso;
-    const mid = Math.ceil(clave.length / 2);
-    const BOX_H = 14;
-
-    doc.setFillColor(242, 242, 242);
-    doc.rect(IX, y, IW, BOX_H, "F");
-    doc.setDrawColor(200, 200, 200);
-    doc.setLineWidth(0.2);
-    doc.rect(IX, y, IW, BOX_H);
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(7);
-    doc.setTextColor(80, 80, 80);
-    doc.text("CLAVE DE ACCESO", IX + 2, y + 3.5);
-
-    doc.setFont("courier", "normal");
-    doc.setFontSize(7);
-    doc.setTextColor(0, 0, 0);
-    doc.text(clave.substring(0, mid), IX + 2, y + 8);
-    doc.text(clave.substring(mid), IX + 2, y + 13);
-
-    y += BOX_H + 2;
+  // AMBIENTE / EMISIÓN
+  doc.line(COL2_X, rightY + 8, PW - M, rightY + 8);
+  const ambienteMid = COL2_X + COL2_W / 2;
+  doc.line(ambienteMid, rightY, ambienteMid, rightY + 8);
+  font("bold", 7);
+  doc.text("AMBIENTE:", R, rightY + 3.5);
+  font("normal", 7.5);
+  const ambLabel = config.ambiente === "produccion" ? "PRODUCCIÓN" : "PRUEBAS";
+  if (config.ambiente !== "produccion") {
+    textColor(180, 0, 0);
   }
+  doc.text(ambLabel, R + 20, rightY + 3.5);
+  textColor(0, 0, 0);
+  font("bold", 7);
+  doc.text("EMISIÓN:", ambienteMid + 3, rightY + 3.5);
+  font("normal", 7.5);
+  doc.text(config.nombre_comercial ?? "NORMAL", ambienteMid + 20, rightY + 3.5);
+  rightY += 8;
 
-  // ── FECHA AUTORIZACIÓN ─────────────────────────────────────────────────────
-  if (comprobante.fecha_autorizacion) {
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.setTextColor(60, 60, 60);
-    doc.text(
-      `Fecha y hora de autorización: ${new Date(comprobante.fecha_autorizacion).toLocaleString("es-EC")}`,
-      IX, y + 5,
-    );
-    doc.setTextColor(0, 0, 0);
-    y += 9;
+  // CLAVE DE ACCESO + código de barras
+  font("bold", 7.5);
+  textColor(0, 0, 0);
+  doc.text("CLAVE DE ACCESO", R, rightY + 4);
+  rightY += 5;
+
+  // Intentar código de barras
+  const barcodeImg = await generarCodigoBarras(comprobante.clave_acceso ?? numAut);
+  if (barcodeImg) {
+    const barW = RW;
+    const barH = 10;
+    doc.addImage(barcodeImg, "PNG", R, rightY, barW, barH, undefined, "FAST");
+    rightY += barH + 1;
   }
+  // Número de clave debajo del barcode (o solo texto si no hay barcode)
+  font("normal", 6.5, "courier");
+  textColor(40, 40, 40);
+  const clave = comprobante.clave_acceso ?? numAut;
+  const mid = Math.ceil(clave.length / 2);
+  doc.text(clave.substring(0, mid), R, rightY + 3);
+  doc.text(clave.substring(mid), R, rightY + 7);
+  textColor(0, 0, 0);
+  rightY += 9;
+
+  y += HDR_H + 2;
 
   // ── DATOS COMPRADOR ────────────────────────────────────────────────────────
-  y += 1;
-  const BUYER_H = 20;
-  doc.setDrawColor(180, 180, 180);
-  doc.setLineWidth(0.2);
-  doc.rect(IX, y, IW, BUYER_H);
+  const IWALL = PW - 2 * M; // ancho total del contenido
 
-  // Línea vertical a 2/3 del ancho para separar comprador / fecha
-  const BUYER_DIV = Math.floor(IW * 0.65);
-  doc.line(IX + BUYER_DIV, y, IX + BUYER_DIV, y + BUYER_H);
-  // Línea horizontal separando labels de valores
-  doc.line(IX, y + 10, IX + IW, y + 10);
+  // Fila 1: Razón social | Identificación | Fecha
+  const B1_H = 9;
+  gray(180); lw(0.2);
+  doc.rect(M, y, IWALL, B1_H);
+  const colIdX = M + IWALL * 0.5;
+  const colFechaX = M + IWALL * 0.75;
+  doc.line(colIdX, y, colIdX, y + B1_H);
+  doc.line(colFechaX, y, colFechaX, y + B1_H);
 
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(7.5);
-  doc.text("RAZÓN SOCIAL / NOMBRES Y APELLIDOS:", IX + 2, y + 6);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8.5);
-  const rsClienteLines = doc.splitTextToSize(factura.razon_social ?? "—", BUYER_DIV - 4);
-  doc.text(rsClienteLines, IX + 2, y + 15);
+  font("bold", 7.5);
+  textColor(0, 0, 0);
+  doc.text("Razón Social / Nombres y Apellidos:", M + 2, y + 4);
+  font("normal", 8.5);
+  const rsCliente = doc.splitTextToSize(factura.razon_social ?? "—", colIdX - M - 4);
+  doc.text(rsCliente, M + 2, y + 8);
 
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(7.5);
-  doc.text("FECHA EMISIÓN:", IX + BUYER_DIV + 2, y + 6);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8.5);
-  const fechaLabel = factura.fecha
+  font("bold", 7.5);
+  doc.text("Identificación", colIdX + 2, y + 4);
+  font("normal", 8);
+  doc.text(factura.ruc_cliente ?? "—", colIdX + 2, y + 8);
+
+  font("bold", 7.5);
+  doc.text("Fecha", colFechaX + 2, y + 4);
+  font("normal", 8);
+  const fechaEmision = factura.fecha
     ? new Date(factura.fecha + "T00:00:00").toLocaleDateString("es-EC")
     : "—";
-  doc.text(fechaLabel, IX + BUYER_DIV + 2, y + 15);
+  doc.text(fechaEmision, colFechaX + 2, y + 8);
 
-  y += BUYER_H + 2;
+  y += B1_H;
 
-  // Fila IDENTIFICACIÓN
-  doc.setDrawColor(180, 180, 180);
-  doc.setLineWidth(0.2);
-  doc.rect(IX, y, IW, 8);
-  doc.line(IX + BUYER_DIV, y, IX + BUYER_DIV, y + 8);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(7.5);
-  doc.text("IDENTIFICACIÓN:", IX + 2, y + 5.5);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8.5);
-  doc.text(factura.ruc_cliente ?? "—", IX + 42, y + 5.5);
+  // Fila 2: segunda línea cliente si es larga
+  const B2_H = 7;
+  doc.rect(M, y, IWALL, B2_H);
+  doc.line(colIdX, y, colIdX, y + B2_H);
+  doc.line(colFechaX, y, colFechaX, y + B2_H);
+  font("bold", 7.5);
+  doc.text("Guía", colFechaX + 2, y + 5);
+  // dirección (opcional - dejar en blanco)
+  font("normal", 7.5);
+  doc.text("Dirección:", M + 2, y + 5);
 
-  y += 10;
+  y += B2_H + 2;
 
   // ── TABLA DE DETALLE ───────────────────────────────────────────────────────
-  const COL_CANT   = 18;
-  const COL_DESC   = IW - 18 - 28 - 24 - 28; // resto
-  const COL_PRECIO = 28;
-  const COL_DSCTO  = 24;
-  const COL_TOTAL  = 28;
+  // Columnas igual que la referencia: Cod.Princ | Cod.Aux | Cant | Descripción | Det.Adic | P.Unitario | Subsidio | P.sinSubsidio | Descuento | P.Total
+  const C = {
+    codP: 16,
+    codA: 12,
+    cant: 12,
+    desc: 44,
+    detAd: 18,
+    pUnit: 22,
+    sub: 14,
+    pSub: 18,
+    dscto: 16,
+    // total = resto
+  };
+  const detTotalW = IWALL - C.codP - C.codA - C.cant - C.desc - C.detAd - C.pUnit - C.sub - C.pSub - C.dscto;
+  const cx: Record<string, number> = {};
+  cx.codP = M;
+  cx.codA = cx.codP + C.codP;
+  cx.cant = cx.codA + C.codA;
+  cx.desc = cx.cant + C.cant;
+  cx.detAd = cx.desc + C.desc;
+  cx.pUnit = cx.detAd + C.detAd;
+  cx.sub = cx.pUnit + C.pUnit;
+  cx.pSub = cx.sub + C.sub;
+  cx.dscto = cx.pSub + C.pSub;
+  cx.total = cx.dscto + C.dscto;
+  const tableR = M + IWALL;
 
-  const colX = [
-    IX,
-    IX + COL_CANT,
-    IX + COL_CANT + COL_DESC,
-    IX + COL_CANT + COL_DESC + COL_PRECIO,
-    IX + COL_CANT + COL_DESC + COL_PRECIO + COL_DSCTO,
-  ];
-  const tableRight = IX + IW;
-
-  // Cabecera de la tabla
-  doc.setFillColor(60, 60, 60);
-  doc.rect(IX, y, IW, 7, "F");
-
-  // Líneas verticales de la cabecera
-  doc.setDrawColor(100, 100, 100);
-  doc.setLineWidth(0.2);
-  for (let i = 1; i < colX.length; i++) {
-    doc.line(colX[i], y, colX[i], y + 7);
+  const HDR_ROW_H = 8;
+  fillGray(55);
+  doc.rect(M, y, IWALL, HDR_ROW_H, "F");
+  gray(90); lw(0.15);
+  // Líneas verticales cabecera
+  for (const x of [cx.codA, cx.cant, cx.desc, cx.detAd, cx.pUnit, cx.sub, cx.pSub, cx.dscto, cx.total]) {
+    doc.line(x, y, x, y + HDR_ROW_H);
   }
 
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(7.5);
-  doc.setTextColor(255, 255, 255);
-  doc.text("CANT.", colX[0] + 1, y + 5);
-  doc.text("DESCRIPCIÓN", colX[1] + 1, y + 5);
-  doc.text("P. UNITARIO", colX[2] + 1, y + 5);
-  doc.text("DESCUENTO", colX[3] + 1, y + 5);
-  doc.text("TOTAL", colX[4] + 1, y + 5);
-  doc.setTextColor(0, 0, 0);
-  y += 7;
+  font("bold", 6.5);
+  textColor(255, 255, 255);
+  doc.text("Cod.", cx.codP + 1, y + 3);
+  doc.text("Principal", cx.codP + 1, y + 6.5);
+  doc.text("Cantidad", cx.cant + 1, y + 5);
+  doc.text("Descripción", cx.desc + 1, y + 5);
+  doc.text("Detalle Adicional", cx.detAd + 1, y + 5);
+  doc.text("Precio Unitario", cx.pUnit + 1, y + 5);
+  doc.text("Subsidio", cx.sub + 1, y + 5);
+  doc.text("Precio sin", cx.pSub + 1, y + 3);
+  doc.text("Subsidio", cx.pSub + 1, y + 6.5);
+  doc.text("Descuento", cx.dscto + 1, y + 5);
+  doc.text("Precio Total", cx.total + 1, y + 5);
+  doc.text("Cod.", cx.codA + 1, y + 3);
+  doc.text("Auxiliar", cx.codA + 1, y + 6.5);
+  textColor(0, 0, 0);
+  y += HDR_ROW_H;
 
   // Fila de detalle
-  const baseImponible = Number(factura.subtotal ?? 0) - Number(factura.descuento ?? 0);
-  const desc = descripcionServicio ?? factura.observacion ?? "Servicios profesionales";
-  const descLines = doc.splitTextToSize(desc, COL_DESC - 2);
-  const detH = Math.max(10, descLines.length * 5 + 4);
+  const precioUnit = Number(factura.subtotal ?? 0);
+  const descuento = Number(factura.descuento ?? 0);
+  const precioTotal = precioUnit - descuento;
+  const descServicio = descripcionServicio ?? factura.observacion ?? "Servicios profesionales";
+  const descLines = doc.splitTextToSize(descServicio, C.desc - 2);
+  const DET_H = Math.max(10, descLines.length * 4.5 + 4);
 
-  // Fondo alternado de la fila
-  doc.setFillColor(252, 252, 252);
-  doc.rect(IX, y, IW, detH, "F");
-
-  // Líneas verticales fila detalle
-  doc.setDrawColor(210, 210, 210);
-  doc.setLineWidth(0.15);
-  for (let i = 0; i < colX.length; i++) {
-    doc.line(colX[i], y, colX[i], y + detH);
+  fillGray(252);
+  doc.rect(M, y, IWALL, DET_H, "F");
+  gray(190); lw(0.15);
+  for (const x of [cx.codA, cx.cant, cx.desc, cx.detAd, cx.pUnit, cx.sub, cx.pSub, cx.dscto, cx.total]) {
+    doc.line(x, y, x, y + DET_H);
   }
-  doc.line(tableRight, y, tableRight, y + detH);
+  doc.line(M, y, tableR, y);
+  doc.line(M, y + DET_H, tableR, y + DET_H);
+  doc.line(M, y, M, y + DET_H);
+  doc.line(tableR, y, tableR, y + DET_H);
 
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8.5);
-  doc.text("1", colX[0] + COL_CANT / 2, y + 6, { align: "center" });
-  doc.text(descLines, colX[1] + 1, y + 6);
-  doc.text(fmt(factura.subtotal), tableRight - 2, y + 6, { align: "right" });
-  doc.text(fmt(factura.descuento), colX[4] - 2, y + 6, { align: "right" });
-  doc.text(fmt(baseImponible), tableRight - 2, y + 6, { align: "right" });
+  font("normal", 8);
+  doc.text("PR-001", cx.codP + 1, y + 6);
+  doc.text("1.00", cx.cant + 1, y + 6);
+  doc.text(descLines, cx.desc + 1, y + 6);
+  doc.text(fmt(precioUnit), tableR - 2, y + 6, { align: "right" });
+  doc.text("0.00", cx.sub + 1, y + 6);
+  doc.text("0.00", cx.pSub + 1, y + 6);
+  doc.text(fmt(descuento), cx.dscto + 1, y + 6);
+  doc.text(fmt(precioTotal), tableR - 2, y + 6, { align: "right" });
 
-  // Borde inferior de la fila
-  doc.setDrawColor(180, 180, 180);
-  doc.setLineWidth(0.2);
-  doc.line(IX, y + detH, tableRight, y + detH);
-  // Borde superior/izquierdo/derecho de la tabla
-  doc.rect(IX, y - 7, IW, detH + 7);
+  y += DET_H + 3;
 
-  y += detH + 4;
+  // ── INFORMACIÓN ADICIONAL ──────────────────────────────────────────────────
+  const INFO_H = 6;
+  fillGray(240);
+  doc.rect(M, y, IWALL, INFO_H, "F");
+  gray(180); lw(0.2);
+  doc.rect(M, y, IWALL, INFO_H);
+  font("bold", 7.5);
+  textColor(0, 0, 0);
+  doc.text("Información Adicional", M + IWALL / 2, y + 4.5, { align: "center" });
+  y += INFO_H;
 
-  // ── FORMA DE PAGO + TOTALES ────────────────────────────────────────────────
-  // Parsear forma de pago del XML
+  // Parsear forma de pago
   const xmlStr = comprobante.xml_firmado ?? comprobante.xml_autorizado ?? factura.xml_content;
   const fpData = parsearFormaPago(xmlStr);
 
-  const TOT_W = 80;
-  const TOT_X = IX + IW - TOT_W;
-  const FP_W = IW - TOT_W - 2;
+  // Área de info adicional: izquierda observación + forma de pago, derecha totales
+  const TOT_W = 75;
+  const LEFT_W = IWALL - TOT_W;
+  const DIVX = M + LEFT_W;
 
   // Calcular tasa IVA real
   const tasaIVA = calcularTasaIVA(Number(factura.subtotal ?? 0), Number(factura.iva ?? 0));
   const hasIVA = Number(factura.iva ?? 0) > 0;
+  const subtotalConIVA = hasIVA ? Number(factura.subtotal ?? 0) : 0;
+  const subtotalSinIVA = hasIVA ? 0 : Number(factura.subtotal ?? 0);
 
+  // Filas de totales (igual que la referencia)
   const totRows: [string, string, boolean][] = [
-    [`SUBTOTAL ${hasIVA ? tasaIVA + "%" : "0%"}`, fmt(hasIVA ? factura.subtotal : 0), false],
-    [`SUBTOTAL 0%`, fmt(!hasIVA ? factura.subtotal : 0), false],
-    ["DESCUENTO", fmt(factura.descuento), false],
+    [`SUBTOTAL ${hasIVA ? tasaIVA + "%" : "0%"}`, fmt(subtotalConIVA), false],
+    ["SUBTOTAL NO OBJETO DE IVA", "0.00", false],
+    ["SUBTOTAL EXENTO DE IVA", "0.00", false],
+    ["SUBTOTAL SIN IMPUESTOS", fmt(subtotalSinIVA), false],
+    ["TOTAL DESCUENTO", fmt(factura.descuento), false],
+    ["ICE", "0.00", false],
     [`IVA ${hasIVA ? tasaIVA + "%" : "0%"}`, fmt(factura.iva), false],
-    ["TOTAL", fmt(factura.total), true],
+    ["IRBPNR", "0.00", false],
+    ["PROPINA", "0.00", false],
+    ["VALOR TOTAL", fmt(factura.total), true],
   ];
 
-  doc.setDrawColor(180, 180, 180);
-  doc.setLineWidth(0.2);
+  const TOT_ROW_H = 6;
+  const totalBlockH = totRows.length * TOT_ROW_H;
+
+  // Borde bloque totales
+  gray(180); lw(0.2);
+  doc.rect(DIVX, y, TOT_W, totalBlockH);
+
+  // Filas totales
   let ty = y;
   for (const [label, val, isBold] of totRows) {
     if (isBold) {
-      doc.setFillColor(220, 220, 220);
-      doc.rect(TOT_X, ty, TOT_W, 7, "F");
+      fillGray(220);
+      doc.rect(DIVX, ty, TOT_W, TOT_ROW_H, "F");
+      gray(180); lw(0.2);
     }
-    doc.setFont("helvetica", isBold ? "bold" : "normal");
-    doc.setFontSize(8.5);
-    doc.text(label, TOT_X + 2, ty + 5);
-    doc.text(val, TOT_X + TOT_W - 2, ty + 5, { align: "right" });
-    doc.rect(TOT_X, ty, TOT_W, 7);
-    ty += 7;
+    // Línea separadora entre label y valor
+    const valColW = 22;
+    const labelColW = TOT_W - valColW;
+    doc.line(DIVX + labelColW, ty, DIVX + labelColW, ty + TOT_ROW_H);
+    doc.line(DIVX, ty + TOT_ROW_H, DIVX + TOT_W, ty + TOT_ROW_H);
+
+    font(isBold ? "bold" : "normal", 7);
+    textColor(0, 0, 0);
+    doc.text(label, DIVX + 2, ty + 4.2);
+    doc.text(val, DIVX + TOT_W - 2, ty + 4.2, { align: "right" });
+    ty += TOT_ROW_H;
   }
 
-  // Forma de pago (izquierda, alineada verticalmente con los totales)
-  doc.setDrawColor(180, 180, 180);
-  doc.setLineWidth(0.2);
-  doc.rect(IX, y, FP_W, 7 * totRows.length);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(8);
-  doc.text("FORMA DE PAGO:", IX + 2, y + 5);
-  doc.setFont("helvetica", "normal");
-  if (fpData) {
-    const fpNombreLines = doc.splitTextToSize(fpData.nombre, FP_W - 4);
-    doc.setFontSize(8);
-    doc.text(fpNombreLines, IX + 2, y + 12);
-  }
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "bold");
-  doc.text(`$${fmt(factura.total)}`, IX + 2, y + 19);
-  doc.setFont("helvetica", "normal");
+  // Bloque izquierdo: observación + forma de pago
+  const leftBlockY = y;
 
-  y = ty + 4;
-
-  // ── INFORMACIÓN ADICIONAL ──────────────────────────────────────────────────
-  if (factura.observacion && !descripcionServicio) {
-    // Solo mostrar si hay observación distinta a la descripción del servicio
-  } else if (factura.observacion) {
-    doc.setFillColor(248, 248, 248);
-    doc.rect(IX, y, IW, 8, "F");
-    doc.setDrawColor(200, 200, 200);
-    doc.setLineWidth(0.2);
-    doc.rect(IX, y, IW, 8);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(7.5);
-    doc.text("INFORMACIÓN ADICIONAL", IX + 2, y + 5.5);
-    y += 10;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    const obsLines = doc.splitTextToSize(factura.observacion, IW - 4);
-    doc.text(obsLines, IX + 2, y);
-    y += obsLines.length * 4.5 + 2;
+  // Email y descripción de info adicional
+  let leftInfoY = leftBlockY + 2;
+  font("normal", 7.5);
+  if (factura.observacion) {
+    font("bold", 7.5);
+    doc.text("Descripción:", M + 2, leftInfoY + 4);
+    font("normal", 7.5);
+    const obsLines = doc.splitTextToSize(factura.observacion, LEFT_W - 8);
+    doc.text(obsLines, M + 25, leftInfoY + 4);
+    leftInfoY += obsLines.length * 4 + 2;
   }
+
+  // Tabla forma de pago
+  leftInfoY += 2;
+  const FP_HEADER_H = 6;
+  // Header dos columnas
+  fillGray(240);
+  const fpLabelW = LEFT_W * 0.6;
+  doc.rect(M, leftInfoY, LEFT_W, FP_HEADER_H, "F");
+  gray(180); lw(0.15);
+  doc.rect(M, leftInfoY, LEFT_W, FP_HEADER_H);
+  doc.line(M + fpLabelW, leftInfoY, M + fpLabelW, leftInfoY + FP_HEADER_H);
+  font("bold", 7.5);
+  textColor(0, 0, 0);
+  doc.text("Forma de pago", M + fpLabelW / 2, leftInfoY + 4.2, { align: "center" });
+  doc.text("Valor", M + fpLabelW + (LEFT_W - fpLabelW) / 2, leftInfoY + 4.2, { align: "center" });
+  leftInfoY += FP_HEADER_H;
+
+  // Fila forma de pago
+  const FP_ROW_H = 6;
+  gray(180); lw(0.15);
+  doc.rect(M, leftInfoY, LEFT_W, FP_ROW_H);
+  doc.line(M + fpLabelW, leftInfoY, M + fpLabelW, leftInfoY + FP_ROW_H);
+  font("normal", 7.5);
+  const fpText = fpData
+    ? `${fpData.codigo} - ${fpData.nombre.toUpperCase()}`
+    : "01 - SIN UTILIZACIÓN DEL SISTEMA FINANCIERO";
+  const fpLines = doc.splitTextToSize(fpText, fpLabelW - 4);
+  doc.text(fpLines, M + 2, leftInfoY + 4.2);
+  doc.text(fmt(factura.total), M + fpLabelW + (LEFT_W - fpLabelW) - 2, leftInfoY + 4.2, { align: "right" });
+
+  y = Math.max(ty, leftInfoY + FP_ROW_H) + 3;
+
+  // Fila VALOR TOTAL SIN SUBSIDIO + AHORRO POR SUBSIDIO (como en la referencia)
+  const extraRows: [string, string][] = [
+    ["VALOR TOTAL SIN SUBSIDIO", "0.00"],
+    ["AHORRO POR SUBSIDIO:", "0.00"],
+  ];
+  const extraH = 7;
+  for (const [label, val] of extraRows) {
+    const labelColW2 = TOT_W - 22;
+    gray(180); lw(0.15);
+    doc.rect(DIVX, y, TOT_W, extraH);
+    doc.line(DIVX + labelColW2, y, DIVX + labelColW2, y + extraH);
+    font("normal", 6.5);
+    doc.text(label, DIVX + 2, y + 4.5);
+    doc.text(val, DIVX + TOT_W - 2, y + 4.5, { align: "right" });
+    y += extraH;
+  }
+  // Nota "(Incluye IVA cuando corresponda)"
+  font("italic", 6);
+  textColor(80, 80, 80);
+  doc.text("(Incluye IVA cuando corresponda)", DIVX + 2, y + 4);
+  textColor(0, 0, 0);
+  y += 8;
 
   // ── PIE ────────────────────────────────────────────────────────────────────
-  doc.setFont("helvetica", "italic");
-  doc.setFontSize(7);
-  doc.setTextColor(140, 140, 140);
+  font("italic", 6.5);
+  textColor(130, 130, 130);
   doc.text(
     "DOCUMENTO GENERADO POR VIATIQ ERP — Este documento es la representación impresa de un comprobante electrónico.",
     PW / 2, PH - M - 3, { align: "center" },

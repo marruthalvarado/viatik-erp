@@ -30,7 +30,7 @@ DO $$ BEGIN
         AND (storage.foldername(name))[1] IN (
           SELECT eu.empresa_id::text
           FROM public.empresas_usuarios eu
-          WHERE eu.user_id = auth.uid()
+          WHERE eu.usuario_id = auth.uid()
         )
       );
   END IF;
@@ -48,7 +48,7 @@ DO $$ BEGIN
         AND (storage.foldername(name))[1] IN (
           SELECT eu.empresa_id::text
           FROM public.empresas_usuarios eu
-          WHERE eu.user_id = auth.uid()
+          WHERE eu.usuario_id = auth.uid()
         )
       );
   END IF;
