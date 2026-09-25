@@ -163,10 +163,11 @@ function FacturasContent() {
     const rows = Array.isArray(clientesQuery.data)
       ? clientesQuery.data
       : (clientesQuery.data as { rows?: unknown[] } | null)?.rows ?? [];
-    return (rows as Array<{ id: string; nombre: string; ruc: string | null }>).map((c) => ({
+    return (rows as Array<{ id: string; nombre: string; ruc: string | null; direccion: string | null }>).map((c) => ({
       id: c.id,
       nombre: c.nombre,
       ruc: c.ruc ?? null,
+      direccion: c.direccion ?? null,
     }));
   }, [clientesQuery.data]);
 
@@ -203,6 +204,7 @@ function FacturasContent() {
       tipo: "factura",
       ruc_cliente: null,
       razon_social: "",
+      direccion_cliente: null,
       subtotal: 0,
       descuento: 0,
       iva: 0,
@@ -226,6 +228,7 @@ function FacturasContent() {
             tipo: prefill.tipo,
             ruc_cliente: prefill.ruc_cliente ?? null,
             razon_social: prefill.razon_social,
+            direccion_cliente: null,
             subtotal: prefill.subtotal,
             descuento: prefill.descuento,
             iva: prefill.iva,
@@ -243,6 +246,7 @@ function FacturasContent() {
             tipo: "factura",
             ruc_cliente: null,
             razon_social: "",
+            direccion_cliente: null,
             subtotal: 0,
             descuento: 0,
             iva: 0,
@@ -266,6 +270,7 @@ function FacturasContent() {
       tipo: f.tipo as "factura" | "nota_credito",
       ruc_cliente: f.ruc_cliente,
       razon_social: f.razon_social,
+      direccion_cliente: f.direccion_cliente ?? null,
       subtotal: f.subtotal,
       descuento: f.descuento,
       iva: f.iva,

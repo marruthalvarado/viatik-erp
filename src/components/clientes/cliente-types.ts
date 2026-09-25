@@ -6,6 +6,7 @@ export const clienteSchema = z.object({
   nombre_comercial: z.string().nullable().optional(),
   codigo: z.string().nullable().optional(),
   ruc: z.string().nullable().optional(),
+  direccion: z.string().nullable().optional(),
   correo: z
     .string()
     .nullable()
@@ -30,6 +31,7 @@ export const EMPTY_CLIENTE: ClienteFormValues = {
   nombre_comercial: "",
   codigo: "",
   ruc: "",
+  direccion: "",
   correo: "",
   telefono: "",
   contacto_principal: "",
@@ -43,6 +45,7 @@ export function clienteToForm(c: Cliente): ClienteFormValues {
     nombre_comercial: c.nombre_comercial ?? "",
     codigo: c.codigo ?? "",
     ruc: c.ruc ?? "",
+    direccion: c.direccion ?? "",
     correo: c.correo ?? "",
     telefono: c.telefono ?? "",
     contacto_principal: c.contacto_principal ?? "",

@@ -50,6 +50,7 @@ export interface ClienteSimple {
   id: string;
   nombre: string;
   ruc: string | null;
+  direccion: string | null;
 }
 
 interface FacturaDrawerProps {
@@ -192,6 +193,7 @@ export function FacturaDrawer({
   function handleClienteSelect(c: ClienteSimple) {
     form.setValue("ruc_cliente", c.ruc ?? "");
     form.setValue("razon_social", c.nombre);
+    form.setValue("direccion_cliente", c.direccion ?? "");
   }
 
   return (

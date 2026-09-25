@@ -100,6 +100,20 @@ export function ClienteForm({
 
           <FormField
             control={form.control}
+            name="direccion"
+            render={({ field }) => (
+              <FormItem className="col-span-2">
+                <FormLabel>Dirección</FormLabel>
+                <FormControl>
+                  <Input placeholder="Av. Principal 123, Ciudad" {...field} value={field.value ?? ""} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
             name="correo"
             render={({ field }) => (
               <FormItem>

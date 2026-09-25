@@ -877,6 +877,7 @@ export type Database = {
           tipo: string;
           ruc_cliente: string | null;
           razon_social: string;
+          direccion_cliente: string | null;
           subtotal: number;
           descuento: number;
           iva: number;
@@ -902,6 +903,7 @@ export type Database = {
           tipo?: string;
           ruc_cliente?: string | null;
           razon_social: string;
+          direccion_cliente?: string | null;
           subtotal?: number;
           descuento?: number;
           iva?: number;
@@ -927,6 +929,7 @@ export type Database = {
           tipo?: string;
           ruc_cliente?: string | null;
           razon_social?: string;
+          direccion_cliente?: string | null;
           subtotal?: number;
           descuento?: number;
           iva?: number;
@@ -967,6 +970,7 @@ export type Database = {
           correo: string | null;
           created_at: string | null;
           deleted_at: string | null;
+          direccion: string | null;
           empresa_id: string;
           estado: string | null;
           id: string;
@@ -983,6 +987,7 @@ export type Database = {
           correo?: string | null;
           created_at?: string | null;
           deleted_at?: string | null;
+          direccion?: string | null;
           empresa_id: string;
           estado?: string | null;
           id?: string;
@@ -999,6 +1004,7 @@ export type Database = {
           correo?: string | null;
           created_at?: string | null;
           deleted_at?: string | null;
+          direccion?: string | null;
           empresa_id?: string;
           estado?: string | null;
           id?: string;

@@ -402,7 +402,10 @@ export async function generarYDescargarRIDE(data: RideData): Promise<void> {
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7.5);
-  doc.text("Dirección:", M + 2, y + 5.5);
+  doc.text("Dirección:", M + 2, y + 3.5);
+  if (factura.direccion_cliente) {
+    doc.text(factura.direccion_cliente, M + 2, y + 7.5, { maxWidth: col_id_x - M - 4 });
+  }
   doc.text("Placa / Matrícula:", col_id_x + 2, y + 5.5);
   doc.text("Guía", col_fe_x + 2, y + 5.5);
   y += F2_H + 2;

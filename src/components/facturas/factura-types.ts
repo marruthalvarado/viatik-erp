@@ -8,6 +8,7 @@ export const facturaSchema = z.object({
   tipo: z.enum(["factura", "nota_credito"]),
   ruc_cliente: z.string().nullable().optional(),
   razon_social: z.string().min(1, "Requerido"),
+  direccion_cliente: z.string().nullable().optional(),
   subtotal: z.coerce.number().min(0),
   descuento: z.coerce.number().min(0),
   iva: z.coerce.number().min(0),
