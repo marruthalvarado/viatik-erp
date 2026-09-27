@@ -1,3 +1,5 @@
+SET statement_timeout = 0;
+
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Módulo Contabilidad / NIIF — Fase D
 -- Tablas: plan_cuentas, asientos_contables, asiento_lineas, config_contable
