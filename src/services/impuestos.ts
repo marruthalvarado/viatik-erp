@@ -2,7 +2,7 @@
  * Servicio de Impuestos SRI Ecuador.
  * Calcula IVA e IR usando RPCs de Supabase, guarda historial de declaraciones.
  */
-import { supabase } from "@/lib/supabase-client";
+import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/types/database";
 
 export type DeclaracionSri = Tables<"declaraciones_sri">;
