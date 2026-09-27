@@ -1171,6 +1171,119 @@ export type Database = {
           },
         ];
       };
+      cuentas_bancarias: {
+        Row: {
+          id: string;
+          empresa_id: string;
+          banco: string;
+          nombre: string;
+          numero_cuenta: string | null;
+          moneda: string;
+          activa: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          empresa_id: string;
+          banco: string;
+          nombre: string;
+          numero_cuenta?: string | null;
+          moneda?: string;
+          activa?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          empresa_id?: string;
+          banco?: string;
+          nombre?: string;
+          numero_cuenta?: string | null;
+          moneda?: string;
+          activa?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "cuentas_bancarias_empresa_id_fkey";
+            columns: ["empresa_id"];
+            isOneToOne: false;
+            referencedRelation: "empresas";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      movimientos_bancarios: {
+        Row: {
+          id: string;
+          cuenta_id: string;
+          empresa_id: string;
+          fecha: string;
+          descripcion: string | null;
+          referencia: string | null;
+          tipo: string;
+          monto: number;
+          saldo: number | null;
+          estado: string;
+          match_tipo: string | null;
+          match_id: string | null;
+          match_nota: string | null;
+          hash_unico: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          cuenta_id: string;
+          empresa_id: string;
+          fecha: string;
+          descripcion?: string | null;
+          referencia?: string | null;
+          tipo: string;
+          monto: number;
+          saldo?: number | null;
+          estado?: string;
+          match_tipo?: string | null;
+          match_id?: string | null;
+          match_nota?: string | null;
+          hash_unico: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          cuenta_id?: string;
+          empresa_id?: string;
+          fecha?: string;
+          descripcion?: string | null;
+          referencia?: string | null;
+          tipo?: string;
+          monto?: number;
+          saldo?: number | null;
+          estado?: string;
+          match_tipo?: string | null;
+          match_id?: string | null;
+          match_nota?: string | null;
+          hash_unico?: string;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "movimientos_bancarios_cuenta_id_fkey";
+            columns: ["cuenta_id"];
+            isOneToOne: false;
+            referencedRelation: "cuentas_bancarias";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "movimientos_bancarios_empresa_id_fkey";
+            columns: ["empresa_id"];
+            isOneToOne: false;
+            referencedRelation: "empresas";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       anticipos_ir: {
         Row: {
           id: string;

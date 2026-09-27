@@ -17,6 +17,7 @@ import {
   Settings,
   Archive,
   Calculator,
+  Landmark,
 } from "lucide-react";
 
 import {
@@ -63,6 +64,7 @@ const financeItems: NavItem[] = [
   { title: "Gastos empresa", url: "/gastos-empresa", icon: Building2, modulo: "gastos_empresa" },
   { title: "Inventario", url: "/inventario", icon: Archive, modulo: "inventario" },
   { title: "Impuestos SRI", url: "/impuestos", icon: Calculator, modulo: "impuestos" },
+  { title: "Conciliación", url: "/conciliacion", icon: Landmark, modulo: "conciliacion" },
   { title: "Rpt. Financieros", url: "/reportes/financieros", icon: TrendingUp, modulo: "reportes" },
   { title: "Rpt. Operativos", url: "/reportes/operativos", icon: Activity, modulo: "reportes" },
   { title: "Workflow Rpt.", url: "/reportes/workflow", icon: Network, modulo: "reportes" },
@@ -89,7 +91,7 @@ export function AppSidebar() {
   // - modulos_permitidos null → sin restricción (visible)
   // - modulos_permitidos array → solo los incluidos
   // Módulos siempre accesibles para cualquier usuario autenticado
-  const MODULOS_PUBLICOS = ["configuracion", "dashboard", "impuestos"];
+  const MODULOS_PUBLICOS = ["configuracion", "dashboard", "impuestos", "conciliacion"];
 
   function puedeVer(modulo: string): boolean {
     if (!rolActivo) return true; // mientras carga, mostrar todo
