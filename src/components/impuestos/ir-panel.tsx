@@ -1,23 +1,33 @@
-import { Save } from "lucide-react";
+import { useState } from "react";
+import { Save, ChevronDown, ChevronRight, CalendarDays, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { formatCurrency } from "@/utils/formatters";
 import { toast } from "@/components/common/toast";
 import type { TipoContribuyente } from "@/services/impuestos";
 import {
   useCalcularIr,
   useSaveDeclaracion,
+  useAnticiposIr,
+  useUpsertAnticipoIr,
 } from "@/hooks/entities/use-impuestos";
 
 const TABLA_IR = [
-  { desde: 0,      hasta: 11722,  base: 0,      excedente: 0    },
-  { desde: 11722,  hasta: 14931,  base: 0,      excedente: 5    },
-  { desde: 14931,  hasta: 19385,  base: 160,    excedente: 10   },
-  { desde: 19385,  hasta: 25463,  base: 606,    excedente: 12   },
-  { desde: 25463,  hasta: 33603,  base: 1336,   excedente: 15   },
-  { desde: 33603,  hasta: 44721,  base: 2557,   excedente: 20   },
-  { desde: 44721,  hasta: 59960,  base: 4781,   excedente: 25   },
-  { desde: 59960,  hasta: 80000,  base: 8591,   excedente: 30   },
-  { desde: 80000,  hasta: Infinity, base: 14603, excedente: 35  },
+  { desde: 0,      hasta: 11722,    base: 0,     excedente: 0  },
+  { desde: 11722,  hasta: 14931,    base: 0,     excedente: 5  },
+  { desde: 14931,  hasta: 19385,    base: 160,   excedente: 10 },
+  { desde: 19385,  hasta: 25463,    base: 606,   excedente: 12 },
+  { desde: 25463,  hasta: 33603,    base: 1336,  excedente: 15 },
+  { desde: 33603,  hasta: 44721,    base: 2557,  excedente: 20 },
+  { desde: 44721,  hasta: 59960,    base: 4781,  excedente: 25 },
+  { desde: 59960,  hasta: 80000,    base: 8591,  excedente: 30 },
+  { desde: 80000,  hasta: Infinity, base: 14603, excedente: 35 },
+];
+
+const MESES = [
+  "Ene","Feb","Mar","Abr","May","Jun",
+  "Jul","Ago","Sep","Oct","Nov","Dic",
 ];
 
 interface Props {
@@ -28,7 +38,50 @@ interface Props {
 
 export function IrPanel({ empresaId, anio, tipo }: Props) {
   const { data, isLoading, error } = useCalcularIr(empresaId, anio);
+  const { data: anticiposData } = useAnticiposIr(empresaId, anio);
   const save = useSaveDeclaracion();
+  const upsert = useUpsertAnticipoIr();
+
+  const [retMesOpen, setRetMesOpen] = useState(false);
+
+  // Estado local editable para cuotas
+  const cuota1 = anticiposData?.find((a) => a.cuota === 1);
+  const cuota2 = anticiposData?.find((a) => a.cuota === 2);
+
+  const [monto1, setMonto1] = useState("");
+  const [fecha1, setFecha1] = useState("");
+  const [comp1, setComp1] = useState("");
+  const [monto2, setMonto2] = useState("");
+  const [fecha2, setFecha2] = useState("");
+  const [comp2, setComp2] = useState("");
+
+  // Sincronizar estado local cuando llegan datos del servidor
+  const [synced1, setSynced1] = useState(false);
+  const [synced2, setSynced2] = useState(false);
+  if (cuota1 && !synced1) {
+    setMonto1(String(cuota1.monto ?? ""));
+    setFecha1(cuota1.fecha_pago ?? "");
+    setComp1(cuota1.comprobante ?? "");
+    setSynced1(true);
+  }
+  if (cuota2 && !synced2) {
+    setMonto2(String(cuota2.monto ?? ""));
+    setFecha2(cuota2.fecha_pago ?? "");
+    setComp2(cuota2.comprobante ?? "");
+    setSynced2(true);
+  }
+
+  async function handleSaveCuota(cuota: 1 | 2) {
+    const monto = cuota === 1 ? parseFloat(monto1 || "0") : parseFloat(monto2 || "0");
+    const fecha = cuota === 1 ? fecha1 || null : fecha2 || null;
+    const comp  = cuota === 1 ? comp1 || null  : comp2 || null;
+    try {
+      await upsert.mutateAsync({ empresaId, anio, cuota, monto, fechaPago: fecha, comprobante: comp });
+      toast.success(`Cuota ${cuota} guardada`);
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
+  }
 
   async function handleGuardar() {
     if (!data) return;
@@ -47,7 +100,7 @@ export function IrPanel({ empresaId, anio, tipo }: Props) {
         utilidad_gravable: data.utilidad_gravable,
         ir_causado: data.ir_causado,
         retenciones_ir_recibidas: data.retenciones_ir_recibidas,
-        anticipos_pagados: 0,
+        anticipos_pagados: data.anticipos_pagados,
         ir_a_pagar: data.ir_a_pagar,
         estado: "borrador",
         fecha_presentacion: null,
@@ -72,9 +125,12 @@ export function IrPanel({ empresaId, anio, tipo }: Props) {
       ? ((data.ir_causado / data.utilidad_gravable) * 100).toFixed(1)
       : "0.0";
 
+  const cuota1Monto = data.anticipo_siguiente / 2;
+  const cuota2Monto = data.anticipo_siguiente - cuota1Monto;
+
   return (
     <div className="space-y-4">
-      {/* KPIs */}
+      {/* KPIs base */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         <IrKpi label="Ingresos gravables" value={data.ingresos_gravables} tone="neutral" />
         <IrKpi label="Gastos deducibles" value={data.gastos_deducibles} tone="green" />
@@ -84,7 +140,18 @@ export function IrPanel({ empresaId, anio, tipo }: Props) {
           value={data.ir_causado}
           tone="neutral"
         />
-        <IrKpi label="Retenciones IR recibidas" value={data.retenciones_ir_recibidas} tone="blue" sub="lo que clientes retuvieron" />
+        <IrKpi
+          label="Retenciones IR recibidas"
+          value={data.retenciones_ir_recibidas}
+          tone="blue"
+          sub="lo que clientes retuvieron"
+        />
+        <IrKpi
+          label="Anticipos pagados"
+          value={data.anticipos_pagados}
+          tone="blue"
+          sub="cuota julio + septiembre"
+        />
         <IrKpi
           label="IR A PAGAR"
           value={data.ir_a_pagar}
@@ -93,29 +160,116 @@ export function IrPanel({ empresaId, anio, tipo }: Props) {
         />
       </div>
 
-      {/* Fórmula */}
+      {/* Fórmula IR */}
       <div className="rounded-lg border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
         <span className="font-medium text-foreground">{formatCurrency(data.ir_causado)}</span>
         {" (IR causado) − "}
         <span className="font-medium text-foreground">{formatCurrency(data.retenciones_ir_recibidas)}</span>
-        {" (retenciones) = "}
+        {" (retenciones) − "}
+        <span className="font-medium text-foreground">{formatCurrency(data.anticipos_pagados)}</span>
+        {" (anticipos) = "}
         <span className={`font-bold ${data.ir_a_pagar > 0 ? "text-destructive" : "text-emerald-600"}`}>
           {formatCurrency(data.ir_a_pagar)}
         </span>
         {" a pagar en declaración anual"}
       </div>
 
+      {/* Retenciones por mes (colapsable) */}
+      {data.retenciones_por_mes.length > 0 && (
+        <div className="rounded-lg border">
+          <button
+            type="button"
+            className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium hover:bg-muted/20 transition-colors"
+            onClick={() => setRetMesOpen((v) => !v)}
+          >
+            <span>Retenciones IR por mes ({anio})</span>
+            {retMesOpen ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+          </button>
+          {retMesOpen && (
+            <div className="border-t overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-muted/30">
+                  <tr>
+                    <th className="px-3 py-2 text-left">Mes</th>
+                    <th className="px-3 py-2 text-right">Retención</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {data.retenciones_por_mes.map((r) => (
+                    <tr key={r.mes} className="hover:bg-muted/20">
+                      <td className="px-3 py-1.5">{MESES[r.mes - 1]}</td>
+                      <td className="px-3 py-1.5 text-right font-mono">{formatCurrency(r.monto)}</td>
+                    </tr>
+                  ))}
+                  <tr className="bg-muted/20 font-semibold">
+                    <td className="px-3 py-1.5">Total</td>
+                    <td className="px-3 py-1.5 text-right font-mono">
+                      {formatCurrency(data.retenciones_ir_recibidas)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Anticipos pagados este año */}
+      <div className="rounded-lg border">
+        <div className="px-4 py-2.5 text-sm font-medium bg-muted/30 border-b rounded-t-lg">
+          Anticipos IR {anio} pagados al SRI
+        </div>
+        <div className="grid md:grid-cols-2 gap-0 divide-y md:divide-y-0 md:divide-x">
+          <AnticipoForm
+            label={`Cuota 1 — julio ${anio}`}
+            monto={monto1}
+            fecha={fecha1}
+            comprobante={comp1}
+            onMonto={setMonto1}
+            onFecha={setFecha1}
+            onComprobante={setComp1}
+            onSave={() => handleSaveCuota(1)}
+            saving={upsert.isPending}
+          />
+          <AnticipoForm
+            label={`Cuota 2 — septiembre ${anio}`}
+            monto={monto2}
+            fecha={fecha2}
+            comprobante={comp2}
+            onMonto={setMonto2}
+            onFecha={setFecha2}
+            onComprobante={setComp2}
+            onSave={() => handleSaveCuota(2)}
+            saving={upsert.isPending}
+          />
+        </div>
+      </div>
+
       {/* Anticipo siguiente año */}
       <div className="rounded-lg border border-amber-200 bg-amber-50/50 px-4 py-3">
-        <p className="text-sm font-medium text-amber-800">
-          Anticipo IR {anio + 1}
-        </p>
+        <p className="text-sm font-medium text-amber-800">Anticipo IR {anio + 1}</p>
         <p className="text-xl font-bold text-amber-700 mt-1">
           {formatCurrency(data.anticipo_siguiente)}
         </p>
-        <p className="text-xs text-amber-600 mt-1">
-          50% del IR causado {anio} · Cuotas en julio y septiembre {anio + 1}
+        <p className="text-xs text-amber-600 mt-1 mb-3">
+          50% del IR causado {anio}
         </p>
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-white/60 px-3 py-2">
+            <CalendarDays className="size-3.5 text-amber-600 shrink-0" />
+            <div>
+              <p className="font-medium text-amber-800">Cuota 1 — julio {anio + 1}</p>
+              <p className="text-amber-600 font-mono">{formatCurrency(cuota1Monto)}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-white/60 px-3 py-2">
+            <CalendarDays className="size-3.5 text-amber-600 shrink-0" />
+            <div>
+              <p className="font-medium text-amber-800">Cuota 2 — septiembre {anio + 1}</p>
+              <p className="text-amber-600 font-mono">{formatCurrency(cuota2Monto)}</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Tabla progresiva (solo PN) */}
@@ -156,7 +310,7 @@ export function IrPanel({ empresaId, anio, tipo }: Props) {
         </div>
       )}
 
-      {/* Guardar */}
+      {/* Guardar en historial */}
       <div className="flex justify-end">
         <Button size="sm" variant="outline" onClick={handleGuardar} disabled={save.isPending}>
           <Save className="size-3.5 mr-1.5" />
@@ -167,7 +321,7 @@ export function IrPanel({ empresaId, anio, tipo }: Props) {
   );
 }
 
-// ─── Mini KPI ─────────────────────────────────────────────────────────────────
+// ─── Sub-componentes ───────────────────────────────────────────────────────────
 
 interface IrKpiProps {
   label: string;
@@ -190,6 +344,78 @@ function IrKpi({ label, value, tone, sub, highlight }: IrKpiProps) {
       <p className="text-xs text-muted-foreground mb-1 leading-tight">{label}</p>
       <p className={`text-lg font-bold ${valueClass}`}>{formatCurrency(value)}</p>
       {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
+    </div>
+  );
+}
+
+interface AnticipoFormProps {
+  label: string;
+  monto: string;
+  fecha: string;
+  comprobante: string;
+  onMonto: (v: string) => void;
+  onFecha: (v: string) => void;
+  onComprobante: (v: string) => void;
+  onSave: () => void;
+  saving: boolean;
+}
+
+function AnticipoForm({
+  label, monto, fecha, comprobante,
+  onMonto, onFecha, onComprobante,
+  onSave, saving,
+}: AnticipoFormProps) {
+  return (
+    <div className="p-4 space-y-3">
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <div className="space-y-2">
+        <div>
+          <Label className="text-xs">Monto ($)</Label>
+          <Input
+            type="number"
+            min="0"
+            step="0.01"
+            value={monto}
+            onChange={(e) => onMonto(e.target.value)}
+            placeholder="0.00"
+            className="h-8 text-sm"
+          />
+        </div>
+        <div>
+          <Label className="text-xs">Fecha de pago</Label>
+          <div className="relative">
+            <CalendarDays className="absolute left-2.5 top-2 size-3.5 text-muted-foreground pointer-events-none" />
+            <Input
+              type="date"
+              value={fecha}
+              onChange={(e) => onFecha(e.target.value)}
+              className="h-8 text-sm pl-8"
+            />
+          </div>
+        </div>
+        <div>
+          <Label className="text-xs">Comprobante SRI</Label>
+          <div className="relative">
+            <FileText className="absolute left-2.5 top-2 size-3.5 text-muted-foreground pointer-events-none" />
+            <Input
+              value={comprobante}
+              onChange={(e) => onComprobante(e.target.value)}
+              placeholder="Nro. formulario / declaración"
+              className="h-8 text-sm pl-8"
+            />
+          </div>
+        </div>
+      </div>
+      <Button
+        size="sm"
+        variant="outline"
+        className="w-full"
+        onClick={onSave}
+        disabled={saving}
+      >
+        <Save className="size-3.5 mr-1.5" />
+        Guardar cuota
+      </Button>
     </div>
   );
 }

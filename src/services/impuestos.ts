@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/types/database";
 
 export type DeclaracionSri = Tables<"declaraciones_sri">;
+export type AnticipoIr = Tables<"anticipos_ir">;
 
 export type TipoContribuyente =
   | "sociedad"
@@ -45,6 +46,11 @@ export interface ResultadoIva {
   detalle_compras: DetalleCompra[];
 }
 
+export interface RetencionesMes {
+  mes: number;
+  monto: number;
+}
+
 export interface ResultadoIr {
   tipo_contribuyente: TipoContribuyente;
   ingresos_gravables: number;
@@ -52,8 +58,10 @@ export interface ResultadoIr {
   utilidad_gravable: number;
   ir_causado: number;
   retenciones_ir_recibidas: number;
+  anticipos_pagados: number;
   ir_a_pagar: number;
   anticipo_siguiente: number;
+  retenciones_por_mes: RetencionesMes[];
 }
 
 // ─── Tipo de contribuyente ────────────────────────────────────────────────────
@@ -142,9 +150,46 @@ export async function calcularIrAnual(
     utilidad_gravable: Number(row?.utilidad_gravable ?? 0),
     ir_causado: Number(row?.ir_causado ?? 0),
     retenciones_ir_recibidas: Number(row?.retenciones_ir_recibidas ?? 0),
+    anticipos_pagados: Number(row?.anticipos_pagados ?? 0),
     ir_a_pagar: Number(row?.ir_a_pagar ?? 0),
     anticipo_siguiente: Number(row?.anticipo_siguiente ?? 0),
+    retenciones_por_mes: (row?.retenciones_por_mes ?? []) as RetencionesMes[],
   };
+}
+
+// ─── Anticipos IR ─────────────────────────────────────────────────────────────
+
+export async function getAnticiposIr(
+  empresaId: string,
+  anio: number,
+): Promise<AnticipoIr[]> {
+  const { data, error } = await supabase
+    .from("anticipos_ir")
+    .select("*")
+    .eq("empresa_id", empresaId)
+    .eq("anio", anio)
+    .order("cuota");
+  if (error) throw new Error(error.message);
+  return (data ?? []) as AnticipoIr[];
+}
+
+export async function upsertAnticipoIr(
+  empresaId: string,
+  anio: number,
+  cuota: 1 | 2,
+  monto: number,
+  fechaPago?: string | null,
+  comprobante?: string | null,
+): Promise<void> {
+  const { error } = await supabase.rpc("upsert_anticipo_ir", {
+    p_empresa_id: empresaId,
+    p_anio: anio,
+    p_cuota: cuota,
+    p_monto: monto,
+    p_fecha: fechaPago ?? null,
+    p_comprobante: comprobante ?? null,
+  });
+  if (error) throw new Error(error.message);
 }
 
 // ─── Declaraciones (historial) ────────────────────────────────────────────────

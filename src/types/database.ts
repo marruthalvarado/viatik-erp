@@ -1171,6 +1171,50 @@ export type Database = {
           },
         ];
       };
+      anticipos_ir: {
+        Row: {
+          id: string;
+          empresa_id: string;
+          anio: number;
+          cuota: number;
+          monto: number;
+          fecha_pago: string | null;
+          comprobante: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          empresa_id: string;
+          anio: number;
+          cuota: number;
+          monto?: number;
+          fecha_pago?: string | null;
+          comprobante?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          empresa_id?: string;
+          anio?: number;
+          cuota?: number;
+          monto?: number;
+          fecha_pago?: string | null;
+          comprobante?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "anticipos_ir_empresa_id_fkey";
+            columns: ["empresa_id"];
+            isOneToOne: false;
+            referencedRelation: "empresas";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       declaraciones_sri: {
         Row: {
           id: string;

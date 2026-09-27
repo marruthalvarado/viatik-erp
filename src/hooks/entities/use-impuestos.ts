@@ -7,6 +7,8 @@ import {
   updateDeclaracionSri,
   getTipoContribuyente,
   setTipoContribuyente,
+  getAnticiposIr,
+  upsertAnticipoIr,
 } from "@/services/impuestos";
 import type { DeclaracionSri, TipoContribuyente } from "@/services/impuestos";
 
@@ -93,6 +95,45 @@ export function useUpdateDeclaracion() {
       updateDeclaracionSri(id, payload),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["declaraciones_sri"] });
+    },
+  });
+}
+
+// ─── Anticipos IR ─────────────────────────────────────────────────────────────
+
+export function useAnticiposIr(
+  empresaId: string | null | undefined,
+  anio: number,
+) {
+  return useQuery({
+    queryKey: ["anticipos_ir", empresaId, anio],
+    queryFn: () => getAnticiposIr(empresaId!, anio),
+    enabled: !!empresaId,
+  });
+}
+
+export function useUpsertAnticipoIr() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      empresaId,
+      anio,
+      cuota,
+      monto,
+      fechaPago,
+      comprobante,
+    }: {
+      empresaId: string;
+      anio: number;
+      cuota: 1 | 2;
+      monto: number;
+      fechaPago?: string | null;
+      comprobante?: string | null;
+    }) => upsertAnticipoIr(empresaId, anio, cuota, monto, fechaPago, comprobante),
+    onSuccess: (_data, { empresaId, anio }) => {
+      void qc.invalidateQueries({ queryKey: ["anticipos_ir", empresaId, anio] });
+      // Recalcular IR porque anticipos_pagados cambia
+      void qc.invalidateQueries({ queryKey: ["ir", empresaId, anio] });
     },
   });
 }
