@@ -89,7 +89,7 @@ export function AppSidebar() {
   // - modulos_permitidos null → sin restricción (visible)
   // - modulos_permitidos array → solo los incluidos
   // Módulos siempre accesibles para cualquier usuario autenticado
-  const MODULOS_PUBLICOS = ["configuracion", "dashboard"];
+  const MODULOS_PUBLICOS = ["configuracion", "dashboard", "impuestos"];
 
   function puedeVer(modulo: string): boolean {
     if (!rolActivo) return true; // mientras carga, mostrar todo
