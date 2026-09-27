@@ -19,6 +19,8 @@ import {
   Calculator,
   Landmark,
   BookOpen,
+  ClipboardList,
+  Package,
 } from "lucide-react";
 
 import {
@@ -63,6 +65,8 @@ const financeItems: NavItem[] = [
   { title: "Presupuestos", url: "/presupuestos", icon: Wallet, modulo: "presupuestos" },
   { title: "Facturas emit.", url: "/facturas", icon: FileSpreadsheet, modulo: "facturas" },
   { title: "Gastos empresa", url: "/gastos-empresa", icon: Building2, modulo: "gastos_empresa" },
+  { title: "Catálogo", url: "/catalogo", icon: Package, modulo: "catalogo" },
+  { title: "Cotizaciones", url: "/cotizaciones", icon: ClipboardList, modulo: "cotizaciones" },
   { title: "Inventario", url: "/inventario", icon: Archive, modulo: "inventario" },
   { title: "Impuestos SRI", url: "/impuestos", icon: Calculator, modulo: "impuestos" },
   { title: "Conciliación", url: "/conciliacion", icon: Landmark, modulo: "conciliacion" },
@@ -99,6 +103,8 @@ export function AppSidebar() {
     "impuestos",
     "conciliacion",
     "contabilidad",
+    "catalogo",
+    "cotizaciones",
   ];
 
   function puedeVer(modulo: string): boolean {

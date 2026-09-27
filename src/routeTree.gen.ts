@@ -16,6 +16,8 @@ import { Route as RendicionesRouteImport } from './routes/rendiciones'
 import { Route as ProyectosRouteImport } from './routes/proyectos'
 import { Route as ProveedoresRouteImport } from './routes/proveedores'
 import { Route as PresupuestosRouteImport } from './routes/presupuestos'
+import { Route as CotizacionesRouteImport } from './routes/cotizaciones'
+import { Route as CatalogoRouteImport } from './routes/catalogo'
 import { Route as ContabilidadRouteImport } from './routes/contabilidad'
 import { Route as ConciliacionRouteImport } from './routes/conciliacion'
 import { Route as GastosEmpresaRouteImport } from './routes/gastos-empresa'
@@ -67,6 +69,16 @@ const ProveedoresRoute = ProveedoresRouteImport.update({
 const PresupuestosRoute = PresupuestosRouteImport.update({
   id: '/presupuestos',
   path: '/presupuestos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CotizacionesRoute = CotizacionesRouteImport.update({
+  id: '/cotizaciones',
+  path: '/cotizaciones',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CatalogoRoute = CatalogoRouteImport.update({
+  id: '/catalogo',
+  path: '/catalogo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ContabilidadRoute = ContabilidadRouteImport.update({
@@ -161,9 +173,11 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/cambiar-clave': typeof CambiarClaveRoute
   '/clientes': typeof ClientesRoute
+  '/catalogo': typeof CatalogoRoute
   '/conciliacion': typeof ConciliacionRoute
   '/contabilidad': typeof ContabilidadRoute
   '/configuracion': typeof ConfiguracionRoute
+  '/cotizaciones': typeof CotizacionesRoute
   '/dashboard': typeof DashboardRoute
   '/documentos': typeof DocumentosRoute
   '/facturas': typeof FacturasRoute
@@ -187,9 +201,11 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/cambiar-clave': typeof CambiarClaveRoute
   '/clientes': typeof ClientesRoute
+  '/catalogo': typeof CatalogoRoute
   '/conciliacion': typeof ConciliacionRoute
   '/contabilidad': typeof ContabilidadRoute
   '/configuracion': typeof ConfiguracionRoute
+  '/cotizaciones': typeof CotizacionesRoute
   '/dashboard': typeof DashboardRoute
   '/documentos': typeof DocumentosRoute
   '/facturas': typeof FacturasRoute
@@ -214,9 +230,11 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/cambiar-clave': typeof CambiarClaveRoute
   '/clientes': typeof ClientesRoute
+  '/catalogo': typeof CatalogoRoute
   '/conciliacion': typeof ConciliacionRoute
   '/contabilidad': typeof ContabilidadRoute
   '/configuracion': typeof ConfiguracionRoute
+  '/cotizaciones': typeof CotizacionesRoute
   '/dashboard': typeof DashboardRoute
   '/documentos': typeof DocumentosRoute
   '/facturas': typeof FacturasRoute
@@ -242,8 +260,10 @@ export interface FileRouteTypes {
     | '/auth'
     | '/cambiar-clave'
     | '/clientes'
+    | '/catalogo'
     | '/conciliacion'
     | '/contabilidad'
+    | '/cotizaciones'
     | '/configuracion'
     | '/dashboard'
     | '/documentos'
@@ -268,8 +288,10 @@ export interface FileRouteTypes {
     | '/auth'
     | '/cambiar-clave'
     | '/clientes'
+    | '/catalogo'
     | '/conciliacion'
     | '/contabilidad'
+    | '/cotizaciones'
     | '/configuracion'
     | '/dashboard'
     | '/documentos'
@@ -294,8 +316,10 @@ export interface FileRouteTypes {
     | '/auth'
     | '/cambiar-clave'
     | '/clientes'
+    | '/catalogo'
     | '/conciliacion'
     | '/contabilidad'
+    | '/cotizaciones'
     | '/configuracion'
     | '/dashboard'
     | '/documentos'
@@ -320,10 +344,12 @@ export interface RootRouteChildren {
   AdministracionRoute: typeof AdministracionRoute
   AuthRoute: typeof AuthRoute
   CambiarClaveRoute: typeof CambiarClaveRoute
+  CatalogoRoute: typeof CatalogoRoute
   ClientesRoute: typeof ClientesRoute
   ConciliacionRoute: typeof ConciliacionRoute
   ContabilidadRoute: typeof ContabilidadRoute
   ConfiguracionRoute: typeof ConfiguracionRoute
+  CotizacionesRoute: typeof CotizacionesRoute
   DashboardRoute: typeof DashboardRoute
   DocumentosRoute: typeof DocumentosRoute
   FacturasRoute: typeof FacturasRoute
@@ -453,11 +479,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConciliacionRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/catalogo': {
+      id: '/catalogo'
+      path: '/catalogo'
+      fullPath: '/catalogo'
+      preLoaderRoute: typeof CatalogoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/contabilidad': {
       id: '/contabilidad'
       path: '/contabilidad'
       fullPath: '/contabilidad'
       preLoaderRoute: typeof ContabilidadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cotizaciones': {
+      id: '/cotizaciones'
+      path: '/cotizaciones'
+      fullPath: '/cotizaciones'
+      preLoaderRoute: typeof CotizacionesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth': {
@@ -533,10 +573,12 @@ const rootRouteChildren: RootRouteChildren = {
   AdministracionRoute: AdministracionRoute,
   AuthRoute: AuthRoute,
   CambiarClaveRoute: CambiarClaveRoute,
+  CatalogoRoute: CatalogoRoute,
   ClientesRoute: ClientesRoute,
   ConciliacionRoute: ConciliacionRoute,
   ContabilidadRoute: ContabilidadRoute,
   ConfiguracionRoute: ConfiguracionRoute,
+  CotizacionesRoute: CotizacionesRoute,
   DashboardRoute: DashboardRoute,
   DocumentosRoute: DocumentosRoute,
   FacturasRoute: FacturasRoute,
