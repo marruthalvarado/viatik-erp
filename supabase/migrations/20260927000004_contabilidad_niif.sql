@@ -35,7 +35,7 @@ CREATE POLICY plan_cuentas_all ON public.plan_cuentas
     empresa_id IS NULL   -- cuentas del sistema (visibles a todos)
     OR empresa_id IN (
       SELECT empresa_id FROM public.empresas_usuarios
-      WHERE user_id = auth.uid()
+      WHERE usuario_id = auth.uid()
     )
   );
 
@@ -53,7 +53,7 @@ ALTER TABLE public.config_contable ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS config_contable_empresa_all ON public.config_contable;
 CREATE POLICY config_contable_empresa_all ON public.config_contable
   USING (empresa_id IN (
-    SELECT empresa_id FROM public.empresas_usuarios WHERE user_id = auth.uid()
+    SELECT empresa_id FROM public.empresas_usuarios WHERE usuario_id = auth.uid()
   ));
 
 -- ── 3. Asientos Contables (cabecera) ─────────────────────────────────────────
@@ -77,7 +77,7 @@ ALTER TABLE public.asientos_contables ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS asientos_empresa_all ON public.asientos_contables;
 CREATE POLICY asientos_empresa_all ON public.asientos_contables
   USING (empresa_id IN (
-    SELECT empresa_id FROM public.empresas_usuarios WHERE user_id = auth.uid()
+    SELECT empresa_id FROM public.empresas_usuarios WHERE usuario_id = auth.uid()
   ));
 
 CREATE INDEX IF NOT EXISTS idx_asientos_empresa_fecha
@@ -102,7 +102,7 @@ ALTER TABLE public.asiento_lineas ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS asiento_lineas_empresa_all ON public.asiento_lineas;
 CREATE POLICY asiento_lineas_empresa_all ON public.asiento_lineas
   USING (empresa_id IN (
-    SELECT empresa_id FROM public.empresas_usuarios WHERE user_id = auth.uid()
+    SELECT empresa_id FROM public.empresas_usuarios WHERE usuario_id = auth.uid()
   ));
 
 CREATE INDEX IF NOT EXISTS idx_asiento_lineas_asiento
@@ -139,7 +139,7 @@ BEGIN
   -- Verificar acceso a la empresa
   IF NOT EXISTS (
     SELECT 1 FROM public.empresas_usuarios
-    WHERE empresa_id = p_empresa_id AND user_id = auth.uid()
+    WHERE empresa_id = p_empresa_id AND usuario_id = auth.uid()
   ) THEN
     RAISE EXCEPTION 'Acceso denegado';
   END IF;
@@ -214,7 +214,7 @@ BEGIN
   WHERE id = p_asiento_id
     AND estado = 'borrador'
     AND empresa_id IN (
-      SELECT empresa_id FROM public.empresas_usuarios WHERE user_id = auth.uid()
+      SELECT empresa_id FROM public.empresas_usuarios WHERE usuario_id = auth.uid()
     );
   IF NOT FOUND THEN
     RAISE EXCEPTION 'No se pudo confirmar el asiento';
@@ -242,7 +242,7 @@ BEGIN
   FROM public.asientos_contables
   WHERE id = p_asiento_id
     AND empresa_id IN (
-      SELECT empresa_id FROM public.empresas_usuarios WHERE user_id = auth.uid()
+      SELECT empresa_id FROM public.empresas_usuarios WHERE usuario_id = auth.uid()
     );
 
   IF NOT FOUND THEN RAISE EXCEPTION 'Asiento no encontrado'; END IF;
@@ -329,7 +329,7 @@ BEGIN
   -- Verificar acceso
   IF NOT EXISTS (
     SELECT 1 FROM public.empresas_usuarios
-    WHERE empresa_id = p_empresa_id AND user_id = auth.uid()
+    WHERE empresa_id = p_empresa_id AND usuario_id = auth.uid()
   ) THEN RAISE EXCEPTION 'Acceso denegado'; END IF;
 
   -- Ya existe asiento para esta factura?
@@ -436,7 +436,7 @@ DECLARE
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM public.empresas_usuarios
-    WHERE empresa_id = p_empresa_id AND user_id = auth.uid()
+    WHERE empresa_id = p_empresa_id AND usuario_id = auth.uid()
   ) THEN RAISE EXCEPTION 'Acceso denegado'; END IF;
 
   IF EXISTS (
@@ -533,7 +533,7 @@ DECLARE
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM public.empresas_usuarios
-    WHERE empresa_id = p_empresa_id AND user_id = auth.uid()
+    WHERE empresa_id = p_empresa_id AND usuario_id = auth.uid()
   ) THEN RAISE EXCEPTION 'Acceso denegado'; END IF;
 
   IF EXISTS (
