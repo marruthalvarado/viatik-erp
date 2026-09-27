@@ -111,7 +111,7 @@ export async function importarMovimientos(
   const { data, error } = await supabase.rpc("importar_movimientos_bancarios", {
     p_cuenta_id: cuentaId,
     p_empresa_id: empresaId,
-    p_movimientos: JSON.stringify(movimientos),
+    p_movimientos: movimientos,
   });
   if (error) throw new Error(error.message);
   const row = Array.isArray(data) ? data[0] : data;
