@@ -17,6 +17,7 @@ import { Route as ProyectosRouteImport } from './routes/proyectos'
 import { Route as ProveedoresRouteImport } from './routes/proveedores'
 import { Route as PresupuestosRouteImport } from './routes/presupuestos'
 import { Route as GastosEmpresaRouteImport } from './routes/gastos-empresa'
+import { Route as ImpuestosRouteImport } from './routes/impuestos'
 import { Route as InventarioRouteImport } from './routes/inventario'
 import { Route as GastosRouteImport } from './routes/gastos'
 import { Route as FacturasRouteImport } from './routes/facturas'
@@ -69,6 +70,11 @@ const PresupuestosRoute = PresupuestosRouteImport.update({
 const GastosEmpresaRoute = GastosEmpresaRouteImport.update({
   id: '/gastos-empresa',
   path: '/gastos-empresa',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ImpuestosRoute = ImpuestosRouteImport.update({
+  id: '/impuestos',
+  path: '/impuestos',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InventarioRoute = InventarioRouteImport.update({
@@ -149,6 +155,7 @@ export interface FileRoutesByFullPath {
   '/facturas': typeof FacturasRoute
   '/gastos': typeof GastosRoute
   '/gastos-empresa': typeof GastosEmpresaRoute
+  '/impuestos': typeof ImpuestosRoute
   '/inventario': typeof InventarioRoute
   '/presupuestos': typeof PresupuestosRoute
   '/proveedores': typeof ProveedoresRoute
@@ -172,6 +179,7 @@ export interface FileRoutesByTo {
   '/facturas': typeof FacturasRoute
   '/gastos': typeof GastosRoute
   '/gastos-empresa': typeof GastosEmpresaRoute
+  '/impuestos': typeof ImpuestosRoute
   '/inventario': typeof InventarioRoute
   '/presupuestos': typeof PresupuestosRoute
   '/proveedores': typeof ProveedoresRoute
@@ -196,6 +204,7 @@ export interface FileRoutesById {
   '/facturas': typeof FacturasRoute
   '/gastos': typeof GastosRoute
   '/gastos-empresa': typeof GastosEmpresaRoute
+  '/impuestos': typeof ImpuestosRoute
   '/inventario': typeof InventarioRoute
   '/presupuestos': typeof PresupuestosRoute
   '/proveedores': typeof ProveedoresRoute
@@ -221,6 +230,7 @@ export interface FileRouteTypes {
     | '/facturas'
     | '/gastos'
     | '/gastos-empresa'
+    | '/impuestos'
     | '/inventario'
     | '/presupuestos'
     | '/proveedores'
@@ -244,6 +254,7 @@ export interface FileRouteTypes {
     | '/facturas'
     | '/gastos'
     | '/gastos-empresa'
+    | '/impuestos'
     | '/inventario'
     | '/presupuestos'
     | '/proveedores'
@@ -267,6 +278,7 @@ export interface FileRouteTypes {
     | '/facturas'
     | '/gastos'
     | '/gastos-empresa'
+    | '/impuestos'
     | '/inventario'
     | '/presupuestos'
     | '/proveedores'
@@ -291,6 +303,7 @@ export interface RootRouteChildren {
   FacturasRoute: typeof FacturasRoute
   GastosRoute: typeof GastosRoute
   GastosEmpresaRoute: typeof GastosEmpresaRoute
+  ImpuestosRoute: typeof ImpuestosRoute
   InventarioRoute: typeof InventarioRoute
   PresupuestosRoute: typeof PresupuestosRoute
   ProveedoresRoute: typeof ProveedoresRoute
@@ -349,6 +362,13 @@ declare module '@tanstack/react-router' {
       path: '/gastos-empresa'
       fullPath: '/gastos-empresa'
       preLoaderRoute: typeof GastosEmpresaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/impuestos': {
+      id: '/impuestos'
+      path: '/impuestos'
+      fullPath: '/impuestos'
+      preLoaderRoute: typeof ImpuestosRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/inventario': {
@@ -480,6 +500,7 @@ const rootRouteChildren: RootRouteChildren = {
   FacturasRoute: FacturasRoute,
   GastosRoute: GastosRoute,
   GastosEmpresaRoute: GastosEmpresaRoute,
+  ImpuestosRoute: ImpuestosRoute,
   InventarioRoute: InventarioRoute,
   PresupuestosRoute: PresupuestosRoute,
   ProveedoresRoute: ProveedoresRoute,
