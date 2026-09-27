@@ -907,6 +907,7 @@ function GastosEmpresaContent() {
         rucPorProveedor={rucPorProveedor}
         crearIsPending={crear.isPending}
         actualizarIsPending={actualizar.isPending}
+        empresaId={empresaActivaId ?? undefined}
       />
     </>
   );

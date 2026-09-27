@@ -11,6 +11,7 @@ import {
 } from "@/hooks/entities/use-cobros";
 import type { CobroInsert } from "@/types/entities";
 import { calcEstadoCobro, BADGE_COBRO } from "./factura-types";
+import { GenerarAsientoButton } from "@/components/contabilidad/generar-asiento-button";
 
 export interface CobroPanelProps {
   facturaId: string;
@@ -110,6 +111,12 @@ export function CobroPanel({
 
   return (
     <div className="space-y-4">
+      {/* Asiento contable */}
+      <div className="flex items-center justify-between rounded-md border border-dashed px-3 py-2 bg-muted/20">
+        <span className="text-xs text-muted-foreground">Asiento contable de la factura</span>
+        <GenerarAsientoButton tipo="factura" referenciaId={facturaId} empresaId={empresaId} />
+      </div>
+
       {/* Saldo header */}
       <div className="flex flex-wrap items-center gap-6">
         <div>

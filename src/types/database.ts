@@ -3348,6 +3348,195 @@ export type Database = {
         };
         Relationships: [];
       };
+      // ─── Contabilidad / NIIF ──────────────────────────────────────────────────
+      plan_cuentas: {
+        Row: {
+          id: string;
+          empresa_id: string | null;
+          codigo: string;
+          nombre: string;
+          tipo: "activo" | "pasivo" | "patrimonio" | "ingreso" | "costo" | "gasto";
+          naturaleza: "deudora" | "acreedora";
+          parent_id: string | null;
+          nivel: number;
+          acepta_movimientos: boolean;
+          activa: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          empresa_id?: string | null;
+          codigo: string;
+          nombre: string;
+          tipo: "activo" | "pasivo" | "patrimonio" | "ingreso" | "costo" | "gasto";
+          naturaleza: "deudora" | "acreedora";
+          parent_id?: string | null;
+          nivel?: number;
+          acepta_movimientos?: boolean;
+          activa?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          empresa_id?: string | null;
+          codigo?: string;
+          nombre?: string;
+          tipo?: "activo" | "pasivo" | "patrimonio" | "ingreso" | "costo" | "gasto";
+          naturaleza?: "deudora" | "acreedora";
+          parent_id?: string | null;
+          nivel?: number;
+          acepta_movimientos?: boolean;
+          activa?: boolean;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "plan_cuentas_empresa_id_fkey";
+            columns: ["empresa_id"];
+            isOneToOne: false;
+            referencedRelation: "empresas";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "plan_cuentas_parent_id_fkey";
+            columns: ["parent_id"];
+            isOneToOne: false;
+            referencedRelation: "plan_cuentas";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      config_contable: {
+        Row: {
+          empresa_id: string;
+          clave: string;
+          cuenta_id: string;
+        };
+        Insert: {
+          empresa_id: string;
+          clave: string;
+          cuenta_id: string;
+        };
+        Update: {
+          empresa_id?: string;
+          clave?: string;
+          cuenta_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "config_contable_empresa_id_fkey";
+            columns: ["empresa_id"];
+            isOneToOne: false;
+            referencedRelation: "empresas";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "config_contable_cuenta_id_fkey";
+            columns: ["cuenta_id"];
+            isOneToOne: false;
+            referencedRelation: "plan_cuentas";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      asientos_contables: {
+        Row: {
+          id: string;
+          empresa_id: string;
+          numero: string;
+          fecha: string;
+          descripcion: string;
+          estado: "borrador" | "definitivo" | "reversado";
+          referencia_tipo: "manual" | "factura" | "gasto" | "cobro" | "conciliacion" | null;
+          referencia_id: string | null;
+          asiento_origen_id: string | null;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          empresa_id: string;
+          numero?: string;
+          fecha: string;
+          descripcion: string;
+          estado?: "borrador" | "definitivo" | "reversado";
+          referencia_tipo?: "manual" | "factura" | "gasto" | "cobro" | "conciliacion" | null;
+          referencia_id?: string | null;
+          asiento_origen_id?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          empresa_id?: string;
+          numero?: string;
+          fecha?: string;
+          descripcion?: string;
+          estado?: "borrador" | "definitivo" | "reversado";
+          referencia_tipo?: "manual" | "factura" | "gasto" | "cobro" | "conciliacion" | null;
+          referencia_id?: string | null;
+          asiento_origen_id?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "asientos_contables_empresa_id_fkey";
+            columns: ["empresa_id"];
+            isOneToOne: false;
+            referencedRelation: "empresas";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      asiento_lineas: {
+        Row: {
+          id: string;
+          asiento_id: string;
+          empresa_id: string;
+          cuenta_id: string;
+          descripcion: string | null;
+          debe: number;
+          haber: number;
+          orden: number;
+        };
+        Insert: {
+          id?: string;
+          asiento_id: string;
+          empresa_id: string;
+          cuenta_id: string;
+          descripcion?: string | null;
+          debe?: number;
+          haber?: number;
+          orden?: number;
+        };
+        Update: {
+          id?: string;
+          asiento_id?: string;
+          empresa_id?: string;
+          cuenta_id?: string;
+          descripcion?: string | null;
+          debe?: number;
+          haber?: number;
+          orden?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "asiento_lineas_asiento_id_fkey";
+            columns: ["asiento_id"];
+            isOneToOne: false;
+            referencedRelation: "asientos_contables";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "asiento_lineas_cuenta_id_fkey";
+            columns: ["cuenta_id"];
+            isOneToOne: false;
+            referencedRelation: "plan_cuentas";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Functions: {
       flujo_caja_proyectado: {
@@ -3582,6 +3771,79 @@ export type Database = {
           p_fecha_hasta: string;
         };
         Returns: Json;
+      };
+      // ─── Contabilidad / NIIF RPCs ─────────────────────────────────────────────
+      crear_asiento: {
+        Args: {
+          p_empresa_id: string;
+          p_fecha: string;
+          p_descripcion: string;
+          p_lineas: Json;
+          p_ref_tipo?: string | null;
+          p_ref_id?: string | null;
+          p_confirmar?: boolean;
+        };
+        Returns: string;
+      };
+      confirmar_asiento: {
+        Args: { p_asiento_id: string };
+        Returns: undefined;
+      };
+      reversar_asiento: {
+        Args: {
+          p_asiento_id: string;
+          p_fecha: string;
+          p_descripcion: string;
+        };
+        Returns: string;
+      };
+      generar_asiento_factura: {
+        Args: { p_factura_id: string; p_empresa_id: string };
+        Returns: string;
+      };
+      generar_asiento_gasto: {
+        Args: { p_gasto_id: string; p_empresa_id: string };
+        Returns: string;
+      };
+      generar_asiento_cobro: {
+        Args: { p_cobro_id: string; p_empresa_id: string };
+        Returns: string;
+      };
+      get_saldos_cuentas: {
+        Args: {
+          p_empresa_id: string;
+          p_desde: string;
+          p_hasta: string;
+        };
+        Returns: {
+          id: string;
+          codigo: string;
+          nombre: string;
+          tipo: string;
+          naturaleza: string;
+          nivel: number;
+          acepta_movimientos: boolean;
+          total_debe: number;
+          total_haber: number;
+          saldo: number;
+        }[];
+      };
+      get_libro_mayor: {
+        Args: {
+          p_empresa_id: string;
+          p_cuenta_id: string;
+          p_desde: string;
+          p_hasta: string;
+        };
+        Returns: {
+          asiento_id: string;
+          numero: string;
+          fecha: string;
+          descripcion: string;
+          debe: number;
+          haber: number;
+          saldo_acum: number;
+        }[];
       };
     };
     Enums: {

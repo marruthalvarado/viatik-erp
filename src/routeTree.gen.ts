@@ -16,6 +16,7 @@ import { Route as RendicionesRouteImport } from './routes/rendiciones'
 import { Route as ProyectosRouteImport } from './routes/proyectos'
 import { Route as ProveedoresRouteImport } from './routes/proveedores'
 import { Route as PresupuestosRouteImport } from './routes/presupuestos'
+import { Route as ContabilidadRouteImport } from './routes/contabilidad'
 import { Route as ConciliacionRouteImport } from './routes/conciliacion'
 import { Route as GastosEmpresaRouteImport } from './routes/gastos-empresa'
 import { Route as ImpuestosRouteImport } from './routes/impuestos'
@@ -66,6 +67,11 @@ const ProveedoresRoute = ProveedoresRouteImport.update({
 const PresupuestosRoute = PresupuestosRouteImport.update({
   id: '/presupuestos',
   path: '/presupuestos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContabilidadRoute = ContabilidadRouteImport.update({
+  id: '/contabilidad',
+  path: '/contabilidad',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ConciliacionRoute = ConciliacionRouteImport.update({
@@ -156,6 +162,7 @@ export interface FileRoutesByFullPath {
   '/cambiar-clave': typeof CambiarClaveRoute
   '/clientes': typeof ClientesRoute
   '/conciliacion': typeof ConciliacionRoute
+  '/contabilidad': typeof ContabilidadRoute
   '/configuracion': typeof ConfiguracionRoute
   '/dashboard': typeof DashboardRoute
   '/documentos': typeof DocumentosRoute
@@ -181,6 +188,7 @@ export interface FileRoutesByTo {
   '/cambiar-clave': typeof CambiarClaveRoute
   '/clientes': typeof ClientesRoute
   '/conciliacion': typeof ConciliacionRoute
+  '/contabilidad': typeof ContabilidadRoute
   '/configuracion': typeof ConfiguracionRoute
   '/dashboard': typeof DashboardRoute
   '/documentos': typeof DocumentosRoute
@@ -207,6 +215,7 @@ export interface FileRoutesById {
   '/cambiar-clave': typeof CambiarClaveRoute
   '/clientes': typeof ClientesRoute
   '/conciliacion': typeof ConciliacionRoute
+  '/contabilidad': typeof ContabilidadRoute
   '/configuracion': typeof ConfiguracionRoute
   '/dashboard': typeof DashboardRoute
   '/documentos': typeof DocumentosRoute
@@ -234,6 +243,7 @@ export interface FileRouteTypes {
     | '/cambiar-clave'
     | '/clientes'
     | '/conciliacion'
+    | '/contabilidad'
     | '/configuracion'
     | '/dashboard'
     | '/documentos'
@@ -259,6 +269,7 @@ export interface FileRouteTypes {
     | '/cambiar-clave'
     | '/clientes'
     | '/conciliacion'
+    | '/contabilidad'
     | '/configuracion'
     | '/dashboard'
     | '/documentos'
@@ -284,6 +295,7 @@ export interface FileRouteTypes {
     | '/cambiar-clave'
     | '/clientes'
     | '/conciliacion'
+    | '/contabilidad'
     | '/configuracion'
     | '/dashboard'
     | '/documentos'
@@ -310,6 +322,7 @@ export interface RootRouteChildren {
   CambiarClaveRoute: typeof CambiarClaveRoute
   ClientesRoute: typeof ClientesRoute
   ConciliacionRoute: typeof ConciliacionRoute
+  ContabilidadRoute: typeof ContabilidadRoute
   ConfiguracionRoute: typeof ConfiguracionRoute
   DashboardRoute: typeof DashboardRoute
   DocumentosRoute: typeof DocumentosRoute
@@ -440,6 +453,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConciliacionRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/contabilidad': {
+      id: '/contabilidad'
+      path: '/contabilidad'
+      fullPath: '/contabilidad'
+      preLoaderRoute: typeof ContabilidadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth': {
       id: '/auth'
       path: '/auth'
@@ -515,6 +535,7 @@ const rootRouteChildren: RootRouteChildren = {
   CambiarClaveRoute: CambiarClaveRoute,
   ClientesRoute: ClientesRoute,
   ConciliacionRoute: ConciliacionRoute,
+  ContabilidadRoute: ContabilidadRoute,
   ConfiguracionRoute: ConfiguracionRoute,
   DashboardRoute: DashboardRoute,
   DocumentosRoute: DocumentosRoute,

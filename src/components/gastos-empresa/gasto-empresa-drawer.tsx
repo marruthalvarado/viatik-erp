@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { UseFormReturn } from "react-hook-form";
 import { Loader2, ChevronsUpDown, Check } from "lucide-react";
+import { GenerarAsientoButton } from "@/components/contabilidad/generar-asiento-button";
 import {
   Drawer,
   DrawerContent,
@@ -57,6 +58,7 @@ interface GastoEmpresaDrawerProps {
   rucPorProveedor: Map<string, string>;
   crearIsPending: boolean;
   actualizarIsPending: boolean;
+  empresaId?: string;
 }
 
 export function GastoEmpresaDrawer({
@@ -72,6 +74,7 @@ export function GastoEmpresaDrawer({
   rucPorProveedor,
   crearIsPending,
   actualizarIsPending,
+  empresaId,
 }: GastoEmpresaDrawerProps) {
   const [proveedorOpen, setProveedorOpen] = useState(false);
 
@@ -91,12 +94,19 @@ export function GastoEmpresaDrawer({
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent>
         <DrawerHeader>
-          <DrawerTitle>{editando ? "Editar gasto" : "Nuevo gasto empresa"}</DrawerTitle>
-          <DrawerDescription>
-            {xmlParsed && !editando
-              ? `Datos del comprobante · ${xmlParsed.numero}`
-              : "Completa los datos del gasto operativo."}
-          </DrawerDescription>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <DrawerTitle>{editando ? "Editar gasto" : "Nuevo gasto empresa"}</DrawerTitle>
+              <DrawerDescription>
+                {xmlParsed && !editando
+                  ? `Datos del comprobante · ${xmlParsed.numero}`
+                  : "Completa los datos del gasto operativo."}
+              </DrawerDescription>
+            </div>
+            {editando && empresaId && (
+              <GenerarAsientoButton tipo="gasto" referenciaId={editando.id} empresaId={empresaId} size="sm" />
+            )}
+          </div>
         </DrawerHeader>
         <div className="overflow-y-auto p-4">
           <Form {...form}>
