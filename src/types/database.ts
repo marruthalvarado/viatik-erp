@@ -1171,6 +1171,86 @@ export type Database = {
           },
         ];
       };
+      declaraciones_sri: {
+        Row: {
+          id: string;
+          empresa_id: string;
+          tipo: string;
+          anio: number;
+          periodo: number | null;
+          iva_ventas: number;
+          retenciones_iva_recibidas: number;
+          credito_tributario_compras: number;
+          iva_a_pagar: number;
+          ingresos_gravables: number;
+          gastos_deducibles: number;
+          utilidad_gravable: number;
+          ir_causado: number;
+          retenciones_ir_recibidas: number;
+          anticipos_pagados: number;
+          ir_a_pagar: number;
+          estado: string;
+          fecha_presentacion: string | null;
+          observacion: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          empresa_id: string;
+          tipo: string;
+          anio: number;
+          periodo?: number | null;
+          iva_ventas?: number;
+          retenciones_iva_recibidas?: number;
+          credito_tributario_compras?: number;
+          iva_a_pagar?: number;
+          ingresos_gravables?: number;
+          gastos_deducibles?: number;
+          utilidad_gravable?: number;
+          ir_causado?: number;
+          retenciones_ir_recibidas?: number;
+          anticipos_pagados?: number;
+          ir_a_pagar?: number;
+          estado?: string;
+          fecha_presentacion?: string | null;
+          observacion?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          empresa_id?: string;
+          tipo?: string;
+          anio?: number;
+          periodo?: number | null;
+          iva_ventas?: number;
+          retenciones_iva_recibidas?: number;
+          credito_tributario_compras?: number;
+          iva_a_pagar?: number;
+          ingresos_gravables?: number;
+          gastos_deducibles?: number;
+          utilidad_gravable?: number;
+          ir_causado?: number;
+          retenciones_ir_recibidas?: number;
+          anticipos_pagados?: number;
+          ir_a_pagar?: number;
+          estado?: string;
+          fecha_presentacion?: string | null;
+          observacion?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "declaraciones_sri_empresa_id_fkey";
+            columns: ["empresa_id"];
+            isOneToOne: false;
+            referencedRelation: "empresas";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       empresas: {
         Row: {
           codigo: string | null;
@@ -1185,6 +1265,7 @@ export type Database = {
           nombre: string;
           ruc: string | null;
           telefono: string | null;
+          tipo_contribuyente: string | null;
           updated_at: string | null;
         };
         Insert: {
@@ -1200,6 +1281,7 @@ export type Database = {
           nombre: string;
           ruc?: string | null;
           telefono?: string | null;
+          tipo_contribuyente?: string | null;
           updated_at?: string | null;
         };
         Update: {
@@ -1215,6 +1297,7 @@ export type Database = {
           nombre?: string;
           ruc?: string | null;
           telefono?: string | null;
+          tipo_contribuyente?: string | null;
           updated_at?: string | null;
         };
         Relationships: [
