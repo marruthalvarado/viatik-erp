@@ -4,7 +4,7 @@
  */
 import { useEffect, useState } from "react";
 import { useForm, useFieldArray, Controller } from "react-hook-form";
-import { Plus, Trash2, GripVertical, Search } from "lucide-react";
+import { Plus, Trash2, GripVertical, Search, UserSearch } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ import {
   useActualizarCotizacion,
   useCatalogoCotizar,
 } from "@/hooks/entities/use-cotizaciones";
+import { useClientes } from "@/hooks/entities/use-clientes";
 import type { CotizacionConItems, CotizacionDatos, CotizacionItemPayload } from "@/services/cotizaciones";
 import { useCompany } from "@/contexts/company-context";
 
@@ -73,11 +74,15 @@ const ITEM_DEFAULT: ItemForm = {
 export function CotizacionForm({ open, cotizacion, onClose }: Props) {
   const { empresaActivaId } = useCompany();
   const { data: catalogo = [] } = useCatalogoCotizar();
+  const { data: clientesData } = useClientes();
+  const clientes = clientesData?.rows ?? [];
   const crear = useCrearCotizacion();
   const actualizar = useActualizarCotizacion();
 
   const [busquedaCatalogo, setBusquedaCatalogo] = useState("");
   const [popoverIdx, setPopoverIdx] = useState<number | null>(null);
+  const [busquedaCliente, setBusquedaCliente] = useState("");
+  const [popoverCliente, setPopoverCliente] = useState(false);
 
   const { control, register, handleSubmit, reset, watch, setValue, formState: { isSubmitting } } = useForm<FormData>({
     defaultValues: {
@@ -161,6 +166,25 @@ export function CotizacionForm({ open, cotizacion, onClose }: Props) {
   const total = subtotal + iva;
   const fmtMoney = (n: number) => `$${n.toLocaleString("es-EC", { minimumFractionDigits: 2 })}`;
 
+  const clientesFiltrados = clientes.filter((c) => {
+    const q = busquedaCliente.toLowerCase();
+    return (
+      (c.nombre ?? "").toLowerCase().includes(q) ||
+      (c.nombre_comercial ?? "").toLowerCase().includes(q) ||
+      (c.ruc ?? "").includes(q)
+    );
+  });
+
+  const handleSelectCliente = (clienteId: string) => {
+    const c = clientes.find((cl) => cl.id === clienteId);
+    if (!c) return;
+    setValue("razon_social", c.nombre_comercial ?? c.nombre ?? "");
+    setValue("ruc_cliente", c.ruc ?? "");
+    setValue("email_cliente", c.correo ?? "");
+    setPopoverCliente(false);
+    setBusquedaCliente("");
+  };
+
   const handleSelectCatalogo = (idx: number, productoId: string) => {
     const p = catalogo.find((c) => c.id === productoId);
     if (!p) return;
@@ -235,6 +259,48 @@ export function CotizacionForm({ open, cotizacion, onClose }: Props) {
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          {/* ── Búsqueda de cliente existente ── */}
+          <div className="flex items-center gap-2">
+            <Popover open={popoverCliente} onOpenChange={setPopoverCliente}>
+              <PopoverTrigger asChild>
+                <Button type="button" variant="outline" size="sm" className="gap-1.5 text-xs">
+                  <UserSearch className="size-3.5" />
+                  Buscar cliente existente
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 p-2 space-y-1" align="start">
+                <Input
+                  placeholder="Nombre, nombre comercial o RUC…"
+                  className="h-7 text-xs"
+                  value={busquedaCliente}
+                  onChange={(e) => setBusquedaCliente(e.target.value)}
+                  autoFocus
+                />
+                <div className="max-h-52 overflow-y-auto space-y-0.5">
+                  {clientesFiltrados.length === 0 && (
+                    <p className="text-xs text-muted-foreground px-2 py-2">Sin resultados</p>
+                  )}
+                  {clientesFiltrados.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-muted"
+                      onClick={() => handleSelectCliente(c.id)}
+                    >
+                      <div className="font-medium">{c.nombre_comercial ?? c.nombre}</div>
+                      {(c.ruc || c.correo) && (
+                        <div className="text-muted-foreground">
+                          {c.ruc}{c.ruc && c.correo ? " · " : ""}{c.correo}
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+            <span className="text-xs text-muted-foreground">o completa los datos manualmente</span>
+          </div>
+
           {/* ── Cabecera del cliente ── */}
           <div className="grid grid-cols-3 gap-3">
             <div className="col-span-2 space-y-1.5">
