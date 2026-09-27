@@ -58,6 +58,8 @@ $$;
 -- 3. RPC — calcular IR anual (versión Fase B)
 --    Agrega: anticipos_pagados, retenciones_por_mes
 --    Actualiza: ir_a_pagar = GREATEST(ir_causado - retenciones - anticipos, 0)
+-- DROP requerido porque cambia el RETURNS TABLE (Postgres no permite OR REPLACE con distinto tipo de retorno)
+DROP FUNCTION IF EXISTS public.calcular_ir_anual(UUID, INT);
 CREATE OR REPLACE FUNCTION public.calcular_ir_anual(
   p_empresa_id UUID,
   p_anio       INT
