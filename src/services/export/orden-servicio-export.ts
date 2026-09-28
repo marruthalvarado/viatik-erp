@@ -1,0 +1,787 @@
+/**
+ * orden-servicio-export.ts
+ * Exporta el Reporte de Servicio Técnico a PDF (jsPDF) y Word (.docx).
+ *
+ * Estructura del reporte (número único = OS-YYYY-NNNN):
+ *   1. Encabezado — logo empresa, título, número OS, fecha emisión
+ *   2. Datos del cliente
+ *   3. Datos del equipo instalado
+ *   4. Información de la orden (tipo, técnico, fechas, modalidad cobro)
+ *   5. Descripción del problema / diagnóstico
+ *   6. Trabajos realizados
+ *   7. Repuestos utilizados (tabla)
+ *   8. Costos (mano de obra + repuestos + total)
+ *   9. Observaciones
+ *  10. Galería de fotos (antes / durante / después)
+ *  11. Firmas — Técnico + Cliente
+ */
+import type { OrdenConRelaciones } from "@/services/servicio-tecnico/ordenes-servicio";
+import { LOGO_VIATIQ_PNG_B64, LOGO_VIATIQ_W, LOGO_VIATIQ_H } from "@/assets/branding/logo-viatiq-b64";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tipos
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface OsExportOptions {
+  empresa?: {
+    nombre: string;
+    ruc?: string | null;
+    telefono?: string | null;
+    correo?: string | null;
+    direccion?: string | null;
+    logo_url?: string | null;
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+const fmtFecha = (d: string | null | undefined) => {
+  if (!d) return "—";
+  const [y, m, day] = d.slice(0, 10).split("-");
+  const meses = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+  return `${parseInt(day)} ${meses[parseInt(m) - 1]} ${y}`;
+};
+
+const fmtMoney = (n: number) =>
+  "$" + n.toLocaleString("es-EC", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const TIPO_LABEL: Record<string, string> = {
+  preventivo:    "Preventivo",
+  correctivo:    "Correctivo",
+  instalacion:   "Instalación",
+  actualizacion: "Actualización",
+  repuesto:      "Reemplazo de repuesto",
+};
+
+const COBRO_LABEL: Record<string, string> = {
+  garantia:   "Garantía",
+  contrato:   "Contrato",
+  por_visita: "Por visita",
+  sin_costo:  "Sin costo",
+};
+
+const ESTADO_LABEL: Record<string, string> = {
+  pendiente:  "Pendiente",
+  en_proceso: "En proceso",
+  completada: "Completada",
+  cancelada:  "Cancelada",
+};
+
+function triggerDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+async function fetchImageBase64(
+  url: string,
+): Promise<{ b64: string; mime: "PNG" | "JPEG" } | null> {
+  try {
+    const res = await fetch(url, { mode: "cors", cache: "force-cache" });
+    if (!res.ok) return null;
+    const buf = await res.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    let binary = "";
+    for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+    const b64 = btoa(binary);
+    const ct = res.headers.get("content-type") ?? "";
+    const mime: "PNG" | "JPEG" = ct.includes("png") ? "PNG" : "JPEG";
+    return { b64, mime };
+  } catch {
+    return null;
+  }
+}
+
+async function fetchImageBuffer(url: string): Promise<ArrayBuffer | null> {
+  try {
+    const res = await fetch(url, { mode: "cors", cache: "force-cache" });
+    if (!res.ok) return null;
+    return await res.arrayBuffer();
+  } catch {
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PDF
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function exportOrdenServicioPdf(
+  os: OrdenConRelaciones,
+  opts: OsExportOptions = {},
+): Promise<void> {
+  const { jsPDF } = await import("jspdf");
+  const { autoTable } = await import("jspdf-autotable");
+
+  // Pre-cargar imágenes
+  const urlsRaw = [
+    opts.empresa?.logo_url,
+    ...(os.fotos ?? []).map((f) => f.url),
+  ].filter(Boolean) as string[];
+  const uniqueUrls = [...new Set(urlsRaw)];
+  const fetchResults = await Promise.allSettled(uniqueUrls.map(fetchImageBase64));
+  const imgCache = new Map<string, { b64: string; mime: "PNG" | "JPEG" } | null>();
+  uniqueUrls.forEach((url, i) => {
+    const r = fetchResults[i];
+    imgCache.set(url, r.status === "fulfilled" ? r.value : null);
+  });
+  const getImg = (url: string | null | undefined) => url ? (imgCache.get(url) ?? null) : null;
+
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const W  = doc.internal.pageSize.width;
+  const H  = doc.internal.pageSize.height;
+  const ML = 14;
+  const MR = 14;
+  const CW = W - ML - MR;
+
+  const NAVY   = [15, 40, 100]   as const;
+  const BGNAVY = [235, 240, 255] as const;
+  const GRAY   = [100, 116, 139] as const;
+  const DARK   = [15, 23, 42]    as const;
+  const WHITE  = [255, 255, 255] as const;
+  const BORDER = [226, 232, 240] as const;
+  const BGROW  = [248, 250, 252] as const;
+
+  type JsPDFImg = { addImage: (img: string, fmt: string, x: number, y: number, w: number, h: number) => void };
+  const addImg = (img: { b64: string; mime: "PNG" | "JPEG" } | null, x: number, y: number, mW: number, mH: number) => {
+    if (!img) return;
+    try {
+      (doc as unknown as JsPDFImg).addImage(
+        `data:image/${img.mime.toLowerCase()};base64,${img.b64}`,
+        img.mime, x, y, mW, mH,
+      );
+    } catch { /* ignorar */ }
+  };
+
+  // ── ENCABEZADO ───────────────────────────────────────────────────────────────
+  doc.setFillColor(...NAVY);
+  doc.rect(0, 0, W, 38, "F");
+
+  // Logo empresa (izquierda)
+  const empresaImg = getImg(opts.empresa?.logo_url);
+  if (empresaImg) {
+    addImg(empresaImg, ML, 7, 32, 14);
+  } else {
+    // Logo VIATIQ por defecto
+    addImg({ b64: LOGO_VIATIQ_PNG_B64, mime: "PNG" }, ML, 7, LOGO_VIATIQ_W * 0.09, LOGO_VIATIQ_H * 0.09);
+  }
+
+  // Título (derecha)
+  doc.setTextColor(...WHITE);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.text("REPORTE DE SERVICIO TÉCNICO", W - MR, 14, { align: "right" });
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.text(`N° ${os.numero ?? "—"}`, W - MR, 21, { align: "right" });
+  doc.text(`Fecha emisión: ${fmtFecha(new Date().toISOString())}`, W - MR, 27, { align: "right" });
+
+  // Estado badge
+  const estadoText = ESTADO_LABEL[os.estado ?? ""] ?? os.estado ?? "";
+  const badgeColors: Record<string, readonly [number,number,number]> = {
+    completada: [22,163,74], en_proceso: [234,179,8], pendiente: [148,163,184], cancelada: [239,68,68],
+  };
+  const bc = badgeColors[os.estado ?? ""] ?? ([148,163,184] as const);
+  doc.setFillColor(...bc);
+  doc.roundedRect(ML, 12, 28, 7, 1.5, 1.5, "F");
+  doc.setTextColor(...WHITE);
+  doc.setFontSize(7.5);
+  doc.setFont("helvetica", "bold");
+  doc.text(estadoText.toUpperCase(), ML + 14, 17, { align: "center" });
+
+  let y = 46;
+
+  // ── Empresa (bajo el header) ──────────────────────────────────────────────
+  if (opts.empresa) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(...DARK);
+    doc.text(opts.empresa.nombre, ML, y);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(...GRAY);
+    const empresaLine = [opts.empresa.ruc, opts.empresa.telefono, opts.empresa.correo].filter(Boolean).join("  |  ");
+    if (empresaLine) { doc.text(empresaLine, ML, y + 4); y += 4; }
+    if (opts.empresa.direccion) { doc.text(opts.empresa.direccion, ML, y + 4); y += 4; }
+    y += 8;
+  }
+
+  // ── SECCIÓN: CLIENTE ─────────────────────────────────────────────────────────
+  const drawSection = (title: string) => {
+    doc.setFillColor(...BGNAVY);
+    doc.rect(ML, y, CW, 6.5, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.setTextColor(...NAVY);
+    doc.text(title.toUpperCase(), ML + 3, y + 4.5);
+    y += 10;
+  };
+
+  const drawRow = (label: string, value: string, col2 = false) => {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
+    doc.setTextColor(...GRAY);
+    const x0 = col2 ? ML + CW / 2 + 4 : ML;
+    doc.text(label, x0, y);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(...DARK);
+    doc.text(value || "—", x0, y + 4);
+    if (!col2) y += 10;
+    else y += 10; // ambas columnas avanzan igual — se gestiona desde afuera
+  };
+
+  const drawPair = (l1: string, v1: string, l2: string, v2: string) => {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
+    doc.setTextColor(...GRAY);
+    doc.text(l1, ML, y);
+    doc.text(l2, ML + CW / 2 + 4, y);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(...DARK);
+    doc.text(v1 || "—", ML, y + 4);
+    doc.text(v2 || "—", ML + CW / 2 + 4, y + 4);
+    y += 12;
+  };
+
+  const drawText = (label: string, value: string | null | undefined) => {
+    if (!value) return;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
+    doc.setTextColor(...GRAY);
+    doc.text(label, ML, y);
+    y += 4.5;
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(...DARK);
+    doc.setFontSize(8);
+    const lines = doc.splitTextToSize(value, CW);
+    doc.text(lines, ML, y);
+    y += lines.length * 4.5 + 4;
+  };
+
+  // Línea divisoria
+  const hr = () => {
+    doc.setDrawColor(...BORDER);
+    doc.line(ML, y - 2, ML + CW, y - 2);
+  };
+
+  // ── CLIENTE ─────────────────────────────────────────────────────────────────
+  const clienteNombreStr = os.cliente?.nombre ?? os.equipo?.cliente?.nombre ?? "—";
+  const clienteContacto  = [os.cliente?.contacto_nombre, os.cliente?.contacto_cargo].filter(Boolean).join(" · ") || "—";
+  drawSection("1. Datos del cliente");
+  drawPair("Razón social", clienteNombreStr, "Contacto", clienteContacto);
+
+  // ── EQUIPO ───────────────────────────────────────────────────────────────────
+  hr();
+  drawSection("2. Datos del equipo");
+  drawPair(
+    "Equipo",          os.equipo?.nombre ?? "—",
+    "Fabricante",      os.equipo?.fabricante ?? "—",
+  );
+  drawPair(
+    "Modelo",          os.equipo?.modelo ?? "—",
+    "N° de serie",     os.equipo?.numero_serie ?? "—",
+  );
+  drawPair(
+    "Ubicación",       os.equipo?.ubicacion_instalacion ?? "—",
+    "Garantía hasta",  fmtFecha(os.equipo?.garantia_hasta),
+  );
+
+  // ── ORDEN ────────────────────────────────────────────────────────────────────
+  hr();
+  drawSection("3. Información de la orden");
+  drawPair(
+    "Tipo",           TIPO_LABEL[os.tipo ?? ""] ?? os.tipo ?? "—",
+    "Modalidad cobro", COBRO_LABEL[os.modalidad_cobro ?? ""] ?? os.modalidad_cobro ?? "—",
+  );
+  const tecnico = os.tecnico ? `${os.tecnico.nombres} ${os.tecnico.apellidos}${os.tecnico.cargo ? " · " + os.tecnico.cargo : ""}` : "—";
+  drawPair(
+    "Técnico",         tecnico,
+    "Contrato",        os.contrato?.numero ?? "—",
+  );
+  drawPair(
+    "Fecha programada",  fmtFecha(os.fecha_programada),
+    "Fecha cierre",      fmtFecha(os.fecha_cierre),
+  );
+
+  // ── DESCRIPCIÓN Y DIAGNÓSTICO ─────────────────────────────────────────────
+  hr();
+  drawSection("4. Descripción del problema y diagnóstico");
+  drawText("Descripción del problema:", os.descripcion_problema);
+  drawText("Diagnóstico:", os.diagnostico);
+
+  // ── TRABAJOS REALIZADOS ───────────────────────────────────────────────────
+  const checkNewPage = (needed = 30) => {
+    if (y + needed > H - 20) {
+      doc.addPage();
+      y = 16;
+    }
+  };
+
+  checkNewPage(40);
+  hr();
+  drawSection("5. Trabajos realizados");
+  drawText("", os.trabajos_realizados);
+
+  // ── REPUESTOS ─────────────────────────────────────────────────────────────
+  const repuestos = os.repuestos ?? [];
+  if (repuestos.length > 0) {
+    checkNewPage(50);
+    hr();
+    drawSection("6. Repuestos / materiales utilizados");
+
+    const totalRepuestos = repuestos.reduce(
+      (s, r) => s + (r.cantidad ?? 0) * (r.precio_unitario ?? 0), 0,
+    );
+
+    autoTable(doc, {
+      startY: y,
+      margin: { left: ML, right: MR },
+      head: [["Descripción", "Cant.", "P. Unitario", "Subtotal"]],
+      body: repuestos.map((r) => [
+        r.descripcion,
+        String(r.cantidad ?? 1),
+        fmtMoney(r.precio_unitario ?? 0),
+        fmtMoney((r.cantidad ?? 1) * (r.precio_unitario ?? 0)),
+      ]),
+      foot: [["", "", "TOTAL", fmtMoney(totalRepuestos)]],
+      headStyles:  { fillColor: NAVY as unknown as [number,number,number], textColor: 255, fontSize: 8, fontStyle: "bold" },
+      footStyles:  { fillColor: BGNAVY as unknown as [number,number,number], textColor: NAVY as unknown as [number,number,number], fontSize: 8, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: BGROW as unknown as [number,number,number] },
+      bodyStyles:  { fontSize: 8, textColor: DARK as unknown as [number,number,number] },
+      columnStyles: { 1: { halign: "center" }, 2: { halign: "right" }, 3: { halign: "right" } },
+    });
+    y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
+  }
+
+  // ── COSTOS ───────────────────────────────────────────────────────────────
+  checkNewPage(30);
+  hr();
+  drawSection("7. Resumen de costos");
+  const costoMO = os.costo_mano_obra ?? 0;
+  const costoRep = (os.repuestos ?? []).reduce((s, r) => s + (r.cantidad ?? 0) * (r.precio_unitario ?? 0), 0);
+  const total = costoMO + costoRep;
+  drawPair("Mano de obra", fmtMoney(costoMO), "Repuestos / materiales", fmtMoney(costoRep));
+
+  doc.setFillColor(...NAVY);
+  doc.rect(ML + CW - 55, y - 2, 55, 9, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.setTextColor(...WHITE);
+  doc.text("TOTAL", ML + CW - 52, y + 3.5);
+  doc.text(fmtMoney(total), ML + CW - 3, y + 3.5, { align: "right" });
+  y += 14;
+
+  // ── OBSERVACIONES ─────────────────────────────────────────────────────────
+  if (os.observaciones) {
+    checkNewPage(25);
+    hr();
+    drawSection("8. Observaciones");
+    drawText("", os.observaciones);
+  }
+
+  // ── FOTOS ─────────────────────────────────────────────────────────────────
+  const fotos = (os.fotos ?? []).filter((f) => f.url);
+  if (fotos.length > 0) {
+    checkNewPage(70);
+    hr();
+    drawSection("9. Registro fotográfico");
+
+    const momentoLabel: Record<string, string> = { antes: "ANTES", durante: "DURANTE", despues: "DESPUÉS" };
+    let col = 0;
+    const fotoW = (CW - 8) / 3;
+    const fotoH = 42;
+
+    for (const foto of fotos) {
+      const imgData = getImg(foto.url);
+      if (!imgData) continue;
+      if (col === 0) checkNewPage(fotoH + 18);
+
+      const x = ML + col * (fotoW + 4);
+      // Etiqueta de momento
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7);
+      doc.setTextColor(...GRAY);
+      const label = momentoLabel[foto.momento ?? ""] ?? (foto.momento ?? "").toUpperCase();
+      doc.text(label, x + fotoW / 2, y, { align: "center" });
+      addImg(imgData, x, y + 2, fotoW, fotoH);
+      if (foto.descripcion) {
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(6.5);
+        doc.setTextColor(...GRAY);
+        doc.text(foto.descripcion, x + fotoW / 2, y + fotoH + 5, { align: "center", maxWidth: fotoW });
+      }
+
+      col++;
+      if (col >= 3) {
+        col = 0;
+        y += fotoH + 12;
+      }
+    }
+    if (col > 0) y += fotoH + 12;
+  }
+
+  // ── FIRMAS ───────────────────────────────────────────────────────────────
+  checkNewPage(50);
+  y += 6;
+  hr();
+  y += 6;
+
+  const sigW  = (CW - 10) / 2;
+  const sigH  = 22;
+  const sigX2 = ML + sigW + 10;
+
+  // Cajas de firma
+  doc.setDrawColor(...BORDER);
+  doc.setFillColor(...BGROW);
+  doc.rect(ML, y, sigW, sigH, "FD");
+  doc.rect(sigX2, y, sigW, sigH, "FD");
+
+  // Firma técnico (imagen o línea vacía)
+  const firmaT = getImg(os.firma_tecnico_url);
+  const firmaC = getImg(os.firma_cliente_url);
+  if (firmaT) addImg(firmaT, ML + 4, y + 2, sigW - 8, sigH - 4);
+  if (firmaC) addImg(firmaC, sigX2 + 4, y + 2, sigW - 8, sigH - 4);
+
+  y += sigH + 2;
+
+  // Nombres bajo firma
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8);
+  doc.setTextColor(...DARK);
+  const tecnicoNombre = os.tecnico ? `${os.tecnico.nombres} ${os.tecnico.apellidos}` : "Técnico";
+  const clienteNombre = os.cliente?.nombre ?? os.equipo?.cliente?.nombre ?? "Cliente";
+  doc.text(tecnicoNombre, ML + sigW / 2, y, { align: "center" });
+  doc.text(clienteNombre, sigX2 + sigW / 2, y, { align: "center" });
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7);
+  doc.setTextColor(...GRAY);
+  doc.text("Firma del Técnico", ML + sigW / 2, y + 4, { align: "center" });
+  doc.text("Firma del Cliente / Responsable", sigX2 + sigW / 2, y + 4, { align: "center" });
+
+  // ── PIE DE PÁGINA ─────────────────────────────────────────────────────────
+  const totalPages = (doc.internal as unknown as { getNumberOfPages: () => number }).getNumberOfPages();
+  for (let pg = 1; pg <= totalPages; pg++) {
+    doc.setPage(pg);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+    doc.setTextColor(...GRAY);
+    doc.text(`Reporte ${os.numero ?? ""} · Pág. ${pg} / ${totalPages}`, W / 2, H - 8, { align: "center" });
+    doc.text("Generado con VIATIQ ERP", ML, H - 8);
+    doc.text(new Date().toLocaleDateString("es-EC"), W - MR, H - 8, { align: "right" });
+  }
+
+  triggerDownload(
+    doc.output("blob"),
+    `Reporte_OS_${os.numero ?? os.id.slice(0, 8)}.pdf`,
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WORD (.docx)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function exportOrdenServicioDocx(
+  os: OrdenConRelaciones,
+  opts: OsExportOptions = {},
+): Promise<void> {
+  const {
+    Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
+    WidthType, BorderStyle, AlignmentType, HeadingLevel, PageBreak,
+    ShadingType, convertInchesToTwip,
+  } = await import("docx");
+
+  // Pre-cargar imágenes
+  const fotoUrls = (os.fotos ?? []).map((f) => f.url).filter(Boolean) as string[];
+  const logoUrl  = opts.empresa?.logo_url ?? null;
+  const allUrls  = [...new Set([logoUrl, ...fotoUrls].filter(Boolean))] as string[];
+  const bufMap   = new Map<string, ArrayBuffer | null>();
+  await Promise.all(allUrls.map(async (url) => {
+    bufMap.set(url, await fetchImageBuffer(url));
+  }));
+
+  // Helper para ImageRun
+  const makeImg = async (url: string | null | undefined, widthPx: number, heightPx: number) => {
+    if (!url) return null;
+    const buf = bufMap.get(url);
+    if (!buf) return null;
+    const { ImageRun } = await import("docx");
+    try {
+      return new ImageRun({ data: buf, transformation: { width: widthPx, height: heightPx } } as never);
+    } catch { return null; }
+  };
+
+  const NAVY_HEX  = "0F2864";
+  const LIGHT_HEX = "EBF0FF";
+
+  // Párrafo de sección
+  const sectionTitle = (text: string) =>
+    new Paragraph({
+      children: [new TextRun({ text: text.toUpperCase(), bold: true, color: NAVY_HEX, size: 18 })],
+      shading:  { type: ShadingType.CLEAR, fill: LIGHT_HEX },
+      spacing:  { before: 200, after: 80 },
+      border:   { bottom: { style: BorderStyle.SINGLE, size: 4, color: NAVY_HEX } },
+    });
+
+  const labelValue = (label: string, value: string | null | undefined) =>
+    new Paragraph({
+      children: [
+        new TextRun({ text: label + ": ", bold: true, size: 18, color: "475569" }),
+        new TextRun({ text: value || "—", size: 18 }),
+      ],
+      spacing: { after: 60 },
+    });
+
+  const bodyPara = (text: string | null | undefined) =>
+    new Paragraph({
+      children: [new TextRun({ text: text || "—", size: 18 })],
+      spacing:  { after: 120 },
+    });
+
+  const h1 = (text: string) =>
+    new Paragraph({
+      text,
+      heading: HeadingLevel.HEADING_1,
+      spacing: { after: 120 },
+    });
+
+  const repuestos = os.repuestos ?? [];
+  const costoMO   = os.costo_mano_obra ?? 0;
+  const costoRep  = repuestos.reduce((s, r) => s + (r.cantidad ?? 0) * (r.precio_unitario ?? 0), 0);
+  const total     = costoMO + costoRep;
+
+  // Tabla de repuestos
+  const repuestosTable = repuestos.length > 0
+    ? new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({
+            tableHeader: true,
+            children: ["Descripción", "Cant.", "P. Unitario", "Subtotal"].map((h) =>
+              new TableCell({
+                children: [new Paragraph({ children: [new TextRun({ text: h, bold: true, color: "FFFFFF", size: 18 })] })],
+                shading:  { type: ShadingType.CLEAR, fill: NAVY_HEX },
+                width:    { size: 25, type: WidthType.PERCENTAGE },
+              }),
+            ),
+          }),
+          ...repuestos.map((r, i) =>
+            new TableRow({
+              children: [
+                r.descripcion,
+                String(r.cantidad ?? 1),
+                fmtMoney(r.precio_unitario ?? 0),
+                fmtMoney((r.cantidad ?? 1) * (r.precio_unitario ?? 0)),
+              ].map((val) =>
+                new TableCell({
+                  children: [new Paragraph({ children: [new TextRun({ text: val, size: 18 })] })],
+                  shading:  { type: ShadingType.CLEAR, fill: i % 2 === 0 ? "F8FAFC" : "FFFFFF" },
+                }),
+              ),
+            }),
+          ),
+          new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph("")], columnSpan: 2 }),
+              new TableCell({
+                children: [new Paragraph({ children: [new TextRun({ text: "TOTAL REPUESTOS", bold: true, size: 18, color: NAVY_HEX })] })],
+                shading:  { type: ShadingType.CLEAR, fill: LIGHT_HEX },
+              }),
+              new TableCell({
+                children: [new Paragraph({ children: [new TextRun({ text: fmtMoney(costoRep), bold: true, size: 18, color: NAVY_HEX })] })],
+                shading:  { type: ShadingType.CLEAR, fill: LIGHT_HEX },
+              }),
+            ],
+          }),
+        ],
+      })
+    : null;
+
+  // Tabla de costos
+  const costosTable = new Table({
+    width: { size: 60, type: WidthType.PERCENTAGE },
+    rows: [
+      ["Mano de obra", fmtMoney(costoMO)],
+      ["Repuestos / materiales", fmtMoney(costoRep)],
+    ].map(([l, v], i) =>
+      new TableRow({
+        children: [
+          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: l, bold: true, size: 18 })] })], shading: { type: ShadingType.CLEAR, fill: i % 2 === 0 ? "F8FAFC" : "FFFFFF" } }),
+          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: v, size: 18 })] })], shading: { type: ShadingType.CLEAR, fill: i % 2 === 0 ? "F8FAFC" : "FFFFFF" } }),
+        ],
+      }),
+    ).concat([
+      new TableRow({
+        children: [
+          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "TOTAL", bold: true, size: 20, color: "FFFFFF" })] })], shading: { type: ShadingType.CLEAR, fill: NAVY_HEX } }),
+          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: fmtMoney(total), bold: true, size: 20, color: "FFFFFF" })] })], shading: { type: ShadingType.CLEAR, fill: NAVY_HEX } }),
+        ],
+      }),
+    ]),
+  });
+
+  // Firma (si existe imagen)
+  const firmaT = await makeImg(os.firma_tecnico_url, 160, 70);
+  const firmaC = await makeImg(os.firma_cliente_url, 160, 70);
+
+  const firmasTable = new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    rows: [
+      new TableRow({
+        children: [
+          new TableCell({
+            children: [
+              firmaT
+                ? new Paragraph({ children: [firmaT], alignment: AlignmentType.CENTER })
+                : new Paragraph({ text: "", spacing: { before: convertInchesToTwip(0.8) } }),
+              new Paragraph({ children: [new TextRun({ text: os.tecnico ? `${os.tecnico.nombres} ${os.tecnico.apellidos}` : "Técnico", bold: true, size: 18 })], alignment: AlignmentType.CENTER }),
+              new Paragraph({ children: [new TextRun({ text: "Firma del Técnico", size: 16, color: "94A3B8" })], alignment: AlignmentType.CENTER }),
+            ],
+            shading: { type: ShadingType.CLEAR, fill: "F8FAFC" },
+            borders: { top: { style: BorderStyle.SINGLE, size: 4, color: "CBD5E1" }, bottom: { style: BorderStyle.SINGLE, size: 4, color: "CBD5E1" }, left: { style: BorderStyle.SINGLE, size: 4, color: "CBD5E1" }, right: { style: BorderStyle.SINGLE, size: 4, color: "CBD5E1" } },
+          }),
+          new TableCell({
+            children: [
+              firmaC
+                ? new Paragraph({ children: [firmaC], alignment: AlignmentType.CENTER })
+                : new Paragraph({ text: "", spacing: { before: convertInchesToTwip(0.8) } }),
+              new Paragraph({ children: [new TextRun({ text: os.cliente?.nombre ?? os.equipo?.cliente?.nombre ?? "Cliente", bold: true, size: 18 })], alignment: AlignmentType.CENTER }),
+              new Paragraph({ children: [new TextRun({ text: "Firma del Cliente / Responsable", size: 16, color: "94A3B8" })], alignment: AlignmentType.CENTER }),
+            ],
+            shading: { type: ShadingType.CLEAR, fill: "F8FAFC" },
+            borders: { top: { style: BorderStyle.SINGLE, size: 4, color: "CBD5E1" }, bottom: { style: BorderStyle.SINGLE, size: 4, color: "CBD5E1" }, left: { style: BorderStyle.SINGLE, size: 4, color: "CBD5E1" }, right: { style: BorderStyle.SINGLE, size: 4, color: "CBD5E1" } },
+          }),
+        ],
+      }),
+    ],
+  });
+
+  // Fotos
+  const fotoParagraphs: unknown[] = [];
+  for (const foto of (os.fotos ?? [])) {
+    if (!foto.url) continue;
+    const img = await makeImg(foto.url, 200, 130);
+    if (!img) continue;
+    const momentoLabel: Record<string, string> = { antes: "ANTES", durante: "DURANTE", despues: "DESPUÉS" };
+    fotoParagraphs.push(
+      new Paragraph({ children: [new TextRun({ text: momentoLabel[foto.momento ?? ""] ?? (foto.momento ?? "").toUpperCase(), bold: true, size: 16, color: "475569" })] }),
+      new Paragraph({ children: [img] }),
+    );
+    if (foto.descripcion) {
+      fotoParagraphs.push(new Paragraph({ children: [new TextRun({ text: foto.descripcion, size: 15, color: "94A3B8" })] }));
+    }
+    fotoParagraphs.push(new Paragraph(""));
+  }
+
+  const logoImg = await makeImg(logoUrl, Math.round(LOGO_VIATIQ_W * 0.12), Math.round(LOGO_VIATIQ_H * 0.12));
+
+  const children: unknown[] = [
+    // ── PORTADA ──
+    new Paragraph({
+      children: [
+        ...(logoImg ? [logoImg] : []),
+        new TextRun({ break: 1 }),
+        new TextRun({ text: "REPORTE DE SERVICIO TÉCNICO", bold: true, size: 36, color: NAVY_HEX }),
+        new TextRun({ break: 1 }),
+        new TextRun({ text: `N° ${os.numero ?? "—"}`, size: 24, color: "475569" }),
+        new TextRun({ break: 1 }),
+        new TextRun({ text: `Fecha emisión: ${fmtFecha(new Date().toISOString())}`, size: 18, color: "94A3B8" }),
+        new TextRun({ break: 1 }),
+        new TextRun({ text: `Estado: ${ESTADO_LABEL[os.estado ?? ""] ?? os.estado ?? "—"}`, bold: true, size: 20, color: NAVY_HEX }),
+      ],
+      spacing: { before: 200, after: 400 },
+    }),
+    new Paragraph({ children: [new PageBreak()] }),
+
+    // ── CLIENTE ──
+    sectionTitle("1. Datos del cliente"),
+    labelValue("Razón social", os.cliente?.nombre ?? os.equipo?.cliente?.nombre),
+    labelValue("Contacto", [os.cliente?.contacto_nombre, os.cliente?.contacto_cargo].filter(Boolean).join(" · ")),
+    new Paragraph(""),
+
+    // ── EQUIPO ──
+    sectionTitle("2. Datos del equipo"),
+    labelValue("Equipo",          os.equipo?.nombre),
+    labelValue("Fabricante",      os.equipo?.fabricante),
+    labelValue("Modelo",          os.equipo?.modelo),
+    labelValue("N° de serie",     os.equipo?.numero_serie),
+    labelValue("Ubicación",       os.equipo?.ubicacion_instalacion),
+    labelValue("Garantía hasta",  fmtFecha(os.equipo?.garantia_hasta)),
+    new Paragraph(""),
+
+    // ── ORDEN ──
+    sectionTitle("3. Información de la orden"),
+    labelValue("Tipo",             TIPO_LABEL[os.tipo ?? ""] ?? os.tipo),
+    labelValue("Modalidad cobro",  COBRO_LABEL[os.modalidad_cobro ?? ""] ?? os.modalidad_cobro),
+    labelValue("Técnico",          os.tecnico ? `${os.tecnico.nombres} ${os.tecnico.apellidos}${os.tecnico.cargo ? " · " + os.tecnico.cargo : ""}` : null),
+    labelValue("Contrato",         os.contrato?.numero),
+    labelValue("Fecha programada", fmtFecha(os.fecha_programada)),
+    labelValue("Fecha cierre",     fmtFecha(os.fecha_cierre)),
+    new Paragraph(""),
+
+    // ── DESCRIPCIÓN / DIAGNÓSTICO ──
+    sectionTitle("4. Descripción del problema y diagnóstico"),
+    new Paragraph({ children: [new TextRun({ text: "Descripción del problema:", bold: true, size: 18 })] }),
+    bodyPara(os.descripcion_problema),
+    new Paragraph({ children: [new TextRun({ text: "Diagnóstico:", bold: true, size: 18 })] }),
+    bodyPara(os.diagnostico),
+
+    // ── TRABAJOS ──
+    sectionTitle("5. Trabajos realizados"),
+    bodyPara(os.trabajos_realizados),
+
+    // ── REPUESTOS ──
+    ...(repuestos.length > 0
+      ? [
+          sectionTitle("6. Repuestos / materiales utilizados"),
+          repuestosTable,
+          new Paragraph(""),
+        ]
+      : []),
+
+    // ── COSTOS ──
+    sectionTitle("7. Resumen de costos"),
+    costosTable,
+    new Paragraph(""),
+
+    // ── OBSERVACIONES ──
+    ...(os.observaciones
+      ? [sectionTitle("8. Observaciones"), bodyPara(os.observaciones)]
+      : []),
+
+    // ── FOTOS ──
+    ...(fotoParagraphs.length > 0
+      ? [sectionTitle("9. Registro fotográfico"), ...fotoParagraphs]
+      : []),
+
+    // ── FIRMAS ──
+    sectionTitle("10. Firmas"),
+    firmasTable,
+    new Paragraph(""),
+    new Paragraph({
+      children: [new TextRun({ text: `Generado con VIATIQ ERP · ${new Date().toLocaleDateString("es-EC")}`, size: 14, color: "94A3B8" })],
+      alignment: AlignmentType.CENTER,
+    }),
+  ];
+
+  const doc = new Document({
+    styles: {
+      default: {
+        document: { run: { font: "Arial", size: 18, color: "0F172A" } },
+      },
+    },
+    sections: [{
+      properties: { page: { margin: { top: convertInchesToTwip(0.75), bottom: convertInchesToTwip(0.75), left: convertInchesToTwip(0.9), right: convertInchesToTwip(0.9) } } },
+      children: children as never,
+    }],
+  });
+
+  const blob = await Packer.toBlob(doc);
+  triggerDownload(blob, `Reporte_OS_${os.numero ?? os.id.slice(0, 8)}.docx`);
+}

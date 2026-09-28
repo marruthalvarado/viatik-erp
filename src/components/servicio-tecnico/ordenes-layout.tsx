@@ -4,7 +4,7 @@
 import { useState } from "react";
 import {
   Plus, ClipboardList, CheckCircle2, Clock, Wrench, XCircle,
-  AlertCircle, RotateCw,
+  AlertCircle, RotateCw, FileDown, FileText, Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -33,6 +33,11 @@ import type {
 } from "@/services/servicio-tecnico/ordenes-servicio";
 import { OrdenForm } from "./orden-form";
 import { CerrarOrdenDialog } from "./cerrar-orden-dialog";
+import {
+  exportOrdenServicioPdf,
+  exportOrdenServicioDocx,
+} from "@/services/export/orden-servicio-export";
+import { useCompany } from "@/contexts/company-context";
 
 const ESTADO_CFG: Record<string, { label: string; className: string; icon: React.ElementType }> = {
   pendiente:   { label: "Pendiente",   className: "bg-gray-50 text-gray-600 border-gray-200",     icon: Clock },
@@ -61,6 +66,7 @@ function EstadoBadge({ estado }: { estado: string }) {
 }
 
 export function OrdenesLayout() {
+  const { empresaActiva } = useCompany();
   const { data: ordenes = [], isLoading } = useOrdenesServicio();
   const crear = useCrearOrdenServicio();
   const actualizar = useActualizarOrdenServicio();
@@ -74,6 +80,8 @@ export function OrdenesLayout() {
   const [formOpen, setFormOpen] = useState(false);
   const [editando, setEditando] = useState<OrdenConRelaciones | null>(null);
   const [cerrando, setCerrando] = useState<OrdenConRelaciones | null>(null);
+  const [exportingPdf, setExportingPdf] = useState<string | null>(null);
+  const [exportingDocx, setExportingDocx] = useState<string | null>(null);
 
   const filtradas = ordenes.filter((o) => {
     const q = busqueda.toLowerCase();
@@ -133,6 +141,43 @@ export function OrdenesLayout() {
 
   const fmtDate = (d: string | null | undefined) =>
     d ? format(new Date(d), "dd/MM/yy HH:mm", { locale: es }) : "—";
+
+  const exportOpts = empresaActiva
+    ? {
+        empresa: {
+          nombre:    empresaActiva.nombre,
+          ruc:       empresaActiva.ruc,
+          telefono:  empresaActiva.telefono,
+          correo:    empresaActiva.correo,
+          direccion: empresaActiva.direccion,
+          logo_url:  empresaActiva.logo_url,
+        },
+      }
+    : {};
+
+  const handleExportPdf = async (o: OrdenConRelaciones) => {
+    setExportingPdf(o.id);
+    try {
+      await exportOrdenServicioPdf(o, exportOpts);
+    } catch (err) {
+      console.error(err);
+      toast.error("Error al generar el PDF");
+    } finally {
+      setExportingPdf(null);
+    }
+  };
+
+  const handleExportDocx = async (o: OrdenConRelaciones) => {
+    setExportingDocx(o.id);
+    try {
+      await exportOrdenServicioDocx(o, exportOpts);
+    } catch (err) {
+      console.error(err);
+      toast.error("Error al generar el Word");
+    } finally {
+      setExportingDocx(null);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -260,6 +305,30 @@ export function OrdenesLayout() {
                         onClick={() => { setEditando(o); setFormOpen(true); }}
                       >
                         Editar
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-8"
+                        title="Exportar PDF"
+                        disabled={exportingPdf === o.id}
+                        onClick={() => handleExportPdf(o)}
+                      >
+                        {exportingPdf === o.id
+                          ? <Loader2 className="size-3.5 animate-spin" />
+                          : <FileDown className="size-3.5" />}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-8"
+                        title="Exportar Word"
+                        disabled={exportingDocx === o.id}
+                        onClick={() => handleExportDocx(o)}
+                      >
+                        {exportingDocx === o.id
+                          ? <Loader2 className="size-3.5 animate-spin" />
+                          : <FileText className="size-3.5" />}
                       </Button>
                       <Button
                         variant="ghost"
