@@ -1,6 +1,8 @@
+import { useRef, useState } from "react";
 import { EntityForm } from "@/components/common/entity-form";
 import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
@@ -9,6 +11,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Upload, X, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 import { proveedorSchema } from "./proveedor-types";
 import type { ProveedorFormValues } from "./proveedor-types";
@@ -192,19 +196,91 @@ export function ProveedorForm({
             <FormField
               control={form.control}
               name="logo_url"
-              render={({ field }) => (
-                <FormItem className="col-span-2">
-                  <FormLabel>URL del logo del fabricante</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="https://..."
-                      {...field}
-                      value={field.value ?? ""}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
+              render={({ field }) => {
+                // eslint-disable-next-line react-hooks/rules-of-hooks
+                const fileRef = useRef<HTMLInputElement>(null);
+                // eslint-disable-next-line react-hooks/rules-of-hooks
+                const [uploading, setUploading] = useState(false);
+
+                const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setUploading(true);
+                  try {
+                    const ext = file.name.split(".").pop();
+                    const path = `logo_${Date.now()}.${ext}`;
+                    const { error } = await supabase.storage
+                      .from("proveedores-logos")
+                      .upload(path, file, { upsert: true });
+                    if (error) throw error;
+                    const { data: pub } = supabase.storage
+                      .from("proveedores-logos")
+                      .getPublicUrl(path);
+                    field.onChange(pub.publicUrl);
+                  } catch (err) {
+                    console.error("Error subiendo logo:", err);
+                  } finally {
+                    setUploading(false);
+                    if (fileRef.current) fileRef.current.value = "";
+                  }
+                };
+
+                return (
+                  <FormItem className="col-span-2">
+                    <FormLabel>Logo del fabricante</FormLabel>
+                    <div className="flex items-center gap-3">
+                      {field.value ? (
+                        <div className="relative size-16 shrink-0 rounded border bg-muted flex items-center justify-center overflow-hidden">
+                          <img
+                            src={field.value}
+                            alt="Logo"
+                            className="object-contain w-full h-full p-1"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => field.onChange("")}
+                            className="absolute top-0.5 right-0.5 rounded-full bg-destructive text-white p-0.5"
+                          >
+                            <X className="size-3" />
+                          </button>
+                        </div>
+                      ) : null}
+                      <div className="flex flex-col gap-1.5 flex-1">
+                        <input
+                          ref={fileRef}
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                          className="hidden"
+                          onChange={handleFile}
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => fileRef.current?.click()}
+                          disabled={uploading}
+                          className="w-fit"
+                        >
+                          {uploading
+                            ? <><Loader2 className="size-3.5 mr-1.5 animate-spin" />Subiendo…</>
+                            : <><Upload className="size-3.5 mr-1.5" />Subir imagen</>}
+                        </Button>
+                        <p className="text-xs text-muted-foreground">PNG, JPG, WebP o SVG · máx. 5 MB</p>
+                        {field.value && (
+                          <Input
+                            placeholder="https://..."
+                            value={field.value}
+                            onChange={(e) => field.onChange(e.target.value)}
+                            className="text-xs h-7"
+                          />
+                        )}
+                      </div>
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                );
+              }}
             />
           )}
         </div>
