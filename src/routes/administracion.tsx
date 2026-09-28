@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Building2, Users, Shield, Settings, Sliders, BookOpen, Tag, Layers, Receipt } from "lucide-react";
+import { Building2, Users, Shield, Settings, Sliders, BookOpen, Tag, Layers, Receipt, FileText } from "lucide-react";
 
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/common/page-header";
@@ -11,6 +11,7 @@ import { RolesSection } from "@/components/admin/roles-section";
 import { ParametrosSection } from "@/components/admin/parametros-section";
 import { PoliticasSection } from "@/components/admin/politicas-section";
 import { FacturacionSriSection } from "@/components/admin/facturacion-sri-section";
+import { PropuestaComercialSection } from "@/components/admin/propuesta-comercial-section";
 import {
   CatGastoSection,
   CatDocumentoSection,
@@ -35,6 +36,7 @@ type AdminSection =
   | "roles"
   | "parametros"
   | "politicas"
+  | "propuesta-comercial"
   | "cat-gastos"
   | "cat-documentos"
   | "origenes"
@@ -64,6 +66,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: "parametros", label: "Parámetros", icon: Sliders },
       { id: "politicas", label: "Políticas", icon: Settings },
+      { id: "propuesta-comercial", label: "Propuesta Comercial", icon: FileText },
     ],
   },
   {
@@ -172,6 +175,7 @@ function AdminContent() {
           {activeSection === "tip-rendicion" && <TipoRendicionSection />}
           {activeSection === "tip-documento" && <TipoDocumentoSection />}
           {activeSection === "facturacion-sri" && <FacturacionSriSection />}
+          {activeSection === "propuesta-comercial" && <PropuestaComercialSection />}
         </div>
       </div>
     </>
