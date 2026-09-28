@@ -1,16 +1,22 @@
 /**
  * Panel lateral con el detalle completo de una cotización.
  */
+import { useState } from "react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { X, CheckCircle2, XCircle, Send, FileText } from "lucide-react";
+import { X, CheckCircle2, XCircle, Send, FileText, FileDown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
 } from "@/components/ui/sheet";
+import { toast } from "sonner";
 import type { CotizacionConItems, EstadoCotizacion } from "@/services/cotizaciones";
+import {
+  exportCotizacionPdf,
+  exportCotizacionDocx,
+} from "@/services/export/cotizacion-export";
 
 interface Props {
   cotizacion: CotizacionConItems;
@@ -28,6 +34,33 @@ const ESTADO_CFG: Record<string, { label: string; className: string }> = {
 };
 
 export function CotizacionDetalle({ cotizacion: c, onCambiarEstado, onGenerar, onClose }: Props) {
+  const [loadingPdf, setLoadingPdf] = useState(false);
+  const [loadingDocx, setLoadingDocx] = useState(false);
+
+  const handlePdf = async () => {
+    setLoadingPdf(true);
+    try {
+      await exportCotizacionPdf(c);
+    } catch (err) {
+      console.error(err);
+      toast.error("Error al generar el PDF");
+    } finally {
+      setLoadingPdf(false);
+    }
+  };
+
+  const handleDocx = async () => {
+    setLoadingDocx(true);
+    try {
+      await exportCotizacionDocx(c);
+    } catch (err) {
+      console.error(err);
+      toast.error("Error al generar el Word");
+    } finally {
+      setLoadingDocx(false);
+    }
+  };
+
   const fmtMoney = (n: number) =>
     `$${n.toLocaleString("es-EC", { minimumFractionDigits: 2 })}`;
   const fmtFecha = (d: string) =>
@@ -72,6 +105,18 @@ export function CotizacionDetalle({ cotizacion: c, onCambiarEstado, onGenerar, o
               <FileText className="size-3.5 mr-1" /> Generar factura
             </Button>
           )}
+
+          {/* Descargas */}
+          <div className="ml-auto flex gap-2">
+            <Button size="sm" variant="outline" onClick={handlePdf} disabled={loadingPdf}>
+              {loadingPdf ? <Loader2 className="size-3.5 mr-1 animate-spin" /> : <FileDown className="size-3.5 mr-1" />}
+              PDF
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleDocx} disabled={loadingDocx}>
+              {loadingDocx ? <Loader2 className="size-3.5 mr-1 animate-spin" /> : <FileText className="size-3.5 mr-1" />}
+              Word
+            </Button>
+          </div>
         </div>
 
         <Separator className="mb-4" />
