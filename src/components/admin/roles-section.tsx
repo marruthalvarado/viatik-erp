@@ -36,22 +36,35 @@ import type { Rol, RolInsert, RolUpdate } from "@/types/entities";
 interface Modulo {
   codigo: string;
   label: string;
+  /** Nombre exacto del ítem en el sidebar, para que el admin sepa qué acceso otorga */
+  hint: string;
   grupo: string;
 }
 
 const MODULOS: Modulo[] = [
-  { codigo: "dashboard", label: "Dashboard", grupo: "Workspace" },
-  { codigo: "rendiciones", label: "Rendiciones", grupo: "Workspace" },
-  { codigo: "workflow", label: "Workflow", grupo: "Workspace" },
-  { codigo: "documentos", label: "Documentos", grupo: "Workspace" },
-  { codigo: "clientes", label: "Clientes", grupo: "Relaciones" },
-  { codigo: "proyectos", label: "Proyectos", grupo: "Relaciones" },
-  { codigo: "proveedores", label: "Proveedores", grupo: "Relaciones" },
-  { codigo: "presupuestos", label: "Presupuestos", grupo: "Finanzas" },
-  { codigo: "gastos", label: "Gastos", grupo: "Finanzas" },
-  { codigo: "reportes", label: "Reportes (todos)", grupo: "Finanzas" },
-  { codigo: "configuracion", label: "Configuración", grupo: "Sistema" },
-  { codigo: "administracion", label: "Administración", grupo: "Sistema" },
+  // Workspace
+  { codigo: "dashboard",   label: "Dashboard",    hint: "Sidebar › Dashboard",       grupo: "Workspace" },
+  { codigo: "rendiciones", label: "Rendiciones",  hint: "Sidebar › Rendiciones",     grupo: "Workspace" },
+  { codigo: "workflow",    label: "Workflow",      hint: "Sidebar › Workflow",        grupo: "Workspace" },
+  { codigo: "documentos",  label: "Documentos",   hint: "Sidebar › Documentos",      grupo: "Workspace" },
+  // Relaciones
+  { codigo: "clientes",    label: "Clientes",     hint: "Sidebar › Clientes",        grupo: "Relaciones" },
+  { codigo: "proyectos",   label: "Proyectos",    hint: "Sidebar › Proyectos",       grupo: "Relaciones" },
+  { codigo: "proveedores", label: "Proveedores",  hint: "Sidebar › Proveedores",     grupo: "Relaciones" },
+  // Finanzas
+  { codigo: "presupuestos",  label: "Presupuestos",       hint: "Sidebar › Presupuestos",         grupo: "Finanzas" },
+  { codigo: "facturas",      label: "Facturas emitidas",  hint: "Sidebar › Facturas emit.",       grupo: "Finanzas" },
+  { codigo: "gastos_empresa",label: "Gastos empresa",     hint: "Sidebar › Gastos empresa",       grupo: "Finanzas" },
+  { codigo: "catalogo",      label: "Catálogo",           hint: "Sidebar › Catálogo",             grupo: "Finanzas" },
+  { codigo: "cotizaciones",  label: "Cotizaciones",       hint: "Sidebar › Cotizaciones",         grupo: "Finanzas" },
+  { codigo: "inventario",    label: "Inventario",         hint: "Sidebar › Inventario",           grupo: "Finanzas" },
+  { codigo: "impuestos",     label: "Impuestos SRI",      hint: "Sidebar › Impuestos SRI",        grupo: "Finanzas" },
+  { codigo: "conciliacion",  label: "Conciliación",       hint: "Sidebar › Conciliación",         grupo: "Finanzas" },
+  { codigo: "contabilidad",  label: "Contabilidad",       hint: "Sidebar › Contabilidad",         grupo: "Finanzas" },
+  { codigo: "reportes",      label: "Reportes",           hint: "Sidebar › Rpt. Financieros + Rpt. Operativos + Workflow Rpt.", grupo: "Finanzas" },
+  // Sistema
+  { codigo: "configuracion",  label: "Configuración",  hint: "Sidebar › Configuración",  grupo: "Sistema" },
+  { codigo: "administracion", label: "Administración", hint: "Sidebar › Administracion", grupo: "Sistema" },
 ];
 
 const GRUPOS = [...new Set(MODULOS.map((m) => m.grupo))];
@@ -122,17 +135,23 @@ function ModulosChecklist({ value, onChange }: ModulosChecklistProps) {
               <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 {grupo}
               </p>
-              <div className="grid grid-cols-2 gap-1.5">
+              <div className="grid grid-cols-2 gap-2">
                 {MODULOS.filter((m) => m.grupo === grupo).map((m) => (
                   <label
                     key={m.codigo}
-                    className="flex items-center gap-2 cursor-pointer select-none"
+                    className="flex items-start gap-2 cursor-pointer select-none"
                   >
                     <Checkbox
+                      className="mt-0.5 shrink-0"
                       checked={(value ?? []).includes(m.codigo)}
                       onCheckedChange={(c) => toggleModulo(m.codigo, !!c)}
                     />
-                    <span className="text-sm">{m.label}</span>
+                    <div className="min-w-0">
+                      <span className="text-sm leading-tight">{m.label}</span>
+                      <p className="text-[10px] text-muted-foreground leading-tight truncate" title={m.hint}>
+                        {m.hint}
+                      </p>
+                    </div>
                   </label>
                 ))}
               </div>
