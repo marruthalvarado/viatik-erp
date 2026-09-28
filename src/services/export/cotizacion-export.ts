@@ -441,7 +441,6 @@ export async function exportCotizacionPdf(
   y += 6;
 
   // Agrupar precios por fabricante con subtotales
-  let globalIdx = 1;
   for (const [fab, items] of byFab) {
     if (y + 10 > H - 30) { doc.addPage(); y = 18; }
 
@@ -458,17 +457,16 @@ export async function exportCotizacionPdf(
     autoTable(doc as Parameters<typeof autoTable>[0], {
       startY: y,
       margin: { left: ML, right: MR },
-      head: [["Ítem", "Descripción", "Cant.", "P. Unit.", "Desc.", "Total"]],
+      head: [["Ítem", "Descripción", "Cant.", "Precio Unitario", "Total"]],
       body: [
-        ...items.map((it) => [
-          String(globalIdx++),
-          it.descripcion,
+        ...items.map((it, i) => [
+          String(i + 1),
+          it.catalogo?.nombre ?? it.descripcion,
           String(it.cantidad),
           fmtMoney(it.precio_unitario),
-          it.descuento_pct > 0 ? `${it.descuento_pct}%` : "—",
           fmtMoney(it.precio_neto),
         ]),
-        ...(byFab.size > 1 ? [["", "Subtotal " + fab, "", "", "", fmtMoney(subtotal)]] : []),
+        ...(byFab.size > 1 ? [["", "Subtotal " + fab, "", "", fmtMoney(subtotal)]] : []),
       ],
       styles: { fontSize: 7.5, cellPadding: 2, textColor: [...DARK] },
       headStyles: { fillColor: [...BLUE], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 7.5 },
@@ -476,9 +474,8 @@ export async function exportCotizacionPdf(
       columnStyles: {
         0: { cellWidth: 10, halign: "center" },
         2: { cellWidth: 12, halign: "center" },
-        3: { cellWidth: 24, halign: "right" },
-        4: { cellWidth: 14, halign: "center" },
-        5: { cellWidth: 26, halign: "right", fontStyle: "bold" },
+        3: { cellWidth: 30, halign: "right" },
+        4: { cellWidth: 26, halign: "right", fontStyle: "bold" },
       },
     });
     y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
@@ -658,6 +655,14 @@ export async function exportCotizacionDocx(
       border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: BLUE_HEX } },
     });
 
+  /** Parsea texto con marcadores **negrita** en TextRun[]. Útil para resumen ejecutivo. */
+  const parseBoldRuns = (text: string, color: string, sz: number) =>
+    text.split(/(\*\*[^*]+\*\*)/).map((part) =>
+      part.startsWith("**") && part.endsWith("**")
+        ? bold(part.slice(2, -2), color, sz)
+        : normal(part, color, sz)
+    );
+
   const cellW   = (w: number) => ({ size: w, type: WidthType.DXA });
   const noB     = { top: { style: BorderStyle.NONE, size: 0, color: WHITE }, bottom: { style: BorderStyle.NONE, size: 0, color: WHITE }, left: { style: BorderStyle.NONE, size: 0, color: WHITE }, right: { style: BorderStyle.NONE, size: 0, color: WHITE } };
   const grayB   = { top: { style: BorderStyle.SINGLE, size: 4, color: "E2E8F0" }, bottom: { style: BorderStyle.SINGLE, size: 4, color: "E2E8F0" }, left: { style: BorderStyle.SINGLE, size: 4, color: "E2E8F0" }, right: { style: BorderStyle.SINGLE, size: 4, color: "E2E8F0" } };
@@ -767,7 +772,7 @@ export async function exportCotizacionDocx(
   const resumenSection = params.resumen_ejecutivo
     ? [
         sectionHeading("RESUMEN EJECUTIVO"),
-        para([normal(params.resumen_ejecutivo, GRAY_HEX, 18)], AlignmentType.JUSTIFIED, 160),
+        para(parseBoldRuns(params.resumen_ejecutivo, GRAY_HEX, 18), AlignmentType.JUSTIFIED, 160),
       ]
     : [];
 
@@ -900,9 +905,11 @@ export async function exportCotizacionDocx(
     techChildren.push(para([], AlignmentType.LEFT, 120));
   }
 
-  // ── Tabla de precios (agrupada con subtotales) ───────────────────────────
-  const PRICE_COL_W = [400, 3300, 600, 1100, 900, 1060];
-  const priceHeaders = ["Ítem", "Descripción", "Cant.", "P. Unit.", "Desc.", "Total"];
+  // ── Tabla de precios (una tabla continua, fabricante como fila span) ──────
+  // 5 columnas: Ítem | Descripción | Cant. | Precio Unitario | Total
+  const PRICE_COL_W = [400, 4200, 600, 1100, 1060];
+  const priceHeaders = ["Ítem", "Descripción", "Cant.", "Precio Unitario", "Total"];
+  const PRICE_TOTAL_W = PRICE_COL_W.reduce((a, b) => a + b, 0); // 7360
 
   const makePriceHeaderRow = () =>
     new TableRow({
@@ -919,52 +926,68 @@ export async function exportCotizacionDocx(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const priceChildren: any[] = [sectionHeading("DETALLE DE PRECIOS POR ÍTEM")];
 
-  let gIdx = 1;
+  // Construir TODAS las filas en una sola tabla
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const allPriceRows: any[] = [];
+
   for (const [fab, items] of byFab) {
+    // Fila de fabricante abarcando las 5 columnas
     if (byFab.size > 1) {
-      priceChildren.push(
-        new Paragraph({
-          children: [bold(fab.toUpperCase(), BLUE_HEX, 17)],
-          spacing: { before: 100, after: 60 },
-          shading: { type: ShadingType.CLEAR, fill: BGBLUE },
-          indent: { left: 100 },
+      allPriceRows.push(
+        new TableRow({
+          children: [
+            new TableCell({
+              columnSpan: 5,
+              width: cellW(PRICE_TOTAL_W),
+              shading: { type: ShadingType.CLEAR, fill: BGBLUE },
+              borders: grayB,
+              margins: { top: 80, bottom: 80, left: 120, right: 80 },
+              children: [para([bold(fab.toUpperCase(), BLUE_HEX, 17)], AlignmentType.LEFT, 0)],
+            }),
+          ],
         })
       );
     }
 
     const subtotal = items.reduce((s, it) => s + it.precio_neto, 0);
 
-    const itemRows = items.map((it, localIdx) =>
-      new TableRow({
-        children: [
-          new TableCell({ width: cellW(PRICE_COL_W[0]), shading: { type: ShadingType.CLEAR, fill: localIdx % 2 === 0 ? BGLIGHT : WHITE }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([normal(String(gIdx++), GRAY_HEX, 15)], AlignmentType.CENTER, 0)] }),
-          new TableCell({ width: cellW(PRICE_COL_W[1]), shading: { type: ShadingType.CLEAR, fill: localIdx % 2 === 0 ? BGLIGHT : WHITE }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([normal(it.descripcion, "111827", 15)], AlignmentType.LEFT, 0)] }),
-          new TableCell({ width: cellW(PRICE_COL_W[2]), shading: { type: ShadingType.CLEAR, fill: localIdx % 2 === 0 ? BGLIGHT : WHITE }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([normal(String(it.cantidad), "111827", 15)], AlignmentType.RIGHT, 0)] }),
-          new TableCell({ width: cellW(PRICE_COL_W[3]), shading: { type: ShadingType.CLEAR, fill: localIdx % 2 === 0 ? BGLIGHT : WHITE }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([normal(fmtMoney(it.precio_unitario), "111827", 15)], AlignmentType.RIGHT, 0)] }),
-          new TableCell({ width: cellW(PRICE_COL_W[4]), shading: { type: ShadingType.CLEAR, fill: localIdx % 2 === 0 ? BGLIGHT : WHITE }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([small(it.descuento_pct > 0 ? `${it.descuento_pct}%` : "—")], AlignmentType.CENTER, 0)] }),
-          new TableCell({ width: cellW(PRICE_COL_W[5]), shading: { type: ShadingType.CLEAR, fill: localIdx % 2 === 0 ? BGLIGHT : WHITE }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([bold(fmtMoney(it.precio_neto), BLUE_HEX, 15)], AlignmentType.RIGHT, 0)] }),
-        ],
-      })
-    );
-
-    const subtotalRow = byFab.size > 1
-      ? [new TableRow({
+    items.forEach((it, localIdx) => {
+      const bg = localIdx % 2 === 0 ? BGLIGHT : WHITE;
+      const itemName = it.catalogo?.nombre ?? it.descripcion;
+      allPriceRows.push(
+        new TableRow({
           children: [
-            new TableCell({ width: cellW(PRICE_COL_W[0] + PRICE_COL_W[1] + PRICE_COL_W[2] + PRICE_COL_W[3] + PRICE_COL_W[4]), shading: { type: ShadingType.CLEAR, fill: BGBLUE }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([bold(`Subtotal ${fab}`, BLUE_HEX, 15)], AlignmentType.RIGHT, 0)] }),
-            new TableCell({ width: cellW(PRICE_COL_W[5]), shading: { type: ShadingType.CLEAR, fill: BGBLUE }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([bold(fmtMoney(subtotal), BLUE_HEX, 15)], AlignmentType.RIGHT, 0)] }),
+            new TableCell({ width: cellW(PRICE_COL_W[0]), shading: { type: ShadingType.CLEAR, fill: bg }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([normal(String(localIdx + 1), GRAY_HEX, 15)], AlignmentType.CENTER, 0)] }),
+            new TableCell({ width: cellW(PRICE_COL_W[1]), shading: { type: ShadingType.CLEAR, fill: bg }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([normal(itemName, "111827", 15)], AlignmentType.LEFT, 0)] }),
+            new TableCell({ width: cellW(PRICE_COL_W[2]), shading: { type: ShadingType.CLEAR, fill: bg }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([normal(String(it.cantidad), "111827", 15)], AlignmentType.RIGHT, 0)] }),
+            new TableCell({ width: cellW(PRICE_COL_W[3]), shading: { type: ShadingType.CLEAR, fill: bg }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([normal(fmtMoney(it.precio_unitario), "111827", 15)], AlignmentType.RIGHT, 0)] }),
+            new TableCell({ width: cellW(PRICE_COL_W[4]), shading: { type: ShadingType.CLEAR, fill: bg }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([bold(fmtMoney(it.precio_neto), BLUE_HEX, 15)], AlignmentType.RIGHT, 0)] }),
           ],
-        })]
-      : [];
+        })
+      );
+    });
 
-    priceChildren.push(
-      new Table({
-        width: { size: 9360, type: WidthType.DXA },
-        columnWidths: PRICE_COL_W,
-        rows: [makePriceHeaderRow(), ...itemRows, ...subtotalRow],
-      }),
-      para([], AlignmentType.LEFT, 80),
-    );
+    if (byFab.size > 1) {
+      const subtotalLabelW = PRICE_COL_W[0] + PRICE_COL_W[1] + PRICE_COL_W[2] + PRICE_COL_W[3];
+      allPriceRows.push(
+        new TableRow({
+          children: [
+            new TableCell({ columnSpan: 4, width: cellW(subtotalLabelW), shading: { type: ShadingType.CLEAR, fill: BGBLUE }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([bold(`Subtotal ${fab}`, BLUE_HEX, 15)], AlignmentType.RIGHT, 0)] }),
+            new TableCell({ width: cellW(PRICE_COL_W[4]), shading: { type: ShadingType.CLEAR, fill: BGBLUE }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([bold(fmtMoney(subtotal), BLUE_HEX, 15)], AlignmentType.RIGHT, 0)] }),
+          ],
+        })
+      );
+    }
   }
+
+  priceChildren.push(
+    new Table({
+      width: { size: 9360, type: WidthType.DXA },
+      columnWidths: PRICE_COL_W,
+      rows: [makePriceHeaderRow(), ...allPriceRows],
+    }),
+    para([], AlignmentType.LEFT, 80),
+  );
 
   // ── Totales ──────────────────────────────────────────────────────────────
   const totalesRows = [

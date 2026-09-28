@@ -17,6 +17,7 @@ export type EstadoCotizacion = "borrador" | "enviada" | "aprobada" | "rechazada"
 /** Item enriquecido con datos del catálogo y del proveedor/fabricante */
 export interface CotizacionItemEnriquecido extends CotizacionItem {
   catalogo?: {
+    nombre: string | null;
     descripcion_larga: string | null;
     foto_url: string | null;
     descripcion_tecnica: string | null;
@@ -78,7 +79,7 @@ const COTIZACION_SELECT = `
   *,
   items:cotizacion_items(
     *,
-    catalogo:productos_catalogo(descripcion_larga, foto_url, descripcion_tecnica),
+    catalogo:productos_catalogo(nombre, descripcion_larga, foto_url, descripcion_tecnica),
     proveedor:proveedores(id, nombre, logo_url)
   ),
   cliente:clientes(id, nombre, ruc, logo_url, contacto_nombre, contacto_cargo)
