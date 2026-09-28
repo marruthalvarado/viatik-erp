@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS public.equipos_instalados (
   garantia_meses        integer DEFAULT 0,
   garantia_hasta        date GENERATED ALWAYS AS (
     CASE WHEN fecha_instalacion IS NOT NULL AND garantia_meses > 0
-      THEN fecha_instalacion + (garantia_meses || ' months')::interval
+      THEN (fecha_instalacion + make_interval(months => garantia_meses))::date
       ELSE NULL
     END
   ) STORED,
