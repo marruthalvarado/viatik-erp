@@ -670,11 +670,11 @@ export async function exportCotizacionDocx(
   ) => {
     if (!imgData) return null;
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return new ImageRun({
         data: imgData.data,
-        type: imgData.type,
         transformation: { width: widthPx, height: heightPx },
-      });
+      } as any);
     } catch { return null; }
   };
 

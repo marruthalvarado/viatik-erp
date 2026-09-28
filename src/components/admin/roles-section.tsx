@@ -62,6 +62,8 @@ const MODULOS: Modulo[] = [
   { codigo: "conciliacion",  label: "Conciliación",       hint: "Sidebar › Conciliación",         grupo: "Finanzas" },
   { codigo: "contabilidad",  label: "Contabilidad",       hint: "Sidebar › Contabilidad",         grupo: "Finanzas" },
   { codigo: "reportes",      label: "Reportes",           hint: "Sidebar › Rpt. Financieros + Rpt. Operativos + Workflow Rpt.", grupo: "Finanzas" },
+  // Servicio Técnico
+  { codigo: "servicio_tecnico", label: "Servicio Técnico", hint: "Sidebar › Órdenes de Servicio + Base Instalada + Contratos Mant.", grupo: "Servicio Técnico" },
   // Sistema
   { codigo: "configuracion",  label: "Configuración",  hint: "Sidebar › Configuración",  grupo: "Sistema" },
   { codigo: "administracion", label: "Administración", hint: "Sidebar › Administracion", grupo: "Sistema" },

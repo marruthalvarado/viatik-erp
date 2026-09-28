@@ -21,6 +21,7 @@ import {
   BookOpen,
   ClipboardList,
   Package,
+  FileCheck,
 } from "lucide-react";
 
 import {
@@ -74,6 +75,12 @@ const financeItems: NavItem[] = [
   { title: "Rpt. Financieros", url: "/reportes/financieros", icon: TrendingUp, modulo: "reportes" },
   { title: "Rpt. Operativos", url: "/reportes/operativos", icon: Activity, modulo: "reportes" },
   { title: "Workflow Rpt.", url: "/reportes/workflow", icon: Network, modulo: "reportes" },
+];
+
+const servicioTecnicoItems: NavItem[] = [
+  { title: "Órdenes de Servicio", url: "/servicio-tecnico/ordenes", icon: ClipboardList, modulo: "servicio_tecnico" },
+  { title: "Base Instalada", url: "/servicio-tecnico/base-instalada", icon: Shield, modulo: "servicio_tecnico" },
+  { title: "Contratos Mant.", url: "/servicio-tecnico/contratos", icon: FileCheck, modulo: "servicio_tecnico" },
 ];
 
 const systemItems: NavItem[] = [
@@ -162,6 +169,7 @@ export function AppSidebar() {
         {renderGroup("Workspace", workspaceItems)}
         {renderGroup("Relaciones", relationsItems)}
         {renderGroup("Finanzas", financeItems)}
+        {renderGroup("Servicio Técnico", servicioTecnicoItems)}
         {renderGroup("Sistema", systemItems)}
       </SidebarContent>
 

@@ -14,7 +14,7 @@ import type { Tables } from "@/types/database";
 
 const STORAGE_KEY = "viatik.empresa_activa_id";
 
-export type EmpresaOpcion = Pick<Tables<"empresas">, "id" | "nombre" | "codigo" | "logo_url">;
+export type EmpresaOpcion = Pick<Tables<"empresas">, "id" | "nombre" | "codigo" | "logo_url" | "ruc" | "telefono" | "correo" | "direccion">;
 
 export interface RolActivo {
   id: string;
@@ -92,7 +92,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       const e = (Array.isArray(raw) ? raw[0] : raw) as
         (EmpresaOpcion & { deleted_at: string | null }) | null;
       if (!e || e.deleted_at) continue;
-      rows.push({ id: e.id, nombre: e.nombre, codigo: e.codigo, logo_url: e.logo_url });
+      rows.push({ id: e.id, nombre: e.nombre, codigo: e.codigo, logo_url: e.logo_url, ruc: e.ruc, telefono: e.telefono, correo: e.correo, direccion: e.direccion });
 
       const rawRol = r.rol as unknown;
       const rol = (Array.isArray(rawRol) ? rawRol[0] : rawRol) as RolActivo | null;

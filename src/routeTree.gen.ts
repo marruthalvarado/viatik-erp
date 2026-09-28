@@ -35,6 +35,10 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ReportesWorkflowRouteImport } from './routes/reportes.workflow'
 import { Route as ReportesOperativosRouteImport } from './routes/reportes.operativos'
 import { Route as ReportesFinancierosRouteImport } from './routes/reportes.financieros'
+import { Route as ServicioTecnicoRouteImport } from './routes/servicio-tecnico'
+import { Route as ServicioTecnicoOrdenesRouteImport } from './routes/servicio-tecnico.ordenes'
+import { Route as ServicioTecnicoContratosRouteImport } from './routes/servicio-tecnico.contratos'
+import { Route as ServicioTecnicoBaseInstaladaRouteImport } from './routes/servicio-tecnico.base-instalada'
 
 const WorkflowRoute = WorkflowRouteImport.update({
   id: '/workflow',
@@ -166,6 +170,26 @@ const ReportesFinancierosRoute = ReportesFinancierosRouteImport.update({
   path: '/financieros',
   getParentRoute: () => ReportesRoute,
 } as any)
+const ServicioTecnicoRoute = ServicioTecnicoRouteImport.update({
+  id: '/servicio-tecnico',
+  path: '/servicio-tecnico',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ServicioTecnicoOrdenesRoute = ServicioTecnicoOrdenesRouteImport.update({
+  id: '/ordenes',
+  path: '/ordenes',
+  getParentRoute: () => ServicioTecnicoRoute,
+} as any)
+const ServicioTecnicoContratosRoute = ServicioTecnicoContratosRouteImport.update({
+  id: '/contratos',
+  path: '/contratos',
+  getParentRoute: () => ServicioTecnicoRoute,
+} as any)
+const ServicioTecnicoBaseInstaladaRoute = ServicioTecnicoBaseInstaladaRouteImport.update({
+  id: '/base-instalada',
+  path: '/base-instalada',
+  getParentRoute: () => ServicioTecnicoRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -194,6 +218,10 @@ export interface FileRoutesByFullPath {
   '/reportes/financieros': typeof ReportesFinancierosRoute
   '/reportes/operativos': typeof ReportesOperativosRoute
   '/reportes/workflow': typeof ReportesWorkflowRoute
+  '/servicio-tecnico': typeof ServicioTecnicoRouteWithChildren
+  '/servicio-tecnico/base-instalada': typeof ServicioTecnicoBaseInstaladaRoute
+  '/servicio-tecnico/contratos': typeof ServicioTecnicoContratosRoute
+  '/servicio-tecnico/ordenes': typeof ServicioTecnicoOrdenesRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -222,6 +250,9 @@ export interface FileRoutesByTo {
   '/reportes/financieros': typeof ReportesFinancierosRoute
   '/reportes/operativos': typeof ReportesOperativosRoute
   '/reportes/workflow': typeof ReportesWorkflowRoute
+  '/servicio-tecnico/base-instalada': typeof ServicioTecnicoBaseInstaladaRoute
+  '/servicio-tecnico/contratos': typeof ServicioTecnicoContratosRoute
+  '/servicio-tecnico/ordenes': typeof ServicioTecnicoOrdenesRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -251,6 +282,10 @@ export interface FileRoutesById {
   '/reportes/financieros': typeof ReportesFinancierosRoute
   '/reportes/operativos': typeof ReportesOperativosRoute
   '/reportes/workflow': typeof ReportesWorkflowRoute
+  '/servicio-tecnico': typeof ServicioTecnicoRouteWithChildren
+  '/servicio-tecnico/base-instalada': typeof ServicioTecnicoBaseInstaladaRoute
+  '/servicio-tecnico/contratos': typeof ServicioTecnicoContratosRoute
+  '/servicio-tecnico/ordenes': typeof ServicioTecnicoOrdenesRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -281,6 +316,10 @@ export interface FileRouteTypes {
     | '/reportes/financieros'
     | '/reportes/operativos'
     | '/reportes/workflow'
+    | '/servicio-tecnico'
+    | '/servicio-tecnico/base-instalada'
+    | '/servicio-tecnico/contratos'
+    | '/servicio-tecnico/ordenes'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -309,6 +348,9 @@ export interface FileRouteTypes {
     | '/reportes/financieros'
     | '/reportes/operativos'
     | '/reportes/workflow'
+    | '/servicio-tecnico/base-instalada'
+    | '/servicio-tecnico/contratos'
+    | '/servicio-tecnico/ordenes'
   id:
     | '__root__'
     | '/'
@@ -337,6 +379,10 @@ export interface FileRouteTypes {
     | '/reportes/financieros'
     | '/reportes/operativos'
     | '/reportes/workflow'
+    | '/servicio-tecnico'
+    | '/servicio-tecnico/base-instalada'
+    | '/servicio-tecnico/contratos'
+    | '/servicio-tecnico/ordenes'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -362,6 +408,7 @@ export interface RootRouteChildren {
   ProyectosRoute: typeof ProyectosRoute
   RendicionesRoute: typeof RendicionesRoute
   ReportesRoute: typeof ReportesRouteWithChildren
+  ServicioTecnicoRoute: typeof ServicioTecnicoRouteWithChildren
   WorkflowRoute: typeof WorkflowRoute
 }
 
@@ -549,6 +596,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReportesFinancierosRouteImport
       parentRoute: typeof ReportesRoute
     }
+    '/servicio-tecnico': {
+      id: '/servicio-tecnico'
+      path: '/servicio-tecnico'
+      fullPath: '/servicio-tecnico'
+      preLoaderRoute: typeof ServicioTecnicoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/servicio-tecnico/base-instalada': {
+      id: '/servicio-tecnico/base-instalada'
+      path: '/base-instalada'
+      fullPath: '/servicio-tecnico/base-instalada'
+      preLoaderRoute: typeof ServicioTecnicoBaseInstaladaRouteImport
+      parentRoute: typeof ServicioTecnicoRoute
+    }
+    '/servicio-tecnico/contratos': {
+      id: '/servicio-tecnico/contratos'
+      path: '/contratos'
+      fullPath: '/servicio-tecnico/contratos'
+      preLoaderRoute: typeof ServicioTecnicoContratosRouteImport
+      parentRoute: typeof ServicioTecnicoRoute
+    }
+    '/servicio-tecnico/ordenes': {
+      id: '/servicio-tecnico/ordenes'
+      path: '/ordenes'
+      fullPath: '/servicio-tecnico/ordenes'
+      preLoaderRoute: typeof ServicioTecnicoOrdenesRouteImport
+      parentRoute: typeof ServicioTecnicoRoute
+    }
   }
 }
 
@@ -566,6 +641,22 @@ const ReportesRouteChildren: ReportesRouteChildren = {
 
 const ReportesRouteWithChildren = ReportesRoute._addFileChildren(
   ReportesRouteChildren,
+)
+
+interface ServicioTecnicoRouteChildren {
+  ServicioTecnicoBaseInstaladaRoute: typeof ServicioTecnicoBaseInstaladaRoute
+  ServicioTecnicoContratosRoute: typeof ServicioTecnicoContratosRoute
+  ServicioTecnicoOrdenesRoute: typeof ServicioTecnicoOrdenesRoute
+}
+
+const ServicioTecnicoRouteChildren: ServicioTecnicoRouteChildren = {
+  ServicioTecnicoBaseInstaladaRoute: ServicioTecnicoBaseInstaladaRoute,
+  ServicioTecnicoContratosRoute: ServicioTecnicoContratosRoute,
+  ServicioTecnicoOrdenesRoute: ServicioTecnicoOrdenesRoute,
+}
+
+const ServicioTecnicoRouteWithChildren = ServicioTecnicoRoute._addFileChildren(
+  ServicioTecnicoRouteChildren,
 )
 
 const rootRouteChildren: RootRouteChildren = {
@@ -591,6 +682,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProyectosRoute: ProyectosRoute,
   RendicionesRoute: RendicionesRoute,
   ReportesRoute: ReportesRouteWithChildren,
+  ServicioTecnicoRoute: ServicioTecnicoRouteWithChildren,
   WorkflowRoute: WorkflowRoute,
 }
 export const routeTree = rootRouteImport
