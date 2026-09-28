@@ -1,7 +1,7 @@
 /**
  * Formulario para crear/editar productos del catálogo.
  */
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Upload, X, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import type { ProductoCatalogo } from "@/services/cotizaciones";
 import type { Database } from "@/types/database";
 import { useCompany } from "@/contexts/company-context";
@@ -48,6 +50,28 @@ export function ProductoForm({ open, producto, onGuardar, onClose }: ProductoFor
   const { empresaActivaId } = useCompany();
   const { data: proveedoresData } = useProveedores({ filters: { es_internacional: true }, pageSize: 200 });
   const proveedores = proveedoresData?.rows ?? [];
+
+  const fotoFileRef = useRef<HTMLInputElement>(null);
+  const [fotoUploading, setFotoUploading] = useState(false);
+
+  const handleFotoFile = async (e: React.ChangeEvent<HTMLInputElement>, setUrl: (v: string) => void) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFotoUploading(true);
+    try {
+      const ext = file.name.split(".").pop();
+      const path = `foto_${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from("catalogo-fotos").upload(path, file, { upsert: true });
+      if (error) throw error;
+      const { data: pub } = supabase.storage.from("catalogo-fotos").getPublicUrl(path);
+      setUrl(pub.publicUrl);
+    } catch (err) {
+      console.error("Error subiendo foto:", err);
+    } finally {
+      setFotoUploading(false);
+      if (fotoFileRef.current) fotoFileRef.current.value = "";
+    }
+  };
 
   const { register, handleSubmit, reset, watch, setValue, formState: { isSubmitting } } = useForm<FormData>({
     defaultValues: {
@@ -137,8 +161,8 @@ export function ProductoForm({ open, producto, onGuardar, onClose }: ProductoFor
             <Input {...register("nombre", { required: true })} placeholder="Nombre del producto o servicio" />
           </div>
 
-          {/* Tipo + Fabricante + Modelo */}
-          <div className="grid grid-cols-3 gap-3">
+          {/* Tipo + Modelo */}
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="text-xs">Tipo</Label>
               <Select value={watch("tipo_item")} onValueChange={(v) => setValue("tipo_item", v)}>
@@ -152,13 +176,41 @@ export function ProductoForm({ open, producto, onGuardar, onClose }: ProductoFor
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Fabricante</Label>
-              <Input {...register("fabricante")} placeholder="Ej. Protonmed" className="h-8 text-sm" />
-            </div>
-            <div className="space-y-1.5">
               <Label className="text-xs">Modelo</Label>
               <Input {...register("modelo")} placeholder="Ej. Q30" className="h-8 text-sm" />
             </div>
+          </div>
+
+          {/* Fabricante: dropdown de proveedores internacionales + texto libre */}
+          <div className="space-y-1.5">
+            <Label className="text-xs">Fabricante</Label>
+            <Select
+              value={watch("proveedor_id") || "_none"}
+              onValueChange={(v) => {
+                const id = v === "_none" ? "" : v;
+                setValue("proveedor_id", id);
+                if (id) {
+                  const prov = proveedores.find((p) => p.id === id);
+                  if (prov) setValue("fabricante", prov.nombre);
+                }
+              }}
+            >
+              <SelectTrigger className="h-8 text-sm">
+                <SelectValue placeholder="Seleccionar fabricante…" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_none">Sin fabricante registrado</SelectItem>
+                {proveedores.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>{p.nombre}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {/* Nombre libre — se rellena automáticamente al elegir proveedor, pero puede editarse */}
+            <Input
+              {...register("fabricante")}
+              placeholder="O escribe el nombre del fabricante"
+              className="h-8 text-sm mt-1.5"
+            />
           </div>
 
           {/* Descripción comercial */}
@@ -187,25 +239,56 @@ export function ProductoForm({ open, producto, onGuardar, onClose }: ProductoFor
             />
           </div>
 
-          {/* Foto + Fabricante (proveedor) */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs">URL de la foto del producto</Label>
-              <Input {...register("foto_url")} placeholder="https://..." className="text-sm h-8" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Fabricante (proveedor internacional)</Label>
-              <Select value={watch("proveedor_id")} onValueChange={(v) => setValue("proveedor_id", v === "_none" ? "" : v)}>
-                <SelectTrigger className="h-8 text-sm">
-                  <SelectValue placeholder="Sin fabricante" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="_none">Sin fabricante</SelectItem>
-                  {proveedores.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.nombre}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          {/* Foto del producto — uploader */}
+          <div className="space-y-1.5">
+            <Label className="text-xs">Foto del producto</Label>
+            <div className="flex items-center gap-3">
+              {watch("foto_url") ? (
+                <div className="relative size-16 shrink-0 rounded border bg-muted flex items-center justify-center overflow-hidden">
+                  <img
+                    src={watch("foto_url")}
+                    alt="Foto"
+                    className="object-contain w-full h-full p-1"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setValue("foto_url", "")}
+                    className="absolute top-0.5 right-0.5 rounded-full bg-destructive text-white p-0.5"
+                  >
+                    <X className="size-3" />
+                  </button>
+                </div>
+              ) : null}
+              <div className="flex flex-col gap-1.5 flex-1">
+                <input
+                  ref={fotoFileRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                  className="hidden"
+                  onChange={(e) => handleFotoFile(e, (url) => setValue("foto_url", url))}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fotoFileRef.current?.click()}
+                  disabled={fotoUploading}
+                  className="w-fit"
+                >
+                  {fotoUploading
+                    ? <><Loader2 className="size-3.5 mr-1.5 animate-spin" />Subiendo…</>
+                    : <><Upload className="size-3.5 mr-1.5" />Subir imagen</>}
+                </Button>
+                <p className="text-xs text-muted-foreground">PNG, JPG, WebP o SVG · máx. 10 MB</p>
+                {watch("foto_url") && (
+                  <Input
+                    value={watch("foto_url")}
+                    onChange={(e) => setValue("foto_url", e.target.value)}
+                    className="text-xs h-7"
+                  />
+                )}
+              </div>
             </div>
           </div>
 
