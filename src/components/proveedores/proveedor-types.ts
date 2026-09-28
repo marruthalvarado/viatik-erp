@@ -17,6 +17,7 @@ export const proveedorSchema = z.object({
   pais: z.string().nullable().optional(),
   estado: z.string().nullable().optional(),
   es_internacional: z.boolean(),
+  logo_url: z.string().nullable().optional(),
 });
 
 export type ProveedorFormValues = z.infer<typeof proveedorSchema>;
@@ -31,6 +32,7 @@ export const EMPTY_PROVEEDOR: ProveedorFormValues = {
   pais: "",
   estado: "activo",
   es_internacional: false,
+  logo_url: "",
 };
 
 export const EMPTY_PROVEEDOR_INTERNACIONAL: ProveedorFormValues = {
@@ -49,5 +51,6 @@ export function proveedorToForm(p: Proveedor): ProveedorFormValues {
     pais: p.pais ?? "",
     estado: p.estado ?? "activo",
     es_internacional: p.es_internacional ?? false,
+    logo_url: p.logo_url ?? "",
   };
 }

@@ -16,6 +16,9 @@ export const clienteSchema = z.object({
     }),
   telefono: z.string().nullable().optional(),
   contacto_principal: z.string().nullable().optional(),
+  contacto_nombre: z.string().nullable().optional(),
+  contacto_cargo: z.string().nullable().optional(),
+  logo_url: z.string().nullable().optional(),
   estado: z.string().nullable().optional(),
   meta_facturacion_anual: z
     .number()
@@ -35,6 +38,9 @@ export const EMPTY_CLIENTE: ClienteFormValues = {
   correo: "",
   telefono: "",
   contacto_principal: "",
+  contacto_nombre: "",
+  contacto_cargo: "",
+  logo_url: "",
   estado: "activo",
   meta_facturacion_anual: null,
 };
@@ -49,6 +55,9 @@ export function clienteToForm(c: Cliente): ClienteFormValues {
     correo: c.correo ?? "",
     telefono: c.telefono ?? "",
     contacto_principal: c.contacto_principal ?? "",
+    contacto_nombre: c.contacto_nombre ?? "",
+    contacto_cargo: c.contacto_cargo ?? "",
+    logo_url: c.logo_url ?? "",
     estado: c.estado ?? "activo",
     meta_facturacion_anual: c.meta_facturacion_anual ?? null,
   };

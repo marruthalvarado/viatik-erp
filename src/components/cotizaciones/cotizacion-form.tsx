@@ -44,6 +44,7 @@ interface FormData {
   razon_social: string;
   ruc_cliente: string;
   email_cliente: string;
+  asunto: string;
   fecha: string;
   valida_hasta: string;
   lugar_entrega: string;
@@ -86,7 +87,7 @@ export function CotizacionForm({ open, cotizacion, onClose }: Props) {
 
   const { control, register, handleSubmit, reset, watch, setValue, formState: { isSubmitting } } = useForm<FormData>({
     defaultValues: {
-      razon_social: "", ruc_cliente: "", email_cliente: "",
+      razon_social: "", ruc_cliente: "", email_cliente: "", asunto: "",
       fecha: hoy, valida_hasta: en30,
       lugar_entrega: "", dias_entrega: "120", meses_garantia: "24",
       notas: "", observacion_interna: "",
@@ -110,6 +111,7 @@ export function CotizacionForm({ open, cotizacion, onClose }: Props) {
         razon_social: cotizacion.razon_social,
         ruc_cliente: cotizacion.ruc_cliente ?? "",
         email_cliente: cotizacion.email_cliente ?? "",
+        asunto: cotizacion.asunto ?? "",
         fecha: cotizacion.fecha,
         valida_hasta: cotizacion.valida_hasta ?? en30,
         lugar_entrega: cotizacion.lugar_entrega ?? "",
@@ -140,7 +142,7 @@ export function CotizacionForm({ open, cotizacion, onClose }: Props) {
       });
     } else {
       reset({
-        razon_social: "", ruc_cliente: "", email_cliente: "",
+        razon_social: "", ruc_cliente: "", email_cliente: "", asunto: "",
         fecha: hoy, valida_hasta: en30,
         lugar_entrega: "", dias_entrega: "120", meses_garantia: "24",
         notas: "", observacion_interna: "",
@@ -204,6 +206,7 @@ export function CotizacionForm({ open, cotizacion, onClose }: Props) {
       razon_social: data.razon_social.trim(),
       ruc_cliente: data.ruc_cliente.trim() || undefined,
       email_cliente: data.email_cliente.trim() || undefined,
+      asunto: data.asunto.trim() || undefined,
       fecha: data.fecha,
       valida_hasta: data.valida_hasta || undefined,
       lugar_entrega: data.lugar_entrega.trim() || undefined,
@@ -323,6 +326,16 @@ export function CotizacionForm({ open, cotizacion, onClose }: Props) {
               <Label className="text-xs">Válida hasta</Label>
               <Input {...register("valida_hasta")} type="date" className="h-9 text-sm" />
             </div>
+          </div>
+
+          {/* ── Asunto ── */}
+          <div className="space-y-1.5">
+            <Label className="text-xs">Asunto / Referencia de la propuesta</Label>
+            <Input
+              {...register("asunto")}
+              placeholder="Ej. Suministro e instalación de equipos de diagnóstico por imagen"
+              className="text-sm"
+            />
           </div>
 
           {/* ── Condiciones generales ── */}

@@ -16,7 +16,9 @@ import type { CotizacionConItems, EstadoCotizacion } from "@/services/cotizacion
 import {
   exportCotizacionPdf,
   exportCotizacionDocx,
+  type ExportOptions,
 } from "@/services/export/cotizacion-export";
+import { useCompany } from "@/contexts/company-context";
 
 interface Props {
   cotizacion: CotizacionConItems;
@@ -34,13 +36,27 @@ const ESTADO_CFG: Record<string, { label: string; className: string }> = {
 };
 
 export function CotizacionDetalle({ cotizacion: c, onCambiarEstado, onGenerar, onClose }: Props) {
+  const { empresaActivaId, empresaActiva } = useCompany();
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [loadingDocx, setLoadingDocx] = useState(false);
+
+  const exportOpts: ExportOptions = {
+    empresa_id: empresaActivaId ?? "",
+    empresa: empresaActiva
+      ? {
+          nombre: empresaActiva.nombre,
+          ruc: empresaActiva.ruc,
+          telefono: empresaActiva.telefono,
+          correo: empresaActiva.correo,
+          direccion: empresaActiva.direccion,
+        }
+      : undefined,
+  };
 
   const handlePdf = async () => {
     setLoadingPdf(true);
     try {
-      await exportCotizacionPdf(c);
+      await exportCotizacionPdf(c, exportOpts);
     } catch (err) {
       console.error(err);
       toast.error("Error al generar el PDF");
@@ -52,7 +68,7 @@ export function CotizacionDetalle({ cotizacion: c, onCambiarEstado, onGenerar, o
   const handleDocx = async () => {
     setLoadingDocx(true);
     try {
-      await exportCotizacionDocx(c);
+      await exportCotizacionDocx(c, exportOpts);
     } catch (err) {
       console.error(err);
       toast.error("Error al generar el Word");

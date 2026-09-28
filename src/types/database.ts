@@ -444,6 +444,9 @@ export type Database = {
           codigo: string | null;
           nombre: string;
           descripcion: string | null;
+          descripcion_larga: string | null;
+          foto_url: string | null;
+          proveedor_id: string | null;
           tipo_seguimiento: string;
           unidad_medida: string;
           categoria_id: string | null;
@@ -468,6 +471,9 @@ export type Database = {
           codigo?: string | null;
           nombre: string;
           descripcion?: string | null;
+          descripcion_larga?: string | null;
+          foto_url?: string | null;
+          proveedor_id?: string | null;
           tipo_seguimiento?: string;
           unidad_medida?: string;
           categoria_id?: string | null;
@@ -489,6 +495,9 @@ export type Database = {
         Update: {
           nombre?: string;
           descripcion?: string | null;
+          descripcion_larga?: string | null;
+          foto_url?: string | null;
+          proveedor_id?: string | null;
           tipo_seguimiento?: string;
           unidad_medida?: string;
           categoria_id?: string | null;
@@ -516,6 +525,7 @@ export type Database = {
           razon_social: string;
           ruc_cliente: string | null;
           email_cliente: string | null;
+          asunto: string | null;
           fecha: string;
           valida_hasta: string | null;
           estado: string;
@@ -544,6 +554,7 @@ export type Database = {
           razon_social: string;
           ruc_cliente?: string | null;
           email_cliente?: string | null;
+          asunto?: string | null;
           fecha?: string;
           valida_hasta?: string | null;
           estado?: string;
@@ -581,6 +592,7 @@ export type Database = {
           dias_entrega: number | null;
           meses_garantia: number | null;
           notas: string | null;
+          proveedor_id: string | null;
           created_at: string;
         };
         Insert: {
@@ -597,6 +609,7 @@ export type Database = {
           dias_entrega?: number | null;
           meses_garantia?: number | null;
           notas?: string | null;
+          proveedor_id?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["cotizacion_items"]["Insert"]>;
         Relationships: [];
@@ -1085,6 +1098,9 @@ export type Database = {
         Row: {
           codigo: string | null;
           contacto_principal: string | null;
+          contacto_nombre: string | null;
+          contacto_cargo: string | null;
+          logo_url: string | null;
           correo: string | null;
           created_at: string | null;
           deleted_at: string | null;
@@ -1102,6 +1118,9 @@ export type Database = {
         Insert: {
           codigo?: string | null;
           contacto_principal?: string | null;
+          contacto_nombre?: string | null;
+          contacto_cargo?: string | null;
+          logo_url?: string | null;
           correo?: string | null;
           created_at?: string | null;
           deleted_at?: string | null;
@@ -1119,6 +1138,9 @@ export type Database = {
         Update: {
           codigo?: string | null;
           contacto_principal?: string | null;
+          contacto_nombre?: string | null;
+          contacto_cargo?: string | null;
+          logo_url?: string | null;
           correo?: string | null;
           created_at?: string | null;
           deleted_at?: string | null;
@@ -2394,6 +2416,7 @@ export type Database = {
           estado: string | null;
           id: string;
           identificacion: string | null;
+          logo_url: string | null;
           nombre: string;
           pais: string | null;
           telefono: string | null;
@@ -2410,6 +2433,7 @@ export type Database = {
           estado?: string | null;
           id?: string;
           identificacion?: string | null;
+          logo_url?: string | null;
           nombre: string;
           pais?: string | null;
           telefono?: string | null;
@@ -2426,6 +2450,7 @@ export type Database = {
           estado?: string | null;
           id?: string;
           identificacion?: string | null;
+          logo_url?: string | null;
           nombre?: string;
           pais?: string | null;
           telefono?: string | null;

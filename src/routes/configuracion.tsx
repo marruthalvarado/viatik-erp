@@ -6,12 +6,12 @@
  *   - Cambiar contraseña: usa supabase.auth.updateUser
  *   - Empresa activa: info de solo lectura
  */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { User, Lock, Building2 } from "lucide-react";
+import { User, Lock, Building2, FileText } from "lucide-react";
 
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/common/page-header";
@@ -25,6 +25,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/common/toast";
 
@@ -67,10 +68,66 @@ type PasswordValues = z.infer<typeof passwordSchema>;
 
 function ConfiguracionPage() {
   const { user } = useAuth();
-  const { empresaActiva, rolActivo } = useCompany();
+  const { empresaActiva, empresaActivaId, rolActivo } = useCompany();
   const { data: perfil, isLoading } = useUsuario(user?.id ?? "");
   const actualizar = useActualizarUsuario();
   const [cambiandoPass, setCambiandoPass] = useState(false);
+
+  // ── Propuesta Comercial ──────────────────────────────────────────────────
+  const [propuestaResumen, setPropuestaResumen] = useState("");
+  const [propuestaTerminos, setPropuestaTerminos] = useState("");
+  const [loadingPropuesta, setLoadingPropuesta] = useState(true);
+  const [savingPropuesta, setSavingPropuesta] = useState(false);
+
+  useEffect(() => {
+    if (!empresaActivaId) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("parametros_sistema")
+        .select("clave, valor")
+        .eq("empresa_id", empresaActivaId)
+        .in("clave", ["propuesta_resumen_ejecutivo", "propuesta_terminos_condiciones"]);
+      if (cancelled) return;
+      if (data) {
+        const map = Object.fromEntries(data.map((r) => [r.clave, r.valor ?? ""]));
+        setPropuestaResumen(map["propuesta_resumen_ejecutivo"] ?? "");
+        setPropuestaTerminos(map["propuesta_terminos_condiciones"] ?? "");
+      }
+      setLoadingPropuesta(false);
+    })();
+    return () => { cancelled = true; };
+  }, [empresaActivaId]);
+
+  async function handlePropuesta() {
+    if (!empresaActivaId) return;
+    setSavingPropuesta(true);
+    try {
+      const { error } = await supabase.from("parametros_sistema").upsert(
+        [
+          {
+            empresa_id: empresaActivaId,
+            clave: "propuesta_resumen_ejecutivo",
+            valor: propuestaResumen,
+            descripcion: "Resumen ejecutivo para propuestas técnico-comerciales",
+          },
+          {
+            empresa_id: empresaActivaId,
+            clave: "propuesta_terminos_condiciones",
+            valor: propuestaTerminos,
+            descripcion: "Términos y condiciones para propuestas técnico-comerciales",
+          },
+        ],
+        { onConflict: "empresa_id,clave" },
+      );
+      if (error) throw error;
+      toast.success("Propuesta comercial guardada correctamente.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al guardar.");
+    } finally {
+      setSavingPropuesta(false);
+    }
+  }
 
   const perfilForm = useForm<PerfilValues>({
     resolver: zodResolver(perfilSchema),
@@ -283,6 +340,47 @@ function ConfiguracionPage() {
           )}
         </div>
       </div>
+
+      {/* ── Propuesta Comercial ──────────────────────────────────────────── */}
+      <section className="mt-6 rounded-xl border bg-card p-6">
+        <div className="flex items-center gap-2 mb-5">
+          <FileText className="size-4 text-muted-foreground" aria-hidden="true" />
+          <h2 className="text-sm font-semibold">Propuesta Comercial</h2>
+        </div>
+        <p className="text-xs text-muted-foreground mb-4">
+          Estos textos se incluirán automáticamente en todas las propuestas técnico-comerciales exportadas.
+        </p>
+
+        {loadingPropuesta ? (
+          <p className="text-sm text-muted-foreground">Cargando…</p>
+        ) : (
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Resumen ejecutivo</label>
+              <Textarea
+                value={propuestaResumen}
+                onChange={(e) => setPropuestaResumen(e.target.value)}
+                placeholder="Descripción de la empresa, experiencia y propuesta de valor que aparecerá al inicio de cada cotización…"
+                className="min-h-[120px] text-sm"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Términos y condiciones</label>
+              <Textarea
+                value={propuestaTerminos}
+                onChange={(e) => setPropuestaTerminos(e.target.value)}
+                placeholder="Condiciones comerciales, de entrega, de pago, garantías, etc. que aparecerán al final de cada cotización…"
+                className="min-h-[120px] text-sm"
+              />
+            </div>
+
+            <Button size="sm" onClick={handlePropuesta} disabled={savingPropuesta}>
+              {savingPropuesta ? "Guardando…" : "Guardar propuesta comercial"}
+            </Button>
+          </div>
+        )}
+      </section>
     </>
   );
 }

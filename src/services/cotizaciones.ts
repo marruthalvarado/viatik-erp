@@ -24,6 +24,7 @@ export interface CotizacionDatos {
   razon_social: string;
   ruc_cliente?: string;
   email_cliente?: string;
+  asunto?: string;
   fecha?: string;
   valida_hasta?: string;
   lugar_entrega?: string;
@@ -47,6 +48,7 @@ export interface CotizacionItemPayload {
   dias_entrega?: number;
   meses_garantia?: number;
   notas?: string;
+  proveedor_id?: string;
 }
 
 // ── Lecturas ────────────────────────────────────────────────────────────────

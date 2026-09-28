@@ -187,6 +187,26 @@ export function ProveedorForm({
               </FormItem>
             )}
           />
+
+          {form.watch("es_internacional") && (
+            <FormField
+              control={form.control}
+              name="logo_url"
+              render={({ field }) => (
+                <FormItem className="col-span-2">
+                  <FormLabel>URL del logo del fabricante</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="https://..."
+                      {...field}
+                      value={field.value ?? ""}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
         </div>
       )}
     </EntityForm>

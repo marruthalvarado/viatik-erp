@@ -161,6 +161,48 @@ export function ClienteForm({
 
           <FormField
             control={form.control}
+            name="contacto_nombre"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Nombre contacto cotización</FormLabel>
+                <FormControl>
+                  <Input placeholder="Juan Pérez" {...field} value={field.value ?? ""} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="contacto_cargo"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Cargo contacto cotización</FormLabel>
+                <FormControl>
+                  <Input placeholder="Gerente de Compras" {...field} value={field.value ?? ""} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="logo_url"
+            render={({ field }) => (
+              <FormItem className="col-span-2">
+                <FormLabel>URL del logo del cliente</FormLabel>
+                <FormControl>
+                  <Input placeholder="https://..." {...field} value={field.value ?? ""} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
             name="estado"
             render={({ field }) => (
               <FormItem>

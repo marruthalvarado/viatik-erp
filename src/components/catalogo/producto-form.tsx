@@ -15,6 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import type { ProductoCatalogo } from "@/services/cotizaciones";
 import type { Database } from "@/types/database";
 import { useCompany } from "@/contexts/company-context";
+import { useProveedores } from "@/hooks/entities/use-proveedores";
 
 type ProductoPayload = Database["public"]["Tables"]["productos_catalogo"]["Insert"];
 
@@ -31,7 +32,10 @@ interface FormData {
   fabricante: string;
   modelo: string;
   descripcion: string;
+  descripcion_larga: string;
   descripcion_tecnica: string;
+  foto_url: string;
+  proveedor_id: string;
   unidad_medida: string;
   precio_referencial: string;
   dias_entrega_est: string;
@@ -42,6 +46,9 @@ interface FormData {
 
 export function ProductoForm({ open, producto, onGuardar, onClose }: ProductoFormProps) {
   const { empresaActivaId } = useCompany();
+  const { data: proveedoresData } = useProveedores({ filters: { es_internacional: true }, pageSize: 200 });
+  const proveedores = proveedoresData?.rows ?? [];
+
   const { register, handleSubmit, reset, watch, setValue, formState: { isSubmitting } } = useForm<FormData>({
     defaultValues: {
       nombre: "",
@@ -49,7 +56,10 @@ export function ProductoForm({ open, producto, onGuardar, onClose }: ProductoFor
       fabricante: "",
       modelo: "",
       descripcion: "",
+      descripcion_larga: "",
       descripcion_tecnica: "",
+      foto_url: "",
+      proveedor_id: "",
       unidad_medida: "unidad",
       precio_referencial: "",
       dias_entrega_est: "",
@@ -69,7 +79,10 @@ export function ProductoForm({ open, producto, onGuardar, onClose }: ProductoFor
               fabricante: producto.fabricante ?? "",
               modelo: producto.modelo ?? "",
               descripcion: producto.descripcion ?? "",
+              descripcion_larga: producto.descripcion_larga ?? "",
               descripcion_tecnica: producto.descripcion_tecnica ?? "",
+              foto_url: producto.foto_url ?? "",
+              proveedor_id: producto.proveedor_id ?? "",
               unidad_medida: producto.unidad_medida,
               precio_referencial: producto.precio_referencial?.toString() ?? "",
               dias_entrega_est: producto.dias_entrega_est?.toString() ?? "",
@@ -79,7 +92,8 @@ export function ProductoForm({ open, producto, onGuardar, onClose }: ProductoFor
             }
           : {
               nombre: "", tipo_item: "producto", fabricante: "", modelo: "",
-              descripcion: "", descripcion_tecnica: "", unidad_medida: "unidad",
+              descripcion: "", descripcion_larga: "", descripcion_tecnica: "",
+              foto_url: "", proveedor_id: "", unidad_medida: "unidad",
               precio_referencial: "", dias_entrega_est: "", meses_garantia: "",
               para_cotizar: true, estado: "activo",
             },
@@ -95,7 +109,10 @@ export function ProductoForm({ open, producto, onGuardar, onClose }: ProductoFor
       fabricante: data.fabricante.trim() || undefined,
       modelo: data.modelo.trim() || undefined,
       descripcion: data.descripcion.trim() || undefined,
+      descripcion_larga: data.descripcion_larga.trim() || undefined,
       descripcion_tecnica: data.descripcion_tecnica.trim() || undefined,
+      foto_url: data.foto_url.trim() || undefined,
+      proveedor_id: data.proveedor_id || undefined,
       unidad_medida: data.unidad_medida,
       precio_referencial: data.precio_referencial ? parseFloat(data.precio_referencial) : undefined,
       dias_entrega_est: data.dias_entrega_est ? parseInt(data.dias_entrega_est) : undefined,
@@ -150,6 +167,16 @@ export function ProductoForm({ open, producto, onGuardar, onClose }: ProductoFor
             <Input {...register("descripcion")} placeholder="Descripción corta" className="text-sm" />
           </div>
 
+          {/* Descripción larga para propuesta comercial */}
+          <div className="space-y-1.5">
+            <Label className="text-xs">Descripción larga (propuesta comercial)</Label>
+            <Textarea
+              {...register("descripcion_larga")}
+              placeholder="Descripción detallada que aparecerá en la propuesta técnico-comercial"
+              className="text-sm min-h-[80px]"
+            />
+          </div>
+
           {/* Descripción técnica */}
           <div className="space-y-1.5">
             <Label className="text-xs">Descripción técnica</Label>
@@ -158,6 +185,28 @@ export function ProductoForm({ open, producto, onGuardar, onClose }: ProductoFor
               placeholder="Especificaciones técnicas detalladas (aparecerán en la cotización)"
               className="text-sm min-h-[100px]"
             />
+          </div>
+
+          {/* Foto + Fabricante (proveedor) */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">URL de la foto del producto</Label>
+              <Input {...register("foto_url")} placeholder="https://..." className="text-sm h-8" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Fabricante (proveedor internacional)</Label>
+              <Select value={watch("proveedor_id")} onValueChange={(v) => setValue("proveedor_id", v === "_none" ? "" : v)}>
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue placeholder="Sin fabricante" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">Sin fabricante</SelectItem>
+                  {proveedores.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.nombre}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {/* Unidad + Precio ref */}
