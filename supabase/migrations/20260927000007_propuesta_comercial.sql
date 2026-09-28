@@ -42,26 +42,37 @@ VALUES
 ON CONFLICT (id) DO NOTHING;
 
 -- RLS políticas Storage: cualquier usuario autenticado puede subir/leer
-CREATE POLICY IF NOT EXISTS "clientes_logos_select"
-  ON storage.objects FOR SELECT USING (bucket_id = 'clientes-logos');
-CREATE POLICY IF NOT EXISTS "clientes_logos_insert"
-  ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'clientes-logos' AND auth.role() = 'authenticated');
-CREATE POLICY IF NOT EXISTS "clientes_logos_delete"
-  ON storage.objects FOR DELETE USING (bucket_id = 'clientes-logos' AND auth.role() = 'authenticated');
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname='clientes_logos_select') THEN
+    CREATE POLICY "clientes_logos_select" ON storage.objects FOR SELECT USING (bucket_id = 'clientes-logos');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname='clientes_logos_insert') THEN
+    CREATE POLICY "clientes_logos_insert" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'clientes-logos' AND auth.role() = 'authenticated');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname='clientes_logos_delete') THEN
+    CREATE POLICY "clientes_logos_delete" ON storage.objects FOR DELETE USING (bucket_id = 'clientes-logos' AND auth.role() = 'authenticated');
+  END IF;
 
-CREATE POLICY IF NOT EXISTS "proveedores_logos_select"
-  ON storage.objects FOR SELECT USING (bucket_id = 'proveedores-logos');
-CREATE POLICY IF NOT EXISTS "proveedores_logos_insert"
-  ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'proveedores-logos' AND auth.role() = 'authenticated');
-CREATE POLICY IF NOT EXISTS "proveedores_logos_delete"
-  ON storage.objects FOR DELETE USING (bucket_id = 'proveedores-logos' AND auth.role() = 'authenticated');
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname='proveedores_logos_select') THEN
+    CREATE POLICY "proveedores_logos_select" ON storage.objects FOR SELECT USING (bucket_id = 'proveedores-logos');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname='proveedores_logos_insert') THEN
+    CREATE POLICY "proveedores_logos_insert" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'proveedores-logos' AND auth.role() = 'authenticated');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname='proveedores_logos_delete') THEN
+    CREATE POLICY "proveedores_logos_delete" ON storage.objects FOR DELETE USING (bucket_id = 'proveedores-logos' AND auth.role() = 'authenticated');
+  END IF;
 
-CREATE POLICY IF NOT EXISTS "catalogo_fotos_select"
-  ON storage.objects FOR SELECT USING (bucket_id = 'catalogo-fotos');
-CREATE POLICY IF NOT EXISTS "catalogo_fotos_insert"
-  ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'catalogo-fotos' AND auth.role() = 'authenticated');
-CREATE POLICY IF NOT EXISTS "catalogo_fotos_delete"
-  ON storage.objects FOR DELETE USING (bucket_id = 'catalogo-fotos' AND auth.role() = 'authenticated');
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname='catalogo_fotos_select') THEN
+    CREATE POLICY "catalogo_fotos_select" ON storage.objects FOR SELECT USING (bucket_id = 'catalogo-fotos');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname='catalogo_fotos_insert') THEN
+    CREATE POLICY "catalogo_fotos_insert" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'catalogo-fotos' AND auth.role() = 'authenticated');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname='catalogo_fotos_delete') THEN
+    CREATE POLICY "catalogo_fotos_delete" ON storage.objects FOR DELETE USING (bucket_id = 'catalogo-fotos' AND auth.role() = 'authenticated');
+  END IF;
+END $$;
 
 -- ── 7. Parámetros del sistema: resumen ejecutivo + T&C ────────
 -- Se insertan con upsert; el valor vacío permite que el usuario
