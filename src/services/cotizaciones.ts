@@ -13,9 +13,31 @@ export type ProductoCatalogo = Database["public"]["Tables"]["productos_catalogo"
 export type EstadoCotizacion = "borrador" | "enviada" | "aprobada" | "rechazada" | "vencida";
 
 // ── Tipos enriquecidos ───────────────────────────────────────────────────────
+
+/** Item enriquecido con datos del catálogo y del proveedor/fabricante */
+export interface CotizacionItemEnriquecido extends CotizacionItem {
+  catalogo?: {
+    descripcion_larga: string | null;
+    foto_url: string | null;
+    descripcion_tecnica: string | null;
+  } | null;
+  proveedor?: {
+    id: string;
+    nombre: string;
+    logo_url: string | null;
+  } | null;
+}
+
 export interface CotizacionConItems extends Cotizacion {
-  items: CotizacionItem[];
-  cliente?: { id: string; nombre: string; ruc: string | null } | null;
+  items: CotizacionItemEnriquecido[];
+  cliente?: {
+    id: string;
+    nombre: string;
+    ruc: string | null;
+    logo_url: string | null;
+    contacto_nombre: string | null;
+    contacto_cargo: string | null;
+  } | null;
 }
 
 // ── Payloads ────────────────────────────────────────────────────────────────
@@ -52,14 +74,20 @@ export interface CotizacionItemPayload {
 }
 
 // ── Lecturas ────────────────────────────────────────────────────────────────
+const COTIZACION_SELECT = `
+  *,
+  items:cotizacion_items(
+    *,
+    catalogo:productos_catalogo(descripcion_larga, foto_url, descripcion_tecnica),
+    proveedor:proveedores(id, nombre, logo_url)
+  ),
+  cliente:clientes(id, nombre, ruc, logo_url, contacto_nombre, contacto_cargo)
+`;
+
 export async function getCotizaciones(empresa_id: string): Promise<CotizacionConItems[]> {
   const { data, error } = await supabase
     .from("cotizaciones")
-    .select(`
-      *,
-      items:cotizacion_items(*),
-      cliente:clientes(id, nombre, ruc)
-    `)
+    .select(COTIZACION_SELECT)
     .eq("empresa_id", empresa_id)
     .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
@@ -69,11 +97,7 @@ export async function getCotizaciones(empresa_id: string): Promise<CotizacionCon
 export async function getCotizacion(id: string): Promise<CotizacionConItems> {
   const { data, error } = await supabase
     .from("cotizaciones")
-    .select(`
-      *,
-      items:cotizacion_items(*),
-      cliente:clientes(id, nombre, ruc)
-    `)
+    .select(COTIZACION_SELECT)
     .eq("id", id)
     .single();
   if (error) throw new Error(error.message);

@@ -2,14 +2,15 @@
  * cotizacion-export.ts
  * Exporta cotizaciones a PDF (jsPDF) y Word (.docx) como Propuesta Técnico-Comercial.
  *
- * Estructura del documento:
- *   1. Portada / Encabezado destacado (número, asunto, cliente, fecha)
- *   2. Resumen Ejecutivo (texto libre de parametros_sistema)
- *   3. Tabla técnica de ítems (descripción técnica, agrupada por fabricante)
- *   4. Detalle de precios
- *   5. Términos de pago
- *   6. Información del oferente
- *   7. Términos y Condiciones (texto libre de parametros_sistema)
+ * Estructura del documento (alineada con propuesta de referencia):
+ *   1. Portada — logos oferente + cliente, contacto, "Presentado por"
+ *   2. Resumen Ejecutivo
+ *   3. Cuadro Técnico-Comercial (tabla resumen)
+ *   4. Descripción técnica — tarjetas por producto con foto + descripción larga
+ *   5. Detalle de precios (agrupado por fabricante con subtotales)
+ *   6. Términos de pago + totales
+ *   7. Información del oferente
+ *   8. Términos y Condiciones (con sub-encabezados detectados)
  */
 import type { CotizacionConItems } from "@/services/cotizaciones";
 import type { Empresa } from "@/types/entities";
@@ -26,7 +27,7 @@ import {
 
 export interface ExportOptions {
   empresa_id: string;
-  empresa?: Pick<Empresa, "nombre" | "ruc" | "telefono" | "correo" | "direccion">;
+  empresa?: Pick<Empresa, "nombre" | "ruc" | "telefono" | "correo" | "direccion" | "logo_url">;
 }
 
 interface PropuestaParametros {
@@ -35,7 +36,7 @@ interface PropuestaParametros {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Helpers
+// Helpers comunes
 // ─────────────────────────────────────────────────────────────────────────────
 
 const fmtMoney = (n: number) =>
@@ -70,6 +71,69 @@ async function fetchPropuestaParametros(empresa_id: string): Promise<PropuestaPa
   };
 }
 
+/** Carga una imagen desde URL y devuelve base64 + mime, o null si falla. */
+async function fetchImageBase64(
+  url: string,
+): Promise<{ b64: string; mime: "PNG" | "JPEG" } | null> {
+  try {
+    const res = await fetch(url, { mode: "cors", cache: "force-cache" });
+    if (!res.ok) return null;
+    const buf = await res.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    let binary = "";
+    for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+    const b64 = btoa(binary);
+    const ct = res.headers.get("content-type") ?? "";
+    const mime: "PNG" | "JPEG" = ct.includes("png") ? "PNG" : "JPEG";
+    return { b64, mime };
+  } catch {
+    return null;
+  }
+}
+
+/** Carga una imagen desde URL como ArrayBuffer para docx ImageRun. */
+async function fetchImageBuffer(
+  url: string,
+): Promise<{ data: ArrayBuffer; type: "png" | "jpg" | "gif" | "bmp" | "svg" } | null> {
+  try {
+    const res = await fetch(url, { mode: "cors", cache: "force-cache" });
+    if (!res.ok) return null;
+    const data = await res.arrayBuffer();
+    const ct = res.headers.get("content-type") ?? "";
+    const type = ct.includes("png") ? "png"
+      : ct.includes("svg") ? "svg"
+      : ct.includes("gif") ? "gif"
+      : "jpg";
+    return { data, type };
+  } catch {
+    return null;
+  }
+}
+
+/** Detecta si una línea es un encabezado de sección en T&C */
+function isTcHeading(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed) return false;
+  // Encabezado si es corto (<= 60 chars) y: termina en ":", es TODO MAYÚSCULAS, o empieza con número.
+  if (trimmed.length > 60) return false;
+  return (
+    trimmed.endsWith(":") ||
+    trimmed === trimmed.toUpperCase() ||
+    /^\d+[\.\)]/.test(trimmed)
+  );
+}
+
+/** Agrupa ítems de cotización por fabricante */
+function groupByFabricante(items: CotizacionConItems["items"]) {
+  const map = new Map<string, CotizacionConItems["items"]>();
+  for (const it of items) {
+    const key = it.fabricante || "Sin fabricante";
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(it);
+  }
+  return map;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // PDF — jsPDF + autotable
 // ─────────────────────────────────────────────────────────────────────────────
@@ -83,71 +147,127 @@ export async function exportCotizacionPdf(
 
   const params = await fetchPropuestaParametros(opts.empresa_id);
 
+  // Pre-cargar imágenes en paralelo
+  const urlsToFetch = [
+    opts.empresa?.logo_url ?? null,
+    c.cliente?.logo_url ?? null,
+    ...c.items.map((it) => it.proveedor?.logo_url ?? null),
+    ...c.items.map((it) => it.catalogo?.foto_url ?? null),
+  ].filter(Boolean) as string[];
+
+  const uniqueUrls = [...new Set(urlsToFetch)];
+  const fetchResults = await Promise.allSettled(uniqueUrls.map(fetchImageBase64));
+  const imgCache = new Map<string, { b64: string; mime: "PNG" | "JPEG" } | null>();
+  uniqueUrls.forEach((url, i) => {
+    const r = fetchResults[i];
+    imgCache.set(url, r.status === "fulfilled" ? r.value : null);
+  });
+
+  const getImg = (url: string | null | undefined) => url ? (imgCache.get(url) ?? null) : null;
+
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-  const W = doc.internal.pageSize.width;   // 210
-  const H = doc.internal.pageSize.height;  // 297
+  const W = doc.internal.pageSize.width;
+  const H = doc.internal.pageSize.height;
   const ML = 14;
   const MR = 14;
   const CW = W - ML - MR;
 
   const BLUE    = [30, 64, 175]   as const;
   const BGBLUE  = [239, 246, 255] as const;
-  const BGCOVER = [17, 34, 100]   as const;  // portada fondo oscuro
+  const BGCOVER = [17, 34, 100]   as const;
   const GRAY    = [107, 114, 128] as const;
   const DARK    = [17, 24, 39]    as const;
   const WHITE   = [255, 255, 255] as const;
   const BORDER  = [226, 232, 240] as const;
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // PORTADA (bloque superior en la primera página)
-  // ────────────────────────────────────────────────────────────────────────────
+  // Alias tipado para addImage
+  type JsPDFWithImage = { addImage: (img: string, fmt: string, x: number, y: number, w: number, h: number) => void };
 
-  // Fondo azul oscuro portada
+  const addImg = (img: { b64: string; mime: "PNG" | "JPEG" } | null, x: number, y: number, maxW: number, maxH: number) => {
+    if (!img) return;
+    try {
+      (doc as unknown as JsPDFWithImage).addImage(
+        `data:image/${img.mime.toLowerCase()};base64,${img.b64}`,
+        img.mime, x, y, maxW, maxH,
+      );
+    } catch { /* imagen inválida, ignorar */ }
+  };
+
+  // ── PORTADA ──────────────────────────────────────────────────────────────────
   doc.setFillColor(...BGCOVER);
-  doc.rect(0, 0, W, 80, "F");
+  doc.rect(0, 0, W, 90, "F");
 
-  // Logo en la portada
-  (doc as unknown as { addImage: (img: string, fmt: string, x: number, y: number, w: number, h: number) => void })
-    .addImage(LOGO_VIATIQ_PNG_B64, "PNG", ML, 10, LOGO_VIATIQ_W * 0.8, LOGO_VIATIQ_H * 0.8);
+  const empresaImg = getImg(opts.empresa?.logo_url);
+  if (empresaImg) {
+    addImg(empresaImg, ML, 8, 45, 18);
+  } else {
+    // Fallback: logo VIATIQ
+    (doc as unknown as JsPDFWithImage).addImage(
+      LOGO_VIATIQ_PNG_B64, "PNG", ML, 10, LOGO_VIATIQ_W * 0.7, LOGO_VIATIQ_H * 0.7,
+    );
+  }
+
+  // Logo del cliente (derecha)
+  const clienteImg = getImg(c.cliente?.logo_url);
+  if (clienteImg) {
+    addImg(clienteImg, W - MR - 40, 8, 40, 18);
+  }
 
   // Número cotización
   doc.setFontSize(9);
   doc.setTextColor(...WHITE);
   doc.setFont("helvetica", "normal");
-  doc.text(c.numero, W - MR, 14, { align: "right" });
+  doc.text(c.numero, W - MR, 32, { align: "right" });
 
-  // Título principal
-  doc.setFontSize(18);
+  // Título
+  doc.setFontSize(17);
   doc.setFont("helvetica", "bold");
-  doc.text("PROPUESTA TÉCNICO-COMERCIAL", ML, 36);
+  doc.text("PROPUESTA TÉCNICO-COMERCIAL", ML, 40);
 
   // Asunto
   if (c.asunto) {
-    doc.setFontSize(10);
+    doc.setFontSize(9.5);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(200, 220, 255);
     const asuntoLines = doc.splitTextToSize(c.asunto, CW) as string[];
-    doc.text(asuntoLines, ML, 46);
+    doc.text(asuntoLines, ML, 49);
   }
 
-  // Preparado para
+  const prepY = c.asunto ? 62 : 50;
   doc.setFontSize(8);
   doc.setTextColor(...WHITE);
-  doc.setFont("helvetica", "normal");
-  const prepY = c.asunto ? 58 : 46;
   doc.text(`PREPARADO PARA: ${c.razon_social.toUpperCase()}`, ML, prepY);
-  doc.text(`FECHA: ${fmtFecha(c.fecha)}${c.valida_hasta ? "   ·   VÁLIDO HASTA: " + fmtFecha(c.valida_hasta) : ""}`, ML, prepY + 6);
 
-  let y = 88;
+  const contacto = c.cliente?.contacto_nombre;
+  if (contacto) {
+    const cargo = c.cliente?.contacto_cargo;
+    doc.setFontSize(7.5);
+    doc.setTextColor(200, 220, 255);
+    doc.text(`At. ${contacto}${cargo ? " — " + cargo : ""}`, ML, prepY + 6);
+  }
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // INFO CLIENTE + DETALLES (dos columnas)
-  // ────────────────────────────────────────────────────────────────────────────
+  if (opts.empresa?.nombre) {
+    doc.setFontSize(8);
+    doc.setTextColor(...WHITE);
+    doc.setFont("helvetica", "bold");
+    doc.text(`Presentado por ${opts.empresa.nombre}`, ML, prepY + 13);
+  }
 
+  doc.setFontSize(7.5);
+  doc.setTextColor("C8DCFF" as unknown as number);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(180, 200, 240);
+  doc.text(
+    `Fecha: ${fmtFecha(c.fecha)}${c.valida_hasta ? "   ·   Válido hasta: " + fmtFecha(c.valida_hasta) : ""}`,
+    ML, prepY + 20,
+  );
+
+  let y = 100;
+
+  // ── INFO CLIENTE + DETALLES ───────────────────────────────────────────────
   const colW = CW / 2 - 4;
-  // Bloque izquierdo: cliente
   doc.setFillColor(...BGBLUE);
-  doc.roundedRect(ML, y, colW, 26, 2, 2, "F");
+  doc.roundedRect(ML, y, colW, 28, 2, 2, "F");
   doc.setFontSize(7);
   doc.setTextColor(...BLUE);
   doc.setFont("helvetica", "bold");
@@ -156,359 +276,322 @@ export async function exportCotizacionPdf(
   doc.setTextColor(...DARK);
   doc.text(c.razon_social, ML + 4, y + 11);
   if (c.ruc_cliente) {
-    doc.setFontSize(8);
-    doc.setTextColor(...GRAY);
-    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5); doc.setTextColor(...GRAY); doc.setFont("helvetica", "normal");
     doc.text("RUC: " + c.ruc_cliente, ML + 4, y + 17);
   }
   if (c.email_cliente) {
-    doc.setFontSize(7);
-    doc.setTextColor(...GRAY);
-    doc.text(c.email_cliente, ML + 4, y + 22);
+    doc.setFontSize(7); doc.text(c.email_cliente, ML + 4, y + 22);
   }
 
-  // Bloque derecho: detalles
   const rx = ML + colW + 8;
   doc.setFillColor(...BGBLUE);
-  doc.roundedRect(rx, y, colW, 26, 2, 2, "F");
-  doc.setFontSize(7);
-  doc.setTextColor(...BLUE);
-  doc.setFont("helvetica", "bold");
+  doc.roundedRect(rx, y, colW, 28, 2, 2, "F");
+  doc.setFontSize(7); doc.setTextColor(...BLUE); doc.setFont("helvetica", "bold");
   doc.text("DETALLES", rx + 4, y + 5);
-  doc.setFontSize(8);
-  doc.setTextColor(...GRAY);
-  doc.setFont("helvetica", "normal");
-  doc.text("Fecha:", rx + 4, y + 11);
-  doc.setTextColor(...DARK);
-  doc.text(fmtFecha(c.fecha), rx + 22, y + 11);
+  doc.setFontSize(7.5); doc.setTextColor(...GRAY); doc.setFont("helvetica", "normal");
+  doc.text("Fecha:", rx + 4, y + 11); doc.setTextColor(...DARK); doc.text(fmtFecha(c.fecha), rx + 20, y + 11);
   if (c.valida_hasta) {
-    doc.setTextColor(...GRAY);
-    doc.text("Válida hasta:", rx + 4, y + 17);
-    doc.setTextColor(...DARK);
-    doc.text(fmtFecha(c.valida_hasta), rx + 28, y + 17);
+    doc.setTextColor(...GRAY); doc.text("Válida hasta:", rx + 4, y + 16);
+    doc.setTextColor(...DARK); doc.text(fmtFecha(c.valida_hasta), rx + 28, y + 16);
   }
   if (c.lugar_entrega) {
-    doc.setTextColor(...GRAY);
-    doc.text("Entrega:", rx + 4, y + 22);
+    doc.setTextColor(...GRAY); doc.text("Entrega:", rx + 4, y + 21);
     doc.setTextColor(...DARK);
-    doc.text(c.lugar_entrega, rx + 22, y + 22);
+    const leLns = doc.splitTextToSize(c.lugar_entrega, colW - 30) as string[];
+    doc.text(leLns[0], rx + 22, y + 21);
+  }
+  if (c.dias_entrega) {
+    doc.setTextColor(...GRAY); doc.text("Plazo:", rx + 4, y + 26);
+    doc.setTextColor(...DARK); doc.text(`${c.dias_entrega} días laborables`, rx + 17, y + 26);
   }
 
-  y += 34;
+  y += 38;
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // RESUMEN EJECUTIVO
-  // ────────────────────────────────────────────────────────────────────────────
-
+  // ── RESUMEN EJECUTIVO ───────────────────────────────────────────────────────
   if (params.resumen_ejecutivo) {
+    if (y + 12 > H - 30) { doc.addPage(); y = 18; }
     doc.setFontSize(9);
     doc.setTextColor(...BLUE);
     doc.setFont("helvetica", "bold");
     doc.text("RESUMEN EJECUTIVO", ML, y);
-    doc.setDrawColor(...BLUE);
-    doc.setLineWidth(0.4);
+    doc.setDrawColor(...BLUE); doc.setLineWidth(0.4);
     doc.line(ML + 40, y - 1, W - MR, y - 1);
-    y += 5;
-
-    doc.setFontSize(8.5);
-    doc.setTextColor(...DARK);
-    doc.setFont("helvetica", "normal");
-    const resumLines = doc.splitTextToSize(params.resumen_ejecutivo, CW) as string[];
-    // If it won't fit on page, add page
-    const resumH = resumLines.length * 5;
-    if (y + resumH > H - 30) {
-      doc.addPage();
-      y = 18;
-    }
-    doc.text(resumLines, ML, y);
-    y += resumH + 8;
-  }
-
-  // ────────────────────────────────────────────────────────────────────────────
-  // TABLA TÉCNICA DE ÍTEMS
-  // ────────────────────────────────────────────────────────────────────────────
-
-  // Agrupar por fabricante
-  const byFab = new Map<string, typeof c.items>();
-  for (const it of c.items) {
-    const key = it.fabricante || "Sin fabricante";
-    if (!byFab.has(key)) byFab.set(key, []);
-    byFab.get(key)!.push(it);
-  }
-
-  const hasMultipleFabs = byFab.size > 1 || (byFab.size === 1 && !byFab.has("Sin fabricante"));
-
-  if (y + 10 > H - 30) { doc.addPage(); y = 18; }
-
-  doc.setFontSize(9);
-  doc.setTextColor(...BLUE);
-  doc.setFont("helvetica", "bold");
-  doc.text("DESCRIPCIÓN TÉCNICA DE LA OFERTA", ML, y);
-  doc.setDrawColor(...BLUE);
-  doc.setLineWidth(0.4);
-  doc.line(ML + 65, y - 1, W - MR, y - 1);
-  y += 6;
-
-  // Plazo / garantía general
-  if (c.dias_entrega || c.meses_garantia) {
-    doc.setFontSize(7.5);
-    doc.setTextColor(...GRAY);
-    doc.setFont("helvetica", "normal");
-    const condParts: string[] = [];
-    if (c.dias_entrega) condParts.push(`Plazo de entrega: ${c.dias_entrega} días laborables`);
-    if (c.meses_garantia) condParts.push(`Garantía: ${c.meses_garantia} meses`);
-    doc.text(condParts.join("   ·   "), ML, y);
     y += 6;
+
+    doc.setFontSize(8.5); doc.setTextColor(...DARK); doc.setFont("helvetica", "normal");
+    const rLines = doc.splitTextToSize(params.resumen_ejecutivo, CW) as string[];
+    const rH = rLines.length * 4.8;
+    if (y + rH > H - 30) { doc.addPage(); y = 18; }
+    doc.text(rLines, ML, y);
+    y += rH + 10;
   }
 
-  for (const [fab, items] of byFab) {
-    if (y + 16 > H - 30) { doc.addPage(); y = 18; }
-
-    if (hasMultipleFabs) {
-      // Encabezado del fabricante
-      doc.setFillColor(...BGBLUE);
-      doc.roundedRect(ML, y, CW, 7, 1, 1, "F");
-      doc.setFontSize(8);
-      doc.setTextColor(...BLUE);
-      doc.setFont("helvetica", "bold");
-      doc.text(fab.toUpperCase(), ML + 4, y + 5);
-      y += 10;
-    }
-
-    autoTable(doc as Parameters<typeof autoTable>[0], {
-      startY: y,
-      margin: { left: ML, right: MR },
-      head: [["#", "Producto / Descripción", "Modelo", "Cant.", "Días entrega", "Garantía"]],
-      body: items.map((it, i) => [
-        String(i + 1),
-        it.descripcion,
-        it.modelo || "—",
-        String(it.cantidad),
-        it.dias_entrega ? `${it.dias_entrega} días` : (c.dias_entrega ? `${c.dias_entrega} días` : "—"),
-        it.meses_garantia ? `${it.meses_garantia} meses` : (c.meses_garantia ? `${c.meses_garantia} meses` : "—"),
-      ]),
-      styles: { fontSize: 7.5, cellPadding: 2, textColor: [...DARK] },
-      headStyles: { fillColor: [...BLUE], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 7.5 },
-      alternateRowStyles: { fillColor: [249, 250, 251] },
-      columnStyles: {
-        0: { cellWidth: 8, halign: "center" },
-        2: { cellWidth: 22 },
-        3: { cellWidth: 12, halign: "center" },
-        4: { cellWidth: 22, halign: "center" },
-        5: { cellWidth: 22, halign: "center" },
-      },
-    });
-
-    y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 5;
-  }
-
-  // ────────────────────────────────────────────────────────────────────────────
-  // DETALLE DE PRECIOS
-  // ────────────────────────────────────────────────────────────────────────────
-
+  // ── CUADRO TÉCNICO-COMERCIAL ─────────────────────────────────────────────
   if (y + 16 > H - 30) { doc.addPage(); y = 18; }
+  doc.setFontSize(9); doc.setTextColor(...BLUE); doc.setFont("helvetica", "bold");
+  doc.text("CUADRO TÉCNICO-COMERCIAL", ML, y);
+  doc.setDrawColor(...BLUE); doc.setLineWidth(0.4);
+  doc.line(ML + 54, y - 1, W - MR, y - 1);
+  y += 5;
 
-  doc.setFontSize(9);
-  doc.setTextColor(...BLUE);
-  doc.setFont("helvetica", "bold");
-  doc.text("DETALLE DE PRECIOS", ML, y);
-  doc.setDrawColor(...BLUE);
-  doc.setLineWidth(0.4);
-  doc.line(ML + 38, y - 1, W - MR, y - 1);
-  y += 6;
+  const cuadroRows: [string, string][] = [];
+  if (c.asunto) cuadroRows.push(["Proyecto", c.asunto]);
+  cuadroRows.push(["Precio total", fmtMoney(c.total)]);
+  if (c.terminos_pago?.length)
+    cuadroRows.push(["Forma de pago", c.terminos_pago.map((t) => `${t.porcentaje}% ${t.concepto}`).join(" / ")]);
+  if (c.dias_entrega) cuadroRows.push(["Plazo de entrega", `${c.dias_entrega} días laborables`]);
+  if (c.meses_garantia) cuadroRows.push(["Garantía", `${c.meses_garantia} meses`]);
+  cuadroRows.push(["Soporte técnico", "Incluido"]);
+  if (c.lugar_entrega) cuadroRows.push(["Lugar de entrega e instalación", c.lugar_entrega]);
 
   autoTable(doc as Parameters<typeof autoTable>[0], {
     startY: y,
     margin: { left: ML, right: MR },
-    head: [["#", "Descripción", "Fab./Modelo", "Cant.", "P. Unit.", "Desc.", "Total"]],
-    body: c.items.map((it, idx) => [
-      String(idx + 1),
-      it.descripcion,
-      [it.fabricante, it.modelo].filter(Boolean).join(" ") || "—",
-      String(it.cantidad),
-      fmtMoney(it.precio_unitario),
-      it.descuento_pct > 0 ? `${it.descuento_pct}%` : "—",
-      fmtMoney(it.precio_neto),
-    ]),
-    styles: { fontSize: 7.5, cellPadding: 2, textColor: [...DARK] },
-    headStyles: { fillColor: [...BLUE], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 7.5 },
-    alternateRowStyles: { fillColor: [249, 250, 251] },
+    body: cuadroRows.map(([k, v]) => [k, v]),
+    styles: { fontSize: 8, cellPadding: 2.5, textColor: [...DARK] },
     columnStyles: {
-      0: { cellWidth: 8, halign: "center" },
-      3: { cellWidth: 12, halign: "center" },
-      4: { cellWidth: 22, halign: "right" },
-      5: { cellWidth: 14, halign: "center" },
-      6: { cellWidth: 24, halign: "right", fontStyle: "bold" },
+      0: { cellWidth: 60, fontStyle: "bold", fillColor: [...BGBLUE], textColor: [...BLUE] },
+      1: { cellWidth: CW - 60 },
     },
+    alternateRowStyles: { fillColor: [249, 250, 251] },
+    tableLineColor: [...BORDER],
+    tableLineWidth: 0.2,
   });
+  y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
 
-  y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
+  // ── DESCRIPCIÓN TÉCNICA ───────────────────────────────────────────────────
+  if (y + 16 > H - 30) { doc.addPage(); y = 18; }
+  doc.setFontSize(9); doc.setTextColor(...BLUE); doc.setFont("helvetica", "bold");
+  doc.text("DESCRIPCIÓN TÉCNICA DE LA OFERTA", ML, y);
+  doc.setDrawColor(...BLUE); doc.setLineWidth(0.4);
+  doc.line(ML + 65, y - 1, W - MR, y - 1);
+  y += 7;
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // TÉRMINOS DE PAGO + TOTALES
-  // ────────────────────────────────────────────────────────────────────────────
+  const byFab = groupByFabricante(c.items);
 
+  for (const [fab, items] of byFab) {
+    if (y + 16 > H - 30) { doc.addPage(); y = 18; }
+
+    // Encabezado del fabricante
+    const fabItem = items.find((it) => it.proveedor?.logo_url);
+    const fabImg = getImg(fabItem?.proveedor?.logo_url);
+
+    doc.setFillColor(...BGBLUE);
+    doc.roundedRect(ML, y, CW, 9, 1, 1, "F");
+    doc.setFontSize(9); doc.setTextColor(...BLUE); doc.setFont("helvetica", "bold");
+    doc.text(fab.toUpperCase(), ML + 5, y + 6);
+
+    if (fabImg) {
+      try { addImg(fabImg, W - MR - 26, y + 0.5, 24, 8); } catch { /* skip */ }
+    }
+    y += 13;
+
+    // Tarjeta por producto
+    for (const it of items) {
+      const fotoImg = getImg(it.catalogo?.foto_url);
+      const descLarga = it.catalogo?.descripcion_larga ?? "";
+      const cardH = Math.max(
+        descLarga ? Math.ceil(doc.splitTextToSize(descLarga, CW * 0.58).length * 4.2) + 20 : 24,
+        fotoImg ? 44 : 24,
+      );
+
+      if (y + cardH + 6 > H - 30) { doc.addPage(); y = 18; }
+
+      // Nombre del producto
+      doc.setFontSize(9); doc.setTextColor(...DARK); doc.setFont("helvetica", "bold");
+      doc.text(it.descripcion, ML, y + 5);
+
+      // Subtítulo: fabricante + cantidad
+      doc.setFontSize(7.5); doc.setFont("helvetica", "italic"); doc.setTextColor(...GRAY);
+      doc.text(`${it.fabricante || fab} · Modelo: ${it.modelo || "—"} · Cant.: ${it.cantidad}`, ML, y + 10);
+
+      if (descLarga || fotoImg) {
+        const leftW = fotoImg ? CW * 0.6 : CW;
+        const rightW = CW - leftW - 4;
+
+        // Descripción larga (izquierda)
+        if (descLarga) {
+          doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(...DARK);
+          const dLines = doc.splitTextToSize(descLarga, leftW) as string[];
+          doc.text(dLines, ML, y + 16);
+        }
+
+        // Foto del producto (derecha)
+        if (fotoImg) {
+          const imgX = ML + leftW + 4;
+          const imgW = rightW - 2;
+          const imgH = Math.min(imgW * 0.75, cardH - 14);
+          addImg(fotoImg, imgX, y + 14, imgW, imgH);
+        }
+
+        y += cardH + 6;
+      } else {
+        y += 16;
+      }
+    }
+    y += 4;
+  }
+
+  // ── DETALLE DE PRECIOS ────────────────────────────────────────────────────
+  if (y + 16 > H - 30) { doc.addPage(); y = 18; }
+  doc.setFontSize(9); doc.setTextColor(...BLUE); doc.setFont("helvetica", "bold");
+  doc.text("DETALLE DE PRECIOS POR ÍTEM", ML, y);
+  doc.setDrawColor(...BLUE); doc.setLineWidth(0.4);
+  doc.line(ML + 55, y - 1, W - MR, y - 1);
+  y += 6;
+
+  // Agrupar precios por fabricante con subtotales
+  let globalIdx = 1;
+  for (const [fab, items] of byFab) {
+    if (y + 10 > H - 30) { doc.addPage(); y = 18; }
+
+    if (byFab.size > 1) {
+      doc.setFillColor(...BGBLUE);
+      doc.roundedRect(ML, y, CW, 6, 1, 1, "F");
+      doc.setFontSize(7.5); doc.setTextColor(...BLUE); doc.setFont("helvetica", "bold");
+      doc.text(fab.toUpperCase(), ML + 3, y + 4.5);
+      y += 9;
+    }
+
+    const subtotal = items.reduce((s, it) => s + it.precio_neto, 0);
+
+    autoTable(doc as Parameters<typeof autoTable>[0], {
+      startY: y,
+      margin: { left: ML, right: MR },
+      head: [["Ítem", "Descripción", "Cant.", "P. Unit.", "Desc.", "Total"]],
+      body: [
+        ...items.map((it) => [
+          String(globalIdx++),
+          it.descripcion,
+          String(it.cantidad),
+          fmtMoney(it.precio_unitario),
+          it.descuento_pct > 0 ? `${it.descuento_pct}%` : "—",
+          fmtMoney(it.precio_neto),
+        ]),
+        ...(byFab.size > 1 ? [["", "Subtotal " + fab, "", "", "", fmtMoney(subtotal)]] : []),
+      ],
+      styles: { fontSize: 7.5, cellPadding: 2, textColor: [...DARK] },
+      headStyles: { fillColor: [...BLUE], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 7.5 },
+      alternateRowStyles: { fillColor: [249, 250, 251] },
+      columnStyles: {
+        0: { cellWidth: 10, halign: "center" },
+        2: { cellWidth: 12, halign: "center" },
+        3: { cellWidth: 24, halign: "right" },
+        4: { cellWidth: 14, halign: "center" },
+        5: { cellWidth: 26, halign: "right", fontStyle: "bold" },
+      },
+    });
+    y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
+  }
+
+  // ── TÉRMINOS DE PAGO + TOTALES ────────────────────────────────────────────
   if (y + 40 > H - 30) { doc.addPage(); y = 18; }
 
   const totW = 72;
   const totX = W - MR - totW;
 
-  // Términos de pago (izquierda)
   if (c.terminos_pago?.length) {
-    doc.setFontSize(8);
-    doc.setTextColor(...BLUE);
-    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5); doc.setTextColor(...BLUE); doc.setFont("helvetica", "bold");
     doc.text("TÉRMINOS DE PAGO", ML, y + 4);
-    y += 8;
+    y += 9;
     for (const t of c.terminos_pago) {
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(...DARK);
-      doc.setFontSize(8);
+      doc.setFont("helvetica", "normal"); doc.setTextColor(...DARK); doc.setFontSize(8);
       doc.text(`• ${t.concepto}`, ML + 2, y);
+      doc.setFont("helvetica", "bold"); doc.setTextColor(...BLUE);
       doc.text(`${t.porcentaje}%`, ML + 80, y, { align: "right" });
       y += 5;
     }
   }
 
-  // Cuadro de totales (derecha, alineado con base de pago)
-  const boxY = y - (c.terminos_pago?.length ? c.terminos_pago.length * 5 + 5 : 0);
-  const safeBoxY = Math.max(boxY, y - 35);
-
+  const boxY = y;
   doc.setFillColor(...BGBLUE);
-  doc.roundedRect(totX, safeBoxY, totW, 32, 2, 2, "F");
-  doc.setFontSize(8);
-  doc.setTextColor(...GRAY);
-  doc.setFont("helvetica", "normal");
-  doc.text("Subtotal:", totX + 4, safeBoxY + 7);
-  doc.setTextColor(...DARK);
-  doc.text(fmtMoney(c.subtotal), totX + totW - 4, safeBoxY + 7, { align: "right" });
-
-  let totRowY = safeBoxY + 13;
+  doc.roundedRect(totX, boxY, totW, 32, 2, 2, "F");
+  doc.setFontSize(8); doc.setTextColor(...GRAY); doc.setFont("helvetica", "normal");
+  doc.text("Subtotal:", totX + 4, boxY + 7);
+  doc.setTextColor(...DARK); doc.text(fmtMoney(c.subtotal), totX + totW - 4, boxY + 7, { align: "right" });
+  let totRowY = boxY + 13;
   if (c.descuento_total > 0) {
-    doc.setTextColor(...GRAY);
-    doc.text("Descuento:", totX + 4, totRowY);
-    doc.setTextColor(200, 30, 30);
-    doc.text(`- ${fmtMoney(c.descuento_total)}`, totX + totW - 4, totRowY, { align: "right" });
+    doc.setTextColor(...GRAY); doc.text("Descuento:", totX + 4, totRowY);
+    doc.setTextColor(200, 30, 30); doc.text(`- ${fmtMoney(c.descuento_total)}`, totX + totW - 4, totRowY, { align: "right" });
     totRowY += 6;
   }
+  doc.setTextColor(...GRAY); doc.text(`IVA ${c.iva_pct}%:`, totX + 4, totRowY);
+  doc.setTextColor(...DARK); doc.text(fmtMoney(c.iva), totX + totW - 4, totRowY, { align: "right" });
+  doc.setDrawColor(...BORDER); doc.setLineWidth(0.3);
+  doc.line(totX + 2, boxY + 25, totX + totW - 2, boxY + 25);
+  doc.setFontSize(10); doc.setFont("helvetica", "bold"); doc.setTextColor(...BLUE);
+  doc.text("TOTAL:", totX + 4, boxY + 31);
+  doc.text(fmtMoney(c.total), totX + totW - 4, boxY + 31, { align: "right" });
 
-  doc.setTextColor(...GRAY);
-  doc.text(`IVA ${c.iva_pct}%:`, totX + 4, totRowY);
-  doc.setTextColor(...DARK);
-  doc.text(fmtMoney(c.iva), totX + totW - 4, totRowY, { align: "right" });
+  y = boxY + 38;
 
-  doc.setDrawColor(...BORDER);
-  doc.setLineWidth(0.3);
-  doc.line(totX + 2, safeBoxY + 25, totX + totW - 2, safeBoxY + 25);
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(...BLUE);
-  doc.text("TOTAL:", totX + 4, safeBoxY + 31);
-  doc.text(fmtMoney(c.total), totX + totW - 4, safeBoxY + 31, { align: "right" });
-
-  y = Math.max(y, safeBoxY + 38);
-
-  // ────────────────────────────────────────────────────────────────────────────
-  // INFORMACIÓN DEL OFERENTE
-  // ────────────────────────────────────────────────────────────────────────────
-
+  // ── INFORMACIÓN DEL OFERENTE ──────────────────────────────────────────────
   if (opts.empresa) {
     if (y + 20 > H - 30) { doc.addPage(); y = 18; }
-
-    doc.setFontSize(8.5);
-    doc.setTextColor(...BLUE);
-    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9); doc.setTextColor(...BLUE); doc.setFont("helvetica", "bold");
     doc.text("INFORMACIÓN DEL OFERENTE", ML, y);
-    doc.setDrawColor(...BLUE);
-    doc.setLineWidth(0.4);
+    doc.setDrawColor(...BLUE); doc.setLineWidth(0.4);
     doc.line(ML + 52, y - 1, W - MR, y - 1);
-    y += 5;
+    y += 6;
 
     const emp = opts.empresa;
-    doc.setFontSize(8);
-    doc.setFont("helvetica", "bold");
-    doc.setTextColor(...DARK);
-    doc.text(emp.nombre, ML, y);
-    y += 5;
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(...GRAY);
-    if (emp.ruc) { doc.text(`RUC: ${emp.ruc}`, ML, y); y += 4.5; }
-    if (emp.direccion) { doc.text(emp.direccion, ML, y); y += 4.5; }
-    if (emp.telefono) { doc.text(`Tel: ${emp.telefono}`, ML, y); y += 4.5; }
-    if (emp.correo) { doc.text(emp.correo, ML, y); y += 4.5; }
+    doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(...DARK);
+    doc.text(emp.nombre, ML, y); y += 5;
+    doc.setFont("helvetica", "normal"); doc.setTextColor(...GRAY); doc.setFontSize(8);
+    if (emp.ruc)       { doc.text(`RUC: ${emp.ruc}`, ML, y); y += 4.5; }
+    if (emp.direccion) { const ls = doc.splitTextToSize(emp.direccion, CW) as string[]; doc.text(ls, ML, y); y += ls.length * 4.5; }
+    if (emp.telefono)  { doc.text(`Tel: ${emp.telefono}`, ML, y); y += 4.5; }
+    if (emp.correo)    { doc.text(emp.correo, ML, y); y += 4.5; }
     y += 4;
   }
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // NOTAS
-  // ────────────────────────────────────────────────────────────────────────────
-
+  // ── NOTAS ────────────────────────────────────────────────────────────────
   if (c.notas) {
     if (y + 14 > H - 30) { doc.addPage(); y = 18; }
-    doc.setFontSize(8);
-    doc.setTextColor(...GRAY);
-    doc.setFont("helvetica", "bold");
-    doc.text("NOTAS", ML, y);
-    y += 5;
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(...DARK);
-    const notaLines = doc.splitTextToSize(c.notas, CW) as string[];
-    doc.text(notaLines, ML, y);
-    y += notaLines.length * 4.5 + 6;
+    doc.setFontSize(8); doc.setTextColor(...GRAY); doc.setFont("helvetica", "bold");
+    doc.text("NOTAS", ML, y); y += 5;
+    doc.setFont("helvetica", "normal"); doc.setTextColor(...DARK);
+    const nLines = doc.splitTextToSize(c.notas, CW) as string[];
+    doc.text(nLines, ML, y); y += nLines.length * 4.5 + 6;
   }
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // TÉRMINOS Y CONDICIONES
-  // ────────────────────────────────────────────────────────────────────────────
-
+  // ── TÉRMINOS Y CONDICIONES ────────────────────────────────────────────────
   if (params.terminos_condiciones) {
     if (y + 20 > H - 30) { doc.addPage(); y = 18; }
-
-    doc.setFontSize(8.5);
-    doc.setTextColor(...BLUE);
-    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9); doc.setTextColor(...BLUE); doc.setFont("helvetica", "bold");
     doc.text("TÉRMINOS Y CONDICIONES", ML, y);
-    doc.setDrawColor(...BLUE);
-    doc.setLineWidth(0.4);
+    doc.setDrawColor(...BLUE); doc.setLineWidth(0.4);
     doc.line(ML + 52, y - 1, W - MR, y - 1);
-    y += 6;
+    y += 7;
 
-    doc.setFontSize(7.5);
-    doc.setTextColor(80, 80, 80);
-    doc.setFont("helvetica", "normal");
-    const tcLines = doc.splitTextToSize(params.terminos_condiciones, CW) as string[];
-    // paginar si es largo
-    let lineIdx = 0;
-    while (lineIdx < tcLines.length) {
-      const pageLines: string[] = [];
-      while (lineIdx < tcLines.length && y + 4.5 < H - 18) {
-        pageLines.push(tcLines[lineIdx++]);
-        y += 4.5;
-      }
-      doc.text(pageLines, ML, y - pageLines.length * 4.5);
-      if (lineIdx < tcLines.length) {
-        doc.addPage();
-        y = 18;
+    const tcLines = params.terminos_condiciones.split("\n");
+    for (const line of tcLines) {
+      const trimmed = line.trim();
+      if (!trimmed) { y += 2; continue; }
+      if (y + 5 > H - 18) { doc.addPage(); y = 18; }
+
+      if (isTcHeading(trimmed)) {
+        doc.setFontSize(8.5); doc.setFont("helvetica", "bold"); doc.setTextColor(...DARK);
+        doc.text(trimmed, ML, y); y += 5.5;
+      } else {
+        doc.setFontSize(7.5); doc.setFont("helvetica", "normal"); doc.setTextColor(80, 80, 80);
+        const wrapped = doc.splitTextToSize(trimmed, CW) as string[];
+        for (const wl of wrapped) {
+          if (y + 4 > H - 18) { doc.addPage(); y = 18; }
+          doc.text(wl, ML, y); y += 4.2;
+        }
       }
     }
-    y += 6;
   }
 
-  // ────────────────────────────────────────────────────────────────────────────
-  // PIE DE PÁGINA en todas las páginas
-  // ────────────────────────────────────────────────────────────────────────────
-
+  // ── PIE DE PÁGINA ─────────────────────────────────────────────────────────
   const totalPages = (doc as unknown as { internal: { getNumberOfPages: () => number } }).internal.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
-    doc.setFontSize(7);
-    doc.setTextColor(...GRAY);
-    doc.setFont("helvetica", "normal");
-    const empresa = opts.empresa?.nombre ?? "VIATIQ";
-    doc.text(`${empresa} · Propuesta Técnico-Comercial ${c.numero}`, ML, H - 8);
+    doc.setFontSize(7); doc.setTextColor(...GRAY); doc.setFont("helvetica", "normal");
+    doc.text(`${opts.empresa?.nombre ?? "VIATIQ"} · Propuesta ${c.numero}`, ML, H - 8);
     doc.text(`Pág. ${i} / ${totalPages}`, W - MR, H - 8, { align: "right" });
-    doc.setDrawColor(...BORDER);
-    doc.setLineWidth(0.3);
+    doc.setDrawColor(...BORDER); doc.setLineWidth(0.3);
     doc.line(ML, H - 12, W - MR, H - 12);
   }
 
@@ -526,38 +609,42 @@ export async function exportCotizacionDocx(
   const {
     Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
     WidthType, AlignmentType, HeadingLevel, BorderStyle,
-    ShadingType, VerticalAlign,
+    ShadingType, VerticalAlign, ImageRun,
   } = await import("docx");
 
   const params = await fetchPropuestaParametros(opts.empresa_id);
 
-  const BLUE_HEX = "1E40AF";
+  // Pre-cargar imágenes en paralelo (para ImageRun de docx necesitamos ArrayBuffer)
+  const urlsToFetch = [
+    opts.empresa?.logo_url ?? null,
+    c.cliente?.logo_url ?? null,
+    ...c.items.map((it) => it.proveedor?.logo_url ?? null),
+    ...c.items.map((it) => it.catalogo?.foto_url ?? null),
+  ].filter(Boolean) as string[];
+
+  const uniqueUrls = [...new Set(urlsToFetch)];
+  const fetchResults = await Promise.allSettled(uniqueUrls.map(fetchImageBuffer));
+  const imgCache = new Map<string, { data: ArrayBuffer; type: "png" | "jpg" | "gif" | "bmp" | "svg" } | null>();
+  uniqueUrls.forEach((url, i) => {
+    const r = fetchResults[i];
+    imgCache.set(url, r.status === "fulfilled" ? r.value : null);
+  });
+
+  const getImg = (url: string | null | undefined) => url ? (imgCache.get(url) ?? null) : null;
+
+  // ── Constantes de estilo ────────────────────────────────────────────────────
+  const BLUE_HEX  = "1E40AF";
   const COVER_HEX = "11226A";
-  const GRAY_HEX = "6B7280";
-  const BGBLUE   = "EFF6FF";
-  const BGLIGHT  = "F8FAFC";
-  const WHITE    = "FFFFFF";
+  const GRAY_HEX  = "6B7280";
+  const BGBLUE    = "EFF6FF";
+  const BGLIGHT   = "F8FAFC";
+  const WHITE     = "FFFFFF";
 
-  const bold = (text: string, color = "111827", sz = 20) =>
-    new TextRun({ text, bold: true, color, size: sz });
-  const normal = (text: string, color = "374151", sz = 18) =>
-    new TextRun({ text, color, size: sz });
-  const small = (text: string, color = GRAY_HEX, sz = 16) =>
-    new TextRun({ text, color, size: sz });
-
-  const cellW = (w: number) => ({ size: w, type: WidthType.DXA });
-  const bordersNone = {
-    top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-    bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-    left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-    right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
-  };
-  const borderGray = {
-    top: { style: BorderStyle.SINGLE, size: 4, color: "E2E8F0" },
-    bottom: { style: BorderStyle.SINGLE, size: 4, color: "E2E8F0" },
-    left: { style: BorderStyle.SINGLE, size: 4, color: "E2E8F0" },
-    right: { style: BorderStyle.SINGLE, size: 4, color: "E2E8F0" },
-  };
+  // ── Helpers de texto ────────────────────────────────────────────────────────
+  const bold   = (text: string, color = "111827", sz = 20) => new TextRun({ text, bold: true,  color, size: sz });
+  const normal = (text: string, color = "374151", sz = 18) => new TextRun({ text, color, size: sz });
+  const small  = (text: string, color = GRAY_HEX, sz = 16) => new TextRun({ text, color, size: sz });
+  const italic = (text: string, color = GRAY_HEX, sz = 17) => new TextRun({ text, italics: true, color, size: sz });
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const para = (runs: any[], align: string = AlignmentType.LEFT, spacingAfter = 80) =>
@@ -567,90 +654,116 @@ export async function exportCotizacionDocx(
     new Paragraph({
       children: [bold(text, BLUE_HEX, 20)],
       heading: HeadingLevel.HEADING_2,
-      spacing: { before: 200, after: 100 },
-      border: {
-        bottom: { style: BorderStyle.SINGLE, size: 6, color: BLUE_HEX },
-      },
+      spacing: { before: 240, after: 120 },
+      border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: BLUE_HEX } },
     });
 
-  // ── Portada ──
+  const cellW   = (w: number) => ({ size: w, type: WidthType.DXA });
+  const noB     = { top: { style: BorderStyle.NONE, size: 0, color: WHITE }, bottom: { style: BorderStyle.NONE, size: 0, color: WHITE }, left: { style: BorderStyle.NONE, size: 0, color: WHITE }, right: { style: BorderStyle.NONE, size: 0, color: WHITE } };
+  const grayB   = { top: { style: BorderStyle.SINGLE, size: 4, color: "E2E8F0" }, bottom: { style: BorderStyle.SINGLE, size: 4, color: "E2E8F0" }, left: { style: BorderStyle.SINGLE, size: 4, color: "E2E8F0" }, right: { style: BorderStyle.SINGLE, size: 4, color: "E2E8F0" } };
+
+  /** Crea un ImageRun si el buffer está disponible, o null */
+  const makeImageRun = (
+    imgData: { data: ArrayBuffer; type: "png" | "jpg" | "gif" | "bmp" | "svg" } | null,
+    widthPx: number,
+    heightPx: number,
+  ) => {
+    if (!imgData) return null;
+    try {
+      return new ImageRun({
+        data: imgData.data,
+        type: imgData.type,
+        transformation: { width: widthPx, height: heightPx },
+      });
+    } catch { return null; }
+  };
+
+  // ── PORTADA ──────────────────────────────────────────────────────────────────
+  const empresaImgRun = makeImageRun(getImg(opts.empresa?.logo_url), 140, 60);
+  const clienteImgRun = makeImageRun(getImg(c.cliente?.logo_url), 120, 60);
+
+  const coverLogoRow = (empresaImgRun || clienteImgRun)
+    ? [new Table({
+        width: { size: 9360, type: WidthType.DXA },
+        borders: noB,
+        rows: [new TableRow({
+          children: [
+            new TableCell({
+              width: cellW(4680), borders: noB, shading: { type: ShadingType.CLEAR, fill: COVER_HEX },
+              margins: { top: 200, bottom: 0, left: 400, right: 100 },
+              children: [new Paragraph({ children: empresaImgRun ? [empresaImgRun] : [], spacing: { after: 0 } })],
+            }),
+            new TableCell({
+              width: cellW(4680), borders: noB, shading: { type: ShadingType.CLEAR, fill: COVER_HEX },
+              margins: { top: 200, bottom: 0, left: 100, right: 400 },
+              verticalAlign: VerticalAlign.TOP,
+              children: [new Paragraph({ children: clienteImgRun ? [clienteImgRun] : [], alignment: AlignmentType.RIGHT, spacing: { after: 0 } })],
+            }),
+          ],
+        })],
+      })]
+    : [];
+
+  const contacto = c.cliente?.contacto_nombre;
+  const cargo    = c.cliente?.contacto_cargo;
+
   const coverTable = new Table({
     width: { size: 9360, type: WidthType.DXA },
-    borders: bordersNone,
+    borders: noB,
     rows: [
       new TableRow({
-        children: [
-          new TableCell({
-            width: cellW(9360),
-            shading: { type: ShadingType.CLEAR, fill: COVER_HEX },
-            margins: { top: 400, bottom: 400, left: 400, right: 400 },
-            borders: bordersNone,
-            children: [
-              new Paragraph({
-                children: [bold("PROPUESTA TÉCNICO-COMERCIAL", WHITE, 36)],
-                spacing: { after: 120 },
-              }),
-              ...(c.asunto
-                ? [new Paragraph({ children: [normal(c.asunto, "C8DCFF", 22)], spacing: { after: 200 } })]
-                : []),
-              new Paragraph({
-                children: [bold(c.numero, "93C5FD", 24)],
-                spacing: { after: 80 },
-              }),
-              new Paragraph({
-                children: [small(`PREPARADO PARA: ${c.razon_social.toUpperCase()}`, WHITE, 18)],
-                spacing: { after: 40 },
-              }),
-              new Paragraph({
-                children: [small(`FECHA: ${fmtFecha(c.fecha)}`, "C8DCFF", 16)],
-                spacing: { after: 0 },
-              }),
-            ],
-          }),
-        ],
+        children: [new TableCell({
+          width: cellW(9360),
+          shading: { type: ShadingType.CLEAR, fill: COVER_HEX },
+          margins: { top: 300, bottom: 500, left: 400, right: 400 },
+          borders: noB,
+          children: [
+            new Paragraph({ children: [bold("PROPUESTA TÉCNICO-COMERCIAL", WHITE, 40)], spacing: { after: 140 } }),
+            ...(c.asunto ? [new Paragraph({ children: [normal(c.asunto, "C8DCFF", 24)], spacing: { after: 200 } })] : []),
+            new Paragraph({ children: [bold(c.numero, "93C5FD", 22)], spacing: { after: 120 } }),
+            new Paragraph({ children: [small(`PREPARADO PARA: ${c.razon_social.toUpperCase()}`, WHITE, 18)], spacing: { after: 60 } }),
+            ...(contacto ? [new Paragraph({ children: [italic(`At. ${contacto}${cargo ? " — " + cargo : ""}`, "C8DCFF", 17)], spacing: { after: 60 } })] : []),
+            ...(opts.empresa?.nombre ? [new Paragraph({ children: [bold(`Presentado por ${opts.empresa.nombre}`, WHITE, 18)], spacing: { after: 80 } })] : []),
+            new Paragraph({ children: [small(`Fecha: ${fmtFecha(c.fecha)}${c.valida_hasta ? "   ·   Válido hasta: " + fmtFecha(c.valida_hasta) : ""}`, "93C5FD", 16)], spacing: { after: 0 } }),
+          ],
+        })],
       }),
     ],
   });
 
-  // ── Info cliente + detalles ──
+  // ── Info cliente ──────────────────────────────────────────────────────────
   const infoTable = new Table({
     width: { size: 9360, type: WidthType.DXA },
-    borders: bordersNone,
-    rows: [
-      new TableRow({
-        children: [
-          new TableCell({
-            width: cellW(4500),
-            shading: { type: ShadingType.CLEAR, fill: BGBLUE },
-            borders: bordersNone,
-            margins: { top: 100, bottom: 100, left: 120, right: 120 },
-            children: [
-              para([bold("CLIENTE", BLUE_HEX, 16)], AlignmentType.LEFT, 40),
-              para([bold(c.razon_social, "111827", 20)], AlignmentType.LEFT, 40),
-              ...(c.ruc_cliente ? [para([small("RUC: " + c.ruc_cliente)], AlignmentType.LEFT, 30)] : []),
-              ...(c.email_cliente ? [para([small(c.email_cliente)], AlignmentType.LEFT, 0)] : []),
-            ],
-          }),
-          new TableCell({
-            width: cellW(4860),
-            shading: { type: ShadingType.CLEAR, fill: BGBLUE },
-            borders: bordersNone,
-            margins: { top: 100, bottom: 100, left: 120, right: 120 },
-            children: [
-              para([bold("DETALLES", BLUE_HEX, 16)], AlignmentType.LEFT, 40),
-              para([small("Fecha:  "), normal(fmtFecha(c.fecha))], AlignmentType.LEFT, 30),
-              ...(c.valida_hasta ? [para([small("Válida hasta:  "), normal(fmtFecha(c.valida_hasta))], AlignmentType.LEFT, 30)] : []),
-              ...(c.lugar_entrega ? [para([small("Entrega:  "), normal(c.lugar_entrega)], AlignmentType.LEFT, 30)] : []),
-              ...(c.dias_entrega ? [para([small("Plazo:  "), normal(`${c.dias_entrega} días laborables`)], AlignmentType.LEFT, 30)] : []),
-              ...(c.meses_garantia ? [para([small("Garantía:  "), normal(`${c.meses_garantia} meses`)], AlignmentType.LEFT, 0)] : []),
-            ],
-          }),
-        ],
-      }),
-    ],
+    borders: noB,
+    rows: [new TableRow({
+      children: [
+        new TableCell({
+          width: cellW(4500), shading: { type: ShadingType.CLEAR, fill: BGBLUE }, borders: noB,
+          margins: { top: 100, bottom: 100, left: 120, right: 80 },
+          children: [
+            para([bold("CLIENTE", BLUE_HEX, 16)], AlignmentType.LEFT, 40),
+            para([bold(c.razon_social, "111827", 20)], AlignmentType.LEFT, 40),
+            ...(c.ruc_cliente ? [para([small("RUC: " + c.ruc_cliente)], AlignmentType.LEFT, 30)] : []),
+            ...(c.email_cliente ? [para([small(c.email_cliente)], AlignmentType.LEFT, 0)] : []),
+          ],
+        }),
+        new TableCell({
+          width: cellW(4860), shading: { type: ShadingType.CLEAR, fill: BGBLUE }, borders: noB,
+          margins: { top: 100, bottom: 100, left: 80, right: 120 },
+          children: [
+            para([bold("DETALLES", BLUE_HEX, 16)], AlignmentType.LEFT, 40),
+            para([small("Fecha:  "), normal(fmtFecha(c.fecha))], AlignmentType.LEFT, 30),
+            ...(c.valida_hasta ? [para([small("Válida hasta:  "), normal(fmtFecha(c.valida_hasta))], AlignmentType.LEFT, 30)] : []),
+            ...(c.lugar_entrega ? [para([small("Entrega:  "), normal(c.lugar_entrega)], AlignmentType.LEFT, 30)] : []),
+            ...(c.dias_entrega ? [para([small("Plazo:  "), normal(`${c.dias_entrega} días laborables`)], AlignmentType.LEFT, 30)] : []),
+            ...(c.meses_garantia ? [para([small("Garantía:  "), normal(`${c.meses_garantia} meses`)], AlignmentType.LEFT, 0)] : []),
+          ],
+        }),
+      ],
+    })],
   });
 
-  // ── Resumen ejecutivo ──
+  // ── Resumen ejecutivo ────────────────────────────────────────────────────
   const resumenSection = params.resumen_ejecutivo
     ? [
         sectionHeading("RESUMEN EJECUTIVO"),
@@ -658,184 +771,202 @@ export async function exportCotizacionDocx(
       ]
     : [];
 
-  // ── Tabla técnica (agrupada por fabricante) ──
-  const byFab = new Map<string, typeof c.items>();
-  for (const it of c.items) {
-    const key = it.fabricante || "Sin fabricante";
-    if (!byFab.has(key)) byFab.set(key, []);
-    byFab.get(key)!.push(it);
-  }
-  const hasMultiFabs = byFab.size > 1 || (byFab.size === 1 && !byFab.has("Sin fabricante"));
+  // ── Cuadro Técnico-Comercial ─────────────────────────────────────────────
+  const cuadroRows: [string, string][] = [];
+  if (c.asunto) cuadroRows.push(["Proyecto", c.asunto]);
+  cuadroRows.push(["Precio total", fmtMoney(c.total)]);
+  if (c.terminos_pago?.length)
+    cuadroRows.push(["Forma de pago", c.terminos_pago.map((t) => `${t.porcentaje}% ${t.concepto}`).join(" / ")]);
+  if (c.dias_entrega) cuadroRows.push(["Plazo de entrega", `${c.dias_entrega} días laborables`]);
+  if (c.meses_garantia) cuadroRows.push(["Garantía", `${c.meses_garantia} meses`]);
+  cuadroRows.push(["Soporte técnico", "Incluido"]);
+  if (c.lugar_entrega) cuadroRows.push(["Lugar de entrega e instalación", c.lugar_entrega]);
 
-  const TECH_COL_W = [500, 4200, 1200, 700, 1380, 1380];
-  const techHeaders = ["#", "Descripción", "Modelo", "Cant.", "Días entrega", "Garantía"];
-
-  const techHeaderRow = new TableRow({
-    children: techHeaders.map((h, i) =>
-      new TableCell({
-        width: cellW(TECH_COL_W[i]),
-        shading: { type: ShadingType.CLEAR, fill: BLUE_HEX },
-        borders: bordersNone,
-        verticalAlign: VerticalAlign.CENTER,
-        margins: { top: 60, bottom: 60, left: 80, right: 80 },
-        children: [para([bold(h, WHITE, 15)], i >= 3 ? AlignmentType.CENTER : AlignmentType.LEFT, 0)],
+  const cuadroTable = new Table({
+    width: { size: 9360, type: WidthType.DXA },
+    columnWidths: [2800, 6560],
+    rows: cuadroRows.map(([k, v], idx) =>
+      new TableRow({
+        children: [
+          new TableCell({
+            width: cellW(2800),
+            shading: { type: ShadingType.CLEAR, fill: BGBLUE },
+            borders: grayB,
+            margins: { top: 80, bottom: 80, left: 120, right: 80 },
+            children: [para([bold(k, BLUE_HEX, 18)], AlignmentType.LEFT, 0)],
+          }),
+          new TableCell({
+            width: cellW(6560),
+            shading: { type: ShadingType.CLEAR, fill: idx % 2 === 0 ? BGLIGHT : WHITE },
+            borders: grayB,
+            margins: { top: 80, bottom: 80, left: 120, right: 80 },
+            children: [para([normal(v, "111827", 18)], AlignmentType.LEFT, 0)],
+          }),
+        ],
       })
     ),
   });
 
+  // ── Descripción técnica (tarjetas por producto) ──────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const techSectionChildren: any[] = [sectionHeading("DESCRIPCIÓN TÉCNICA DE LA OFERTA")];
+  const techChildren: any[] = [sectionHeading("DESCRIPCIÓN TÉCNICA DE LA OFERTA")];
+  const byFab = groupByFabricante(c.items);
 
   for (const [fab, items] of byFab) {
-    if (hasMultiFabs) {
-      techSectionChildren.push(
+    // Encabezado fabricante
+    const fabItemF = items.find((it) => it.proveedor?.logo_url);
+    const fabImgRun = makeImageRun(getImg(fabItemF?.proveedor?.logo_url), 110, 50);
+
+    if (fabImgRun) {
+      techChildren.push(new Table({
+        width: { size: 9360, type: WidthType.DXA }, borders: noB,
+        rows: [new TableRow({
+          children: [
+            new TableCell({
+              width: cellW(6800), borders: noB, shading: { type: ShadingType.CLEAR, fill: BGBLUE },
+              margins: { top: 80, bottom: 80, left: 120, right: 80 }, verticalAlign: VerticalAlign.CENTER,
+              children: [new Paragraph({ children: [bold(fab.toUpperCase(), BLUE_HEX, 22)], spacing: { after: 0 } })],
+            }),
+            new TableCell({
+              width: cellW(2560), borders: noB, shading: { type: ShadingType.CLEAR, fill: BGBLUE },
+              margins: { top: 60, bottom: 60, left: 40, right: 120 },
+              children: [new Paragraph({ children: [fabImgRun], alignment: AlignmentType.RIGHT, spacing: { after: 0 } })],
+            }),
+          ],
+        })],
+      }));
+    } else {
+      techChildren.push(
         new Paragraph({
-          children: [bold(fab.toUpperCase(), BLUE_HEX, 18)],
-          spacing: { before: 120, after: 60 },
+          children: [bold(fab.toUpperCase(), BLUE_HEX, 20)],
+          spacing: { before: 120, after: 80 },
           shading: { type: ShadingType.CLEAR, fill: BGBLUE },
+          indent: { left: 120 },
         })
       );
     }
 
-    const techItemRows = items.map((it, idx) =>
+    // Tarjeta por ítem
+    for (const it of items) {
+      const fotoImgRun = makeImageRun(getImg(it.catalogo?.foto_url), 185, 130);
+      const descLarga = it.catalogo?.descripcion_larga ?? "";
+
+      // Nombre + subtítulo
+      techChildren.push(
+        new Paragraph({
+          children: [bold(it.descripcion, "111827", 22)],
+          spacing: { before: 140, after: 40 },
+        }),
+        new Paragraph({
+          children: [italic(`${it.fabricante || fab}  ·  Modelo: ${it.modelo || "—"}  ·  Cantidad: ${it.cantidad}`, GRAY_HEX, 17)],
+          spacing: { after: 80 },
+        }),
+      );
+
+      if (descLarga || fotoImgRun) {
+        const leftColW = fotoImgRun ? 5700 : 9360;
+        const rightColW = 9360 - leftColW - 0;
+
+        const row = new TableRow({
+          children: [
+            new TableCell({
+              width: cellW(leftColW), borders: noB,
+              margins: { top: 60, bottom: 60, left: 0, right: 120 },
+              children: descLarga
+                ? [para([normal(descLarga, "374151", 17)], AlignmentType.JUSTIFIED, 0)]
+                : [para([], AlignmentType.LEFT, 0)],
+            }),
+            ...(fotoImgRun ? [new TableCell({
+              width: cellW(rightColW), borders: noB,
+              margins: { top: 0, bottom: 0, left: 60, right: 0 },
+              verticalAlign: VerticalAlign.TOP,
+              children: [new Paragraph({ children: [fotoImgRun], alignment: AlignmentType.CENTER, spacing: { after: 0 } })],
+            })] : []),
+          ],
+        });
+
+        techChildren.push(
+          new Table({
+            width: { size: 9360, type: WidthType.DXA },
+            columnWidths: fotoImgRun ? [leftColW, rightColW] : [leftColW],
+            borders: noB,
+            rows: [row],
+          }),
+          para([], AlignmentType.LEFT, 60),
+        );
+      }
+    }
+
+    techChildren.push(para([], AlignmentType.LEFT, 120));
+  }
+
+  // ── Tabla de precios (agrupada con subtotales) ───────────────────────────
+  const PRICE_COL_W = [400, 3300, 600, 1100, 900, 1060];
+  const priceHeaders = ["Ítem", "Descripción", "Cant.", "P. Unit.", "Desc.", "Total"];
+
+  const makePriceHeaderRow = () =>
+    new TableRow({
+      children: priceHeaders.map((h, i) =>
+        new TableCell({
+          width: cellW(PRICE_COL_W[i]),
+          shading: { type: ShadingType.CLEAR, fill: BLUE_HEX }, borders: noB,
+          verticalAlign: VerticalAlign.CENTER, margins: { top: 60, bottom: 60, left: 80, right: 80 },
+          children: [para([bold(h, WHITE, 15)], i >= 2 ? AlignmentType.RIGHT : AlignmentType.LEFT, 0)],
+        })
+      ),
+    });
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const priceChildren: any[] = [sectionHeading("DETALLE DE PRECIOS POR ÍTEM")];
+
+  let gIdx = 1;
+  for (const [fab, items] of byFab) {
+    if (byFab.size > 1) {
+      priceChildren.push(
+        new Paragraph({
+          children: [bold(fab.toUpperCase(), BLUE_HEX, 17)],
+          spacing: { before: 100, after: 60 },
+          shading: { type: ShadingType.CLEAR, fill: BGBLUE },
+          indent: { left: 100 },
+        })
+      );
+    }
+
+    const subtotal = items.reduce((s, it) => s + it.precio_neto, 0);
+
+    const itemRows = items.map((it, localIdx) =>
       new TableRow({
         children: [
-          new TableCell({
-            width: cellW(TECH_COL_W[0]),
-            shading: { type: ShadingType.CLEAR, fill: idx % 2 === 0 ? BGLIGHT : WHITE },
-            borders: borderGray,
-            margins: { top: 60, bottom: 60, left: 80, right: 80 },
-            children: [para([normal(String(idx + 1), GRAY_HEX, 15)], AlignmentType.CENTER, 0)],
-          }),
-          new TableCell({
-            width: cellW(TECH_COL_W[1]),
-            shading: { type: ShadingType.CLEAR, fill: idx % 2 === 0 ? BGLIGHT : WHITE },
-            borders: borderGray,
-            margins: { top: 60, bottom: 60, left: 80, right: 80 },
-            children: [para([normal(it.descripcion, "111827", 16)], AlignmentType.LEFT, 0)],
-          }),
-          new TableCell({
-            width: cellW(TECH_COL_W[2]),
-            shading: { type: ShadingType.CLEAR, fill: idx % 2 === 0 ? BGLIGHT : WHITE },
-            borders: borderGray,
-            margins: { top: 60, bottom: 60, left: 80, right: 80 },
-            children: [para([small(it.modelo || "—")], AlignmentType.LEFT, 0)],
-          }),
-          new TableCell({
-            width: cellW(TECH_COL_W[3]),
-            shading: { type: ShadingType.CLEAR, fill: idx % 2 === 0 ? BGLIGHT : WHITE },
-            borders: borderGray,
-            margins: { top: 60, bottom: 60, left: 80, right: 80 },
-            children: [para([normal(String(it.cantidad), "111827", 15)], AlignmentType.CENTER, 0)],
-          }),
-          new TableCell({
-            width: cellW(TECH_COL_W[4]),
-            shading: { type: ShadingType.CLEAR, fill: idx % 2 === 0 ? BGLIGHT : WHITE },
-            borders: borderGray,
-            margins: { top: 60, bottom: 60, left: 80, right: 80 },
-            children: [para([small(it.dias_entrega ? `${it.dias_entrega} días` : (c.dias_entrega ? `${c.dias_entrega} días` : "—"))], AlignmentType.CENTER, 0)],
-          }),
-          new TableCell({
-            width: cellW(TECH_COL_W[5]),
-            shading: { type: ShadingType.CLEAR, fill: idx % 2 === 0 ? BGLIGHT : WHITE },
-            borders: borderGray,
-            margins: { top: 60, bottom: 60, left: 80, right: 80 },
-            children: [para([small(it.meses_garantia ? `${it.meses_garantia} meses` : (c.meses_garantia ? `${c.meses_garantia} meses` : "—"))], AlignmentType.CENTER, 0)],
-          }),
+          new TableCell({ width: cellW(PRICE_COL_W[0]), shading: { type: ShadingType.CLEAR, fill: localIdx % 2 === 0 ? BGLIGHT : WHITE }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([normal(String(gIdx++), GRAY_HEX, 15)], AlignmentType.CENTER, 0)] }),
+          new TableCell({ width: cellW(PRICE_COL_W[1]), shading: { type: ShadingType.CLEAR, fill: localIdx % 2 === 0 ? BGLIGHT : WHITE }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([normal(it.descripcion, "111827", 15)], AlignmentType.LEFT, 0)] }),
+          new TableCell({ width: cellW(PRICE_COL_W[2]), shading: { type: ShadingType.CLEAR, fill: localIdx % 2 === 0 ? BGLIGHT : WHITE }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([normal(String(it.cantidad), "111827", 15)], AlignmentType.RIGHT, 0)] }),
+          new TableCell({ width: cellW(PRICE_COL_W[3]), shading: { type: ShadingType.CLEAR, fill: localIdx % 2 === 0 ? BGLIGHT : WHITE }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([normal(fmtMoney(it.precio_unitario), "111827", 15)], AlignmentType.RIGHT, 0)] }),
+          new TableCell({ width: cellW(PRICE_COL_W[4]), shading: { type: ShadingType.CLEAR, fill: localIdx % 2 === 0 ? BGLIGHT : WHITE }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([small(it.descuento_pct > 0 ? `${it.descuento_pct}%` : "—")], AlignmentType.CENTER, 0)] }),
+          new TableCell({ width: cellW(PRICE_COL_W[5]), shading: { type: ShadingType.CLEAR, fill: localIdx % 2 === 0 ? BGLIGHT : WHITE }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([bold(fmtMoney(it.precio_neto), BLUE_HEX, 15)], AlignmentType.RIGHT, 0)] }),
         ],
       })
     );
 
-    techSectionChildren.push(
+    const subtotalRow = byFab.size > 1
+      ? [new TableRow({
+          children: [
+            new TableCell({ width: cellW(PRICE_COL_W[0] + PRICE_COL_W[1] + PRICE_COL_W[2] + PRICE_COL_W[3] + PRICE_COL_W[4]), shading: { type: ShadingType.CLEAR, fill: BGBLUE }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([bold(`Subtotal ${fab}`, BLUE_HEX, 15)], AlignmentType.RIGHT, 0)] }),
+            new TableCell({ width: cellW(PRICE_COL_W[5]), shading: { type: ShadingType.CLEAR, fill: BGBLUE }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([bold(fmtMoney(subtotal), BLUE_HEX, 15)], AlignmentType.RIGHT, 0)] }),
+          ],
+        })]
+      : [];
+
+    priceChildren.push(
       new Table({
         width: { size: 9360, type: WidthType.DXA },
-        columnWidths: TECH_COL_W,
-        rows: [techHeaderRow, ...techItemRows],
+        columnWidths: PRICE_COL_W,
+        rows: [makePriceHeaderRow(), ...itemRows, ...subtotalRow],
       }),
-      para([], AlignmentType.LEFT, 80)
+      para([], AlignmentType.LEFT, 80),
     );
   }
 
-  // ── Tabla de precios ──
-  const PRICE_COL_W = [400, 3200, 1500, 600, 1100, 900, 1060];
-  const priceHeaders = ["#", "Descripción", "Fabricante / Modelo", "Cant.", "P. Unit.", "Desc.", "Total"];
-
-  const priceHeaderRow = new TableRow({
-    children: priceHeaders.map((h, i) =>
-      new TableCell({
-        width: cellW(PRICE_COL_W[i]),
-        shading: { type: ShadingType.CLEAR, fill: BLUE_HEX },
-        borders: bordersNone,
-        verticalAlign: VerticalAlign.CENTER,
-        margins: { top: 60, bottom: 60, left: 80, right: 80 },
-        children: [para([bold(h, WHITE, 15)], i >= 3 ? AlignmentType.RIGHT : AlignmentType.LEFT, 0)],
-      })
-    ),
-  });
-
-  const priceItemRows = c.items.map((it, idx) =>
-    new TableRow({
-      children: [
-        new TableCell({
-          width: cellW(PRICE_COL_W[0]),
-          shading: { type: ShadingType.CLEAR, fill: idx % 2 === 0 ? BGLIGHT : WHITE },
-          borders: borderGray,
-          margins: { top: 60, bottom: 60, left: 80, right: 80 },
-          children: [para([normal(String(idx + 1), GRAY_HEX, 15)], AlignmentType.CENTER, 0)],
-        }),
-        new TableCell({
-          width: cellW(PRICE_COL_W[1]),
-          shading: { type: ShadingType.CLEAR, fill: idx % 2 === 0 ? BGLIGHT : WHITE },
-          borders: borderGray,
-          margins: { top: 60, bottom: 60, left: 80, right: 80 },
-          children: [para([normal(it.descripcion, "111827", 15)], AlignmentType.LEFT, 0)],
-        }),
-        new TableCell({
-          width: cellW(PRICE_COL_W[2]),
-          shading: { type: ShadingType.CLEAR, fill: idx % 2 === 0 ? BGLIGHT : WHITE },
-          borders: borderGray,
-          margins: { top: 60, bottom: 60, left: 80, right: 80 },
-          children: [para([small([it.fabricante, it.modelo].filter(Boolean).join(" ") || "—")], AlignmentType.LEFT, 0)],
-        }),
-        new TableCell({
-          width: cellW(PRICE_COL_W[3]),
-          shading: { type: ShadingType.CLEAR, fill: idx % 2 === 0 ? BGLIGHT : WHITE },
-          borders: borderGray,
-          margins: { top: 60, bottom: 60, left: 80, right: 80 },
-          children: [para([normal(String(it.cantidad), "111827", 15)], AlignmentType.RIGHT, 0)],
-        }),
-        new TableCell({
-          width: cellW(PRICE_COL_W[4]),
-          shading: { type: ShadingType.CLEAR, fill: idx % 2 === 0 ? BGLIGHT : WHITE },
-          borders: borderGray,
-          margins: { top: 60, bottom: 60, left: 80, right: 80 },
-          children: [para([normal(fmtMoney(it.precio_unitario), "111827", 15)], AlignmentType.RIGHT, 0)],
-        }),
-        new TableCell({
-          width: cellW(PRICE_COL_W[5]),
-          shading: { type: ShadingType.CLEAR, fill: idx % 2 === 0 ? BGLIGHT : WHITE },
-          borders: borderGray,
-          margins: { top: 60, bottom: 60, left: 80, right: 80 },
-          children: [para([small(it.descuento_pct > 0 ? `${it.descuento_pct}%` : "—")], AlignmentType.CENTER, 0)],
-        }),
-        new TableCell({
-          width: cellW(PRICE_COL_W[6]),
-          shading: { type: ShadingType.CLEAR, fill: idx % 2 === 0 ? BGLIGHT : WHITE },
-          borders: borderGray,
-          margins: { top: 60, bottom: 60, left: 80, right: 80 },
-          children: [para([bold(fmtMoney(it.precio_neto), BLUE_HEX, 15)], AlignmentType.RIGHT, 0)],
-        }),
-      ],
-    })
-  );
-
-  const priceTable = new Table({
-    width: { size: 9360, type: WidthType.DXA },
-    columnWidths: PRICE_COL_W,
-    rows: [priceHeaderRow, ...priceItemRows],
-  });
-
-  // ── Totales ──
+  // ── Totales ──────────────────────────────────────────────────────────────
   const totalesRows = [
     ["Subtotal", fmtMoney(c.subtotal)],
     ...(c.descuento_total > 0 ? [["Descuento", `- ${fmtMoney(c.descuento_total)}`]] : []),
@@ -846,48 +977,26 @@ export async function exportCotizacionDocx(
     width: { size: 4000, type: WidthType.DXA },
     columnWidths: [2400, 1600],
     indent: { size: 5360, type: WidthType.DXA },
-    borders: bordersNone,
+    borders: noB,
     rows: [
       ...totalesRows.map(([label, value]) =>
         new TableRow({
           children: [
-            new TableCell({
-              width: cellW(2400),
-              borders: bordersNone,
-              margins: { top: 40, bottom: 40, left: 80, right: 80 },
-              children: [para([small(label)], AlignmentType.LEFT, 0)],
-            }),
-            new TableCell({
-              width: cellW(1600),
-              borders: bordersNone,
-              margins: { top: 40, bottom: 40, left: 80, right: 80 },
-              children: [para([normal(value)], AlignmentType.RIGHT, 0)],
-            }),
+            new TableCell({ width: cellW(2400), borders: noB, margins: { top: 40, bottom: 40, left: 80, right: 80 }, children: [para([small(label)], AlignmentType.LEFT, 0)] }),
+            new TableCell({ width: cellW(1600), borders: noB, margins: { top: 40, bottom: 40, left: 80, right: 80 }, children: [para([normal(value)], AlignmentType.RIGHT, 0)] }),
           ],
         })
       ),
       new TableRow({
         children: [
-          new TableCell({
-            width: cellW(2400),
-            shading: { type: ShadingType.CLEAR, fill: BGBLUE },
-            borders: bordersNone,
-            margins: { top: 80, bottom: 80, left: 80, right: 80 },
-            children: [para([bold("TOTAL USD", BLUE_HEX, 22)], AlignmentType.LEFT, 0)],
-          }),
-          new TableCell({
-            width: cellW(1600),
-            shading: { type: ShadingType.CLEAR, fill: BGBLUE },
-            borders: bordersNone,
-            margins: { top: 80, bottom: 80, left: 80, right: 80 },
-            children: [para([bold(fmtMoney(c.total), BLUE_HEX, 22)], AlignmentType.RIGHT, 0)],
-          }),
+          new TableCell({ width: cellW(2400), shading: { type: ShadingType.CLEAR, fill: BGBLUE }, borders: noB, margins: { top: 80, bottom: 80, left: 80, right: 80 }, children: [para([bold("TOTAL USD", BLUE_HEX, 22)], AlignmentType.LEFT, 0)] }),
+          new TableCell({ width: cellW(1600), shading: { type: ShadingType.CLEAR, fill: BGBLUE }, borders: noB, margins: { top: 80, bottom: 80, left: 80, right: 80 }, children: [para([bold(fmtMoney(c.total), BLUE_HEX, 22)], AlignmentType.RIGHT, 0)] }),
         ],
       }),
     ],
   });
 
-  // ── Términos de pago ──
+  // ── Términos de pago ─────────────────────────────────────────────────────
   const terminosSection = c.terminos_pago?.length
     ? [
         sectionHeading("TÉRMINOS DE PAGO"),
@@ -898,49 +1007,68 @@ export async function exportCotizacionDocx(
       ]
     : [];
 
-  // ── Oferente ──
+  // ── Información del oferente ──────────────────────────────────────────────
   const oferenteSection = opts.empresa
     ? [
         sectionHeading("INFORMACIÓN DEL OFERENTE"),
-        para([bold(opts.empresa.nombre, "111827", 20)], AlignmentType.LEFT, 40),
-        ...(opts.empresa.ruc ? [para([small(`RUC: ${opts.empresa.ruc}`)], AlignmentType.LEFT, 30)] : []),
-        ...(opts.empresa.direccion ? [para([small(opts.empresa.direccion)], AlignmentType.LEFT, 30)] : []),
-        ...(opts.empresa.telefono ? [para([small(`Tel: ${opts.empresa.telefono}`)], AlignmentType.LEFT, 30)] : []),
-        ...(opts.empresa.correo ? [para([small(opts.empresa.correo)], AlignmentType.LEFT, 60)] : []),
+        para([bold(opts.empresa.nombre, "111827", 22)], AlignmentType.LEFT, 60),
+        ...(opts.empresa.ruc       ? [para([small(`RUC: ${opts.empresa.ruc}`)], AlignmentType.LEFT, 40)] : []),
+        ...(opts.empresa.direccion ? [para([small(opts.empresa.direccion)], AlignmentType.LEFT, 40)] : []),
+        ...(opts.empresa.telefono  ? [para([small(`Tel: ${opts.empresa.telefono}`)], AlignmentType.LEFT, 40)] : []),
+        ...(opts.empresa.correo    ? [para([small(opts.empresa.correo)], AlignmentType.LEFT, 60)] : []),
       ]
     : [];
 
-  // ── Notas ──
+  // ── Notas ────────────────────────────────────────────────────────────────
   const notasSection = c.notas
-    ? [
-        sectionHeading("NOTAS"),
-        para([normal(c.notas, GRAY_HEX)], AlignmentType.LEFT, 120),
-      ]
+    ? [sectionHeading("NOTAS"), para([normal(c.notas, GRAY_HEX)], AlignmentType.LEFT, 120)]
     : [];
 
-  // ── Términos y condiciones ──
-  const tcSection = params.terminos_condiciones
-    ? [
-        sectionHeading("TÉRMINOS Y CONDICIONES"),
-        para([normal(params.terminos_condiciones, GRAY_HEX, 16)], AlignmentType.JUSTIFIED, 120),
-      ]
-    : [];
+  // ── T&C con sub-encabezados detectados ──────────────────────────────────
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tcChildren: any[] = [];
+  if (params.terminos_condiciones) {
+    tcChildren.push(sectionHeading("TÉRMINOS Y CONDICIONES"));
+    const tcLines = params.terminos_condiciones.split("\n");
+    let currentBlock: string[] = [];
 
-  // ── Pie ──
+    const flushBlock = () => {
+      if (currentBlock.length > 0) {
+        tcChildren.push(para([normal(currentBlock.join("\n"), GRAY_HEX, 16)], AlignmentType.JUSTIFIED, 80));
+        currentBlock = [];
+      }
+    };
+
+    for (const line of tcLines) {
+      const trimmed = line.trim();
+      if (!trimmed) { flushBlock(); continue; }
+      if (isTcHeading(trimmed)) {
+        flushBlock();
+        tcChildren.push(new Paragraph({
+          children: [bold(trimmed, "111827", 18)],
+          spacing: { before: 160, after: 60 },
+        }));
+      } else {
+        currentBlock.push(trimmed);
+      }
+    }
+    flushBlock();
+  }
+
+  // ── Pie ──────────────────────────────────────────────────────────────────
   const pieSection = [
-    para([small("Documento generado automáticamente por VIATIQ · © 2026 Nahdan", "9CA3AF")], AlignmentType.CENTER, 0),
+    para([small("Documento generado por VIATIQ · © 2026 Nahdan", "9CA3AF")], AlignmentType.CENTER, 0),
   ];
 
-  // ── Documento final ──
+  // ── Documento final ───────────────────────────────────────────────────────
   const doc2 = new Document({
     sections: [{
       properties: {
-        page: {
-          margin: { top: 720, bottom: 720, left: 800, right: 800 },
-        },
+        page: { margin: { top: 720, bottom: 720, left: 800, right: 800 } },
       },
       children: [
         // Portada
+        ...coverLogoRow,
         coverTable,
         para([], AlignmentType.LEFT, 120),
         // Datos cliente
@@ -948,12 +1076,12 @@ export async function exportCotizacionDocx(
         para([], AlignmentType.LEFT, 160),
         // Resumen ejecutivo
         ...resumenSection,
-        // Técnica
-        ...techSectionChildren,
+        // Cuadro técnico-comercial
+        ...(cuadroRows.length > 0 ? [sectionHeading("CUADRO TÉCNICO-COMERCIAL DE LA OFERTA"), cuadroTable, para([], AlignmentType.LEFT, 160)] : []),
+        // Descripción técnica por producto
+        ...techChildren,
         // Precios
-        sectionHeading("DETALLE DE PRECIOS"),
-        priceTable,
-        para([], AlignmentType.LEFT, 120),
+        ...priceChildren,
         // Totales
         totalesTable,
         para([], AlignmentType.LEFT, 160),
@@ -964,7 +1092,7 @@ export async function exportCotizacionDocx(
         // Notas
         ...notasSection,
         // T&C
-        ...tcSection,
+        ...tcChildren,
         // Pie
         para([], AlignmentType.LEFT, 80),
         ...pieSection,
