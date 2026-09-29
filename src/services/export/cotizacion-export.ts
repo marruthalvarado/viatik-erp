@@ -279,21 +279,59 @@ export async function exportCotizacionPdf(
   doc.addPage();
   let y = HDRH + 8;
 
-  // ── RESUMEN EJECUTIVO ───────────────────────────────────────────────────────
+  // ── RESUMEN EJECUTIVO ─────────────────────────────────────────────────────
   if (params.resumen_ejecutivo) {
     sectionTitle("RESUMEN EJECUTIVO", y);
     y += 8;
 
-    doc.setFontSize(8.5); doc.setTextColor(...DARK); doc.setFont("helvetica", "normal");
-    const rLines = doc.splitTextToSize(params.resumen_ejecutivo, CW) as string[];
-    const rH = rLines.length * 4.8;
-    if (y + rH > H - 22) { doc.addPage(); y = HDRH + 8; }
-    doc.text(rLines, ML, y);
-    y += rH + 12;
+    // Renderiza párrafos con sub-headings: una línea es heading si es corta (<= 60 chars) y no empieza con espacio o bullet
+    const isResumenHeading = (line: string) => {
+      const t = line.trim();
+      return t.length > 0 && t.length <= 70 && !t.startsWith("•") && !t.startsWith("-") && !t.startsWith(">") && t === t.trimEnd();
+    };
+
+    const paragraphs = params.resumen_ejecutivo.split("\n");
+    for (const para of paragraphs) {
+      const trimmed = para.trim();
+      if (!trimmed) { y += 3; continue; }
+      if (y + 5 > H - 22) { doc.addPage(); y = HDRH + 8; }
+
+      // Detectar si es sub-heading (línea corta sin bullet)
+      const isHeading = isResumenHeading(trimmed) && !trimmed.includes(".") && paragraphs.indexOf(para) !== -1;
+      // Heurística más robusta: heading si termina en ":" o es muy corta (título)
+      const isSubHeading = trimmed.endsWith(":") || (trimmed.length <= 55 && !trimmed.startsWith("•") && !trimmed.startsWith("-") && !trimmed.match(/\s{2,}/));
+
+      if (isSubHeading && trimmed !== paragraphs[0]?.trim()) {
+        // Sub-heading en teal bold
+        doc.setFontSize(8.5); doc.setFont("helvetica", "bold"); doc.setTextColor(...TEAL);
+        doc.text(trimmed, ML, y);
+        y += 6;
+      } else if (trimmed.startsWith("•") || trimmed.startsWith("-") || trimmed.startsWith(">")) {
+        // Bullets / métricas clave
+        doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(...DARK);
+        const bulletLines = doc.splitTextToSize(trimmed, CW - 6) as string[];
+        for (const bl of bulletLines) {
+          if (y + 4 > H - 22) { doc.addPage(); y = HDRH + 8; }
+          doc.text(bl, ML + 4, y);
+          y += 4.8;
+        }
+      } else {
+        // Párrafo normal
+        doc.setFontSize(8.5); doc.setFont("helvetica", "normal"); doc.setTextColor(...DARK);
+        const wrappedLines = doc.splitTextToSize(trimmed, CW) as string[];
+        for (const wl of wrappedLines) {
+          if (y + 4 > H - 22) { doc.addPage(); y = HDRH + 8; }
+          doc.text(wl, ML, y);
+          y += 4.8;
+        }
+        y += 2;
+      }
+    }
+    y += 4;
   }
 
-  // ── CUADRO TÉCNICO-COMERCIAL ─────────────────────────────────────────────
-  if (y + 16 > H - 22) { doc.addPage(); y = HDRH + 8; }
+  // ── CUADRO TÉCNICO-COMERCIAL (nueva hoja siempre) ───────────────────────
+  doc.addPage(); y = HDRH + 8;
   sectionTitle("CUADRO TÉCNICO-COMERCIAL DE LA OFERTA", y);
   y += 7;
 
@@ -323,8 +361,8 @@ export async function exportCotizacionPdf(
   });
   y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 12;
 
-  // ── DESCRIPCIÓN TÉCNICA ───────────────────────────────────────────────────
-  if (y + 16 > H - 22) { doc.addPage(); y = HDRH + 8; }
+  // ── DESCRIPCIÓN TÉCNICA (nueva hoja siempre) ─────────────────────────────
+  doc.addPage(); y = HDRH + 8;
   sectionTitle("DESCRIPCIÓN TÉCNICA DE LA OFERTA", y);
   y += 8;
 
@@ -395,35 +433,49 @@ export async function exportCotizacionPdf(
     y += 4;
   }
 
-  // ── DETALLE DE PRECIOS ────────────────────────────────────────────────────
-  if (y + 16 > H - 22) { doc.addPage(); y = HDRH + 8; }
+  // ── DETALLE DE PRECIOS (nueva hoja siempre) ───────────────────────────────
+  doc.addPage(); y = HDRH + 8;
   sectionTitle("DETALLE DE PRECIOS POR ÍTEM", y);
   y += 7;
 
-  // Tabla unificada con filas de fabricante intercaladas
+  // Numeración global continua
+  let globalItemNum = 0;
+
   for (const [fab, items] of byFab) {
-    if (y + 12 > H - 22) { doc.addPage(); y = HDRH + 8; }
+    if (y + 20 > H - 22) { doc.addPage(); y = HDRH + 8; }
+
+    // Encabezado del fabricante con logo (igual que en descripción técnica)
+    if (byFab.size > 1) {
+      const fabItem2 = items.find((it) => it.proveedor?.logo_url);
+      const fabImg2 = getImg(fabItem2?.proveedor?.logo_url);
+
+      doc.setFillColor(...TEAL);
+      doc.rect(ML, y, CW, 10, "F");
+      doc.setFontSize(9); doc.setTextColor(...WHITE); doc.setFont("helvetica", "bold");
+      doc.text(fab.toUpperCase(), ML + 4, y + 6.8);
+      if (fabImg2) {
+        try { addImg(fabImg2, W - MR - 28, y + 0.5, 26, 9); } catch { /* skip */ }
+      }
+      y += 13;
+    }
 
     const subtotal = items.reduce((s, it) => s + it.precio_neto, 0);
-
-    // Fila de fabricante (solo si hay más de uno)
-    const fabRow = byFab.size > 1 ? [[
-      { content: fab.toUpperCase(), colSpan: 5, styles: { fillColor: [...TEAL], textColor: [...WHITE], fontStyle: "bold" as const } },
-    ]] : [];
 
     autoTable(doc as Parameters<typeof autoTable>[0], {
       startY: y,
       margin: { left: ML, right: MR },
       head: [["Ítem", "Descripción", "Cant.", "Precio Unitario", "Total"]],
       body: [
-        ...fabRow,
-        ...items.map((it, i) => [
-          String(i + 1),
-          it.catalogo?.nombre ?? it.descripcion,
-          String(it.cantidad),
-          fmtMoney(it.precio_unitario),
-          fmtMoney(it.precio_neto),
-        ]),
+        ...items.map((it) => {
+          globalItemNum++;
+          return [
+            String(globalItemNum),
+            it.catalogo?.nombre ?? it.descripcion,
+            String(it.cantidad),
+            fmtMoney(it.precio_unitario),
+            fmtMoney(it.precio_neto),
+          ];
+        }),
         ...(byFab.size > 1 ? [[
           { content: "", styles: { fillColor: [...BGROW] } },
           { content: `SUBTOTAL ${fab.toUpperCase()}`, styles: { fillColor: [...BGROW], fontStyle: "bold" as const, textColor: [...TEAL] } },
@@ -521,9 +573,9 @@ export async function exportCotizacionPdf(
 
   y = boxY + boxH + 10;
 
-  // ── INFORMACIÓN DEL OFERENTE ──────────────────────────────────────────────
+  // ── INFORMACIÓN DEL OFERENTE (nueva hoja) ────────────────────────────────
   if (opts.empresa) {
-    if (y + 24 > H - 22) { doc.addPage(); y = HDRH + 8; }
+    doc.addPage(); y = HDRH + 8;
     sectionTitle("INFORMACIÓN DEL OFERENTE", y);
     y += 8;
 
@@ -548,9 +600,9 @@ export async function exportCotizacionPdf(
     doc.text(nLines, ML, y); y += nLines.length * 4.5 + 6;
   }
 
-  // ── TÉRMINOS Y CONDICIONES ────────────────────────────────────────────────
+  // ── TÉRMINOS Y CONDICIONES (nueva hoja siempre) ──────────────────────────
   if (params.terminos_condiciones) {
-    if (y + 20 > H - 22) { doc.addPage(); y = HDRH + 8; }
+    doc.addPage(); y = HDRH + 8;
     sectionTitle("TÉRMINOS Y CONDICIONES", y);
     y += 9;
 
