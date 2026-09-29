@@ -172,7 +172,8 @@ export async function exportCotizacionPdf(
   const MR = 14;
   const CW = W - ML - MR;
 
-  const BLUE    = [30, 64, 175]   as const;
+  const BLUE    = [26, 57, 138]   as const;   // azul marino para elementos secundarios
+  const ACCENT  = [192, 78, 26]   as const;   // naranja-rojo para encabezados de sección
   const BGBLUE  = [239, 246, 255] as const;
   const BGCOVER = [17, 34, 100]   as const;
   const GRAY    = [107, 114, 128] as const;
@@ -194,75 +195,78 @@ export async function exportCotizacionPdf(
   };
 
   // ── PORTADA ──────────────────────────────────────────────────────────────────
+  // Fondo azul marino que cubre ~44% de la página (igual que referencia)
   doc.setFillColor(...BGCOVER);
-  doc.rect(0, 0, W, 90, "F");
+  doc.rect(0, 0, W, 130, "F");
 
   const empresaImg = getImg(opts.empresa?.logo_url);
   if (empresaImg) {
-    addImg(empresaImg, ML, 8, 45, 18);
+    addImg(empresaImg, ML, 10, 50, 20);
   } else {
     // Fallback: logo VIATIQ
     (doc as unknown as JsPDFWithImage).addImage(
-      LOGO_VIATIQ_PNG_B64, "PNG", ML, 10, LOGO_VIATIQ_W * 0.7, LOGO_VIATIQ_H * 0.7,
+      LOGO_VIATIQ_PNG_B64, "PNG", ML, 12, LOGO_VIATIQ_W * 0.8, LOGO_VIATIQ_H * 0.8,
     );
   }
 
   // Logo del cliente (derecha)
   const clienteImg = getImg(c.cliente?.logo_url);
   if (clienteImg) {
-    addImg(clienteImg, W - MR - 40, 8, 40, 18);
+    addImg(clienteImg, W - MR - 44, 10, 44, 20);
   }
 
-  // Número cotización
+  // Número cotización — top right, pequeño
   doc.setFontSize(9);
   doc.setTextColor(...WHITE);
   doc.setFont("helvetica", "normal");
-  doc.text(c.numero, W - MR, 32, { align: "right" });
+  doc.text(c.numero, W - MR, 38, { align: "right" });
 
-  // Título
-  doc.setFontSize(17);
+  // Título — grande y prominente como en la referencia
+  doc.setFontSize(24);
   doc.setFont("helvetica", "bold");
-  doc.text("PROPUESTA TÉCNICO-COMERCIAL", ML, 40);
+  doc.setTextColor(...WHITE);
+  doc.text("PROPUESTA TÉCNICO-COMERCIAL", ML, 58);
 
-  // Asunto
+  // Asunto / subtítulo en azul claro
   if (c.asunto) {
-    doc.setFontSize(9.5);
+    doc.setFontSize(11);
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(200, 220, 255);
+    doc.setTextColor(180, 210, 255);
     const asuntoLines = doc.splitTextToSize(c.asunto, CW) as string[];
-    doc.text(asuntoLines, ML, 49);
+    doc.text(asuntoLines, ML, 72);
   }
 
-  const prepY = c.asunto ? 62 : 50;
-  doc.setFontSize(8);
+  const prepY = c.asunto ? 88 : 74;
+  doc.setFontSize(9);
+  doc.setFont("helvetica", "bold");
   doc.setTextColor(...WHITE);
   doc.text(`PREPARADO PARA: ${c.razon_social.toUpperCase()}`, ML, prepY);
 
   const contacto = c.cliente?.contacto_nombre;
   if (contacto) {
     const cargo = c.cliente?.contacto_cargo;
-    doc.setFontSize(7.5);
-    doc.setTextColor(200, 220, 255);
-    doc.text(`At. ${contacto}${cargo ? " — " + cargo : ""}`, ML, prepY + 6);
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(180, 210, 255);
+    doc.text(`At. ${contacto}${cargo ? " — " + cargo : ""}`, ML, prepY + 7);
   }
 
   if (opts.empresa?.nombre) {
-    doc.setFontSize(8);
+    doc.setFontSize(9);
     doc.setTextColor(...WHITE);
     doc.setFont("helvetica", "bold");
-    doc.text(`Presentado por ${opts.empresa.nombre}`, ML, prepY + 13);
+    doc.text(`Presentado por ${opts.empresa.nombre}`, ML, prepY + 16);
   }
 
-  doc.setFontSize(7.5);
-  doc.setTextColor("C8DCFF" as unknown as number);
+  doc.setFontSize(8);
   doc.setFont("helvetica", "normal");
-  doc.setTextColor(180, 200, 240);
+  doc.setTextColor(180, 210, 255);
   doc.text(
     `Fecha: ${fmtFecha(c.fecha)}${c.valida_hasta ? "   ·   Válido hasta: " + fmtFecha(c.valida_hasta) : ""}`,
-    ML, prepY + 20,
+    ML, prepY + 24,
   );
 
-  let y = 100;
+  let y = 145;
 
   // ── INFO CLIENTE + DETALLES ───────────────────────────────────────────────
   const colW = CW / 2 - 4;
@@ -311,10 +315,10 @@ export async function exportCotizacionPdf(
   if (params.resumen_ejecutivo) {
     if (y + 12 > H - 30) { doc.addPage(); y = 18; }
     doc.setFontSize(9);
-    doc.setTextColor(...BLUE);
+    doc.setTextColor(...ACCENT);
     doc.setFont("helvetica", "bold");
     doc.text("RESUMEN EJECUTIVO", ML, y);
-    doc.setDrawColor(...BLUE); doc.setLineWidth(0.4);
+    doc.setDrawColor(...ACCENT); doc.setLineWidth(0.4);
     doc.line(ML + 40, y - 1, W - MR, y - 1);
     y += 6;
 
@@ -328,9 +332,9 @@ export async function exportCotizacionPdf(
 
   // ── CUADRO TÉCNICO-COMERCIAL ─────────────────────────────────────────────
   if (y + 16 > H - 30) { doc.addPage(); y = 18; }
-  doc.setFontSize(9); doc.setTextColor(...BLUE); doc.setFont("helvetica", "bold");
+  doc.setFontSize(9); doc.setTextColor(...ACCENT); doc.setFont("helvetica", "bold");
   doc.text("CUADRO TÉCNICO-COMERCIAL", ML, y);
-  doc.setDrawColor(...BLUE); doc.setLineWidth(0.4);
+  doc.setDrawColor(...ACCENT); doc.setLineWidth(0.4);
   doc.line(ML + 54, y - 1, W - MR, y - 1);
   y += 5;
 
@@ -350,7 +354,7 @@ export async function exportCotizacionPdf(
     body: cuadroRows.map(([k, v]) => [k, v]),
     styles: { fontSize: 8, cellPadding: 2.5, textColor: [...DARK] },
     columnStyles: {
-      0: { cellWidth: 60, fontStyle: "bold", fillColor: [...BGBLUE], textColor: [...BLUE] },
+      0: { cellWidth: 60, fontStyle: "bold", fillColor: [...BGBLUE], textColor: [...ACCENT] },
       1: { cellWidth: CW - 60 },
     },
     alternateRowStyles: { fillColor: [249, 250, 251] },
@@ -361,9 +365,9 @@ export async function exportCotizacionPdf(
 
   // ── DESCRIPCIÓN TÉCNICA ───────────────────────────────────────────────────
   if (y + 16 > H - 30) { doc.addPage(); y = 18; }
-  doc.setFontSize(9); doc.setTextColor(...BLUE); doc.setFont("helvetica", "bold");
+  doc.setFontSize(9); doc.setTextColor(...ACCENT); doc.setFont("helvetica", "bold");
   doc.text("DESCRIPCIÓN TÉCNICA DE LA OFERTA", ML, y);
-  doc.setDrawColor(...BLUE); doc.setLineWidth(0.4);
+  doc.setDrawColor(...ACCENT); doc.setLineWidth(0.4);
   doc.line(ML + 65, y - 1, W - MR, y - 1);
   y += 7;
 
@@ -434,9 +438,9 @@ export async function exportCotizacionPdf(
 
   // ── DETALLE DE PRECIOS ────────────────────────────────────────────────────
   if (y + 16 > H - 30) { doc.addPage(); y = 18; }
-  doc.setFontSize(9); doc.setTextColor(...BLUE); doc.setFont("helvetica", "bold");
+  doc.setFontSize(9); doc.setTextColor(...ACCENT); doc.setFont("helvetica", "bold");
   doc.text("DETALLE DE PRECIOS POR ÍTEM", ML, y);
-  doc.setDrawColor(...BLUE); doc.setLineWidth(0.4);
+  doc.setDrawColor(...ACCENT); doc.setLineWidth(0.4);
   doc.line(ML + 55, y - 1, W - MR, y - 1);
   y += 6;
 
@@ -469,7 +473,7 @@ export async function exportCotizacionPdf(
         ...(byFab.size > 1 ? [["", "Subtotal " + fab, "", "", fmtMoney(subtotal)]] : []),
       ],
       styles: { fontSize: 7.5, cellPadding: 2, textColor: [...DARK] },
-      headStyles: { fillColor: [...BLUE], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 7.5 },
+      headStyles: { fillColor: [...BGBLUE], textColor: [...BLUE], fontStyle: "bold", fontSize: 7.5 },
       alternateRowStyles: { fillColor: [249, 250, 251] },
       columnStyles: {
         0: { cellWidth: 10, halign: "center" },
@@ -488,13 +492,15 @@ export async function exportCotizacionPdf(
   const totX = W - MR - totW;
 
   if (c.terminos_pago?.length) {
-    doc.setFontSize(8.5); doc.setTextColor(...BLUE); doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5); doc.setTextColor(...ACCENT); doc.setFont("helvetica", "bold");
     doc.text("TÉRMINOS DE PAGO", ML, y + 4);
+    doc.setDrawColor(...ACCENT); doc.setLineWidth(0.4);
+    doc.line(ML + 38, y + 3, W - MR, y + 3);
     y += 9;
     for (const t of c.terminos_pago) {
       doc.setFont("helvetica", "normal"); doc.setTextColor(...DARK); doc.setFontSize(8);
       doc.text(`• ${t.concepto}`, ML + 2, y);
-      doc.setFont("helvetica", "bold"); doc.setTextColor(...BLUE);
+      doc.setFont("helvetica", "bold"); doc.setTextColor(...ACCENT);
       doc.text(`${t.porcentaje}%`, ML + 80, y, { align: "right" });
       y += 5;
     }
@@ -525,9 +531,9 @@ export async function exportCotizacionPdf(
   // ── INFORMACIÓN DEL OFERENTE ──────────────────────────────────────────────
   if (opts.empresa) {
     if (y + 20 > H - 30) { doc.addPage(); y = 18; }
-    doc.setFontSize(9); doc.setTextColor(...BLUE); doc.setFont("helvetica", "bold");
+    doc.setFontSize(9); doc.setTextColor(...ACCENT); doc.setFont("helvetica", "bold");
     doc.text("INFORMACIÓN DEL OFERENTE", ML, y);
-    doc.setDrawColor(...BLUE); doc.setLineWidth(0.4);
+    doc.setDrawColor(...ACCENT); doc.setLineWidth(0.4);
     doc.line(ML + 52, y - 1, W - MR, y - 1);
     y += 6;
 
@@ -555,9 +561,9 @@ export async function exportCotizacionPdf(
   // ── TÉRMINOS Y CONDICIONES ────────────────────────────────────────────────
   if (params.terminos_condiciones) {
     if (y + 20 > H - 30) { doc.addPage(); y = 18; }
-    doc.setFontSize(9); doc.setTextColor(...BLUE); doc.setFont("helvetica", "bold");
+    doc.setFontSize(9); doc.setTextColor(...ACCENT); doc.setFont("helvetica", "bold");
     doc.text("TÉRMINOS Y CONDICIONES", ML, y);
-    doc.setDrawColor(...BLUE); doc.setLineWidth(0.4);
+    doc.setDrawColor(...ACCENT); doc.setLineWidth(0.4);
     doc.line(ML + 52, y - 1, W - MR, y - 1);
     y += 7;
 
@@ -630,12 +636,13 @@ export async function exportCotizacionDocx(
   const getImg = (url: string | null | undefined) => url ? (imgCache.get(url) ?? null) : null;
 
   // ── Constantes de estilo ────────────────────────────────────────────────────
-  const BLUE_HEX  = "1E40AF";
-  const COVER_HEX = "11226A";
-  const GRAY_HEX  = "6B7280";
-  const BGBLUE    = "EFF6FF";
-  const BGLIGHT   = "F8FAFC";
-  const WHITE     = "FFFFFF";
+  const BLUE_HEX   = "1A398A";   // azul marino
+  const ACCENT_HEX = "C04E1A";   // naranja-rojo para encabezados de sección
+  const COVER_HEX  = "112264";
+  const GRAY_HEX   = "6B7280";
+  const BGBLUE     = "EFF6FF";
+  const BGLIGHT    = "F8FAFC";
+  const WHITE      = "FFFFFF";
 
   // ── Helpers de texto ────────────────────────────────────────────────────────
   const bold   = (text: string, color = "111827", sz = 20) => new TextRun({ text, bold: true,  color, size: sz });
@@ -649,10 +656,10 @@ export async function exportCotizacionDocx(
 
   const sectionHeading = (text: string) =>
     new Paragraph({
-      children: [bold(text, BLUE_HEX, 20)],
+      children: [bold(text, ACCENT_HEX, 20)],
       heading: HeadingLevel.HEADING_2,
       spacing: { before: 240, after: 120 },
-      border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: BLUE_HEX } },
+      border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: ACCENT_HEX } },
     });
 
   /** Parsea texto con marcadores **negrita** en TextRun[]. Útil para resumen ejecutivo. */
@@ -798,7 +805,7 @@ export async function exportCotizacionDocx(
             shading: { type: ShadingType.CLEAR, fill: BGBLUE },
             borders: grayB,
             margins: { top: 80, bottom: 80, left: 120, right: 80 },
-            children: [para([bold(k, BLUE_HEX, 18)], AlignmentType.LEFT, 0)],
+            children: [para([bold(k, ACCENT_HEX, 18)], AlignmentType.LEFT, 0)],
           }),
           new TableCell({
             width: cellW(6560),
@@ -916,9 +923,9 @@ export async function exportCotizacionDocx(
       children: priceHeaders.map((h, i) =>
         new TableCell({
           width: cellW(PRICE_COL_W[i]),
-          shading: { type: ShadingType.CLEAR, fill: BLUE_HEX }, borders: noB,
+          shading: { type: ShadingType.CLEAR, fill: BGBLUE }, borders: noB,
           verticalAlign: VerticalAlign.CENTER, margins: { top: 60, bottom: 60, left: 80, right: 80 },
-          children: [para([bold(h, WHITE, 15)], i >= 2 ? AlignmentType.RIGHT : AlignmentType.LEFT, 0)],
+          children: [para([bold(h, BLUE_HEX, 15)], i >= 2 ? AlignmentType.RIGHT : AlignmentType.LEFT, 0)],
         })
       ),
     });
