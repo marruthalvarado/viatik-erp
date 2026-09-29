@@ -6,6 +6,10 @@
 
 SET statement_timeout = 0;
 
+-- DROP necesario porque se agrega credito_tributario_anterior al RETURNS TABLE
+-- (PostgreSQL no permite cambiar el return type con CREATE OR REPLACE)
+DROP FUNCTION IF EXISTS public.calcular_iva_periodo(UUID, INT, INT, INT);
+
 CREATE OR REPLACE FUNCTION public.calcular_iva_periodo(
   p_empresa_id  UUID,
   p_anio        INT,
