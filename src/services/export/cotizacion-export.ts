@@ -172,14 +172,14 @@ export async function exportCotizacionPdf(
   const MR = 14;
   const CW = W - ML - MR;
 
-  const BLUE    = [26, 57, 138]   as const;   // azul marino para elementos secundarios
-  const ACCENT  = [192, 78, 26]   as const;   // naranja-rojo para encabezados de sección
-  const BGBLUE  = [239, 246, 255] as const;
-  const BGCOVER = [17, 34, 100]   as const;
-  const GRAY    = [107, 114, 128] as const;
-  const DARK    = [17, 24, 39]    as const;
-  const WHITE   = [255, 255, 255] as const;
-  const BORDER  = [226, 232, 240] as const;
+  // ── PALETA DE COLORES (basada en membrete actual de Protonmed) ────────────
+  const TEAL   = [0, 124, 143]   as const;   // color principal de marca (teal)
+  const DARK   = [31, 31, 31]    as const;   // texto oscuro
+  const GRAY   = [107, 114, 128] as const;   // texto secundario
+  const WHITE  = [255, 255, 255] as const;
+  const BGROW  = [245, 248, 249] as const;   // fondo alternado de filas
+  const BORDER = [226, 232, 240] as const;
+  const HDRH   = 10;                         // altura cabecera páginas 2+
 
   // Alias tipado para addImage
   type JsPDFWithImage = { addImage: (img: string, fmt: string, x: number, y: number, w: number, h: number) => void };
@@ -194,275 +194,229 @@ export async function exportCotizacionPdf(
     } catch { /* imagen inválida, ignorar */ }
   };
 
-  // ── PORTADA ──────────────────────────────────────────────────────────────────
-  // Fondo azul marino que cubre ~44% de la página (igual que referencia)
-  doc.setFillColor(...BGCOVER);
-  doc.rect(0, 0, W, 130, "F");
+  // Helper: encabezado de sección estilo membrete
+  const sectionTitle = (title: string, yPos: number) => {
+    doc.setFontSize(11); doc.setFont("helvetica", "bold"); doc.setTextColor(...TEAL);
+    doc.text(title, ML, yPos);
+    doc.setDrawColor(...TEAL); doc.setLineWidth(0.5);
+    doc.line(ML, yPos + 1.5, W - MR, yPos + 1.5);
+  };
 
   const empresaImg = getImg(opts.empresa?.logo_url);
+  const clienteImg = getImg(c.cliente?.logo_url);
+
+  // ── PORTADA (página 1 completa, fondo blanco — membrete) ─────────────────
+  // Logos: cliente (izquierda) + empresa (derecha)
+  const logoH = 28;
+  if (clienteImg) {
+    addImg(clienteImg, ML, 12, 55, logoH);
+  }
   if (empresaImg) {
-    addImg(empresaImg, ML, 10, 50, 20);
+    addImg(empresaImg, W - MR - 52, 12, 52, logoH);
   } else {
-    // Fallback: logo VIATIQ
     (doc as unknown as JsPDFWithImage).addImage(
-      LOGO_VIATIQ_PNG_B64, "PNG", ML, 12, LOGO_VIATIQ_W * 0.8, LOGO_VIATIQ_H * 0.8,
+      LOGO_VIATIQ_PNG_B64, "PNG", W - MR - 40, 14, LOGO_VIATIQ_W * 0.9, LOGO_VIATIQ_H * 0.9,
     );
   }
 
-  // Logo del cliente (derecha)
-  const clienteImg = getImg(c.cliente?.logo_url);
-  if (clienteImg) {
-    addImg(clienteImg, W - MR - 44, 10, 44, 20);
-  }
+  // Línea separadora teal
+  doc.setDrawColor(...TEAL); doc.setLineWidth(0.8);
+  doc.line(ML, 46, W - MR, 46);
 
-  // Número cotización — top right, pequeño
-  doc.setFontSize(9);
-  doc.setTextColor(...WHITE);
-  doc.setFont("helvetica", "normal");
-  doc.text(c.numero, W - MR, 38, { align: "right" });
+  // Título principal en teal
+  doc.setFontSize(22); doc.setFont("helvetica", "bold"); doc.setTextColor(...TEAL);
+  doc.text("PROPUESTA TÉCNICO-COMERCIAL", ML, 60);
 
-  // Título — grande y prominente como en la referencia
-  doc.setFontSize(24);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(...WHITE);
-  doc.text("PROPUESTA TÉCNICO-COMERCIAL", ML, 58);
-
-  // Asunto / subtítulo en azul claro
+  // Asunto(s) en teal, tamaño menor
+  let coverY = 70;
   if (c.asunto) {
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(180, 210, 255);
+    doc.setFontSize(11); doc.setFont("helvetica", "normal"); doc.setTextColor(...TEAL);
     const asuntoLines = doc.splitTextToSize(c.asunto, CW) as string[];
-    doc.text(asuntoLines, ML, 72);
+    doc.text(asuntoLines, ML, coverY);
+    coverY += asuntoLines.length * 6 + 4;
   }
 
-  const prepY = c.asunto ? 88 : 74;
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(...WHITE);
-  doc.text(`PREPARADO PARA: ${c.razon_social.toUpperCase()}`, ML, prepY);
+  // "Preparado para:" en gris
+  coverY += 14;
+  doc.setFontSize(8.5); doc.setFont("helvetica", "normal"); doc.setTextColor(...GRAY);
+  doc.text("Preparado para:", ML, coverY);
+  coverY += 8;
 
+  // Nombre del cliente en negro grande
+  doc.setFontSize(18); doc.setFont("helvetica", "bold"); doc.setTextColor(...DARK);
+  doc.text(c.razon_social, ML, coverY);
+  coverY += 8;
+
+  // Contacto
   const contacto = c.cliente?.contacto_nombre;
   if (contacto) {
     const cargo = c.cliente?.contacto_cargo;
-    doc.setFontSize(8);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(180, 210, 255);
-    doc.text(`At. ${contacto}${cargo ? " — " + cargo : ""}`, ML, prepY + 7);
+    doc.setFontSize(9); doc.setFont("helvetica", "normal"); doc.setTextColor(...GRAY);
+    doc.text(`At. ${contacto}${cargo ? " - " + cargo : ""}`, ML, coverY);
+    coverY += 7;
   }
 
+  // Espacio antes del número de referencia
+  coverY += 40;
+
+  // Línea de referencia
+  doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(...DARK);
+  const refLine = `OFERTA REFERENCIAL ${c.numero}     Fecha: ${fmtFecha(c.fecha)}${c.valida_hasta ? "     Válida hasta: " + fmtFecha(c.valida_hasta) : ""}`;
+  doc.text(refLine, ML, coverY);
+  coverY += 8;
+
+  // "Presentado por" en teal bold
   if (opts.empresa?.nombre) {
-    doc.setFontSize(9);
-    doc.setTextColor(...WHITE);
-    doc.setFont("helvetica", "bold");
-    doc.text(`Presentado por ${opts.empresa.nombre}`, ML, prepY + 16);
+    doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(...TEAL);
+    doc.text(`Presentado por ${opts.empresa.nombre}`, ML, coverY);
   }
 
-  doc.setFontSize(8);
-  doc.setFont("helvetica", "normal");
-  doc.setTextColor(180, 210, 255);
-  doc.text(
-    `Fecha: ${fmtFecha(c.fecha)}${c.valida_hasta ? "   ·   Válido hasta: " + fmtFecha(c.valida_hasta) : ""}`,
-    ML, prepY + 24,
-  );
+  // Franja teal al pie de la portada
+  doc.setFillColor(...TEAL);
+  doc.rect(0, H - 8, W, 8, "F");
 
-  let y = 145;
-
-  // ── INFO CLIENTE + DETALLES ───────────────────────────────────────────────
-  const colW = CW / 2 - 4;
-  doc.setFillColor(...BGBLUE);
-  doc.roundedRect(ML, y, colW, 28, 2, 2, "F");
-  doc.setFontSize(7);
-  doc.setTextColor(...BLUE);
-  doc.setFont("helvetica", "bold");
-  doc.text("CLIENTE", ML + 4, y + 5);
-  doc.setFontSize(9);
-  doc.setTextColor(...DARK);
-  doc.text(c.razon_social, ML + 4, y + 11);
-  if (c.ruc_cliente) {
-    doc.setFontSize(7.5); doc.setTextColor(...GRAY); doc.setFont("helvetica", "normal");
-    doc.text("RUC: " + c.ruc_cliente, ML + 4, y + 17);
-  }
-  if (c.email_cliente) {
-    doc.setFontSize(7); doc.text(c.email_cliente, ML + 4, y + 22);
-  }
-
-  const rx = ML + colW + 8;
-  doc.setFillColor(...BGBLUE);
-  doc.roundedRect(rx, y, colW, 28, 2, 2, "F");
-  doc.setFontSize(7); doc.setTextColor(...BLUE); doc.setFont("helvetica", "bold");
-  doc.text("DETALLES", rx + 4, y + 5);
-  doc.setFontSize(7.5); doc.setTextColor(...GRAY); doc.setFont("helvetica", "normal");
-  doc.text("Fecha:", rx + 4, y + 11); doc.setTextColor(...DARK); doc.text(fmtFecha(c.fecha), rx + 20, y + 11);
-  if (c.valida_hasta) {
-    doc.setTextColor(...GRAY); doc.text("Válida hasta:", rx + 4, y + 16);
-    doc.setTextColor(...DARK); doc.text(fmtFecha(c.valida_hasta), rx + 28, y + 16);
-  }
-  if (c.lugar_entrega) {
-    doc.setTextColor(...GRAY); doc.text("Entrega:", rx + 4, y + 21);
-    doc.setTextColor(...DARK);
-    const leLns = doc.splitTextToSize(c.lugar_entrega, colW - 30) as string[];
-    doc.text(leLns[0], rx + 22, y + 21);
-  }
-  if (c.dias_entrega) {
-    doc.setTextColor(...GRAY); doc.text("Plazo:", rx + 4, y + 26);
-    doc.setTextColor(...DARK); doc.text(`${c.dias_entrega} días laborables`, rx + 17, y + 26);
-  }
-
-  y += 38;
+  // ── CONTENIDO: nueva página ───────────────────────────────────────────────
+  doc.addPage();
+  let y = HDRH + 8;
 
   // ── RESUMEN EJECUTIVO ───────────────────────────────────────────────────────
   if (params.resumen_ejecutivo) {
-    if (y + 12 > H - 30) { doc.addPage(); y = 18; }
-    doc.setFontSize(9);
-    doc.setTextColor(...ACCENT);
-    doc.setFont("helvetica", "bold");
-    doc.text("RESUMEN EJECUTIVO", ML, y);
-    doc.setDrawColor(...ACCENT); doc.setLineWidth(0.4);
-    doc.line(ML + 40, y - 1, W - MR, y - 1);
-    y += 6;
+    sectionTitle("RESUMEN EJECUTIVO", y);
+    y += 8;
 
     doc.setFontSize(8.5); doc.setTextColor(...DARK); doc.setFont("helvetica", "normal");
     const rLines = doc.splitTextToSize(params.resumen_ejecutivo, CW) as string[];
     const rH = rLines.length * 4.8;
-    if (y + rH > H - 30) { doc.addPage(); y = 18; }
+    if (y + rH > H - 22) { doc.addPage(); y = HDRH + 8; }
     doc.text(rLines, ML, y);
-    y += rH + 10;
+    y += rH + 12;
   }
 
   // ── CUADRO TÉCNICO-COMERCIAL ─────────────────────────────────────────────
-  if (y + 16 > H - 30) { doc.addPage(); y = 18; }
-  doc.setFontSize(9); doc.setTextColor(...ACCENT); doc.setFont("helvetica", "bold");
-  doc.text("CUADRO TÉCNICO-COMERCIAL", ML, y);
-  doc.setDrawColor(...ACCENT); doc.setLineWidth(0.4);
-  doc.line(ML + 54, y - 1, W - MR, y - 1);
-  y += 5;
+  if (y + 16 > H - 22) { doc.addPage(); y = HDRH + 8; }
+  sectionTitle("CUADRO TÉCNICO-COMERCIAL DE LA OFERTA", y);
+  y += 7;
 
   const cuadroRows: [string, string][] = [];
   if (c.asunto) cuadroRows.push(["Proyecto", c.asunto]);
-  cuadroRows.push(["Precio total", fmtMoney(c.total)]);
+  cuadroRows.push(["Precio", fmtMoney(c.total)]);
+  if (c.descuento_total > 0) cuadroRows.push(["Descuento", fmtMoney(c.descuento_total)]);
+  cuadroRows.push([`Precio ${c.razon_social || "cliente"}`, fmtMoney(c.total)]);
   if (c.terminos_pago?.length)
-    cuadroRows.push(["Forma de pago", c.terminos_pago.map((t) => `${t.porcentaje}% ${t.concepto}`).join(" / ")]);
-  if (c.dias_entrega) cuadroRows.push(["Plazo de entrega", `${c.dias_entrega} días laborables`]);
-  if (c.meses_garantia) cuadroRows.push(["Garantía", `${c.meses_garantia} meses`]);
-  cuadroRows.push(["Soporte técnico", "Incluido"]);
+    cuadroRows.push(["Forma de pago", c.terminos_pago.map((t) => `${t.porcentaje}% ${t.concepto}`).join("\n")]);
+  if (c.dias_entrega) cuadroRows.push(["Plazo de entrega", `${c.dias_entrega} días hábiles a partir de la recepción del anticipo y entrega de documentación habilitante para la importación`]);
+  if (c.meses_garantia) cuadroRows.push(["Garantía", `${c.meses_garantia} meses a partir de la instalación del equipo`]);
+  cuadroRows.push(["Soporte técnico", "Local/regional - tiempo de respuesta máximo de 48 horas"]);
   if (c.lugar_entrega) cuadroRows.push(["Lugar de entrega e instalación", c.lugar_entrega]);
 
   autoTable(doc as Parameters<typeof autoTable>[0], {
     startY: y,
     margin: { left: ML, right: MR },
     body: cuadroRows.map(([k, v]) => [k, v]),
-    styles: { fontSize: 8, cellPadding: 2.5, textColor: [...DARK] },
+    styles: { fontSize: 8, cellPadding: 2.8, textColor: [...DARK], overflow: "linebreak" },
     columnStyles: {
-      0: { cellWidth: 60, fontStyle: "bold", fillColor: [...BGBLUE], textColor: [...ACCENT] },
-      1: { cellWidth: CW - 60 },
+      0: { cellWidth: 52, fontStyle: "bold", fillColor: [...TEAL], textColor: [...WHITE] },
+      1: { cellWidth: CW - 52 },
     },
-    alternateRowStyles: { fillColor: [249, 250, 251] },
     tableLineColor: [...BORDER],
     tableLineWidth: 0.2,
   });
-  y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
+  y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 12;
 
   // ── DESCRIPCIÓN TÉCNICA ───────────────────────────────────────────────────
-  if (y + 16 > H - 30) { doc.addPage(); y = 18; }
-  doc.setFontSize(9); doc.setTextColor(...ACCENT); doc.setFont("helvetica", "bold");
-  doc.text("DESCRIPCIÓN TÉCNICA DE LA OFERTA", ML, y);
-  doc.setDrawColor(...ACCENT); doc.setLineWidth(0.4);
-  doc.line(ML + 65, y - 1, W - MR, y - 1);
-  y += 7;
+  if (y + 16 > H - 22) { doc.addPage(); y = HDRH + 8; }
+  sectionTitle("DESCRIPCIÓN TÉCNICA DE LA OFERTA", y);
+  y += 8;
 
   const byFab = groupByFabricante(c.items);
 
   for (const [fab, items] of byFab) {
-    if (y + 16 > H - 30) { doc.addPage(); y = 18; }
+    if (y + 20 > H - 22) { doc.addPage(); y = HDRH + 8; }
 
-    // Encabezado del fabricante
+    // ── Encabezado del fabricante: barra teal con logo ────────────────────
     const fabItem = items.find((it) => it.proveedor?.logo_url);
     const fabImg = getImg(fabItem?.proveedor?.logo_url);
 
-    doc.setFillColor(...BGBLUE);
-    doc.roundedRect(ML, y, CW, 9, 1, 1, "F");
-    doc.setFontSize(9); doc.setTextColor(...BLUE); doc.setFont("helvetica", "bold");
-    doc.text(fab.toUpperCase(), ML + 5, y + 6);
+    doc.setFillColor(...TEAL);
+    doc.rect(ML, y, CW, 11, "F");
+    doc.setFontSize(9.5); doc.setTextColor(...WHITE); doc.setFont("helvetica", "bold");
+    doc.text(`EQUIPOS - ${fab.toUpperCase()}`, ML + 4, y + 7.5);
 
     if (fabImg) {
-      try { addImg(fabImg, W - MR - 26, y + 0.5, 24, 8); } catch { /* skip */ }
+      try { addImg(fabImg, W - MR - 32, y + 1, 30, 9); } catch { /* skip */ }
     }
-    y += 13;
+    y += 15;
 
-    // Tarjeta por producto
+    // ── Tarjeta por producto ──────────────────────────────────────────────
     for (const it of items) {
       const fotoImg = getImg(it.catalogo?.foto_url);
       const descLarga = it.catalogo?.descripcion_larga ?? "";
+      const leftW = fotoImg ? CW * 0.62 : CW;
+      const rightW = CW - leftW - 4;
+
+      const descLines = descLarga ? doc.splitTextToSize(descLarga, leftW) as string[] : [];
+      const descH = descLines.length * 4.2;
       const cardH = Math.max(
-        descLarga ? Math.ceil(doc.splitTextToSize(descLarga, CW * 0.58).length * 4.2) + 20 : 24,
-        fotoImg ? 44 : 24,
+        descH + 22,
+        fotoImg ? 46 : 22,
       );
 
-      if (y + cardH + 6 > H - 30) { doc.addPage(); y = 18; }
+      if (y + cardH + 14 > H - 22) { doc.addPage(); y = HDRH + 8; }
 
-      // Nombre del producto
-      doc.setFontSize(9); doc.setTextColor(...DARK); doc.setFont("helvetica", "bold");
-      doc.text(it.descripcion, ML, y + 5);
+      // Barra del nombre del producto en teal
+      doc.setFillColor(...TEAL);
+      doc.rect(ML, y, CW, 8, "F");
+      doc.setFontSize(9); doc.setTextColor(...WHITE); doc.setFont("helvetica", "bold");
+      const prodName = doc.splitTextToSize(it.descripcion, CW - 8) as string[];
+      doc.text(prodName[0], ML + 3, y + 5.5);
+      y += 9;
 
-      // Subtítulo: fabricante + cantidad
+      // Sub-título: fabricante + cantidad
       doc.setFontSize(7.5); doc.setFont("helvetica", "italic"); doc.setTextColor(...GRAY);
-      doc.text(`${it.fabricante || fab} · Modelo: ${it.modelo || "—"} · Cant.: ${it.cantidad}`, ML, y + 10);
+      const subLabel = [it.fabricante || fab, it.modelo ? `Modelo: ${it.modelo}` : null, `Cantidad: ${it.cantidad}`]
+        .filter(Boolean).join("  ·  ");
+      doc.text(subLabel, ML, y + 4);
+      y += 8;
 
-      if (descLarga || fotoImg) {
-        const leftW = fotoImg ? CW * 0.6 : CW;
-        const rightW = CW - leftW - 4;
-
-        // Descripción larga (izquierda)
-        if (descLarga) {
-          doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(...DARK);
-          const dLines = doc.splitTextToSize(descLarga, leftW) as string[];
-          doc.text(dLines, ML, y + 16);
-        }
-
-        // Foto del producto (derecha)
-        if (fotoImg) {
-          const imgX = ML + leftW + 4;
-          const imgW = rightW - 2;
-          const imgH = Math.min(imgW * 0.75, cardH - 14);
-          addImg(fotoImg, imgX, y + 14, imgW, imgH);
-        }
-
-        y += cardH + 6;
-      } else {
-        y += 16;
+      // Descripción larga (izquierda) + foto (derecha)
+      if (descLarga) {
+        doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(...DARK);
+        doc.text(descLines, ML, y);
       }
+      if (fotoImg) {
+        const imgX = ML + leftW + 4;
+        const imgW = rightW - 2;
+        const imgH = Math.min(imgW * 0.7, cardH - 10);
+        addImg(fotoImg, imgX, y - 2, imgW, imgH);
+      }
+
+      y += Math.max(descH, fotoImg ? 36 : 4) + 10;
     }
     y += 4;
   }
 
   // ── DETALLE DE PRECIOS ────────────────────────────────────────────────────
-  if (y + 16 > H - 30) { doc.addPage(); y = 18; }
-  doc.setFontSize(9); doc.setTextColor(...ACCENT); doc.setFont("helvetica", "bold");
-  doc.text("DETALLE DE PRECIOS POR ÍTEM", ML, y);
-  doc.setDrawColor(...ACCENT); doc.setLineWidth(0.4);
-  doc.line(ML + 55, y - 1, W - MR, y - 1);
-  y += 6;
+  if (y + 16 > H - 22) { doc.addPage(); y = HDRH + 8; }
+  sectionTitle("DETALLE DE PRECIOS POR ÍTEM", y);
+  y += 7;
 
-  // Agrupar precios por fabricante con subtotales
+  // Tabla unificada con filas de fabricante intercaladas
   for (const [fab, items] of byFab) {
-    if (y + 10 > H - 30) { doc.addPage(); y = 18; }
-
-    if (byFab.size > 1) {
-      doc.setFillColor(...BGBLUE);
-      doc.roundedRect(ML, y, CW, 6, 1, 1, "F");
-      doc.setFontSize(7.5); doc.setTextColor(...BLUE); doc.setFont("helvetica", "bold");
-      doc.text(fab.toUpperCase(), ML + 3, y + 4.5);
-      y += 9;
-    }
+    if (y + 12 > H - 22) { doc.addPage(); y = HDRH + 8; }
 
     const subtotal = items.reduce((s, it) => s + it.precio_neto, 0);
+
+    // Fila de fabricante (solo si hay más de uno)
+    const fabRow = byFab.size > 1 ? [[
+      { content: fab.toUpperCase(), colSpan: 5, styles: { fillColor: [...TEAL], textColor: [...WHITE], fontStyle: "bold" as const } },
+    ]] : [];
 
     autoTable(doc as Parameters<typeof autoTable>[0], {
       startY: y,
       margin: { left: ML, right: MR },
       head: [["Ítem", "Descripción", "Cant.", "Precio Unitario", "Total"]],
       body: [
+        ...fabRow,
         ...items.map((it, i) => [
           String(i + 1),
           it.catalogo?.nombre ?? it.descripcion,
@@ -470,72 +424,108 @@ export async function exportCotizacionPdf(
           fmtMoney(it.precio_unitario),
           fmtMoney(it.precio_neto),
         ]),
-        ...(byFab.size > 1 ? [["", "Subtotal " + fab, "", "", fmtMoney(subtotal)]] : []),
+        ...(byFab.size > 1 ? [[
+          { content: "", styles: { fillColor: [...BGROW] } },
+          { content: `SUBTOTAL ${fab.toUpperCase()}`, styles: { fillColor: [...BGROW], fontStyle: "bold" as const, textColor: [...TEAL] } },
+          { content: "", styles: { fillColor: [...BGROW] } },
+          { content: "", styles: { fillColor: [...BGROW] } },
+          { content: fmtMoney(subtotal), styles: { fillColor: [...BGROW], fontStyle: "bold" as const, textColor: [...TEAL] } },
+        ]] : []),
       ],
       styles: { fontSize: 7.5, cellPadding: 2, textColor: [...DARK] },
-      headStyles: { fillColor: [...BGBLUE], textColor: [...BLUE], fontStyle: "bold", fontSize: 7.5 },
-      alternateRowStyles: { fillColor: [249, 250, 251] },
+      headStyles: { fillColor: [...TEAL], textColor: [...WHITE], fontStyle: "bold", fontSize: 7.5 },
+      alternateRowStyles: { fillColor: [...BGROW] },
       columnStyles: {
         0: { cellWidth: 10, halign: "center" },
         2: { cellWidth: 12, halign: "center" },
-        3: { cellWidth: 30, halign: "right" },
-        4: { cellWidth: 26, halign: "right", fontStyle: "bold" },
+        3: { cellWidth: 32, halign: "right" },
+        4: { cellWidth: 28, halign: "right", fontStyle: "bold" },
       },
     });
-    y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
+    y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
+  }
+
+  // ── OPCIONES (si hay ítems con precio 0) ─────────────────────────────────
+  const opcionItems = c.items.filter((it) => it.precio_neto === 0);
+  if (opcionItems.length > 0) {
+    if (y + 14 > H - 22) { doc.addPage(); y = HDRH + 8; }
+    doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(...TEAL);
+    doc.text("Opciones", ML, y); y += 7;
+    autoTable(doc as Parameters<typeof autoTable>[0], {
+      startY: y,
+      margin: { left: ML, right: MR },
+      head: [["Ítem", "Descripción", "Cant.", "Precio Unitario", "Total"]],
+      body: opcionItems.map((it, i) => [
+        `${i + 1}*`,
+        it.catalogo?.nombre ?? it.descripcion,
+        String(it.cantidad),
+        fmtMoney(it.precio_unitario),
+        fmtMoney(it.precio_neto),
+      ]),
+      styles: { fontSize: 7.5, cellPadding: 2, textColor: [...DARK] },
+      headStyles: { fillColor: [...TEAL], textColor: [...WHITE], fontStyle: "bold", fontSize: 7.5 },
+      columnStyles: {
+        0: { cellWidth: 10, halign: "center" },
+        2: { cellWidth: 12, halign: "center" },
+        3: { cellWidth: 32, halign: "right" },
+        4: { cellWidth: 28, halign: "right" },
+      },
+    });
+    y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
   }
 
   // ── TÉRMINOS DE PAGO + TOTALES ────────────────────────────────────────────
-  if (y + 40 > H - 30) { doc.addPage(); y = 18; }
+  if (y + 50 > H - 22) { doc.addPage(); y = HDRH + 8; }
 
   const totW = 72;
   const totX = W - MR - totW;
 
   if (c.terminos_pago?.length) {
-    doc.setFontSize(8.5); doc.setTextColor(...ACCENT); doc.setFont("helvetica", "bold");
-    doc.text("TÉRMINOS DE PAGO", ML, y + 4);
-    doc.setDrawColor(...ACCENT); doc.setLineWidth(0.4);
-    doc.line(ML + 38, y + 3, W - MR, y + 3);
-    y += 9;
+    doc.setFontSize(9); doc.setTextColor(...TEAL); doc.setFont("helvetica", "bold");
+    doc.text("Opciones de pago", ML, y + 5);
+    y += 10;
     for (const t of c.terminos_pago) {
-      doc.setFont("helvetica", "normal"); doc.setTextColor(...DARK); doc.setFontSize(8);
+      doc.setFont("helvetica", "normal"); doc.setTextColor(...DARK); doc.setFontSize(8.5);
       doc.text(`• ${t.concepto}`, ML + 2, y);
-      doc.setFont("helvetica", "bold"); doc.setTextColor(...ACCENT);
-      doc.text(`${t.porcentaje}%`, ML + 80, y, { align: "right" });
-      y += 5;
+      doc.setFont("helvetica", "bold"); doc.setTextColor(...TEAL);
+      doc.text(`${t.porcentaje}%`, ML + 85, y, { align: "right" });
+      y += 6;
     }
+    y += 4;
   }
 
-  const boxY = y;
-  doc.setFillColor(...BGBLUE);
-  doc.roundedRect(totX, boxY, totW, 32, 2, 2, "F");
+  // Caja de totales (esquina derecha)
+  const boxY = y - (c.terminos_pago?.length ? 0 : 0);
+  const boxH = 36 + (c.descuento_total > 0 ? 7 : 0);
+  doc.setFillColor(...BGROW);
+  doc.roundedRect(totX, boxY, totW, boxH, 2, 2, "F");
+  doc.setDrawColor(...BORDER); doc.setLineWidth(0.3);
+  doc.roundedRect(totX, boxY, totW, boxH, 2, 2, "S");
+
   doc.setFontSize(8); doc.setTextColor(...GRAY); doc.setFont("helvetica", "normal");
-  doc.text("Subtotal:", totX + 4, boxY + 7);
-  doc.setTextColor(...DARK); doc.text(fmtMoney(c.subtotal), totX + totW - 4, boxY + 7, { align: "right" });
-  let totRowY = boxY + 13;
+  doc.text("Subtotal:", totX + 4, boxY + 8);
+  doc.setTextColor(...DARK); doc.text(fmtMoney(c.subtotal), totX + totW - 4, boxY + 8, { align: "right" });
+  let totRowY = boxY + 15;
   if (c.descuento_total > 0) {
     doc.setTextColor(...GRAY); doc.text("Descuento:", totX + 4, totRowY);
     doc.setTextColor(200, 30, 30); doc.text(`- ${fmtMoney(c.descuento_total)}`, totX + totW - 4, totRowY, { align: "right" });
-    totRowY += 6;
+    totRowY += 7;
   }
   doc.setTextColor(...GRAY); doc.text(`IVA ${c.iva_pct}%:`, totX + 4, totRowY);
   doc.setTextColor(...DARK); doc.text(fmtMoney(c.iva), totX + totW - 4, totRowY, { align: "right" });
-  doc.setDrawColor(...BORDER); doc.setLineWidth(0.3);
-  doc.line(totX + 2, boxY + 25, totX + totW - 2, boxY + 25);
-  doc.setFontSize(10); doc.setFont("helvetica", "bold"); doc.setTextColor(...BLUE);
-  doc.text("TOTAL:", totX + 4, boxY + 31);
-  doc.text(fmtMoney(c.total), totX + totW - 4, boxY + 31, { align: "right" });
+  doc.setDrawColor(...TEAL); doc.setLineWidth(0.4);
+  doc.line(totX + 3, totRowY + 4, totX + totW - 3, totRowY + 4);
+  doc.setFontSize(11); doc.setFont("helvetica", "bold"); doc.setTextColor(...TEAL);
+  doc.text("TOTAL:", totX + 4, totRowY + 11);
+  doc.text(fmtMoney(c.total), totX + totW - 4, totRowY + 11, { align: "right" });
 
-  y = boxY + 38;
+  y = boxY + boxH + 10;
 
   // ── INFORMACIÓN DEL OFERENTE ──────────────────────────────────────────────
   if (opts.empresa) {
-    if (y + 20 > H - 30) { doc.addPage(); y = 18; }
-    doc.setFontSize(9); doc.setTextColor(...ACCENT); doc.setFont("helvetica", "bold");
-    doc.text("INFORMACIÓN DEL OFERENTE", ML, y);
-    doc.setDrawColor(...ACCENT); doc.setLineWidth(0.4);
-    doc.line(ML + 52, y - 1, W - MR, y - 1);
-    y += 6;
+    if (y + 24 > H - 22) { doc.addPage(); y = HDRH + 8; }
+    sectionTitle("INFORMACIÓN DEL OFERENTE", y);
+    y += 8;
 
     const emp = opts.empresa;
     doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(...DARK);
@@ -545,12 +535,12 @@ export async function exportCotizacionPdf(
     if (emp.direccion) { const ls = doc.splitTextToSize(emp.direccion, CW) as string[]; doc.text(ls, ML, y); y += ls.length * 4.5; }
     if (emp.telefono)  { doc.text(`Tel: ${emp.telefono}`, ML, y); y += 4.5; }
     if (emp.correo)    { doc.text(emp.correo, ML, y); y += 4.5; }
-    y += 4;
+    y += 6;
   }
 
   // ── NOTAS ────────────────────────────────────────────────────────────────
   if (c.notas) {
-    if (y + 14 > H - 30) { doc.addPage(); y = 18; }
+    if (y + 14 > H - 22) { doc.addPage(); y = HDRH + 8; }
     doc.setFontSize(8); doc.setTextColor(...GRAY); doc.setFont("helvetica", "bold");
     doc.text("NOTAS", ML, y); y += 5;
     doc.setFont("helvetica", "normal"); doc.setTextColor(...DARK);
@@ -560,42 +550,54 @@ export async function exportCotizacionPdf(
 
   // ── TÉRMINOS Y CONDICIONES ────────────────────────────────────────────────
   if (params.terminos_condiciones) {
-    if (y + 20 > H - 30) { doc.addPage(); y = 18; }
-    doc.setFontSize(9); doc.setTextColor(...ACCENT); doc.setFont("helvetica", "bold");
-    doc.text("TÉRMINOS Y CONDICIONES", ML, y);
-    doc.setDrawColor(...ACCENT); doc.setLineWidth(0.4);
-    doc.line(ML + 52, y - 1, W - MR, y - 1);
-    y += 7;
+    if (y + 20 > H - 22) { doc.addPage(); y = HDRH + 8; }
+    sectionTitle("TÉRMINOS Y CONDICIONES", y);
+    y += 9;
 
     const tcLines = params.terminos_condiciones.split("\n");
     for (const line of tcLines) {
       const trimmed = line.trim();
       if (!trimmed) { y += 2; continue; }
-      if (y + 5 > H - 18) { doc.addPage(); y = 18; }
+      if (y + 5 > H - 16) { doc.addPage(); y = HDRH + 8; }
 
       if (isTcHeading(trimmed)) {
-        doc.setFontSize(8.5); doc.setFont("helvetica", "bold"); doc.setTextColor(...DARK);
-        doc.text(trimmed, ML, y); y += 5.5;
+        if (y + 6 > H - 16) { doc.addPage(); y = HDRH + 8; }
+        doc.setFontSize(8.5); doc.setFont("helvetica", "bold"); doc.setTextColor(...TEAL);
+        doc.text(trimmed, ML, y); y += 6;
       } else {
-        doc.setFontSize(7.5); doc.setFont("helvetica", "normal"); doc.setTextColor(80, 80, 80);
+        doc.setFontSize(7.8); doc.setFont("helvetica", "normal"); doc.setTextColor(60, 60, 60);
         const wrapped = doc.splitTextToSize(trimmed, CW) as string[];
         for (const wl of wrapped) {
-          if (y + 4 > H - 18) { doc.addPage(); y = 18; }
+          if (y + 4 > H - 16) { doc.addPage(); y = HDRH + 8; }
           doc.text(wl, ML, y); y += 4.2;
         }
       }
     }
   }
 
-  // ── PIE DE PÁGINA ─────────────────────────────────────────────────────────
+  // ── ENCABEZADO + PIE DE PÁGINA (todas las páginas) ───────────────────────
   const totalPages = (doc as unknown as { internal: { getNumberOfPages: () => number } }).internal.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
-    doc.setFontSize(7); doc.setTextColor(...GRAY); doc.setFont("helvetica", "normal");
-    doc.text(`${opts.empresa?.nombre ?? "VIATIQ"} · Propuesta ${c.numero}`, ML, H - 8);
-    doc.text(`Pág. ${i} / ${totalPages}`, W - MR, H - 8, { align: "right" });
-    doc.setDrawColor(...BORDER); doc.setLineWidth(0.3);
-    doc.line(ML, H - 12, W - MR, H - 12);
+
+    if (i > 1) {
+      // Cabecera: barra teal delgada con info empresa y logo
+      doc.setFillColor(...TEAL);
+      doc.rect(0, 0, W, HDRH, "F");
+      doc.setFontSize(7); doc.setTextColor(...WHITE); doc.setFont("helvetica", "normal");
+      doc.text(`${opts.empresa?.nombre ?? "VIATIQ"} · Propuesta ${c.numero}`, ML, 6.5);
+      // Logo empresa en cabecera
+      if (empresaImg) {
+        try { addImg(empresaImg, W - MR - 22, 0.5, 22, 9); } catch { /* skip */ }
+      }
+    }
+
+    // Pie: barra teal delgada + número de página
+    doc.setFillColor(...TEAL);
+    doc.rect(0, H - 7, W, 7, "F");
+    doc.setFontSize(7); doc.setTextColor(...WHITE); doc.setFont("helvetica", "normal");
+    doc.text(`${opts.empresa?.nombre ?? "VIATIQ"} · Propuesta ${c.numero}`, ML, H - 3);
+    doc.text(`Página ${i} de ${totalPages}`, W - MR, H - 3, { align: "right" });
   }
 
   doc.save(`${c.numero}.pdf`);
@@ -636,12 +638,10 @@ export async function exportCotizacionDocx(
   const getImg = (url: string | null | undefined) => url ? (imgCache.get(url) ?? null) : null;
 
   // ── Constantes de estilo ────────────────────────────────────────────────────
-  const BLUE_HEX   = "1A398A";   // azul marino
-  const ACCENT_HEX = "C04E1A";   // naranja-rojo para encabezados de sección
-  const COVER_HEX  = "112264";
+  const TEAL_HEX   = "007C8F";   // color principal de marca (teal)
   const GRAY_HEX   = "6B7280";
-  const BGBLUE     = "EFF6FF";
-  const BGLIGHT    = "F8FAFC";
+  const BGLIGHT    = "F0F9FA";   // fondo alternado filas muy claro
+  const BGROW_HEX  = "F5F8F9";
   const WHITE      = "FFFFFF";
 
   // ── Helpers de texto ────────────────────────────────────────────────────────
@@ -653,6 +653,10 @@ export async function exportCotizacionDocx(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const para = (runs: any[], align: string = AlignmentType.LEFT, spacingAfter = 80) =>
     new Paragraph({ children: runs, alignment: align as typeof AlignmentType.LEFT, spacing: { after: spacingAfter } });
+
+  const BLUE_HEX   = TEAL_HEX;   // alias de compatibilidad → teal
+  const ACCENT_HEX = TEAL_HEX;   // alias de compatibilidad → teal
+  const BGBLUE     = BGLIGHT;    // alias de compatibilidad → fondo claro teal
 
   const sectionHeading = (text: string) =>
     new Paragraph({
