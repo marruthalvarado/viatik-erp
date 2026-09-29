@@ -119,7 +119,7 @@ export function IvaPanel({ empresaId, anio, tipo }: Props) {
       {data && (
         <>
           {/* KPI cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className={`grid gap-3 ${data.credito_tributario_anterior > 0 ? "grid-cols-2 md:grid-cols-5" : "grid-cols-2 md:grid-cols-4"}`}>
             <IvaKpi
               label="IVA Ventas (cobrado)"
               value={data.iva_ventas}
@@ -138,6 +138,14 @@ export function IvaPanel({ empresaId, anio, tipo }: Props) {
               sub={`${data.num_compras} gastos deducibles`}
               tone="green"
             />
+            {data.credito_tributario_anterior > 0 && (
+              <IvaKpi
+                label="Crédito mes anterior"
+                value={data.credito_tributario_anterior}
+                sub="saldo a favor arrastrado"
+                tone="green"
+              />
+            )}
             <IvaKpi
               label="IVA A PAGAR"
               value={data.iva_a_pagar}
@@ -154,7 +162,15 @@ export function IvaPanel({ empresaId, anio, tipo }: Props) {
             <span className="font-medium text-foreground">{formatCurrency(data.retenciones_iva_recibidas)}</span>
             {" (retenciones) − "}
             <span className="font-medium text-foreground">{formatCurrency(data.credito_tributario_compras)}</span>
-            {" (crédito tributario) = "}
+            {" (crédito compras)"}
+            {data.credito_tributario_anterior > 0 && (
+              <>
+                {" − "}
+                <span className="font-medium text-emerald-600">{formatCurrency(data.credito_tributario_anterior)}</span>
+                {" (crédito anterior)"}
+              </>
+            )}
+            {" = "}
             <span className={`font-bold ${data.iva_a_pagar > 0 ? "text-destructive" : "text-emerald-600"}`}>
               {formatCurrency(data.iva_a_pagar)}
             </span>

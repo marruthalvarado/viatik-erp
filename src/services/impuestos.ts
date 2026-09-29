@@ -39,6 +39,7 @@ export interface ResultadoIva {
   iva_ventas: number;
   retenciones_iva_recibidas: number;
   credito_tributario_compras: number;
+  credito_tributario_anterior: number; // arrastre de meses previos (LRTI Art. 69)
   iva_a_pagar: number;
   num_facturas: number;
   num_compras: number;
@@ -123,6 +124,7 @@ export async function calcularIvaPeriodo(
     iva_ventas: Number(row?.iva_ventas ?? 0),
     retenciones_iva_recibidas: Number(row?.retenciones_iva_recibidas ?? 0),
     credito_tributario_compras: Number(row?.credito_tributario_compras ?? 0),
+    credito_tributario_anterior: Number(row?.credito_tributario_anterior ?? 0),
     iva_a_pagar: Number(row?.iva_a_pagar ?? 0),
     num_facturas: Number(row?.num_facturas ?? 0),
     num_compras: Number(row?.num_compras ?? 0),
