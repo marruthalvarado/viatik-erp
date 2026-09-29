@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { useClientes } from "@/hooks/entities/use-clientes";
 import { useProyectos } from "@/hooks/entities/use-proyectos";
+import { useProveedores } from "@/hooks/entities/use-proveedores";
 import type { EquipoInstaladoConRelaciones, EquipoInstaladoPayload } from "@/services/servicio-tecnico/equipos-instalados";
 
 interface Props {
@@ -33,8 +34,10 @@ const ESTADO_OPTS = [
 export function EquipoForm({ open, equipo, onSubmit, onClose }: Props) {
   const { data: clientesPag } = useClientes();
   const { data: proyectosPag } = useProyectos();
+  const { data: proveedoresPag } = useProveedores();
   const clientes = clientesPag?.rows ?? [];
   const proyectos = proyectosPag?.rows ?? [];
+  const fabricantes = (proveedoresPag?.rows ?? []).filter((p) => p.es_internacional === true);
 
   const [form, setForm] = useState<EquipoInstaladoPayload>({
     nombre: "",
@@ -46,6 +49,7 @@ export function EquipoForm({ open, equipo, onSubmit, onClose }: Props) {
     if (equipo) {
       setForm({
         nombre: equipo.nombre,
+        fabricante_id: equipo.fabricante_id ?? null,
         fabricante: equipo.fabricante,
         modelo: equipo.modelo,
         numero_serie: equipo.numero_serie,
@@ -69,6 +73,16 @@ export function EquipoForm({ open, equipo, onSubmit, onClose }: Props) {
 
   const set = (k: keyof EquipoInstaladoPayload, v: unknown) =>
     setForm((f) => ({ ...f, [k]: v }));
+
+  const handleClienteChange = (clienteId: string | null) => {
+    set("cliente_id", clienteId);
+    if (clienteId && !form.ubicacion_instalacion) {
+      const cliente = clientes.find((c) => c.id === clienteId);
+      if (cliente?.direccion) {
+        set("ubicacion_instalacion", cliente.direccion);
+      }
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,12 +115,19 @@ export function EquipoForm({ open, equipo, onSubmit, onClose }: Props) {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>Fabricante</Label>
-              <Input
-                value={form.fabricante ?? ""}
-                onChange={(e) => set("fabricante", e.target.value || null)}
-                placeholder="Ej: Atlas Copco"
-              />
+              <Label>Fabricante (proveedor internacional)</Label>
+              <Select
+                value={form.fabricante_id ?? "none"}
+                onValueChange={(v) => set("fabricante_id", v === "none" ? null : v)}
+              >
+                <SelectTrigger><SelectValue placeholder="Seleccionar…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— Ninguno —</SelectItem>
+                  {fabricantes.map((f) => (
+                    <SelectItem key={f.id} value={f.id}>{f.nombre}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label>Modelo</Label>
@@ -149,7 +170,7 @@ export function EquipoForm({ open, equipo, onSubmit, onClose }: Props) {
               <Label>Cliente</Label>
               <Select
                 value={form.cliente_id ?? "none"}
-                onValueChange={(v) => set("cliente_id", v === "none" ? null : v)}
+                onValueChange={(v) => handleClienteChange(v === "none" ? null : v)}
               >
                 <SelectTrigger><SelectValue placeholder="Seleccionar…" /></SelectTrigger>
                 <SelectContent>

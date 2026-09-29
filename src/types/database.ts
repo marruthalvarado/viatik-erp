@@ -963,6 +963,7 @@ export type Database = {
           tecnico_instalador_id: string | null;
           nombre: string;
           fabricante: string | null;
+          fabricante_id: string | null;
           modelo: string | null;
           numero_serie: string | null;
           numero_parte: string | null;
@@ -995,6 +996,7 @@ export type Database = {
           tecnico_instalador_id?: string | null;
           nombre: string;
           fabricante?: string | null;
+          fabricante_id?: string | null;
           modelo?: string | null;
           numero_serie?: string | null;
           numero_parte?: string | null;
@@ -1026,6 +1028,7 @@ export type Database = {
           tecnico_instalador_id?: string | null;
           nombre?: string;
           fabricante?: string | null;
+          fabricante_id?: string | null;
           modelo?: string | null;
           numero_serie?: string | null;
           numero_parte?: string | null;
@@ -1157,7 +1160,11 @@ export type Database = {
           trabajos_realizados: string | null;
           observaciones: string | null;
           firma_tecnico_url: string | null;
+          firma_tecnico_data: string | null;
           firma_cliente_url: string | null;
+          firma_cliente_nombre: string | null;
+          firma_cliente_cargo: string | null;
+          firma_cliente_data: string | null;
           costo_repuestos: number;
           costo_mano_obra: number;
           created_by: string | null;
@@ -1187,7 +1194,11 @@ export type Database = {
           trabajos_realizados?: string | null;
           observaciones?: string | null;
           firma_tecnico_url?: string | null;
+          firma_tecnico_data?: string | null;
           firma_cliente_url?: string | null;
+          firma_cliente_nombre?: string | null;
+          firma_cliente_cargo?: string | null;
+          firma_cliente_data?: string | null;
           costo_repuestos?: number;
           costo_mano_obra?: number;
           created_by?: string | null;
@@ -1217,13 +1228,90 @@ export type Database = {
           trabajos_realizados?: string | null;
           observaciones?: string | null;
           firma_tecnico_url?: string | null;
+          firma_tecnico_data?: string | null;
           firma_cliente_url?: string | null;
+          firma_cliente_nombre?: string | null;
+          firma_cliente_cargo?: string | null;
+          firma_cliente_data?: string | null;
           costo_repuestos?: number;
           costo_mano_obra?: number;
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
           deleted_at?: string | null;
+        };
+        Relationships: [];
+      };
+      orden_actividades: {
+        Row: {
+          id: string;
+          orden_id: string;
+          plantilla_id: string | null;
+          nombre: string;
+          descripcion: string | null;
+          completada: boolean;
+          observacion: string | null;
+          completada_en: string | null;
+          orden_display: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          orden_id: string;
+          plantilla_id?: string | null;
+          nombre: string;
+          descripcion?: string | null;
+          completada?: boolean;
+          observacion?: string | null;
+          completada_en?: string | null;
+          orden_display?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          orden_id?: string;
+          plantilla_id?: string | null;
+          nombre?: string;
+          descripcion?: string | null;
+          completada?: boolean;
+          observacion?: string | null;
+          completada_en?: string | null;
+          orden_display?: number;
+        };
+        Relationships: [];
+      };
+      plantillas_actividad: {
+        Row: {
+          id: string;
+          empresa_id: string;
+          nombre: string;
+          descripcion: string | null;
+          periodicidad_dias: number | null;
+          aplica_tipo_os: string | null;
+          fabricante_id: string | null;
+          activa: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          empresa_id: string;
+          nombre: string;
+          descripcion?: string | null;
+          periodicidad_dias?: number | null;
+          aplica_tipo_os?: string | null;
+          fabricante_id?: string | null;
+          activa?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          empresa_id?: string;
+          nombre?: string;
+          descripcion?: string | null;
+          periodicidad_dias?: number | null;
+          aplica_tipo_os?: string | null;
+          fabricante_id?: string | null;
+          activa?: boolean;
         };
         Relationships: [];
       };

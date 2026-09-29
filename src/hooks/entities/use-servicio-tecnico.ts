@@ -23,6 +23,13 @@ import {
   type OrdenServicioPayload, type OsRepuestoPayload,
 } from "@/services/servicio-tecnico/ordenes-servicio";
 
+import {
+  getOrdenActividades, actualizarActividad, crearActividadManual,
+  eliminarActividad, poblarActividadesOrden, guardarFirmaOrden,
+  getPlantillasActividad, crearPlantillaActividad, actualizarPlantillaActividad,
+  type ActividadUpdate, type FirmaPayload,
+} from "@/services/servicio-tecnico/actividades";
+
 // ── EQUIPOS INSTALADOS ────────────────────────────────────────────────────────
 
 export function useEquiposInstalados() {
@@ -213,5 +220,94 @@ export function useGenerarOrdenesPreventivasManual() {
     mutationFn: (dias_horizonte?: number) =>
       generarOrdenesPreventivasManual(empresaActivaId!, dias_horizonte),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["ordenes_servicio"] }),
+  });
+}
+
+// ── ACTIVIDADES ───────────────────────────────────────────────────────────────
+
+export function useOrdenActividades(orden_id: string | null) {
+  return useQuery({
+    queryKey: ["orden_actividades", orden_id],
+    queryFn: () => getOrdenActividades(orden_id!),
+    enabled: !!orden_id,
+  });
+}
+
+export function useActualizarActividad() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: ActividadUpdate }) =>
+      actualizarActividad(id, payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["orden_actividades"] });
+    },
+  });
+}
+
+export function useCrearActividadManual() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orden_id, nombre, descripcion }: { orden_id: string; nombre: string; descripcion?: string }) =>
+      crearActividadManual(orden_id, nombre, descripcion),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["orden_actividades"] }),
+  });
+}
+
+export function useEliminarActividad() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => eliminarActividad(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["orden_actividades"] }),
+  });
+}
+
+export function usePoblarActividadesOrden() {
+  const qc = useQueryClient();
+  const { empresaActivaId } = useCompany();
+  return useMutation({
+    mutationFn: ({ orden_id, tipo_os, fabricante_id }: { orden_id: string; tipo_os: string; fabricante_id?: string | null }) =>
+      poblarActividadesOrden(orden_id, empresaActivaId!, tipo_os, fabricante_id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["orden_actividades"] }),
+  });
+}
+
+export function useGuardarFirmaOrden() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orden_id, firma }: { orden_id: string; firma: FirmaPayload }) =>
+      guardarFirmaOrden(orden_id, firma),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["ordenes_servicio"] });
+    },
+  });
+}
+
+// ── PLANTILLAS DE ACTIVIDAD ───────────────────────────────────────────────────
+
+export function usePlantillasActividad() {
+  const { empresaActivaId } = useCompany();
+  return useQuery({
+    queryKey: ["plantillas_actividad", empresaActivaId],
+    queryFn: () => getPlantillasActividad(empresaActivaId!),
+    enabled: !!empresaActivaId,
+  });
+}
+
+export function useCrearPlantillaActividad() {
+  const qc = useQueryClient();
+  const { empresaActivaId } = useCompany();
+  return useMutation({
+    mutationFn: (payload: Parameters<typeof crearPlantillaActividad>[1]) =>
+      crearPlantillaActividad(empresaActivaId!, payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["plantillas_actividad"] }),
+  });
+}
+
+export function useActualizarPlantillaActividad() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: Parameters<typeof actualizarPlantillaActividad>[1] }) =>
+      actualizarPlantillaActividad(id, payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["plantillas_actividad"] }),
   });
 }

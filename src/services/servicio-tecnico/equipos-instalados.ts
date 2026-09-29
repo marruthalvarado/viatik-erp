@@ -23,6 +23,7 @@ export interface EquipoInstaladoPayload {
   tecnico_instalador_id?: string | null;
   nombre: string;
   fabricante?: string | null;
+  fabricante_id?: string | null;
   modelo?: string | null;
   numero_serie?: string | null;
   numero_parte?: string | null;
