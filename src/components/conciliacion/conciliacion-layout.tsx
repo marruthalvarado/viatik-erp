@@ -3,7 +3,7 @@
  * Orquestador principal del módulo Conciliación Bancaria.
  */
 import { useState } from "react";
-import { Plus, Upload, Landmark, RefreshCw, CheckCircle2, Clock, EyeOff } from "lucide-react";
+import { Plus, Upload, Landmark, RefreshCw, CheckCircle2, Clock, EyeOff, Wifi } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PageHeader } from "@/components/common/page-header";
@@ -18,6 +18,7 @@ import { useFacturasEmitidas } from "@/hooks/entities/use-facturas-emitidas";
 import { useGastosEmpresa } from "@/hooks/entities/use-gastos-empresa";
 import { CuentaForm } from "./cuenta-form";
 import { ImportDialog } from "./import-dialog";
+import { BgSyncDialog } from "./bg-sync-dialog";
 import { MovimientosTable } from "./movimientos-table";
 import type { CuentaBancaria } from "@/services/conciliacion";
 
@@ -30,6 +31,7 @@ export function ConciliacionLayout({ empresaId }: Props) {
   const [showCuentaForm, setShowCuentaForm] = useState(false);
   const [editCuenta, setEditCuenta] = useState<CuentaBancaria | undefined>();
   const [showImport, setShowImport] = useState(false);
+  const [showBgSync, setShowBgSync] = useState(false);
 
   const { data: cuentas = [], isLoading: loadingCuentas } = useCuentasBancarias(empresaId);
   const { data: resumen } = useResumenConciliacion(empresaId, cuentaSelId ?? undefined);
@@ -176,10 +178,18 @@ export function ConciliacionLayout({ empresaId }: Props) {
             <>
               <div className="flex items-center justify-between">
                 <p className="text-sm font-medium">{cuentaActiva.nombre}</p>
-                <Button size="sm" variant="outline" onClick={() => setShowImport(true)}>
-                  <Upload className="size-3.5 mr-1.5" />
-                  Importar extracto
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setShowImport(true)}>
+                    <Upload className="size-3.5 mr-1.5" />
+                    Importar extracto
+                  </Button>
+                  {cuentaActiva?.banco?.toLowerCase().includes("guayaquil") && (
+                    <Button size="sm" variant="outline" onClick={() => setShowBgSync(true)}>
+                      <Wifi className="size-3.5 mr-1.5 text-primary" />
+                      Sincronizar BG
+                    </Button>
+                  )}
+                </div>
               </div>
               <MovimientosTable
                 empresaId={empresaId}
@@ -218,6 +228,16 @@ export function ConciliacionLayout({ empresaId }: Props) {
         <ImportDialog
           open={showImport}
           onOpenChange={setShowImport}
+          cuenta={cuentaActiva}
+          empresaId={empresaId}
+        />
+      )}
+
+      {/* Dialog: sincronizar Banco Guayaquil */}
+      {cuentaActiva && (
+        <BgSyncDialog
+          open={showBgSync}
+          onOpenChange={setShowBgSync}
           cuenta={cuentaActiva}
           empresaId={empresaId}
         />

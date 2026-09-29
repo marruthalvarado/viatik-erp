@@ -6,6 +6,7 @@ import {
   deleteCuentaBancaria,
   getMovimientosBancarios,
   importarMovimientos,
+  syncBancoGuayaquil,
   marcarConciliado,
   ignorarMovimiento,
   desconciliarMovimiento,
@@ -15,6 +16,7 @@ import type {
   CuentaBancaria,
   FiltrosMovimientos,
   MovimientoParaImportar,
+  BgSyncPayload,
   MatchTipo,
 } from "@/services/conciliacion";
 
@@ -137,6 +139,19 @@ export function useDesconciliar() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["movimientos_bancarios"] });
       void qc.invalidateQueries({ queryKey: ["resumen_conciliacion"] });
+    },
+  });
+}
+
+// ─── Sync Banco Guayaquil ─────────────────────────────────────────────────────
+
+export function useSyncBancoGuayaquil() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: BgSyncPayload) => syncBancoGuayaquil(payload),
+    onSuccess: (_data, { empresa_id }) => {
+      void qc.invalidateQueries({ queryKey: ["movimientos_bancarios", empresa_id] });
+      void qc.invalidateQueries({ queryKey: ["resumen_conciliacion", empresa_id] });
     },
   });
 }

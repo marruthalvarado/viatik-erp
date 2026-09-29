@@ -155,6 +155,32 @@ export async function desconciliarMovimiento(movimientoId: string): Promise<void
   if (error) throw new Error(error.message);
 }
 
+// ─── Sync Banco Guayaquil ─────────────────────────────────────────────────────
+
+export interface BgSyncPayload {
+  cuenta_id: string;
+  empresa_id: string;
+  fecha_desde: string; // YYYY-MM-DD
+  fecha_hasta: string; // YYYY-MM-DD
+}
+
+export interface BgSyncResult {
+  insertados: number;
+  duplicados: number;
+  total_paginas: number;
+  total_api: number;
+  message?: string;
+}
+
+export async function syncBancoGuayaquil(payload: BgSyncPayload): Promise<BgSyncResult> {
+  const { data, error } = await supabase.functions.invoke("banco-guayaquil-sync", {
+    body: payload,
+  });
+  if (error) throw new Error(error.message);
+  if (data?.error) throw new Error(data.error as string);
+  return data as BgSyncResult;
+}
+
 // ─── Resumen de conciliación ──────────────────────────────────────────────────
 
 export interface ResumenConciliacion {
