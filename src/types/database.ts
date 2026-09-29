@@ -2807,6 +2807,69 @@ export type Database = {
           },
         ];
       };
+      proyecto_actualizaciones: {
+        Row: {
+          id: string;
+          empresa_id: string;
+          proyecto_id: string;
+          usuario_id: string;
+          fecha: string;
+          ayer: string | null;
+          hoy: string | null;
+          bloqueos: string | null;
+          nivel_bloqueo: "ninguno" | "bajo" | "medio" | "critico";
+          novedades: string | null;
+          porcentaje_avance: number | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          empresa_id: string;
+          proyecto_id: string;
+          usuario_id: string;
+          fecha?: string;
+          ayer?: string | null;
+          hoy?: string | null;
+          bloqueos?: string | null;
+          nivel_bloqueo?: "ninguno" | "bajo" | "medio" | "critico";
+          novedades?: string | null;
+          porcentaje_avance?: number | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          empresa_id?: string;
+          proyecto_id?: string;
+          usuario_id?: string;
+          fecha?: string;
+          ayer?: string | null;
+          hoy?: string | null;
+          bloqueos?: string | null;
+          nivel_bloqueo?: "ninguno" | "bajo" | "medio" | "critico";
+          novedades?: string | null;
+          porcentaje_avance?: number | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "proyecto_actualizaciones_empresa_id_fkey";
+            columns: ["empresa_id"];
+            isOneToOne: false;
+            referencedRelation: "empresas";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "proyecto_actualizaciones_proyecto_id_fkey";
+            columns: ["proyecto_id"];
+            isOneToOne: false;
+            referencedRelation: "proyectos";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       proyectos: {
         Row: {
           centro_costo_id: string | null;
@@ -2825,6 +2888,7 @@ export type Database = {
           presupuesto: number | null;
           responsable_usuario_id: string | null;
           sucursal_id: string | null;
+          tipo_proyecto: "desarrollo_software" | "ventas_comercial" | "implementacion" | "mantenimiento" | "consultoria" | "otro" | null;
           updated_at: string | null;
           valor_contrato: number | null;
         };
@@ -2845,6 +2909,7 @@ export type Database = {
           presupuesto?: number | null;
           responsable_usuario_id?: string | null;
           sucursal_id?: string | null;
+          tipo_proyecto?: "desarrollo_software" | "ventas_comercial" | "implementacion" | "mantenimiento" | "consultoria" | "otro" | null;
           updated_at?: string | null;
           valor_contrato?: number | null;
         };
@@ -2865,6 +2930,7 @@ export type Database = {
           presupuesto?: number | null;
           responsable_usuario_id?: string | null;
           sucursal_id?: string | null;
+          tipo_proyecto?: "desarrollo_software" | "ventas_comercial" | "implementacion" | "mantenimiento" | "consultoria" | "otro" | null;
           updated_at?: string | null;
           valor_contrato?: number | null;
         };
@@ -4023,6 +4089,37 @@ export type Database = {
       };
     };
     Functions: {
+      get_resumen_bitacora: {
+        Args: { p_empresa_id: string };
+        Returns: {
+          proyecto_id: string;
+          proyecto_nombre: string;
+          tipo_proyecto: string | null;
+          ultima_fecha: string | null;
+          ultimo_pct: number | null;
+          total_entradas: number;
+          entradas_hoy: number;
+          tiene_bloqueo: boolean;
+          nivel_bloqueo_max: string | null;
+          ultimo_usuario: string | null;
+        }[];
+      };
+      get_bitacora_proyecto: {
+        Args: { p_proyecto_id: string; p_limit?: number; p_offset?: number };
+        Returns: {
+          id: string;
+          fecha: string;
+          usuario_id: string;
+          usuario_nombre: string;
+          ayer: string | null;
+          hoy: string | null;
+          bloqueos: string | null;
+          nivel_bloqueo: string;
+          novedades: string | null;
+          porcentaje_avance: number | null;
+          created_at: string;
+        }[];
+      };
       flujo_caja_proyectado: {
         Args: { p_empresa_id: string; p_anio?: number | null };
         Returns: {
