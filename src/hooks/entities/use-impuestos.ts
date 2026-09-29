@@ -9,6 +9,7 @@ import {
   setTipoContribuyente,
   getAnticiposIr,
   upsertAnticipoIr,
+  calcularTopesPartesRelacionadas,
 } from "@/services/impuestos";
 import type { DeclaracionSri, TipoContribuyente } from "@/services/impuestos";
 
@@ -108,6 +109,19 @@ export function useAnticiposIr(
   return useQuery({
     queryKey: ["anticipos_ir", empresaId, anio],
     queryFn: () => getAnticiposIr(empresaId!, anio),
+    enabled: !!empresaId,
+  });
+}
+
+// ─── Topes partes relacionadas ────────────────────────────────────────────────
+
+export function useTopesPartesRelacionadas(
+  empresaId: string | null | undefined,
+  anio: number,
+) {
+  return useQuery({
+    queryKey: ["topes_partes_relacionadas", empresaId, anio],
+    queryFn: () => calcularTopesPartesRelacionadas(empresaId!, anio),
     enabled: !!empresaId,
   });
 }

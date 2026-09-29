@@ -513,6 +513,59 @@ export function GastoEmpresaDrawer({
                 )}
               />
 
+              {/* Parte relacionada (LRTI Art. 10 num. 5) */}
+              <FormField
+                control={form.control}
+                name="es_parte_relacionada"
+                render={({ field }) => (
+                  <FormItem className="flex items-center gap-3">
+                    <FormControl>
+                      <Switch
+                        checked={!!field.value}
+                        onCheckedChange={(v) => {
+                          field.onChange(v);
+                          if (!v) form.setValue("tipo_parte_relacionada", null);
+                        }}
+                      />
+                    </FormControl>
+                    <div>
+                      <FormLabel className="cursor-pointer">Gasto con parte relacionada</FormLabel>
+                      <p className="text-[11px] text-muted-foreground">
+                        Filial, matriz, socio o vinculado (LRTI Art. 10 num. 5).
+                      </p>
+                    </div>
+                  </FormItem>
+                )}
+              />
+
+              {form.watch("es_parte_relacionada") && (
+                <FormField
+                  control={form.control}
+                  name="tipo_parte_relacionada"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tipo de gasto relacionado</FormLabel>
+                      <Select
+                        onValueChange={(v) => field.onChange(v === "__none__" ? null : v)}
+                        value={field.value ?? "__none__"}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Seleccionar tipo…" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="royalties_servicios">Regalías y servicios (tope 20%)</SelectItem>
+                          <SelectItem value="gastos_indirectos">Gastos indirectos del exterior (tope 5%)</SelectItem>
+                          <SelectItem value="intereses">Intereses (subcapitalización)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
               <FormField
                 control={form.control}
                 name="observacion"

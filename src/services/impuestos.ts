@@ -159,6 +159,44 @@ export async function calcularIrAnual(
   };
 }
 
+// ─── Topes partes relacionadas ────────────────────────────────────────────────
+
+export interface TopesPartesRelacionadas {
+  gastos_royalties_servicios: number;
+  limite_royalties_servicios: number;
+  exceso_royalties_servicios: number;
+  pct_usado_royalties: number;
+  gastos_indirectos: number;
+  limite_indirectos: number;
+  exceso_indirectos: number;
+  pct_usado_indirectos: number;
+  base_imponible_referencia: number;
+}
+
+export async function calcularTopesPartesRelacionadas(
+  empresaId: string,
+  anio: number,
+): Promise<TopesPartesRelacionadas | null> {
+  const { data, error } = await supabase.rpc("calcular_topes_partes_relacionadas", {
+    p_empresa_id: empresaId,
+    p_anio: anio,
+  });
+  if (error) throw new Error(error.message);
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) return null;
+  return {
+    gastos_royalties_servicios: Number(row.gastos_royalties_servicios ?? 0),
+    limite_royalties_servicios: Number(row.limite_royalties_servicios ?? 0),
+    exceso_royalties_servicios: Number(row.exceso_royalties_servicios ?? 0),
+    pct_usado_royalties: Number(row.pct_usado_royalties ?? 0),
+    gastos_indirectos: Number(row.gastos_indirectos ?? 0),
+    limite_indirectos: Number(row.limite_indirectos ?? 0),
+    exceso_indirectos: Number(row.exceso_indirectos ?? 0),
+    pct_usado_indirectos: Number(row.pct_usado_indirectos ?? 0),
+    base_imponible_referencia: Number(row.base_imponible_referencia ?? 0),
+  };
+}
+
 // ─── Anticipos IR ─────────────────────────────────────────────────────────────
 
 export async function getAnticiposIr(

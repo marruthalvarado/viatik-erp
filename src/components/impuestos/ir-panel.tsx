@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Save, ChevronDown, ChevronRight, CalendarDays, FileText } from "lucide-react";
+import { Save, ChevronDown, ChevronRight, CalendarDays, FileText, Info, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +12,7 @@ import {
   useAnticiposIr,
   useUpsertAnticipoIr,
 } from "@/hooks/entities/use-impuestos";
+import { TopesPartesRelacionadas } from "./topes-partes-relacionadas";
 
 const TABLA_IR = [
   { desde: 0,      hasta: 11722,    base: 0,     excedente: 0  },
@@ -128,8 +129,63 @@ export function IrPanel({ empresaId, anio, tipo }: Props) {
   const cuota1Monto = data.anticipo_siguiente / 2;
   const cuota2Monto = data.anticipo_siguiente - cuota1Monto;
 
+  // Saldo a liquidar en abril = IR a pagar después de retenciones y anticipos
+  const saldoAbril = data.ir_a_pagar;
+  const anticiposTotales = (parseFloat(monto1 || "0") + parseFloat(monto2 || "0"));
+
   return (
     <div className="space-y-4">
+
+      {/* Banner: fecha de declaración */}
+      <div className="flex items-start gap-2.5 rounded-lg border border-blue-200 bg-blue-50/60 px-4 py-3">
+        <Info className="size-4 text-blue-500 shrink-0 mt-0.5" />
+        <div className="text-sm text-blue-800">
+          <span className="font-semibold">Declaración anual (Form. 101)</span>
+          {" — Este impuesto se declara y paga en "}
+          <span className="font-semibold">abril {anio + 1}</span>
+          {". Los anticipos de julio y septiembre "}
+          <span className="font-semibold">{anio}</span>
+          {" se descuentan del IR causado al presentar la declaración."}
+        </div>
+      </div>
+
+      {/* Timeline: flujo de pagos */}
+      <div className="rounded-lg border px-4 py-3 space-y-2">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+          Flujo de pagos IR {anio}
+        </p>
+        <TimelineRow
+          mes={`Julio ${anio}`}
+          concepto="Anticipo cuota 1 (Form. 115)"
+          monto={parseFloat(monto1 || "0")}
+          color="amber"
+          pagado={!!cuota1?.monto}
+        />
+        <TimelineRow
+          mes={`Septiembre ${anio}`}
+          concepto="Anticipo cuota 2 (Form. 115)"
+          monto={parseFloat(monto2 || "0")}
+          color="amber"
+          pagado={!!cuota2?.monto}
+        />
+        <div className="border-t pt-2 mt-1">
+          <TimelineRow
+            mes={`Abril ${anio + 1}`}
+            concepto="Saldo IR — declaración anual (Form. 101)"
+            monto={saldoAbril}
+            color={saldoAbril > 0 ? "red" : "green"}
+            pagado={false}
+            highlight
+          />
+        </div>
+        {anticiposTotales > 0 && saldoAbril <= 0 && (
+          <div className="flex items-center gap-1.5 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2.5 py-1.5">
+            <AlertCircle className="size-3.5 shrink-0" />
+            Los anticipos pagados cubren el IR causado. No habrá saldo a pagar en abril {anio + 1}.
+          </div>
+        )}
+      </div>
+
       {/* KPIs base */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         <IrKpi label="Ingresos gravables" value={data.ingresos_gravables} tone="neutral" />
@@ -153,9 +209,10 @@ export function IrPanel({ empresaId, anio, tipo }: Props) {
           sub="cuota julio + septiembre"
         />
         <IrKpi
-          label="IR A PAGAR"
+          label={`IR A PAGAR — abril ${anio + 1}`}
           value={data.ir_a_pagar}
           tone={data.ir_a_pagar > 0 ? "red" : "green"}
+          sub={data.ir_a_pagar <= 0 ? "Saldo a favor / cubierto" : "Saldo declaración anual"}
           highlight
         />
       </div>
@@ -310,6 +367,9 @@ export function IrPanel({ empresaId, anio, tipo }: Props) {
         </div>
       )}
 
+      {/* Topes partes relacionadas */}
+      <TopesPartesRelacionadas empresaId={empresaId} anio={anio} />
+
       {/* Guardar en historial */}
       <div className="flex justify-end">
         <Button size="sm" variant="outline" onClick={handleGuardar} disabled={save.isPending}>
@@ -344,6 +404,47 @@ function IrKpi({ label, value, tone, sub, highlight }: IrKpiProps) {
       <p className="text-xs text-muted-foreground mb-1 leading-tight">{label}</p>
       <p className={`text-lg font-bold ${valueClass}`}>{formatCurrency(value)}</p>
       {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
+    </div>
+  );
+}
+
+// ─── TimelineRow ──────────────────────────────────────────────────────────────
+
+interface TimelineRowProps {
+  mes: string;
+  concepto: string;
+  monto: number;
+  color: "amber" | "red" | "green";
+  pagado: boolean;
+  highlight?: boolean;
+}
+
+function TimelineRow({ mes, concepto, monto, color, pagado, highlight }: TimelineRowProps) {
+  const dotClass = {
+    amber: "bg-amber-400",
+    red: "bg-destructive",
+    green: "bg-emerald-500",
+  }[color];
+
+  const montoClass = {
+    amber: "text-amber-700",
+    red: "text-destructive font-bold",
+    green: "text-emerald-700 font-bold",
+  }[color];
+
+  return (
+    <div className={`flex items-center gap-3 text-sm ${highlight ? "pt-1" : ""}`}>
+      <div className={`size-2 rounded-full shrink-0 ${dotClass}`} />
+      <span className="text-xs text-muted-foreground w-28 shrink-0">{mes}</span>
+      <span className="flex-1 text-xs">{concepto}</span>
+      {pagado && (
+        <span className="text-[10px] text-emerald-600 bg-emerald-50 border border-emerald-200 rounded px-1.5 py-0.5 shrink-0">
+          pagado
+        </span>
+      )}
+      <span className={`text-xs font-mono shrink-0 ${montoClass}`}>
+        {monto === 0 ? "—" : new Intl.NumberFormat("es-EC", { style: "currency", currency: "USD" }).format(monto)}
+      </span>
     </div>
   );
 }

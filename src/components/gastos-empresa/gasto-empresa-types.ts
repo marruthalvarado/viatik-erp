@@ -25,6 +25,8 @@ export const gastoEmpresaSchema = z.object({
   iva: z.coerce.number().min(0),
   total: z.coerce.number().min(0),
   es_deducible: z.boolean(),
+  es_parte_relacionada: z.boolean().optional().default(false),
+  tipo_parte_relacionada: z.enum(["royalties_servicios", "gastos_indirectos", "intereses"]).nullable().optional(),
   clave_acceso: z.string().nullable().optional(),
   numero_documento: z.string().nullable().optional(),
   ruc_emisor: z.string().nullable().optional(),
