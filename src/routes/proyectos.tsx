@@ -6,7 +6,7 @@ import {
 } from "@/components/common/sortable-header";
 import type { SortState } from "@/components/common/sortable-header";
 import { createFileRoute } from "@tanstack/react-router";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, BookOpen, X } from "lucide-react";
 
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/common/page-header";
@@ -25,6 +25,14 @@ import {
   DrawerDescription,
 } from "@/components/common/drawer";
 import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 
 import {
   useProyectos,
@@ -44,6 +52,9 @@ import type { ListParams } from "@/types/common";
 import { ProyectoForm } from "@/components/proyectos/proyecto-form";
 import { EMPTY_PROYECTO, proyectoToForm } from "@/components/proyectos/proyecto-types";
 import type { ProyectoFormValues } from "@/components/proyectos/proyecto-types";
+import { BitacoraTab } from "@/components/bitacora/bitacora-tab";
+import { TIPO_PROYECTO_LABELS } from "@/services/bitacora";
+import type { TipoProyecto } from "@/services/bitacora";
 
 export const Route = createFileRoute("/proyectos")({
   head: () => ({ meta: [{ title: "Proyectos · VIATIQ" }] }),
@@ -65,6 +76,7 @@ function ProyectosContent() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingProyecto, setEditingProyecto] = useState<Proyecto | null>(null);
   const [deletingProyecto, setDeletingProyecto] = useState<Proyecto | null>(null);
+  const [detailProyecto, setDetailProyecto] = useState<Proyecto | null>(null);
 
   const { data, isLoading, error } = useProyectos({ ...params, search });
   const { data: clientesData } = useClientes({ pageSize: 200 });
@@ -160,37 +172,52 @@ function ProyectosContent() {
     {
       key: "acciones",
       header: "",
-      className: "w-[88px]",
-      cell: (row) =>
-        puedeCrear ? (
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              aria-label="Editar proyecto"
-              onClick={(e) => {
-                e.stopPropagation();
-                setEditingProyecto(row);
-                setDrawerOpen(true);
-              }}
-            >
-              <Pencil className="size-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-destructive hover:text-destructive"
-              aria-label="Eliminar proyecto"
-              onClick={(e) => {
-                e.stopPropagation();
-                setDeletingProyecto(row);
-              }}
-            >
-              <Trash2 className="size-3.5" />
-            </Button>
-          </div>
-        ) : null,
+      className: "w-[120px]",
+      cell: (row) => (
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            aria-label="Ver bitácora"
+            onClick={(e) => {
+              e.stopPropagation();
+              setDetailProyecto(row);
+            }}
+          >
+            <BookOpen className="size-3.5" />
+          </Button>
+          {puedeCrear && (
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                aria-label="Editar proyecto"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditingProyecto(row);
+                  setDrawerOpen(true);
+                }}
+              >
+                <Pencil className="size-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-destructive hover:text-destructive"
+                aria-label="Eliminar proyecto"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDeletingProyecto(row);
+                }}
+              >
+                <Trash2 className="size-3.5" />
+              </Button>
+            </>
+          )}
+        </div>
+      ),
     },
   ];
 
@@ -220,6 +247,7 @@ function ProyectosContent() {
           presupuesto: values.presupuesto ?? null,
           valor_contrato: values.valor_contrato ?? null,
           estado_financiero: values.estado_financiero ?? null,
+          tipo_proyecto: values.tipo_proyecto ?? null,
         };
         await actualizar.mutateAsync({ id: editingProyecto.id, payload });
         toast.success("Proyecto actualizado correctamente.");
@@ -235,6 +263,7 @@ function ProyectosContent() {
           presupuesto: values.presupuesto ?? null,
           valor_contrato: values.valor_contrato ?? null,
           estado_financiero: values.estado_financiero ?? "en_curso",
+          tipo_proyecto: values.tipo_proyecto ?? "otro",
         };
         await crear.mutateAsync(payload);
         toast.success("Proyecto creado correctamente.");
@@ -256,6 +285,13 @@ function ProyectosContent() {
       setDeletingProyecto(null);
     }
   }
+
+  // Tipo label helper
+  const tipoLabel = (p: Proyecto) => {
+    const raw = (p as unknown as Record<string, unknown>).tipo_proyecto as string | null;
+    if (!raw || raw === "otro") return null;
+    return TIPO_PROYECTO_LABELS[raw as TipoProyecto] ?? raw;
+  };
 
   return (
     <>
@@ -298,6 +334,7 @@ function ProyectosContent() {
             getRowId={(row) => row.id}
             emptyTitle="Sin proyectos"
             emptyDescription="Agrega tu primer proyecto con el botón Nuevo proyecto."
+            onRowClick={(row) => setDetailProyecto(row)}
             emptyAction={
               puedeCrear ? (
                 <Button size="sm" onClick={handleOpenNew} className="gap-1.5">
@@ -320,6 +357,119 @@ function ProyectosContent() {
         </>
       )}
 
+      {/* Detail Sheet con tabs */}
+      <Sheet open={!!detailProyecto} onOpenChange={(open) => { if (!open) setDetailProyecto(null); }}>
+        <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
+          {detailProyecto && (
+            <>
+              <SheetHeader className="pb-4 border-b">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <SheetTitle className="text-lg truncate">{detailProyecto.nombre}</SheetTitle>
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      {detailProyecto.codigo && (
+                        <span className="text-xs text-muted-foreground font-mono">{detailProyecto.codigo}</span>
+                      )}
+                      {tipoLabel(detailProyecto) && (
+                        <Badge variant="secondary" className="text-xs">{tipoLabel(detailProyecto)}</Badge>
+                      )}
+                      {detailProyecto.estado_financiero && (
+                        <StatusBadge
+                          tone={
+                            detailProyecto.estado_financiero === "en_curso" ? "info"
+                            : detailProyecto.estado_financiero === "finalizado" ? "success"
+                            : detailProyecto.estado_financiero === "cancelado" ? "danger"
+                            : "warning"
+                          }
+                        >
+                          {detailProyecto.estado_financiero.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                        </StatusBadge>
+                      )}
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0"
+                    onClick={() => setDetailProyecto(null)}
+                  >
+                    <X className="size-4" />
+                  </Button>
+                </div>
+              </SheetHeader>
+
+              <Tabs defaultValue="bitacora" className="mt-4">
+                <TabsList className="mb-4">
+                  <TabsTrigger value="resumen">Resumen</TabsTrigger>
+                  <TabsTrigger value="bitacora">Bitácora</TabsTrigger>
+                </TabsList>
+
+                {/* Resumen */}
+                <TabsContent value="resumen">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div className="space-y-0.5">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide">Cliente</p>
+                      <p className="font-medium">{clienteNombre(detailProyecto.cliente_id)}</p>
+                    </div>
+                    {detailProyecto.descripcion && (
+                      <div className="col-span-2 space-y-0.5">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wide">Descripción</p>
+                        <p>{detailProyecto.descripcion}</p>
+                      </div>
+                    )}
+                    {detailProyecto.fecha_inicio && (
+                      <div className="space-y-0.5">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wide">Fecha inicio</p>
+                        <p>{formatDate(detailProyecto.fecha_inicio)}</p>
+                      </div>
+                    )}
+                    {detailProyecto.fecha_fin && (
+                      <div className="space-y-0.5">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wide">Fecha fin</p>
+                        <p>{formatDate(detailProyecto.fecha_fin)}</p>
+                      </div>
+                    )}
+                    {detailProyecto.presupuesto !== null && detailProyecto.presupuesto !== undefined && (
+                      <div className="space-y-0.5">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wide">Presupuesto</p>
+                        <p className="font-medium">{formatCurrency(detailProyecto.presupuesto)}</p>
+                      </div>
+                    )}
+                    {detailProyecto.valor_contrato !== null && detailProyecto.valor_contrato !== undefined && (
+                      <div className="space-y-0.5">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wide">Valor contrato</p>
+                        <p className="font-medium">{formatCurrency(detailProyecto.valor_contrato)}</p>
+                      </div>
+                    )}
+                  </div>
+                  {puedeCrear && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mt-6 gap-1.5"
+                      onClick={() => {
+                        setDetailProyecto(null);
+                        setEditingProyecto(detailProyecto);
+                        setDrawerOpen(true);
+                      }}
+                    >
+                      <Pencil className="size-3.5" />
+                      Editar proyecto
+                    </Button>
+                  )}
+                </TabsContent>
+
+                {/* Bitácora */}
+                <TabsContent value="bitacora">
+                  <BitacoraTab proyectoId={detailProyecto.id} />
+                </TabsContent>
+              </Tabs>
+            </>
+          )}
+        </SheetContent>
+      </Sheet>
+
+      {/* Drawer crear/editar */}
       <Drawer
         open={drawerOpen}
         onOpenChange={(open) => {

@@ -11,6 +11,7 @@ export const proyectoSchema = z.object({
   presupuesto: z.number().nonnegative("Debe ser positivo").nullable().optional(),
   valor_contrato: z.number().nonnegative("Debe ser positivo").nullable().optional(),
   estado_financiero: z.string().nullable().optional(),
+  tipo_proyecto: z.string().nullable().optional(),
 });
 
 export type ProyectoFormValues = z.infer<typeof proyectoSchema>;
@@ -25,6 +26,7 @@ export const EMPTY_PROYECTO: ProyectoFormValues = {
   presupuesto: null,
   valor_contrato: null,
   estado_financiero: "en_curso",
+  tipo_proyecto: "otro",
 };
 
 export function proyectoToForm(p: Proyecto): ProyectoFormValues {
@@ -38,5 +40,6 @@ export function proyectoToForm(p: Proyecto): ProyectoFormValues {
     presupuesto: p.presupuesto ?? null,
     valor_contrato: p.valor_contrato ?? null,
     estado_financiero: p.estado_financiero ?? "en_curso",
+    tipo_proyecto: (p as unknown as Record<string, unknown>).tipo_proyecto as string ?? "otro",
   };
 }

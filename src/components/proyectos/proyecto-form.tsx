@@ -193,7 +193,7 @@ export function ProyectoForm({
             control={form.control}
             name="estado_financiero"
             render={({ field }) => (
-              <FormItem className="col-span-2">
+              <FormItem>
                 <FormLabel>Estado</FormLabel>
                 <Select onValueChange={field.onChange} value={field.value ?? "en_curso"}>
                   <FormControl>
@@ -206,6 +206,32 @@ export function ProyectoForm({
                     <SelectItem value="en_pausa">En pausa</SelectItem>
                     <SelectItem value="finalizado">Finalizado</SelectItem>
                     <SelectItem value="cancelado">Cancelado</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="tipo_proyecto"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Tipo de proyecto</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value ?? "otro"}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar tipo" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="desarrollo_software">Desarrollo de software</SelectItem>
+                    <SelectItem value="ventas_comercial">Ventas / Comercial</SelectItem>
+                    <SelectItem value="implementacion">Implementación</SelectItem>
+                    <SelectItem value="mantenimiento">Mantenimiento</SelectItem>
+                    <SelectItem value="consultoria">Consultoría</SelectItem>
+                    <SelectItem value="otro">Otro</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />
