@@ -465,7 +465,8 @@ export async function exportCotizacionPdf(
       startY: y,
       margin: { left: ML, right: MR },
       head: [["Ítem", "Descripción", "Cant.", "Precio Unitario", "Total"]],
-      body: [
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      body: ([
         ...items.map((it) => {
           globalItemNum++;
           return [
@@ -483,7 +484,7 @@ export async function exportCotizacionPdf(
           { content: "", styles: { fillColor: [...BGROW] } },
           { content: fmtMoney(subtotal), styles: { fillColor: [...BGROW], fontStyle: "bold" as const, textColor: [...TEAL] } },
         ]] : []),
-      ],
+      ] as unknown as import("jspdf-autotable").RowInput[]),
       styles: { fontSize: 7.5, cellPadding: 2, textColor: [...DARK] },
       headStyles: { fillColor: [...TEAL], textColor: [...WHITE], fontStyle: "bold", fontSize: 7.5 },
       alternateRowStyles: { fillColor: [...BGROW] },
@@ -709,6 +710,7 @@ export async function exportCotizacionDocx(
   const BLUE_HEX   = TEAL_HEX;   // alias de compatibilidad → teal
   const ACCENT_HEX = TEAL_HEX;   // alias de compatibilidad → teal
   const BGBLUE     = BGLIGHT;    // alias de compatibilidad → fondo claro teal
+  const COVER_HEX  = TEAL_HEX;   // color de portada
 
   const sectionHeading = (text: string) =>
     new Paragraph({

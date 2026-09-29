@@ -247,7 +247,7 @@ function ProyectosContent() {
           presupuesto: values.presupuesto ?? null,
           valor_contrato: values.valor_contrato ?? null,
           estado_financiero: values.estado_financiero ?? null,
-          tipo_proyecto: values.tipo_proyecto ?? null,
+          tipo_proyecto: (values.tipo_proyecto ?? null) as "desarrollo_software" | "ventas_comercial" | "implementacion" | "mantenimiento" | "consultoria" | "otro" | null,
         };
         await actualizar.mutateAsync({ id: editingProyecto.id, payload });
         toast.success("Proyecto actualizado correctamente.");
@@ -263,7 +263,7 @@ function ProyectosContent() {
           presupuesto: values.presupuesto ?? null,
           valor_contrato: values.valor_contrato ?? null,
           estado_financiero: values.estado_financiero ?? "en_curso",
-          tipo_proyecto: values.tipo_proyecto ?? "otro",
+          tipo_proyecto: (values.tipo_proyecto ?? "otro") as "desarrollo_software" | "ventas_comercial" | "implementacion" | "mantenimiento" | "consultoria" | "otro",
         };
         await crear.mutateAsync(payload);
         toast.success("Proyecto creado correctamente.");
