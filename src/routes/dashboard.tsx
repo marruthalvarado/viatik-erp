@@ -39,6 +39,8 @@ import {
   useClientesSimples,
 } from "@/hooks/entities/use-dashboard";
 import { useResumenCobros } from "@/hooks/entities/use-cobros";
+import { useResumenBitacora } from "@/hooks/entities/use-bitacora";
+import { DashboardBitacora } from "@/components/dashboard/dashboard-bitacora";
 import { Building2 } from "lucide-react";
 
 export const Route = createFileRoute("/dashboard")({
@@ -161,6 +163,7 @@ function DashboardMain({
   // Pendientes
   const rendiciones = useRendicionesPendientes(empresaId, 10);
   const cobros = useResumenCobros(empresaId);
+  const bitacora = useResumenBitacora();
 
   const kpiLoading = kpisNegocio.isLoading || ejecutivo.isLoading || ia.isLoading;
 
@@ -235,6 +238,15 @@ function DashboardMain({
           data={cobros.data}
           loading={cobros.isLoading}
           onNavigate={() => onNavigate("/facturas")}
+        />
+      </div>
+
+      {/* Bitácora de proyectos */}
+      <div className="mt-6">
+        <DashboardBitacora
+          data={bitacora.data}
+          loading={bitacora.isLoading}
+          onNavigate={() => onNavigate("/proyectos")}
         />
       </div>
 
