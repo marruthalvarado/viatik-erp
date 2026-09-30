@@ -388,7 +388,10 @@ export async function exportCotizacionPdf(
     // ── Tarjeta por producto ──────────────────────────────────────────────
     for (const it of items) {
       const fotoImg = getImg(it.catalogo?.foto_url);
-      const descLarga = it.catalogo?.descripcion_larga ?? "";
+      // Usar descripcion_larga del catálogo si existe; si no, el campo descripcion del ítem
+      const descLarga = it.catalogo?.descripcion_larga || it.descripcion;
+      // Para el header teal: nombre del catálogo si existe, si no la primera línea de descripcion
+      const headerName = it.catalogo?.nombre ?? it.descripcion;
       const leftW = fotoImg ? CW * 0.62 : CW;
       const rightW = CW - leftW - 4;
 
@@ -405,7 +408,7 @@ export async function exportCotizacionPdf(
       doc.setFillColor(...TEAL);
       doc.rect(ML, y, CW, 8, "F");
       doc.setFontSize(9); doc.setTextColor(...WHITE); doc.setFont("helvetica", "bold");
-      const prodName = doc.splitTextToSize(it.descripcion, CW - 8) as string[];
+      const prodName = doc.splitTextToSize(headerName, CW - 8) as string[];
       doc.text(prodName[0], ML + 3, y + 5.5);
       y += 9;
 
@@ -919,12 +922,13 @@ export async function exportCotizacionDocx(
     // Tarjeta por ítem
     for (const it of items) {
       const fotoImgRun = makeImageRun(getImg(it.catalogo?.foto_url), 185, 130);
-      const descLarga = it.catalogo?.descripcion_larga ?? "";
+      const descLarga = it.catalogo?.descripcion_larga || it.descripcion;
+      const headerName = it.catalogo?.nombre ?? it.descripcion;
 
       // Nombre + subtítulo
       techChildren.push(
         new Paragraph({
-          children: [bold(it.descripcion, "111827", 22)],
+          children: [bold(headerName, "111827", 22)],
           spacing: { before: 140, after: 40 },
         }),
         new Paragraph({
