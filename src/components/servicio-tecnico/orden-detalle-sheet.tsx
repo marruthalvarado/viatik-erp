@@ -12,7 +12,7 @@
  * Generar PDF / Word disponible siempre en el header.
  * "Cerrar orden" disponible en el footer cuando la OS está activa.
  */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   FileDown, FileText, CheckCircle2, XCircle, Clock,
   Loader2, ClipboardCheck, Wrench, Plus, Trash2,
@@ -225,6 +225,8 @@ export function OrdenDetalleSheet({ orden, open, onClose }: Props) {
   const [cerrando,      setCerrando]      = useState(false);
   const [exportingPdf,  setExportingPdf]  = useState(false);
   const [exportingDocx, setExportingDocx] = useState(false);
+  const [savedAt,       setSavedAt]       = useState<Date | null>(null);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Re-sincroniza los campos cuando cambia la orden abierta
   useEffect(() => {
@@ -261,11 +263,19 @@ export function OrdenDetalleSheet({ orden, open, onClose }: Props) {
     costo_mano_obra:     parseFloat(costo) || 0,
   });
 
+  // Indicador visual de guardado
+  const flashSaved = useCallback(() => {
+    setSavedAt(new Date());
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => setSavedAt(null), 3000);
+  }, []);
+
   // Autosave silencioso al perder foco
   const autoSave = async (field: Partial<Record<string, unknown>>) => {
     if (!orden || !editable) return;
     try {
       await actualizar.mutateAsync({ id: orden.id, payload: field as never });
+      flashSaved();
     } catch { /* silencioso */ }
   };
 
@@ -558,9 +568,22 @@ export function OrdenDetalleSheet({ orden, open, onClose }: Props) {
 
         {/* ── FOOTER FIJO ───────────────────────────────────── */}
         {editable && (
-          <div className="border-t px-6 py-4 bg-background shrink-0">
+          <div className="border-t px-6 py-4 bg-background shrink-0 space-y-3">
+            {/* Indicador de guardado automático */}
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <AlertCircle className="size-3.5 shrink-0" />
+                Los cambios se guardan automáticamente.
+              </span>
+              {savedAt && (
+                <span className="flex items-center gap-1 text-green-700 font-medium animate-in fade-in duration-300">
+                  <CheckCircle2 className="size-3.5" />
+                  Guardado {savedAt.toLocaleTimeString("es-EC", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                </span>
+              )}
+            </div>
             {!trabajos.trim() && (
-              <p className="flex items-center gap-1.5 text-xs text-muted-foreground mb-3">
+              <p className="text-xs text-amber-600 flex items-center gap-1.5">
                 <AlertCircle className="size-3.5 shrink-0" />
                 Completa "Trabajos realizados" para poder cerrar la orden.
               </p>
