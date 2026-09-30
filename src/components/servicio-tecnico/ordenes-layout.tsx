@@ -390,7 +390,12 @@ export function OrdenesLayout() {
               {checklistOrden?.equipo?.numero_serie && ` · S/N: ${checklistOrden.equipo.numero_serie}`}
             </p>
           </SheetHeader>
-          {checklistOrden && <OsChecklist ordenId={checklistOrden.id} />}
+          {checklistOrden && (
+            <OsChecklist
+              ordenId={checklistOrden.id}
+              equipoId={checklistOrden.equipo_id ?? checklistOrden.equipo?.id ?? null}
+            />
+          )}
         </SheetContent>
       </Sheet>
     </div>

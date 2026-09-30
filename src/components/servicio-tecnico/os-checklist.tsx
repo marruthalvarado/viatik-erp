@@ -3,7 +3,7 @@
  * Muestra el checklist de mantenimiento por sección con controles por tipo_campo.
  */
 import { useState } from "react";
-import { CheckCircle2, XCircle, MinusCircle, AlertTriangle, ClipboardCheck } from "lucide-react";
+import { CheckCircle2, XCircle, MinusCircle, AlertTriangle, ClipboardCheck, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,9 @@ import {
   useOsActividades,
   useActualizarOsActividad,
   useResumenOsActividades,
+  useEquipoInstalado,
+  useProtocolos,
+  useCargarActividadesProtocolo,
   type OsActividad,
 } from "@/hooks/entities/use-servicio-tecnico";
 
@@ -200,12 +203,79 @@ function ActividadRow({
   );
 }
 
+// ─── Empty state con botón "Cargar protocolo" ─────────────────
+function CargarProtocoloEmpty({ ordenId, equipoId }: { ordenId: string; equipoId: string | null }) {
+  const { data: equipo } = useEquipoInstalado(equipoId);
+  const modeloId = equipo?.modelo_equipo?.id ?? (equipo as unknown as Record<string, unknown>)?.modelo_id as string | undefined;
+  const { data: protocolos = [] } = useProtocolos(modeloId);
+  const cargar = useCargarActividadesProtocolo();
+
+  const protocolo = protocolos[0] ?? null; // primer protocolo activo del modelo
+
+  const handleCargar = async () => {
+    if (!protocolo) return;
+
+    // Calcular meses_acumulados desde fecha_instalacion
+    let meses: number | undefined;
+    if (equipo?.fecha_instalacion) {
+      const instalacion = new Date(equipo.fecha_instalacion);
+      const ahora = new Date();
+      meses = Math.floor(
+        (ahora.getFullYear() - instalacion.getFullYear()) * 12
+        + (ahora.getMonth() - instalacion.getMonth()),
+      );
+    }
+
+    try {
+      await cargar.mutateAsync({
+        orden_id: ordenId,
+        protocolo_id: protocolo.id,
+        meses_acumulados: meses,
+      });
+      toast.success("Protocolo cargado correctamente");
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+
+  return (
+    <div className="py-10 text-center text-muted-foreground">
+      <ClipboardCheck className="size-10 mx-auto mb-2 opacity-30" />
+      <p className="font-medium text-sm">Sin actividades cargadas</p>
+      {protocolo ? (
+        <>
+          <p className="text-xs mt-1">
+            Protocolo disponible: <span className="font-medium text-foreground">{protocolo.nombre}</span>
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-4"
+            onClick={handleCargar}
+            disabled={cargar.isPending}
+          >
+            <RefreshCw className={`size-3.5 mr-1.5 ${cargar.isPending ? "animate-spin" : ""}`} />
+            {cargar.isPending ? "Cargando…" : "Cargar protocolo"}
+          </Button>
+        </>
+      ) : (
+        <p className="text-xs mt-1">
+          {modeloId
+            ? "No hay protocolo configurado para este modelo."
+            : "Las actividades se cargan al crear la OS con un equipo que tenga modelo asignado."}
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ─── Componente principal ─────────────────────────────────────
 interface OsChecklistProps {
   ordenId: string;
+  equipoId?: string | null;
 }
 
-export function OsChecklist({ ordenId }: OsChecklistProps) {
+export function OsChecklist({ ordenId, equipoId = null }: OsChecklistProps) {
   const { data: actividades = [], isLoading } = useOsActividades(ordenId);
   const { data: resumen } = useResumenOsActividades(ordenId);
 
@@ -214,13 +284,7 @@ export function OsChecklist({ ordenId }: OsChecklistProps) {
   }
 
   if (actividades.length === 0) {
-    return (
-      <div className="py-10 text-center text-muted-foreground">
-        <ClipboardCheck className="size-10 mx-auto mb-2 opacity-30" />
-        <p className="font-medium text-sm">Sin actividades cargadas</p>
-        <p className="text-xs">Las actividades se cargan al crear la OS de tipo Preventivo con un equipo que tenga modelo asignado.</p>
-      </div>
-    );
+    return <CargarProtocoloEmpty ordenId={ordenId} equipoId={equipoId} />;
   }
 
   // Agrupar por sección
