@@ -112,27 +112,30 @@ export async function getEjecutivo(
     qGe = qGe.gte("fecha", gte).lte("fecha", lte);
   }
 
-  const [{ data: rends, error }, { data: geRows }, { data: anticipos }] = await Promise.all([
-    qRend,
-    qGe,
-    supabase.from("anticipos").select("valor").eq("empresa_id", empresaId),
-  ]);
+  const [{ data: rends, error }, { data: geRows }, { data: anticipos }, { data: proyActivos }] =
+    await Promise.all([
+      qRend,
+      qGe,
+      supabase.from("anticipos").select("valor").eq("empresa_id", empresaId),
+      supabase
+        .from("proyectos")
+        .select("id")
+        .eq("empresa_id", empresaId)
+        .is("deleted_at", null)
+        .neq("estado_financiero", "finalizado"),
+    ]);
   if (error) throw new Error(error.message);
 
   const rows = rends ?? [];
   const ge = geRows ?? [];
   const totalGe = ge.reduce((s, g) => s + (Number(g.total) || 0), 0);
-  const proyectosConMovimiento = new Set([
-    ...rows.filter((r) => r.proyecto_id).map((r) => r.proyecto_id),
-    ...ge.filter((g) => g.proyecto_id).map((g) => g.proyecto_id),
-  ]);
 
   return {
     empresa_id: empresaId,
     total_gastado: rows.reduce((s, r) => s + (Number(r.total_facturado) || 0), 0) + totalGe,
     total_reembolsable: rows.reduce((s, r) => s + (Number(r.total_reembolsable) || 0), 0),
     total_rendiciones: rows.length,
-    total_proyectos_con_movimiento: proyectosConMovimiento.size,
+    total_proyectos_con_movimiento: (proyActivos ?? []).length,
     total_usuarios_con_movimiento: new Set(
       rows.filter((r) => r.usuario_id).map((r) => r.usuario_id),
     ).size,

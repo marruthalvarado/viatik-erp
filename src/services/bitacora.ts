@@ -59,14 +59,57 @@ export async function getBitacoraProyecto(
 }
 
 // ── Resumen de todos los proyectos (para dashboard) ────────
+// Usa query directa en lugar de RPC para mayor fiabilidad
 export async function getResumenBitacora(
   empresaId: string,
 ): Promise<ResumenBitacora[]> {
-  const { data, error } = await supabase.rpc("get_resumen_bitacora", {
-    p_empresa_id: empresaId,
+  const { data: proyectos, error: eproy } = await supabase
+    .from("proyectos")
+    .select("id, nombre, tipo_proyecto")
+    .eq("empresa_id", empresaId)
+    .is("deleted_at", null)
+    .order("nombre");
+  if (eproy) throw eproy;
+  if (!proyectos || proyectos.length === 0) return [];
+
+  const ids = proyectos.map((p) => p.id);
+  const { data: actualizaciones, error: eact } = await supabase
+    .from("proyecto_actualizaciones")
+    .select("id, proyecto_id, fecha, porcentaje_avance, nivel_bloqueo, usuario_id, created_at")
+    .in("proyecto_id", ids)
+    .order("fecha", { ascending: false });
+  if (eact) throw eact;
+
+  const acts = actualizaciones ?? [];
+  const today = new Date().toISOString().slice(0, 10);
+
+  return proyectos.map((p) => {
+    const pActs = acts.filter((a) => a.proyecto_id === p.id);
+    const latest = pActs[0] ?? null;
+    const totalEntradas = pActs.length;
+    const entradasHoy = pActs.filter((a) => a.fecha === today).length;
+    const tieneBloqueo = pActs.some(
+      (a) => a.nivel_bloqueo === "medio" || a.nivel_bloqueo === "critico",
+    );
+    const nivelMax = pActs
+      .filter((a) => a.nivel_bloqueo === "critico" || a.nivel_bloqueo === "medio")
+      .sort((a, b) =>
+        a.nivel_bloqueo === "critico" ? -1 : b.nivel_bloqueo === "critico" ? 1 : 0,
+      )[0]?.nivel_bloqueo ?? null;
+
+    return {
+      proyecto_id: p.id,
+      proyecto_nombre: p.nombre,
+      tipo_proyecto: p.tipo_proyecto as TipoProyecto | null,
+      ultima_fecha: latest?.fecha ?? null,
+      ultimo_pct: latest?.porcentaje_avance ?? null,
+      total_entradas: totalEntradas,
+      entradas_hoy: entradasHoy,
+      tiene_bloqueo: tieneBloqueo,
+      nivel_bloqueo_max: nivelMax as NivelBloqueo | null,
+      ultimo_usuario: null, // se evita join adicional en dashboard
+    };
   });
-  if (error) throw error;
-  return (data ?? []) as ResumenBitacora[];
 }
 
 // ── Crear actualización ────────────────────────────────────
