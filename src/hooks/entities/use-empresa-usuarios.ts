@@ -22,6 +22,7 @@ export interface EmpresaUsuario {
   nombres: string;
   apellidos: string | null;
   cargo: string | null;
+  email: string | null;
   estado: string | null;
   rol_codigo: string;
   rol_nombre: string;

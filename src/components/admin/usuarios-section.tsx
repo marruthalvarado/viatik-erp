@@ -41,7 +41,7 @@ import {
 import { useAdminActualizarPerfil } from "@/hooks/entities/use-perfil";
 import { useRoles } from "@/hooks/entities/use-roles";
 import { useCompany } from "@/contexts/company-context";
-import { useCrearUsuario, useEliminarUsuario } from "@/hooks/entities/use-admin-users";
+import { useCrearUsuario, useEliminarUsuario, useActualizarUsuario } from "@/hooks/entities/use-admin-users";
 
 import type { DataTableColumn } from "@/components/common/data-table";
 import type { EmpresaUsuario } from "@/hooks/entities/use-empresa-usuarios";
@@ -59,6 +59,7 @@ export function UsuariosSection() {
 
   const crearUsuario = useCrearUsuario();
   const eliminarUsuario = useEliminarUsuario();
+  const actualizarUsuarioAuth = useActualizarUsuario();
 
   const roles = rolesData?.rows ?? [];
 
@@ -97,6 +98,7 @@ export function UsuariosSection() {
   const [editNombres, setEditNombres] = useState("");
   const [editApellidos, setEditApellidos] = useState("");
   const [editCargo, setEditCargo] = useState("");
+  const [editEmail, setEditEmail] = useState("");
   const [editRolesAdicionales, setEditRolesAdicionales] = useState<string[]>([]);
   const [editError, setEditError] = useState<string | null>(null);
 
@@ -105,6 +107,7 @@ export function UsuariosSection() {
     setEditNombres(m.nombres ?? "");
     setEditApellidos(m.apellidos ?? "");
     setEditCargo(m.cargo ?? "");
+    setEditEmail(m.email ?? "");
     setEditRolesAdicionales(m.roles_adicionales ?? []);
     setEditError(null);
   }
@@ -210,16 +213,33 @@ export function UsuariosSection() {
       setEditError("El nombre es requerido.");
       return;
     }
+    const emailNuevo = editEmail.trim();
+    if (emailNuevo && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNuevo)) {
+      setEditError("El correo no tiene un formato válido.");
+      return;
+    }
     setEditError(null);
     try {
-      await actualizarPerfil.mutateAsync({
-        usuarioId: editTarget.usuario_id,
-        data: {
-          nombres: editNombres.trim(),
-          apellidos: editApellidos.trim(),
-          cargo: editCargo.trim(),
-        },
-      });
+      // Si el email cambió, actualizar en Supabase Auth + perfil vía Edge Function
+      const emailActual = editTarget.email ?? "";
+      if (emailNuevo && emailNuevo !== emailActual) {
+        await actualizarUsuarioAuth.mutateAsync({
+          usuario_id: editTarget.usuario_id,
+          email: emailNuevo,
+          nombre: editNombres.trim(),
+          cargo: editCargo.trim() || undefined,
+        });
+      } else {
+        // Solo actualizar perfil público sin tocar Auth
+        await actualizarPerfil.mutateAsync({
+          usuarioId: editTarget.usuario_id,
+          data: {
+            nombres: editNombres.trim(),
+            apellidos: editApellidos.trim(),
+            cargo: editCargo.trim(),
+          },
+        });
+      }
       // Guardar roles adicionales si cambiaron
       const rolesActuales = editTarget.roles_adicionales ?? [];
       const cambiaron =
@@ -231,7 +251,11 @@ export function UsuariosSection() {
           roles: editRolesAdicionales,
         });
       }
-      toast.success("Perfil actualizado.");
+      toast.success(
+        emailNuevo && emailNuevo !== emailActual
+          ? "Correo actualizado. Se envió una confirmación al nuevo correo."
+          : "Perfil actualizado.",
+      );
       setEditTarget(null);
     } catch (err) {
       setEditError(extractMsg(err, "Error al guardar perfil."));
@@ -647,6 +671,20 @@ export function UsuariosSection() {
                 placeholder="Gerente de Operaciones"
               />
             </div>
+            <div className="grid gap-1.5">
+              <Label htmlFor="edit-email">Correo electrónico</Label>
+              <Input
+                id="edit-email"
+                type="email"
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
+                placeholder="usuario@empresa.com"
+              />
+              <p className="text-xs text-muted-foreground">
+                Al cambiar el correo, Supabase enviará una confirmación al nuevo correo. El usuario
+                deberá confirmar para que el cambio sea efectivo.
+              </p>
+            </div>
             {/* Roles adicionales: todos los roles excepto el primario */}
             {roles.filter((r) => r.id !== editTarget?.rol_id).length > 0 && (
               <div className="grid gap-1.5">
@@ -686,10 +724,10 @@ export function UsuariosSection() {
               Cancelar
             </Button>
             <Button
-              disabled={!editNombres.trim() || actualizarPerfil.isPending}
+              disabled={!editNombres.trim() || actualizarPerfil.isPending || actualizarUsuarioAuth.isPending}
               onClick={() => void handleGuardarPerfil()}
             >
-              {actualizarPerfil.isPending ? "Guardando..." : "Guardar"}
+              {(actualizarPerfil.isPending || actualizarUsuarioAuth.isPending) ? "Guardando..." : "Guardar"}
             </Button>
           </DialogFooter>
         </DialogContent>

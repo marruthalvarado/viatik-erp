@@ -4,8 +4,8 @@
  */
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCompany } from "@/contexts/company-context";
-import { crearUsuario, eliminarUsuario, marcarClaveCambiada } from "@/services/admin-users";
-import type { CrearUsuarioPayload } from "@/services/admin-users";
+import { crearUsuario, eliminarUsuario, actualizarUsuario, marcarClaveCambiada } from "@/services/admin-users";
+import type { CrearUsuarioPayload, ActualizarUsuarioPayload } from "@/services/admin-users";
 
 /**
  * Mutación para crear un usuario nuevo con clave temporal.
@@ -35,6 +35,25 @@ export function useEliminarUsuario() {
     mutationFn: (usuario_id: string) => {
       if (!empresaActivaId) throw new Error("Sin empresa activa");
       return eliminarUsuario(usuario_id, empresaActivaId);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["empresa_usuarios", empresaActivaId] });
+    },
+  });
+}
+
+/**
+ * Mutación para actualizar email, nombre y/o cargo de un usuario.
+ * Invalida la lista de usuarios de la empresa al completar.
+ */
+export function useActualizarUsuario() {
+  const qc = useQueryClient();
+  const { empresaActivaId } = useCompany();
+
+  return useMutation({
+    mutationFn: (payload: Omit<ActualizarUsuarioPayload, "empresa_id">) => {
+      if (!empresaActivaId) throw new Error("Sin empresa activa");
+      return actualizarUsuario({ ...payload, empresa_id: empresaActivaId });
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["empresa_usuarios", empresaActivaId] });

@@ -79,6 +79,31 @@ export async function eliminarUsuario(
   return data;
 }
 
+export interface ActualizarUsuarioPayload {
+  usuario_id: string;
+  empresa_id: string;
+  email?: string;
+  nombre?: string;
+  cargo?: string;
+}
+
+/**
+ * Actualiza email, nombre y/o cargo de un usuario llamando a la Edge Function admin-update-user.
+ * Requiere que el caller sea admin de la empresa indicada.
+ */
+export async function actualizarUsuario(payload: ActualizarUsuarioPayload): Promise<void> {
+  const { data, error } = await supabase.functions.invoke<{ ok: boolean }>(
+    "admin-update-user",
+    { body: payload },
+  );
+
+  if (error) {
+    throw new Error(await parseFunctionError(error));
+  }
+
+  if (!data?.ok) throw new Error("Respuesta inesperada del servidor");
+}
+
 /**
  * Marca la clave del usuario actual como ya cambiada.
  * Llama a la RPC marcar_clave_cambiada() que usa SECURITY DEFINER.
