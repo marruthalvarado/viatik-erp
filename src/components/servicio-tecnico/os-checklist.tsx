@@ -136,12 +136,16 @@ function ActividadRow({
     if (isNaN(v)) return;
     setGuardandoMed(true);
     try {
+      let autoResultado: string | undefined;
+      if (tieneRango) {
+        const inMin = act.valor_min === null || v >= act.valor_min;
+        const inMax = act.valor_max === null || v <= act.valor_max;
+        autoResultado = inMin && inMax ? "ok" : "no_ok";
+      }
       await actualizar.mutateAsync({
         id: act.id,
         valor_medido: v,
-        resultado: act.valor_min !== null && act.valor_max !== null
-          ? (v >= act.valor_min && v <= act.valor_max ? "ok" : "no_ok")
-          : act.resultado,
+        resultado: autoResultado ?? act.resultado ?? undefined,
       });
     } catch (e) {
       toast.error((e as Error).message);
@@ -198,9 +202,12 @@ function ActividadRow({
     }
   };
 
-  const fuera = act.tipo_campo === "medicion" && !esMultiple && act.valor_medido !== null
-    && act.valor_min !== null && act.valor_max !== null
-    && (act.valor_medido < act.valor_min || act.valor_medido > act.valor_max);
+  const tieneRango = act.valor_min !== null || act.valor_max !== null;
+  const fuera = act.tipo_campo === "medicion" && !esMultiple && act.valor_medido !== null && tieneRango
+    && (
+      (act.valor_min !== null && act.valor_medido < act.valor_min) ||
+      (act.valor_max !== null && act.valor_medido > act.valor_max)
+    );
 
   return (
     <div className={`flex flex-col gap-2 py-2 px-3 rounded border ${
@@ -296,12 +303,21 @@ function ActividadRow({
                     disabled={guardandoMed}
                   />
                   {act.unidad && <span className="text-xs text-muted-foreground">{act.unidad}</span>}
+                  {/* Badge OK / No OK inline */}
+                  {tieneRango && valorMedido !== "" && !isNaN(parseFloat(valorMedido)) && (
+                    fuera
+                      ? <span className="text-[10px] font-semibold text-red-600 whitespace-nowrap">✗ No OK</span>
+                      : <span className="text-[10px] font-semibold text-green-700 whitespace-nowrap">✓ OK</span>
+                  )}
                 </div>
-                {act.valor_min !== null && act.valor_max !== null && (
-                  <span className={`text-[10px] ${fuera ? "text-red-600 font-medium" : "text-muted-foreground"}`}>
+                {tieneRango && (
+                  <span className={`text-[10px] mt-0.5 ${fuera ? "text-red-600 font-medium" : "text-muted-foreground"}`}>
                     {fuera && <AlertTriangle className="inline size-3 mr-0.5" />}
-                    {!fuera && act.valor_medido !== null && <span className="text-green-700 font-semibold mr-1">✓ OK</span>}
-                    Rango: {act.valor_min}–{act.valor_max}
+                    {act.valor_min !== null && act.valor_max !== null
+                      ? `Rango: ${act.valor_min}–${act.valor_max}`
+                      : act.valor_min !== null
+                      ? `Mín: ${act.valor_min}`
+                      : `Máx: ${act.valor_max}`}
                   </span>
                 )}
               </div>
