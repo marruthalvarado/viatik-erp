@@ -261,37 +261,12 @@ function ActividadRow({
 
 // ─── Empty state con botón "Cargar protocolo" ─────────────────
 function CargarProtocoloEmpty({ ordenId, equipoId }: { ordenId: string; equipoId: string | null }) {
+  const { ejecutar, isPending, protocolo } = useCargarProtocolo(ordenId, equipoId);
   const { data: equipo } = useEquipoInstalado(equipoId);
   const modeloId = equipo?.modelo_equipo?.id ?? (equipo as unknown as Record<string, unknown>)?.modelo_id as string | undefined;
-  const { data: protocolos = [] } = useProtocolos(modeloId);
-  const cargar = useCargarActividadesProtocolo();
-
-  const protocolo = protocolos[0] ?? null; // primer protocolo activo del modelo
 
   const handleCargar = async () => {
-    if (!protocolo) return;
-
-    // Calcular meses_acumulados desde fecha_instalacion
-    let meses: number | undefined;
-    if (equipo?.fecha_instalacion) {
-      const instalacion = new Date(equipo.fecha_instalacion);
-      const ahora = new Date();
-      meses = Math.floor(
-        (ahora.getFullYear() - instalacion.getFullYear()) * 12
-        + (ahora.getMonth() - instalacion.getMonth()),
-      );
-    }
-
-    try {
-      await cargar.mutateAsync({
-        orden_id: ordenId,
-        protocolo_id: protocolo.id,
-        meses_acumulados: meses,
-      });
-      toast.success("Protocolo cargado correctamente");
-    } catch (e) {
-      toast.error((e as Error).message);
-    }
+    try { await ejecutar(); } catch (e) { toast.error((e as Error).message); }
   };
 
   return (
@@ -308,10 +283,10 @@ function CargarProtocoloEmpty({ ordenId, equipoId }: { ordenId: string; equipoId
             size="sm"
             className="mt-4"
             onClick={handleCargar}
-            disabled={cargar.isPending}
+            disabled={isPending}
           >
-            <RefreshCw className={`size-3.5 mr-1.5 ${cargar.isPending ? "animate-spin" : ""}`} />
-            {cargar.isPending ? "Cargando…" : "Cargar protocolo"}
+            <RefreshCw className={`size-3.5 mr-1.5 ${isPending ? "animate-spin" : ""}`} />
+            {isPending ? "Cargando…" : "Cargar protocolo"}
           </Button>
         </>
       ) : (
@@ -325,6 +300,32 @@ function CargarProtocoloEmpty({ ordenId, equipoId }: { ordenId: string; equipoId
   );
 }
 
+// ─── Hook auxiliar para cargar/recargar protocolo ─────────────
+function useCargarProtocolo(ordenId: string, equipoId: string | null) {
+  const { data: equipo } = useEquipoInstalado(equipoId);
+  const modeloId = equipo?.modelo_equipo?.id ?? (equipo as unknown as Record<string, unknown>)?.modelo_id as string | undefined;
+  const { data: protocolos = [] } = useProtocolos(modeloId);
+  const cargar = useCargarActividadesProtocolo();
+  const protocolo = protocolos[0] ?? null;
+
+  const ejecutar = async () => {
+    if (!protocolo) { toast.error("No hay protocolo disponible para este equipo"); return; }
+    let meses: number | undefined;
+    if (equipo?.fecha_instalacion) {
+      const instalacion = new Date(equipo.fecha_instalacion);
+      const ahora = new Date();
+      meses = Math.floor(
+        (ahora.getFullYear() - instalacion.getFullYear()) * 12
+        + (ahora.getMonth() - instalacion.getMonth()),
+      );
+    }
+    await cargar.mutateAsync({ orden_id: ordenId, protocolo_id: protocolo.id, meses_acumulados: meses });
+    toast.success("Protocolo recargado correctamente");
+  };
+
+  return { ejecutar, isPending: cargar.isPending, protocolo };
+}
+
 // ─── Componente principal ─────────────────────────────────────
 interface OsChecklistProps {
   ordenId: string;
@@ -334,6 +335,7 @@ interface OsChecklistProps {
 export function OsChecklist({ ordenId, equipoId = null }: OsChecklistProps) {
   const { data: actividades = [], isLoading } = useOsActividades(ordenId);
   const { data: resumen } = useResumenOsActividades(ordenId);
+  const { ejecutar: recargar, isPending: recargando, protocolo } = useCargarProtocolo(ordenId, equipoId);
 
   if (isLoading) {
     return <p className="text-sm text-muted-foreground py-6 text-center">Cargando checklist…</p>;
@@ -360,7 +362,22 @@ export function OsChecklist({ ordenId, equipoId = null }: OsChecklistProps) {
         <div className="rounded-lg border p-3 space-y-2">
           <div className="flex items-center justify-between text-sm">
             <span className="font-medium">Progreso del checklist</span>
-            <span className="text-muted-foreground">{resumen.completadas}/{resumen.total} actividades</span>
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground">{resumen.completadas}/{resumen.total} actividades</span>
+              {protocolo && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                  onClick={recargar}
+                  disabled={recargando}
+                  title="Elimina las actividades actuales y recarga el protocolo desde cero"
+                >
+                  <RefreshCw className={`size-3 mr-1 ${recargando ? "animate-spin" : ""}`} />
+                  {recargando ? "Recargando…" : "Recargar"}
+                </Button>
+              )}
+            </div>
           </div>
           <Progress value={pct} className="h-2" />
           <div className="flex gap-3 text-xs">
