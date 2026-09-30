@@ -296,18 +296,23 @@ export async function exportCotizacionPdf(
       if (!trimmed) { y += 3; continue; }
       if (y + 5 > H - 22) { doc.addPage(); y = HDRH + 8; }
 
-      // Detectar si es sub-heading (línea corta sin bullet)
-      const isHeading = isResumenHeading(trimmed) && !trimmed.includes(".") && paragraphs.indexOf(para) !== -1;
-      // Heurística más robusta: heading si termina en ":" o es muy corta (título)
-      const isSubHeading = trimmed.endsWith(":") || (trimmed.length <= 55 && !trimmed.startsWith("•") && !trimmed.startsWith("-") && !trimmed.match(/\s{2,}/));
+      // Detectar si es sub-heading:
+      // 1. Termina en ":" (ej: "Un equipo certificado:")
+      // 2. Tiene métrica corta antes de ":" (ej: ">90%: texto", "<24h: texto", "15+ años: texto")
+      // 3. Línea corta sin bullet ni punto
+      const colonIdx = trimmed.indexOf(":");
+      const isMetricHeading = colonIdx > 0 && colonIdx <= 20;
+      const isSubHeading = trimmed.endsWith(":")
+        || isMetricHeading
+        || (trimmed.length <= 55 && !trimmed.startsWith("•") && !trimmed.startsWith("-") && !trimmed.startsWith(">") && !trimmed.match(/\s{2,}/));
 
       if (isSubHeading && trimmed !== paragraphs[0]?.trim()) {
         // Sub-heading en teal bold
         doc.setFontSize(8.5); doc.setFont("helvetica", "bold"); doc.setTextColor(...TEAL);
         doc.text(trimmed, ML, y);
         y += 6;
-      } else if (trimmed.startsWith("•") || trimmed.startsWith("-") || trimmed.startsWith(">")) {
-        // Bullets / métricas clave
+      } else if (trimmed.startsWith("•") || trimmed.startsWith("-")) {
+        // Bullets
         doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(...DARK);
         const bulletLines = doc.splitTextToSize(trimmed, CW - 6) as string[];
         for (const bl of bulletLines) {
@@ -337,8 +342,9 @@ export async function exportCotizacionPdf(
 
   const cuadroRows: [string, string][] = [];
   if (c.asunto) cuadroRows.push(["Proyecto", c.asunto]);
-  cuadroRows.push(["Precio", fmtMoney(c.total)]);
-  if (c.descuento_total > 0) cuadroRows.push(["Descuento", fmtMoney(c.descuento_total)]);
+  cuadroRows.push(["Precio", fmtMoney(c.subtotal)]);
+  if (c.descuento_total > 0) cuadroRows.push(["Descuento", `- ${fmtMoney(c.descuento_total)}`]);
+  if (c.iva_pct > 0) cuadroRows.push([`IVA ${c.iva_pct}%`, fmtMoney(c.iva)]);
   cuadroRows.push([`Precio ${c.razon_social || "cliente"}`, fmtMoney(c.total)]);
   if (c.terminos_pago?.length)
     cuadroRows.push(["Forma de pago", c.terminos_pago.map((t) => `${t.porcentaje}% ${t.concepto}`).join("\n")]);
@@ -419,10 +425,13 @@ export async function exportCotizacionPdf(
       doc.text(subLabel, ML, y + 4);
       y += 8;
 
-      // Descripción larga (izquierda) + foto (derecha)
+      // Descripción larga (izquierda) + foto (derecha) — texto justificado
       if (descLarga) {
         doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(...DARK);
-        doc.text(descLines, ML, y);
+        for (let li = 0; li < descLines.length; li++) {
+          const isLastLine = li === descLines.length - 1;
+          doc.text(descLines[li], ML, y + li * 4.2, isLastLine ? {} : { align: "justify", maxWidth: leftW });
+        }
       }
       if (fotoImg) {
         const imgX = ML + leftW + 4;
