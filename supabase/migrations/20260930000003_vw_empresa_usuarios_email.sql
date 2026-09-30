@@ -1,6 +1,7 @@
--- Agregar email a vw_empresa_usuarios para permitir edición de correo desde la UI de Administración.
+-- Agregar email a vw_empresa_usuarios (al final para no alterar posiciones existentes).
 -- El email vive en auth.users, no en public.usuarios.
-CREATE OR REPLACE VIEW vw_empresa_usuarios AS
+DROP VIEW IF EXISTS vw_empresa_usuarios;
+CREATE VIEW vw_empresa_usuarios AS
 SELECT
   eu.id,
   eu.empresa_id,
@@ -12,11 +13,11 @@ SELECT
   u.nombres,
   u.apellidos,
   u.cargo,
-  au.email,
   u.estado,
   r.codigo              AS rol_codigo,
   r.nombre              AS rol_nombre,
-  eu.roles_adicionales
+  eu.roles_adicionales,
+  au.email
 FROM empresas_usuarios eu
 JOIN usuarios        u  ON u.id  = eu.usuario_id
 JOIN auth.users      au ON au.id = eu.usuario_id
