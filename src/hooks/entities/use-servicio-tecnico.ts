@@ -23,6 +23,7 @@ import {
   getOsActividades, cargarActividadesProtocolo, actualizarOsActividad, getResumenOsActividades,
   type OrdenServicioPayload, type OsRepuestoPayload,
   type OsActividad, type ResumenOsActividades,
+  type RangoMedicion, type VarianteModelo,
 } from "@/services/servicio-tecnico/ordenes-servicio";
 
 import {
@@ -525,7 +526,8 @@ export function useActualizarOsActividad(ordenId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({
-      id, resultado, valor_medido, texto_respuesta, notas_resultado, valores_medidos,
+      id, resultado, valor_medido, texto_respuesta, notas_resultado,
+      valores_medidos, modelo_seleccionado, rangos_medicion, etiquetas_medicion,
     }: {
       id: string;
       resultado?: string | null;
@@ -533,8 +535,14 @@ export function useActualizarOsActividad(ordenId: string) {
       texto_respuesta?: string | null;
       notas_resultado?: string | null;
       valores_medidos?: number[] | null;
+      modelo_seleccionado?: string | null;
+      rangos_medicion?: import("@/services/servicio-tecnico/ordenes-servicio").RangoMedicion[] | null;
+      etiquetas_medicion?: string[] | null;
     }) =>
-      actualizarOsActividad(id, resultado, valor_medido, texto_respuesta, notas_resultado, valores_medidos),
+      actualizarOsActividad(
+        id, resultado, valor_medido, texto_respuesta, notas_resultado,
+        valores_medidos, modelo_seleccionado, rangos_medicion, etiquetas_medicion,
+      ),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["os_actividades", ordenId] }),
   });
 }
@@ -550,5 +558,5 @@ export function useResumenOsActividades(ordenId: string | null) {
 // Re-exports de tipos para consumo en componentes
 export type {
   Modalidad, ModeloEquipo, Protocolo, ProtocoloSeccion, ProtocoloActividad, ProtocoloConDetalle,
-  OsActividad, ResumenOsActividades,
+  OsActividad, ResumenOsActividades, RangoMedicion, VarianteModelo,
 };

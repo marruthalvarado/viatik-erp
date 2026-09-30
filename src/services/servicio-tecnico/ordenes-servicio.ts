@@ -8,6 +8,20 @@ export type OrdenServicio = Database["public"]["Tables"]["ordenes_servicio"]["Ro
 export type OsRepuesto   = Database["public"]["Tables"]["os_repuestos"]["Row"];
 export type OsFoto       = Database["public"]["Tables"]["os_fotos"]["Row"];
 
+// ─── Tipos para variantes de modelo y rangos de medición ────
+export interface RangoMedicion {
+  /** Valor de referencia nominal (ej: "+5.15V") */
+  ref: string;
+  min: number | null;
+  max: number | null;
+}
+
+export interface VarianteModelo {
+  modelo: string;
+  etiquetas: string[];
+  rangos: RangoMedicion[];
+}
+
 // ─── OS Actividades (checklist protocolo) ───────────────────
 export interface OsActividad {
   id: string;
@@ -33,6 +47,12 @@ export interface OsActividad {
   etiquetas_medicion: string[] | null;
   /** Array paralelo a etiquetas_medicion con los valores reales medidos. */
   valores_medidos: number[] | null;
+  /** Variantes de modelo disponibles para esta actividad (copiado del protocolo). */
+  variantes_modelo: VarianteModelo[] | null;
+  /** Variante de modelo seleccionada por el técnico (ej: "HD3(C)"). */
+  modelo_seleccionado: string | null;
+  /** Rangos de validación paralelos a etiquetas_medicion/valores_medidos. */
+  rangos_medicion: RangoMedicion[] | null;
 }
 
 export interface ResumenOsActividades {
@@ -256,6 +276,9 @@ export async function actualizarOsActividad(
   texto_respuesta?: string | null,
   notas_resultado?: string | null,
   valores_medidos?: number[] | null,
+  modelo_seleccionado?: string | null,
+  rangos_medicion?: RangoMedicion[] | null,
+  etiquetas_medicion?: string[] | null,
 ): Promise<void> {
   const { error } = await supabase.rpc("rpc_actualizar_os_actividad", {
     p_id: id,
@@ -264,6 +287,9 @@ export async function actualizarOsActividad(
     p_texto_respuesta: texto_respuesta ?? null,
     p_notas_resultado: notas_resultado ?? null,
     p_valores_medidos: valores_medidos ?? null,
+    p_modelo_seleccionado: modelo_seleccionado ?? null,
+    p_rangos_medicion: rangos_medicion ?? null,
+    p_etiquetas_medicion: etiquetas_medicion ?? null,
   });
   if (error) throw new Error(error.message);
 }

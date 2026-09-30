@@ -21,6 +21,7 @@ import {
   useProtocolos,
   useCargarActividadesProtocolo,
   type OsActividad,
+  type RangoMedicion,
 } from "@/hooks/entities/use-servicio-tecnico";
 
 // ─── Botones resultado check3 ─────────────────────────────────
@@ -64,6 +65,18 @@ function Check3Buttons({
   );
 }
 
+// ─── Badge de resultado por campo (OK / No OK) ───────────────
+function CampoBadge({ valor, rango }: { valor: string; rango: RangoMedicion | undefined }) {
+  if (!rango || valor === "") return null;
+  const v = parseFloat(valor);
+  if (isNaN(v)) return null;
+  const inMin = rango.min === null || v >= rango.min;
+  const inMax = rango.max === null || v <= rango.max;
+  return inMin && inMax
+    ? <span className="text-[10px] font-semibold text-green-700 whitespace-nowrap">✓ OK</span>
+    : <span className="text-[10px] font-semibold text-red-600 whitespace-nowrap">✗ No OK</span>;
+}
+
 // ─── Fila de actividad individual ───────────────────────────
 function ActividadRow({
   act,
@@ -74,6 +87,7 @@ function ActividadRow({
 }) {
   const actualizar = useActualizarOsActividad(ordenId);
   const [valorMedido, setValorMedido] = useState<string>(act.valor_medido?.toString() ?? "");
+  const [modeloSeleccionado, setModeloSeleccionado] = useState(act.modelo_seleccionado ?? null);
   // Medición múltiple: array paralelo a etiquetas_medicion
   const [valoresMedidos, setValoresMedidos] = useState<string[]>(
     () => (act.valores_medidos ?? []).map((v) => v?.toString() ?? ""),
@@ -82,13 +96,36 @@ function ActividadRow({
   const [notas, setNotas] = useState(act.notas_resultado ?? "");
   const [guardandoMed, setGuardandoMed] = useState(false);
 
+  // Variante activa — resuelve etiquetas y rangos desde la definición de variantes
+  const varianteActiva = act.variantes_modelo?.find((v) => v.modelo === modeloSeleccionado) ?? null;
+  const etiquetasActivas = varianteActiva?.etiquetas ?? act.etiquetas_medicion ?? null;
+  const rangosActivos = varianteActiva?.rangos ?? act.rangos_medicion ?? null;
+  const tieneVariantes = (act.variantes_modelo?.length ?? 0) > 0;
   const esMultiple = act.tipo_campo === "medicion"
-    && act.etiquetas_medicion !== null
-    && act.etiquetas_medicion.length > 1;
+    && etiquetasActivas !== null
+    && etiquetasActivas.length > 1;
 
   const handleResultado = async (resultado: string) => {
     try {
       await actualizar.mutateAsync({ id: act.id, resultado });
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+
+  // Selección de modelo de detector
+  const handleSelectModelo = async (modelo: string) => {
+    const variante = act.variantes_modelo?.find((v) => v.modelo === modelo);
+    if (!variante) return;
+    setModeloSeleccionado(modelo);
+    setValoresMedidos(new Array(variante.etiquetas.length).fill(""));
+    try {
+      await actualizar.mutateAsync({
+        id: act.id,
+        modelo_seleccionado: modelo,
+        etiquetas_medicion: variante.etiquetas,
+        rangos_medicion: variante.rangos,
+      });
     } catch (e) {
       toast.error((e as Error).message);
     }
@@ -113,18 +150,30 @@ function ActividadRow({
     }
   };
 
-  // Guarda el array completo al perder foco en cualquier campo múltiple
+  // Guarda el array completo al perder foco y calcula resultado automático
   const handleMultiMedicionBlur = async (idx: number, raw: string) => {
     const updated = [...valoresMedidos];
     updated[idx] = raw;
     setValoresMedidos(updated);
     const parsed = updated.map((s) => parseFloat(s));
     if (parsed.some(isNaN)) return;       // esperar a que completen todos
+    // Auto-resultado basado en rangos activos
+    let autoResultado: string | undefined;
+    if (rangosActivos && rangosActivos.length === parsed.length) {
+      const allOk = parsed.every((v, i) => {
+        const r = rangosActivos[i];
+        const inMin = r.min === null || v >= r.min;
+        const inMax = r.max === null || v <= r.max;
+        return inMin && inMax;
+      });
+      autoResultado = allOk ? "ok" : "no_ok";
+    }
     setGuardandoMed(true);
     try {
       await actualizar.mutateAsync({
         id: act.id,
         valores_medidos: parsed,
+        ...(autoResultado !== undefined ? { resultado: autoResultado } : {}),
       });
     } catch (e) {
       toast.error((e as Error).message);
@@ -171,31 +220,60 @@ function ActividadRow({
             )}
           </p>
 
-          {/* ── Medición múltiple: grid de inputs con etiqueta ── */}
+          {/* ── Selector de variante de modelo ── */}
+          {tieneVariantes && act.tipo_campo === "medicion" && (
+            <div className="mt-2 flex flex-wrap gap-1.5 items-center">
+              <span className="text-[11px] text-muted-foreground mr-1">Modelo:</span>
+              {act.variantes_modelo!.map((v) => (
+                <button
+                  key={v.modelo}
+                  type="button"
+                  onClick={() => handleSelectModelo(v.modelo)}
+                  className={`text-[11px] px-2 py-0.5 rounded border font-medium transition-colors ${
+                    modeloSeleccionado === v.modelo
+                      ? "bg-blue-600 text-white border-blue-600"
+                      : "bg-background text-foreground border-border hover:border-blue-400 hover:text-blue-600"
+                  }`}
+                >
+                  {v.modelo}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* ── Medición múltiple: grid de inputs con etiqueta + badge ── */}
           {esMultiple && (
             <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5">
-              {act.etiquetas_medicion!.map((etiqueta, idx) => (
+              {etiquetasActivas!.map((etiqueta, idx) => (
                 <div key={idx} className="flex items-center gap-1.5">
                   <span className="text-[11px] text-muted-foreground whitespace-nowrap min-w-0 truncate" title={etiqueta}>
                     {etiqueta}
                   </span>
-                  <Input
-                    type="number"
-                    step="any"
-                    value={valoresMedidos[idx] ?? ""}
-                    onChange={(e) => {
-                      const updated = [...valoresMedidos];
-                      updated[idx] = e.target.value;
-                      setValoresMedidos(updated);
-                    }}
-                    onBlur={(e) => handleMultiMedicionBlur(idx, e.target.value)}
-                    className="w-20 h-7 text-right text-sm shrink-0"
-                    placeholder="—"
-                    disabled={guardandoMed}
-                  />
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Input
+                      type="number"
+                      step="any"
+                      value={valoresMedidos[idx] ?? ""}
+                      onChange={(e) => {
+                        const updated = [...valoresMedidos];
+                        updated[idx] = e.target.value;
+                        setValoresMedidos(updated);
+                      }}
+                      onBlur={(e) => handleMultiMedicionBlur(idx, e.target.value)}
+                      className="w-20 h-7 text-right text-sm"
+                      placeholder="—"
+                      disabled={guardandoMed}
+                    />
+                    <CampoBadge valor={valoresMedidos[idx] ?? ""} rango={rangosActivos?.[idx]} />
+                  </div>
                 </div>
               ))}
             </div>
+          )}
+
+          {/* ── Sin modelo seleccionado todavía ── */}
+          {tieneVariantes && act.tipo_campo === "medicion" && !modeloSeleccionado && (
+            <p className="text-[11px] text-muted-foreground mt-1">Selecciona un modelo para ingresar valores.</p>
           )}
         </div>
 
@@ -222,6 +300,7 @@ function ActividadRow({
                 {act.valor_min !== null && act.valor_max !== null && (
                   <span className={`text-[10px] ${fuera ? "text-red-600 font-medium" : "text-muted-foreground"}`}>
                     {fuera && <AlertTriangle className="inline size-3 mr-0.5" />}
+                    {!fuera && act.valor_medido !== null && <span className="text-green-700 font-semibold mr-1">✓ OK</span>}
                     Rango: {act.valor_min}–{act.valor_max}
                   </span>
                 )}
