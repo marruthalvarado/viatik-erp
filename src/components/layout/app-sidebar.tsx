@@ -22,6 +22,7 @@ import {
   ClipboardList,
   Package,
   FileCheck,
+  ListChecks,
 } from "lucide-react";
 
 import {
@@ -81,6 +82,7 @@ const servicioTecnicoItems: NavItem[] = [
   { title: "Órdenes de Servicio", url: "/servicio-tecnico/ordenes", icon: ClipboardList, modulo: "servicio_tecnico" },
   { title: "Base Instalada", url: "/servicio-tecnico/base-instalada", icon: Shield, modulo: "servicio_tecnico" },
   { title: "Contratos Mant.", url: "/servicio-tecnico/contratos", icon: FileCheck, modulo: "servicio_tecnico" },
+  { title: "Plantillas", url: "/servicio-tecnico/plantillas", icon: ListChecks, modulo: "servicio_tecnico" },
 ];
 
 const systemItems: NavItem[] = [

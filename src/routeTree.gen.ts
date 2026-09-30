@@ -39,6 +39,7 @@ import { Route as ServicioTecnicoRouteImport } from './routes/servicio-tecnico'
 import { Route as ServicioTecnicoOrdenesRouteImport } from './routes/servicio-tecnico.ordenes'
 import { Route as ServicioTecnicoContratosRouteImport } from './routes/servicio-tecnico.contratos'
 import { Route as ServicioTecnicoBaseInstaladaRouteImport } from './routes/servicio-tecnico.base-instalada'
+import { Route as ServicioTecnicoPlantillasRouteImport } from './routes/servicio-tecnico.plantillas'
 
 const WorkflowRoute = WorkflowRouteImport.update({
   id: '/workflow',
@@ -190,6 +191,11 @@ const ServicioTecnicoBaseInstaladaRoute = ServicioTecnicoBaseInstaladaRouteImpor
   path: '/base-instalada',
   getParentRoute: () => ServicioTecnicoRoute,
 } as any)
+const ServicioTecnicoPlantillasRoute = ServicioTecnicoPlantillasRouteImport.update({
+  id: '/plantillas',
+  path: '/plantillas',
+  getParentRoute: () => ServicioTecnicoRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -222,6 +228,7 @@ export interface FileRoutesByFullPath {
   '/servicio-tecnico/base-instalada': typeof ServicioTecnicoBaseInstaladaRoute
   '/servicio-tecnico/contratos': typeof ServicioTecnicoContratosRoute
   '/servicio-tecnico/ordenes': typeof ServicioTecnicoOrdenesRoute
+  '/servicio-tecnico/plantillas': typeof ServicioTecnicoPlantillasRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -253,6 +260,7 @@ export interface FileRoutesByTo {
   '/servicio-tecnico/base-instalada': typeof ServicioTecnicoBaseInstaladaRoute
   '/servicio-tecnico/contratos': typeof ServicioTecnicoContratosRoute
   '/servicio-tecnico/ordenes': typeof ServicioTecnicoOrdenesRoute
+  '/servicio-tecnico/plantillas': typeof ServicioTecnicoPlantillasRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -286,6 +294,7 @@ export interface FileRoutesById {
   '/servicio-tecnico/base-instalada': typeof ServicioTecnicoBaseInstaladaRoute
   '/servicio-tecnico/contratos': typeof ServicioTecnicoContratosRoute
   '/servicio-tecnico/ordenes': typeof ServicioTecnicoOrdenesRoute
+  '/servicio-tecnico/plantillas': typeof ServicioTecnicoPlantillasRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -320,6 +329,7 @@ export interface FileRouteTypes {
     | '/servicio-tecnico/base-instalada'
     | '/servicio-tecnico/contratos'
     | '/servicio-tecnico/ordenes'
+    | '/servicio-tecnico/plantillas'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -351,6 +361,7 @@ export interface FileRouteTypes {
     | '/servicio-tecnico/base-instalada'
     | '/servicio-tecnico/contratos'
     | '/servicio-tecnico/ordenes'
+    | '/servicio-tecnico/plantillas'
   id:
     | '__root__'
     | '/'
@@ -383,6 +394,7 @@ export interface FileRouteTypes {
     | '/servicio-tecnico/base-instalada'
     | '/servicio-tecnico/contratos'
     | '/servicio-tecnico/ordenes'
+    | '/servicio-tecnico/plantillas'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -624,6 +636,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServicioTecnicoOrdenesRouteImport
       parentRoute: typeof ServicioTecnicoRoute
     }
+    '/servicio-tecnico/plantillas': {
+      id: '/servicio-tecnico/plantillas'
+      path: '/plantillas'
+      fullPath: '/servicio-tecnico/plantillas'
+      preLoaderRoute: typeof ServicioTecnicoPlantillasRouteImport
+      parentRoute: typeof ServicioTecnicoRoute
+    }
   }
 }
 
@@ -647,12 +666,14 @@ interface ServicioTecnicoRouteChildren {
   ServicioTecnicoBaseInstaladaRoute: typeof ServicioTecnicoBaseInstaladaRoute
   ServicioTecnicoContratosRoute: typeof ServicioTecnicoContratosRoute
   ServicioTecnicoOrdenesRoute: typeof ServicioTecnicoOrdenesRoute
+  ServicioTecnicoPlantillasRoute: typeof ServicioTecnicoPlantillasRoute
 }
 
 const ServicioTecnicoRouteChildren: ServicioTecnicoRouteChildren = {
   ServicioTecnicoBaseInstaladaRoute: ServicioTecnicoBaseInstaladaRoute,
   ServicioTecnicoContratosRoute: ServicioTecnicoContratosRoute,
   ServicioTecnicoOrdenesRoute: ServicioTecnicoOrdenesRoute,
+  ServicioTecnicoPlantillasRoute: ServicioTecnicoPlantillasRoute,
 }
 
 const ServicioTecnicoRouteWithChildren = ServicioTecnicoRoute._addFileChildren(
