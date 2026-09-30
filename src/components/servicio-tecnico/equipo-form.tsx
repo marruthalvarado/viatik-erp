@@ -15,6 +15,7 @@ import {
 import { useClientes } from "@/hooks/entities/use-clientes";
 import { useProyectos } from "@/hooks/entities/use-proyectos";
 import { useProveedores } from "@/hooks/entities/use-proveedores";
+import { useModalidades, useModelosEquipo } from "@/hooks/entities/use-servicio-tecnico";
 import type { EquipoInstaladoConRelaciones, EquipoInstaladoPayload } from "@/services/servicio-tecnico/equipos-instalados";
 
 interface Props {
@@ -39,6 +40,11 @@ export function EquipoForm({ open, equipo, onSubmit, onClose }: Props) {
   const proyectos = proyectosPag?.rows ?? [];
   const fabricantes = (proveedoresPag?.rows ?? []).filter((p) => p.es_internacional === true);
 
+  // Modalidad → Modelo cascading selectors
+  const [modalidadSelId, setModalidadSelId] = useState<string | null>(null);
+  const { data: modalidades = [] } = useModalidades();
+  const { data: modelos = [] } = useModelosEquipo(modalidadSelId ?? undefined);
+
   const [form, setForm] = useState<EquipoInstaladoPayload>({
     nombre: "",
     estado: "activo",
@@ -47,11 +53,19 @@ export function EquipoForm({ open, equipo, onSubmit, onClose }: Props) {
 
   useEffect(() => {
     if (equipo) {
+      // Pre-seleccionar modalidad a partir del modelo_id del equipo
+      const modeloActual = equipo.modelo_equipo;
+      if (modeloActual?.modalidad_id) {
+        setModalidadSelId(modeloActual.modalidad_id);
+      } else {
+        setModalidadSelId(null);
+      }
       setForm({
         nombre: equipo.nombre,
         fabricante_id: equipo.fabricante_id ?? null,
         fabricante: equipo.fabricante,
         modelo: equipo.modelo,
+        modelo_id: (equipo as EquipoInstaladoConRelaciones & { modelo_id?: string | null }).modelo_id ?? null,
         numero_serie: equipo.numero_serie,
         numero_parte: equipo.numero_parte,
         ubicacion_instalacion: equipo.ubicacion_instalacion,
@@ -67,6 +81,7 @@ export function EquipoForm({ open, equipo, onSubmit, onClose }: Props) {
         notas: equipo.notas,
       });
     } else {
+      setModalidadSelId(null);
       setForm({ nombre: "", estado: "activo", garantia_meses: 12 });
     }
   }, [equipo, open]);
@@ -113,6 +128,52 @@ export function EquipoForm({ open, equipo, onSubmit, onClose }: Props) {
             />
           </div>
 
+          {/* Modalidad → Modelo de protocolo */}
+          <div className="rounded-md border border-dashed p-3 space-y-3 bg-muted/30">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Protocolo de mantenimiento
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Modalidad</Label>
+                <Select
+                  value={modalidadSelId ?? "none"}
+                  onValueChange={(v) => {
+                    const newMod = v === "none" ? null : v;
+                    setModalidadSelId(newMod);
+                    set("modelo_id", null); // reset modelo al cambiar modalidad
+                  }}
+                >
+                  <SelectTrigger><SelectValue placeholder="Modalidad…" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">— Sin modalidad —</SelectItem>
+                    {modalidades.filter((m) => m.activa).map((m) => (
+                      <SelectItem key={m.id} value={m.id}>{m.nombre}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Modelo de equipo</Label>
+                <Select
+                  value={form.modelo_id ?? "none"}
+                  onValueChange={(v) => set("modelo_id", v === "none" ? null : v)}
+                  disabled={!modalidadSelId}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={modalidadSelId ? "Seleccionar modelo…" : "Seleccione modalidad primero"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">— Sin modelo —</SelectItem>
+                    {modelos.filter((m) => m.activo).map((m) => (
+                      <SelectItem key={m.id} value={m.id}>{m.nombre}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Fabricante (proveedor internacional)</Label>
@@ -130,7 +191,7 @@ export function EquipoForm({ open, equipo, onSubmit, onClose }: Props) {
               </Select>
             </div>
             <div>
-              <Label>Modelo</Label>
+              <Label>Modelo (texto libre)</Label>
               <Input
                 value={form.modelo ?? ""}
                 onChange={(e) => set("modelo", e.target.value || null)}

@@ -1,5 +1,5 @@
 /**
- * Servicio: Órdenes de Servicio
+ * Servicio: Órdenes de Servicio + Checklist OS Actividades
  */
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/types/database";
@@ -7,6 +7,38 @@ import type { Database } from "@/types/database";
 export type OrdenServicio = Database["public"]["Tables"]["ordenes_servicio"]["Row"];
 export type OsRepuesto   = Database["public"]["Tables"]["os_repuestos"]["Row"];
 export type OsFoto       = Database["public"]["Tables"]["os_fotos"]["Row"];
+
+// ─── OS Actividades (checklist protocolo) ───────────────────
+export interface OsActividad {
+  id: string;
+  empresa_id: string;
+  orden_id: string;
+  protocolo_actividad_id: string | null;
+  seccion_titulo: string | null;
+  numero_paso: string | null;
+  descripcion: string;
+  tipo_campo: string;
+  resultado: string | null;       // 'ok' | 'no_ok' | 'na'
+  valor_medido: number | null;
+  valor_min: number | null;
+  valor_max: number | null;
+  unidad: string | null;
+  texto_respuesta: string | null;
+  es_critico: boolean;
+  notas_resultado: string | null;
+  orden: number;
+  completado_en: string | null;
+  created_at: string;
+}
+
+export interface ResumenOsActividades {
+  total: number;
+  completadas: number;
+  ok: number;
+  no_ok: number;
+  na: number;
+  criticas_no_ok: number;
+}
 
 export interface OrdenConRelaciones extends OrdenServicio {
   equipo?: {
@@ -185,4 +217,55 @@ export async function eliminarFotoOS(foto_id: string): Promise<void> {
     .delete()
     .eq("id", foto_id);
   if (error) throw new Error(error.message);
+}
+
+// ─── OS Actividades ──────────────────────────────────────────
+
+export async function getOsActividades(orden_id: string): Promise<OsActividad[]> {
+  const { data, error } = await supabase
+    .from("os_actividades")
+    .select("*")
+    .eq("orden_id", orden_id)
+    .order("orden");
+  if (error) throw new Error(error.message);
+  return (data ?? []) as unknown as OsActividad[];
+}
+
+export async function cargarActividadesProtocolo(
+  orden_id: string,
+  protocolo_id: string,
+  meses_acumulados: number = 6,
+): Promise<number> {
+  const { data, error } = await supabase.rpc("rpc_cargar_actividades_protocolo", {
+    p_orden_id: orden_id,
+    p_protocolo_id: protocolo_id,
+    p_meses_acumulados: meses_acumulados,
+  });
+  if (error) throw new Error(error.message);
+  return (data as number) ?? 0;
+}
+
+export async function actualizarOsActividad(
+  id: string,
+  resultado?: string | null,
+  valor_medido?: number | null,
+  texto_respuesta?: string | null,
+  notas_resultado?: string | null,
+): Promise<void> {
+  const { error } = await supabase.rpc("rpc_actualizar_os_actividad", {
+    p_id: id,
+    p_resultado: resultado ?? null,
+    p_valor_medido: valor_medido ?? null,
+    p_texto_respuesta: texto_respuesta ?? null,
+    p_notas_resultado: notas_resultado ?? null,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function getResumenOsActividades(orden_id: string): Promise<ResumenOsActividades> {
+  const { data, error } = await supabase.rpc("rpc_resumen_os_actividades", {
+    p_orden_id: orden_id,
+  });
+  if (error) throw new Error(error.message);
+  return (data as ResumenOsActividades) ?? { total: 0, completadas: 0, ok: 0, no_ok: 0, na: 0, criticas_no_ok: 0 };
 }

@@ -4,7 +4,7 @@
 import { useState } from "react";
 import {
   Plus, ClipboardList, CheckCircle2, Clock, Wrench, XCircle,
-  AlertCircle, RotateCw, FileDown, FileText, Loader2,
+  AlertCircle, RotateCw, FileDown, FileText, Loader2, ClipboardCheck,
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -18,6 +18,9 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle,
+} from "@/components/ui/sheet";
 import {
   useOrdenesServicio,
   useCrearOrdenServicio,
@@ -33,6 +36,7 @@ import type {
 } from "@/services/servicio-tecnico/ordenes-servicio";
 import { OrdenForm } from "./orden-form";
 import { CerrarOrdenDialog } from "./cerrar-orden-dialog";
+import { OsChecklist } from "./os-checklist";
 import {
   exportOrdenServicioPdf,
   exportOrdenServicioDocx,
@@ -82,6 +86,7 @@ export function OrdenesLayout() {
   const [cerrando, setCerrando] = useState<OrdenConRelaciones | null>(null);
   const [exportingPdf, setExportingPdf] = useState<string | null>(null);
   const [exportingDocx, setExportingDocx] = useState<string | null>(null);
+  const [checklistOrden, setChecklistOrden] = useState<OrdenConRelaciones | null>(null);
 
   const filtradas = ordenes.filter((o) => {
     const q = busqueda.toLowerCase();
@@ -289,6 +294,17 @@ export function OrdenesLayout() {
                   <TableCell><EstadoBadge estado={o.estado ?? "pendiente"} /></TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1 flex-wrap">
+                      {o.tipo === "preventivo" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-blue-700"
+                          onClick={() => setChecklistOrden(o)}
+                          title="Ver checklist de protocolo"
+                        >
+                          <ClipboardCheck className="size-3 mr-1" />Checklist
+                        </Button>
+                      )}
                       {o.estado !== "completada" && o.estado !== "cancelada" && (
                         <Button
                           variant="outline"
@@ -360,6 +376,23 @@ export function OrdenesLayout() {
         onClose={() => setCerrando(null)}
         onCerrar={handleCerrar}
       />
+
+      {/* Sheet de Checklist de Protocolo */}
+      <Sheet open={checklistOrden !== null} onOpenChange={(o) => !o && setChecklistOrden(null)}>
+        <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
+          <SheetHeader className="mb-4">
+            <SheetTitle className="flex items-center gap-2">
+              <ClipboardCheck className="size-5 text-primary" />
+              Checklist MP — {checklistOrden?.numero}
+            </SheetTitle>
+            <p className="text-sm text-muted-foreground">
+              {checklistOrden?.equipo?.nombre}
+              {checklistOrden?.equipo?.numero_serie && ` · S/N: ${checklistOrden.equipo.numero_serie}`}
+            </p>
+          </SheetHeader>
+          {checklistOrden && <OsChecklist ordenId={checklistOrden.id} />}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

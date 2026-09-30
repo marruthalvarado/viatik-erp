@@ -11,6 +11,7 @@ export interface EquipoInstaladoConRelaciones extends EquipoInstalado {
   proyecto?: { id: string; nombre: string } | null;
   catalogo?: { id: string; nombre: string; fabricante: string | null; modelo: string | null } | null;
   tecnico_instalador?: { id: string; nombres: string; apellidos: string } | null;
+  modelo_equipo?: { id: string; nombre: string; modalidad_id: string; modalidad?: { id: string; nombre: string } | null } | null;
 }
 
 export interface EquipoInstaladoPayload {
@@ -21,6 +22,7 @@ export interface EquipoInstaladoPayload {
   cliente_id?: string | null;
   proyecto_id?: string | null;
   tecnico_instalador_id?: string | null;
+  modelo_id?: string | null;
   nombre: string;
   fabricante?: string | null;
   fabricante_id?: string | null;
@@ -45,7 +47,8 @@ const EQUIPO_SELECT = `
   cliente:clientes(id, nombre, logo_url),
   proyecto:proyectos(id, nombre),
   catalogo:productos_catalogo(id, nombre, fabricante, modelo),
-  tecnico_instalador:usuarios!equipos_instalados_tecnico_instalador_id_fkey(id, nombres, apellidos)
+  tecnico_instalador:usuarios!equipos_instalados_tecnico_instalador_id_fkey(id, nombres, apellidos),
+  modelo_equipo:modelos_equipo(id, nombre, modalidad_id, modalidad:modalidades(id, nombre))
 `;
 
 export async function getEquiposInstalados(empresa_id: string): Promise<EquipoInstaladoConRelaciones[]> {

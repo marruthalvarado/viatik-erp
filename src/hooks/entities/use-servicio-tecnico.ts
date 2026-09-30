@@ -20,7 +20,9 @@ import {
   getOrdenesServicio, getOrdenServicio,
   crearOrdenServicio, actualizarOrdenServicio, cerrarOrdenServicio,
   eliminarOrdenServicio, generarOrdenesPreventivasManual,
+  getOsActividades, cargarActividadesProtocolo, actualizarOsActividad, getResumenOsActividades,
   type OrdenServicioPayload, type OsRepuestoPayload,
+  type OsActividad, type ResumenOsActividades,
 } from "@/services/servicio-tecnico/ordenes-servicio";
 
 import {
@@ -478,7 +480,51 @@ export function useEliminarActividadProtocolo() {
   });
 }
 
+// ── OS ACTIVIDADES (checklist protocolo) ───────────────────────────────────────
+
+export function useOsActividades(ordenId: string | null) {
+  return useQuery({
+    queryKey: ["os_actividades", ordenId],
+    queryFn: () => getOsActividades(ordenId!),
+    enabled: !!ordenId,
+  });
+}
+
+export function useCargarActividadesProtocolo() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      orden_id,
+      protocolo_id,
+      meses_acumulados,
+    }: { orden_id: string; protocolo_id: string; meses_acumulados?: number }) =>
+      cargarActividadesProtocolo(orden_id, protocolo_id, meses_acumulados),
+    onSuccess: (_data, vars) =>
+      qc.invalidateQueries({ queryKey: ["os_actividades", vars.orden_id] }),
+  });
+}
+
+export function useActualizarOsActividad(ordenId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id, resultado, valor_medido, texto_respuesta, notas_resultado,
+    }: { id: string; resultado?: string | null; valor_medido?: number | null; texto_respuesta?: string | null; notas_resultado?: string | null }) =>
+      actualizarOsActividad(id, resultado, valor_medido, texto_respuesta, notas_resultado),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["os_actividades", ordenId] }),
+  });
+}
+
+export function useResumenOsActividades(ordenId: string | null) {
+  return useQuery({
+    queryKey: ["os_actividades_resumen", ordenId],
+    queryFn: () => getResumenOsActividades(ordenId!),
+    enabled: !!ordenId,
+  });
+}
+
 // Re-exports de tipos para consumo en componentes
 export type {
   Modalidad, ModeloEquipo, Protocolo, ProtocoloSeccion, ProtocoloActividad, ProtocoloConDetalle,
+  OsActividad, ResumenOsActividades,
 };
