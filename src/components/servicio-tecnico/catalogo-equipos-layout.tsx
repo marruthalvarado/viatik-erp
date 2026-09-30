@@ -14,10 +14,14 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
   useModalidades, useCrearModalidad, useActualizarModalidad,
   useModelosEquipo, useCrearModeloEquipo, useActualizarModeloEquipo,
   type Modalidad, type ModeloEquipo,
 } from "@/hooks/entities/use-servicio-tecnico";
+import { useProveedores } from "@/hooks/entities/use-proveedores";
 
 // ── Diálogos Modalidad ────────────────────────────────────────────────────────
 
@@ -98,8 +102,11 @@ function ModeloDialog({
 }: { open: boolean; modelo: ModeloEquipo | null; modalidadId: string; onClose: () => void }) {
   const crear = useCrearModeloEquipo();
   const actualizar = useActualizarModeloEquipo();
+  const { data: provPag } = useProveedores();
+  const fabricantes = (provPag?.rows ?? []).filter((p) => p.es_internacional === true);
+
   const [nombre, setNombre] = useState(modelo?.nombre ?? "");
-  const [fabricante, setFabricante] = useState(modelo?.fabricante ?? "");
+  const [fabricanteId, setFabricanteId] = useState<string | null>(modelo?.fabricante_id ?? null);
   const [descripcion, setDescripcion] = useState(modelo?.descripcion ?? "");
 
   const isPending = crear.isPending || actualizar.isPending;
@@ -109,13 +116,13 @@ function ModeloDialog({
     if (modelo) {
       await actualizar.mutateAsync({
         id: modelo.id,
-        payload: { nombre, fabricante: fabricante || null, descripcion: descripcion || null },
+        payload: { nombre, fabricante_id: fabricanteId, descripcion: descripcion || null },
       });
     } else {
       await crear.mutateAsync({
         modalidad_id: modalidadId,
         nombre,
-        fabricante: fabricante || null,
+        fabricante_id: fabricanteId,
         descripcion: descripcion || null,
       });
     }
@@ -139,12 +146,26 @@ function ModeloDialog({
             />
           </div>
           <div>
-            <Label>Fabricante</Label>
-            <Input
-              value={fabricante}
-              onChange={(e) => setFabricante(e.target.value)}
-              placeholder="GE Healthcare"
-            />
+            <Label>Fabricante (proveedor internacional)</Label>
+            <Select
+              value={fabricanteId ?? "none"}
+              onValueChange={(v) => setFabricanteId(v === "none" ? null : v)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Seleccionar fabricante…" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">— Sin fabricante —</SelectItem>
+                {fabricantes.map((f) => (
+                  <SelectItem key={f.id} value={f.id}>{f.nombre}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {fabricantes.length === 0 && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Agrega proveedores internacionales en el módulo Proveedores para usar este selector.
+              </p>
+            )}
           </div>
           <div>
             <Label>Descripción</Label>
@@ -283,8 +304,10 @@ export function CatalogoEquiposLayout() {
                 >
                   <div>
                     <p className="text-sm font-medium">{m.nombre}</p>
-                    {m.fabricante && (
-                      <p className="text-xs text-muted-foreground">{m.fabricante}</p>
+                    {(m.proveedor?.nombre ?? m.fabricante) && (
+                      <p className="text-xs text-muted-foreground">
+                        {m.proveedor?.nombre ?? m.fabricante}
+                      </p>
                     )}
                   </div>
                   <div className="flex items-center gap-1">
