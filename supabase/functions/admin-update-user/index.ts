@@ -87,10 +87,10 @@ Deno.serve(async (req: Request) => {
   }
 
   // Actualizar perfil público si se proporcionó nombre o cargo
+  // NOTA: public.usuarios NO tiene columna email — el email solo vive en auth.users
   const perfilUpdate: Record<string, string> = {};
-  if (nombre) perfilUpdate.nombre = nombre;
+  if (nombre) perfilUpdate.nombres = nombre;
   if (cargo !== undefined) perfilUpdate.cargo = cargo;
-  if (email) perfilUpdate.email = email;
 
   if (Object.keys(perfilUpdate).length > 0) {
     const { error: perfilError } = await supabaseAdmin
