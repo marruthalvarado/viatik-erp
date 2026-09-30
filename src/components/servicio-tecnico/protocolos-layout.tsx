@@ -5,7 +5,7 @@
 import { useState } from "react";
 import {
   Plus, Pencil, Trash2, ChevronDown, ChevronRight,
-  ClipboardCheck, Activity, BookOpen,
+  ClipboardCheck, Activity, BookOpen, FileUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +28,7 @@ import {
   type Protocolo, type ProtocoloSeccion, type ProtocoloActividad,
 } from "@/hooks/entities/use-servicio-tecnico";
 import type { TipoCampoActividad } from "@/services/servicio-tecnico/protocolos";
+import { ImportProtocoloPdfDialog } from "./import-protocolo-pdf-dialog";
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 
@@ -409,6 +410,7 @@ export function ProtocolosLayout() {
   // Diálogos
   const [dlgProtocolo, setDlgProtocolo] = useState<{ open: boolean; item: Protocolo | null }>({ open: false, item: null });
   const [dlgSeccion, setDlgSeccion] = useState(false);
+  const [dlgImportPdf, setDlgImportPdf] = useState(false);
   const [dlgActividad, setDlgActividad] = useState<{
     open: boolean;
     seccionId: string;
@@ -535,6 +537,12 @@ export function ProtocolosLayout() {
               </Button>
               <Button
                 variant="outline" size="sm"
+                onClick={() => setDlgImportPdf(true)}
+              >
+                <FileUp className="size-3.5 mr-1" /> Importar PDF
+              </Button>
+              <Button
+                variant="outline" size="sm"
                 onClick={() => actualizarProtocolo.mutate({ id: protocolo.id, payload: { activo: !protocolo.activo } })}
               >
                 {protocolo.activo ? "Desactivar" : "Activar"}
@@ -594,6 +602,15 @@ export function ProtocolosLayout() {
           seccionId={dlgActividad.seccionId}
           proximoOrden={dlgActividad.proximoOrden}
           onClose={() => setDlgActividad({ open: false, seccionId: "", proximoOrden: 1, item: null })}
+        />
+      )}
+      {protocoloId && protocolo && (
+        <ImportProtocoloPdfDialog
+          open={dlgImportPdf}
+          protocoloId={protocoloId}
+          protocoloNombre={protocolo.nombre}
+          onClose={() => setDlgImportPdf(false)}
+          onImported={() => setDlgImportPdf(false)}
         />
       )}
     </div>

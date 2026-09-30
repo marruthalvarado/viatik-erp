@@ -226,3 +226,92 @@ export async function eliminarActividad(id: string): Promise<void> {
   const { error } = await supabase.rpc("rpc_eliminar_protocolo_actividad", { p_id: id });
   if (error) throw error;
 }
+
+// ── Importación desde PDF (IA) ────────────────────────────────────────────────
+
+export interface SeccionIA {
+  numero: number;
+  titulo: string;
+  intervalo_meses: number | null;
+  descripcion_frecuencia: string | null;
+  actividades: ActividadIA[];
+}
+
+export interface ActividadIA {
+  numero_paso: string | null;
+  descripcion: string;
+  tipo_campo: TipoCampoActividad;
+  es_critico: boolean;
+  valor_min: number | null;
+  valor_max: number | null;
+  unidad: string | null;
+  referencia_proc: string | null;
+}
+
+/**
+ * Llama a la Edge Function st-extract-protocolo para extraer actividades
+ * del texto plano de un PDF de mantenimiento.
+ */
+export async function extractProtocoloFromPdfText(text: string): Promise<SeccionIA[]> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error("No autenticado");
+
+  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/st-extract-protocolo`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({ text }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(err.error ?? "Error en la extracción AI");
+  }
+
+  const data = await res.json();
+  return (data.secciones ?? []) as SeccionIA[];
+}
+
+/**
+ * Crea en batch las secciones y actividades extraídas por AI para un protocolo.
+ * Si replaceExisting=true, el llamador debe haber eliminado las secciones previas.
+ */
+export async function importarSeccionesYActividades(
+  protocoloId: string,
+  secciones: SeccionIA[],
+): Promise<{ totalSecciones: number; totalActividades: number }> {
+  let totalActividades = 0;
+
+  for (let si = 0; si < secciones.length; si++) {
+    const sec = secciones[si];
+    const secRow = await crearSeccion({
+      protocolo_id: protocoloId,
+      numero: si + 1,
+      titulo: sec.titulo,
+      intervalo_meses: sec.intervalo_meses ?? null,
+      descripcion_frecuencia: sec.descripcion_frecuencia ?? null,
+    });
+
+    for (let ai = 0; ai < sec.actividades.length; ai++) {
+      const act = sec.actividades[ai];
+      await crearActividad({
+        seccion_id: secRow.id,
+        orden: ai,
+        descripcion: act.descripcion,
+        numero_paso: act.numero_paso ?? null,
+        referencia_proc: act.referencia_proc ?? null,
+        tipo_campo: act.tipo_campo ?? "check3",
+        valor_min: act.valor_min ?? null,
+        valor_max: act.valor_max ?? null,
+        unidad: act.unidad ?? null,
+        es_critico: act.es_critico ?? false,
+      });
+      totalActividades++;
+    }
+  }
+
+  return { totalSecciones: secciones.length, totalActividades };
+}

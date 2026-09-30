@@ -49,7 +49,9 @@ import {
   crearActividad as crearActividadProtocolo,
   actualizarActividad as actualizarActividadProtocolo,
   eliminarActividad as eliminarActividadProtocolo,
+  extractProtocoloFromPdfText, importarSeccionesYActividades,
   type Protocolo, type ProtocoloSeccion, type ProtocoloActividad, type ProtocoloConDetalle,
+  type SeccionIA,
 } from "@/services/servicio-tecnico/protocolos";
 
 // ── EQUIPOS INSTALADOS ────────────────────────────────────────────────────────
@@ -476,6 +478,21 @@ export function useEliminarActividadProtocolo() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: eliminarActividadProtocolo,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["protocolo_detalle"] }),
+  });
+}
+
+export function useExtractProtocoloPdf() {
+  return useMutation({
+    mutationFn: (text: string) => extractProtocoloFromPdfText(text),
+  });
+}
+
+export function useImportarSeccionesYActividades() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ protocoloId, secciones }: { protocoloId: string; secciones: SeccionIA[] }) =>
+      importarSeccionesYActividades(protocoloId, secciones),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["protocolo_detalle"] }),
   });
 }
