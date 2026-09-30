@@ -15,7 +15,7 @@
  *  10. Galería de fotos (antes / durante / después)
  *  11. Firmas — Técnico + Cliente
  */
-import type { OrdenConRelaciones } from "@/services/servicio-tecnico/ordenes-servicio";
+import type { OrdenConRelaciones, OsActividad } from "@/services/servicio-tecnico/ordenes-servicio";
 import { LOGO_VIATIQ_PNG_B64, LOGO_VIATIQ_W, LOGO_VIATIQ_H } from "@/assets/branding/logo-viatiq-b64";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -31,6 +31,7 @@ export interface OsExportOptions {
     direccion?: string | null;
     logo_url?: string | null;
   };
+  actividades?: OsActividad[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -385,12 +386,85 @@ export async function exportOrdenServicioPdf(
     drawText("", os.observaciones);
   }
 
+  // ── ACTIVIDADES DE MANTENIMIENTO ─────────────────────────────────────────
+  const actividades = opts.actividades ?? [];
+  if (actividades.length > 0) {
+    checkNewPage(40);
+    hr();
+    drawSection("9. Actividades de mantenimiento");
+
+    const actSecciones = actividades.reduce<Record<string, OsActividad[]>>((acc, a) => {
+      const key = a.seccion_titulo ?? "Sin sección";
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(a);
+      return acc;
+    }, {});
+
+    const RES_LABEL: Record<string, string> = { ok: "OK ✓", no_ok: "No OK ✗", na: "N/A" };
+    const ACT_GREEN  = [220, 252, 231] as const;
+    const ACT_RED    = [254, 226, 226] as const;
+    const ACT_LGRAY  = [241, 245, 249] as const;
+    const ACT_RED_TXT = [185, 28, 28]  as const;
+
+    for (const [titulo, acts] of Object.entries(actSecciones)) {
+      checkNewPage(25);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7.5);
+      doc.setTextColor(...NAVY);
+      doc.text(titulo.toUpperCase(), ML + 2, y);
+      y += 5;
+
+      autoTable(doc, {
+        startY: y,
+        margin: { left: ML, right: MR },
+        head: [["Paso", "Actividad", "Resultado", "Notas"]],
+        body: acts.map((a) => {
+          let resultado = RES_LABEL[a.resultado ?? ""] ?? "—";
+          if (a.tipo_campo === "medicion" && a.valor_medido !== null) {
+            resultado = `${a.valor_medido}${a.unidad ? " " + a.unidad : ""}`;
+            if (a.resultado) resultado += ` (${RES_LABEL[a.resultado] ?? a.resultado})`;
+          }
+          return [
+            a.numero_paso ?? "—",
+            a.descripcion + (a.es_critico ? "  ★" : ""),
+            resultado,
+            a.notas_resultado ?? "—",
+          ];
+        }),
+        headStyles:  { fillColor: NAVY as unknown as [number,number,number], textColor: 255, fontSize: 7.5, fontStyle: "bold" },
+        bodyStyles:  { fontSize: 7.5, textColor: DARK as unknown as [number,number,number] },
+        columnStyles: {
+          0: { cellWidth: 14 },
+          2: { cellWidth: 28, halign: "center" as const },
+          3: { cellWidth: 40 },
+        },
+        didParseCell: (data) => {
+          if (data.section !== "body") return;
+          const act = acts[data.row.index];
+          if (!act) return;
+          if (act.resultado === "ok") {
+            data.cell.styles.fillColor = ACT_GREEN as unknown as [number,number,number];
+          } else if (act.resultado === "no_ok") {
+            data.cell.styles.fillColor = ACT_RED as unknown as [number,number,number];
+            if (act.es_critico) {
+              data.cell.styles.textColor = ACT_RED_TXT as unknown as [number,number,number];
+              data.cell.styles.fontStyle = "bold";
+            }
+          } else if (act.resultado === "na") {
+            data.cell.styles.fillColor = ACT_LGRAY as unknown as [number,number,number];
+          }
+        },
+      });
+      y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
+    }
+  }
+
   // ── FOTOS ─────────────────────────────────────────────────────────────────
   const fotos = (os.fotos ?? []).filter((f) => f.url);
   if (fotos.length > 0) {
     checkNewPage(70);
     hr();
-    drawSection("9. Registro fotográfico");
+    drawSection("10. Registro fotográfico");
 
     const momentoLabel: Record<string, string> = { antes: "ANTES", durante: "DURANTE", despues: "DESPUÉS" };
     let col = 0;
@@ -755,13 +829,90 @@ export async function exportOrdenServicioDocx(
       ? [sectionTitle("8. Observaciones"), bodyPara(os.observaciones)]
       : []),
 
+    // ── ACTIVIDADES DE MANTENIMIENTO ──
+    ...await (async () => {
+      const actividades = opts.actividades ?? [];
+      if (actividades.length === 0) return [];
+
+      const RES_LABEL: Record<string, string> = { ok: "OK ✓", no_ok: "No OK ✗", na: "N/A" };
+      const ACT_NAVY_HEX  = NAVY_HEX;
+      const ACT_GREEN_HEX = "DCFCE7";
+      const ACT_RED_HEX   = "FEE2E2";
+      const ACT_GRAY_HEX  = "F1F5F9";
+
+      const actSecciones = actividades.reduce<Record<string, OsActividad[]>>((acc, a) => {
+        const key = a.seccion_titulo ?? "Sin sección";
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(a);
+        return acc;
+      }, {});
+
+      const result: unknown[] = [sectionTitle("9. Actividades de mantenimiento")];
+
+      for (const [titulo, acts] of Object.entries(actSecciones)) {
+        result.push(
+          new Paragraph({
+            children: [new TextRun({ text: titulo.toUpperCase(), bold: true, size: 17, color: "475569" })],
+            spacing: { before: 120, after: 60 },
+          }),
+        );
+
+        const headerRow = new TableRow({
+          tableHeader: true,
+          children: ["Paso", "Actividad", "Resultado", "Notas"].map((h) =>
+            new TableCell({
+              children: [new Paragraph({ children: [new TextRun({ text: h, bold: true, color: "FFFFFF", size: 17 })] })],
+              shading:  { type: ShadingType.CLEAR, fill: ACT_NAVY_HEX },
+              width:    { size: h === "Paso" ? 8 : h === "Resultado" ? 15 : h === "Notas" ? 22 : 55, type: WidthType.PERCENTAGE },
+            }),
+          ),
+        });
+
+        const bodyRows = acts.map((a) => {
+          let resultado = RES_LABEL[a.resultado ?? ""] ?? "—";
+          if (a.tipo_campo === "medicion" && a.valor_medido !== null) {
+            resultado = `${a.valor_medido}${a.unidad ? " " + a.unidad : ""}`;
+            if (a.resultado) resultado += ` (${RES_LABEL[a.resultado] ?? a.resultado})`;
+          }
+
+          const fillColor = a.resultado === "ok" ? ACT_GREEN_HEX
+            : a.resultado === "no_ok" ? ACT_RED_HEX
+            : a.resultado === "na" ? ACT_GRAY_HEX
+            : "FFFFFF";
+          const textColor = (a.resultado === "no_ok" && a.es_critico) ? "B91C1C" : "0F172A";
+
+          const cellStyle = { type: ShadingType.CLEAR as typeof ShadingType.CLEAR, fill: fillColor };
+          const makeCellRun = (text: string) => new TextRun({ text, size: 17, color: textColor, bold: a.resultado === "no_ok" && a.es_critico });
+
+          return new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph({ children: [makeCellRun(a.numero_paso ?? "—")] })], shading: cellStyle }),
+              new TableCell({ children: [new Paragraph({ children: [makeCellRun(a.descripcion + (a.es_critico ? "  ★" : ""))] })], shading: cellStyle }),
+              new TableCell({ children: [new Paragraph({ children: [makeCellRun(resultado)], alignment: AlignmentType.CENTER })], shading: cellStyle }),
+              new TableCell({ children: [new Paragraph({ children: [makeCellRun(a.notas_resultado ?? "—")] })], shading: cellStyle }),
+            ],
+          });
+        });
+
+        result.push(
+          new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            rows: [headerRow, ...bodyRows],
+          }),
+          new Paragraph(""),
+        );
+      }
+
+      return result;
+    })(),
+
     // ── FOTOS ──
     ...(fotoParagraphs.length > 0
-      ? [sectionTitle("9. Registro fotográfico"), ...fotoParagraphs]
+      ? [sectionTitle("10. Registro fotográfico"), ...fotoParagraphs]
       : []),
 
     // ── FIRMAS ──
-    sectionTitle("10. Firmas"),
+    sectionTitle("11. Firmas"),
     firmasTable,
     new Paragraph(""),
     new Paragraph({

@@ -34,6 +34,7 @@ import type {
   OrdenServicioPayload,
   OsRepuestoPayload,
 } from "@/services/servicio-tecnico/ordenes-servicio";
+import { getOsActividades } from "@/services/servicio-tecnico/ordenes-servicio";
 import { OrdenForm } from "./orden-form";
 import { CerrarOrdenDialog } from "./cerrar-orden-dialog";
 import { OsChecklist } from "./os-checklist";
@@ -163,7 +164,8 @@ export function OrdenesLayout() {
   const handleExportPdf = async (o: OrdenConRelaciones) => {
     setExportingPdf(o.id);
     try {
-      await exportOrdenServicioPdf(o, exportOpts);
+      const actividades = await getOsActividades(o.id).catch(() => []);
+      await exportOrdenServicioPdf(o, { ...exportOpts, actividades });
     } catch (err) {
       console.error(err);
       toast.error("Error al generar el PDF");
@@ -175,7 +177,8 @@ export function OrdenesLayout() {
   const handleExportDocx = async (o: OrdenConRelaciones) => {
     setExportingDocx(o.id);
     try {
-      await exportOrdenServicioDocx(o, exportOpts);
+      const actividades = await getOsActividades(o.id).catch(() => []);
+      await exportOrdenServicioDocx(o, { ...exportOpts, actividades });
     } catch (err) {
       console.error(err);
       toast.error("Error al generar el Word");
