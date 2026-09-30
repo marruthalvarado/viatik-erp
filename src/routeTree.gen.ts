@@ -40,6 +40,8 @@ import { Route as ServicioTecnicoOrdenesRouteImport } from './routes/servicio-te
 import { Route as ServicioTecnicoContratosRouteImport } from './routes/servicio-tecnico.contratos'
 import { Route as ServicioTecnicoBaseInstaladaRouteImport } from './routes/servicio-tecnico.base-instalada'
 import { Route as ServicioTecnicoPlantillasRouteImport } from './routes/servicio-tecnico.plantillas'
+import { Route as ServicioTecnicoCatalogoRouteImport } from './routes/servicio-tecnico.catalogo'
+import { Route as ServicioTecnicoProtocolosRouteImport } from './routes/servicio-tecnico.protocolos'
 
 const WorkflowRoute = WorkflowRouteImport.update({
   id: '/workflow',
@@ -196,6 +198,16 @@ const ServicioTecnicoPlantillasRoute = ServicioTecnicoPlantillasRouteImport.upda
   path: '/plantillas',
   getParentRoute: () => ServicioTecnicoRoute,
 } as any)
+const ServicioTecnicoCatalogoRoute = ServicioTecnicoCatalogoRouteImport.update({
+  id: '/catalogo-equipos',
+  path: '/catalogo',
+  getParentRoute: () => ServicioTecnicoRoute,
+} as any)
+const ServicioTecnicoProtocolosRoute = ServicioTecnicoProtocolosRouteImport.update({
+  id: '/protocolos',
+  path: '/protocolos',
+  getParentRoute: () => ServicioTecnicoRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -229,6 +241,8 @@ export interface FileRoutesByFullPath {
   '/servicio-tecnico/contratos': typeof ServicioTecnicoContratosRoute
   '/servicio-tecnico/ordenes': typeof ServicioTecnicoOrdenesRoute
   '/servicio-tecnico/plantillas': typeof ServicioTecnicoPlantillasRoute
+  '/servicio-tecnico/catalogo': typeof ServicioTecnicoCatalogoRoute
+  '/servicio-tecnico/protocolos': typeof ServicioTecnicoProtocolosRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -261,6 +275,8 @@ export interface FileRoutesByTo {
   '/servicio-tecnico/contratos': typeof ServicioTecnicoContratosRoute
   '/servicio-tecnico/ordenes': typeof ServicioTecnicoOrdenesRoute
   '/servicio-tecnico/plantillas': typeof ServicioTecnicoPlantillasRoute
+  '/servicio-tecnico/catalogo': typeof ServicioTecnicoCatalogoRoute
+  '/servicio-tecnico/protocolos': typeof ServicioTecnicoProtocolosRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -295,6 +311,8 @@ export interface FileRoutesById {
   '/servicio-tecnico/contratos': typeof ServicioTecnicoContratosRoute
   '/servicio-tecnico/ordenes': typeof ServicioTecnicoOrdenesRoute
   '/servicio-tecnico/plantillas': typeof ServicioTecnicoPlantillasRoute
+  '/servicio-tecnico/catalogo': typeof ServicioTecnicoCatalogoRoute
+  '/servicio-tecnico/protocolos': typeof ServicioTecnicoProtocolosRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -330,6 +348,8 @@ export interface FileRouteTypes {
     | '/servicio-tecnico/contratos'
     | '/servicio-tecnico/ordenes'
     | '/servicio-tecnico/plantillas'
+    | '/servicio-tecnico/catalogo'
+    | '/servicio-tecnico/protocolos'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -362,6 +382,8 @@ export interface FileRouteTypes {
     | '/servicio-tecnico/contratos'
     | '/servicio-tecnico/ordenes'
     | '/servicio-tecnico/plantillas'
+    | '/servicio-tecnico/catalogo'
+    | '/servicio-tecnico/protocolos'
   id:
     | '__root__'
     | '/'
@@ -395,6 +417,8 @@ export interface FileRouteTypes {
     | '/servicio-tecnico/contratos'
     | '/servicio-tecnico/ordenes'
     | '/servicio-tecnico/plantillas'
+    | '/servicio-tecnico/catalogo-equipos'
+    | '/servicio-tecnico/protocolos'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -643,6 +667,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServicioTecnicoPlantillasRouteImport
       parentRoute: typeof ServicioTecnicoRoute
     }
+    '/servicio-tecnico/catalogo': {
+      id: '/servicio-tecnico/catalogo-equipos'
+      path: '/catalogo'
+      fullPath: '/servicio-tecnico/catalogo'
+      preLoaderRoute: typeof ServicioTecnicoCatalogoRouteImport
+      parentRoute: typeof ServicioTecnicoRoute
+    }
+    '/servicio-tecnico/protocolos': {
+      id: '/servicio-tecnico/protocolos'
+      path: '/protocolos'
+      fullPath: '/servicio-tecnico/protocolos'
+      preLoaderRoute: typeof ServicioTecnicoProtocolosRouteImport
+      parentRoute: typeof ServicioTecnicoRoute
+    }
   }
 }
 
@@ -667,6 +705,8 @@ interface ServicioTecnicoRouteChildren {
   ServicioTecnicoContratosRoute: typeof ServicioTecnicoContratosRoute
   ServicioTecnicoOrdenesRoute: typeof ServicioTecnicoOrdenesRoute
   ServicioTecnicoPlantillasRoute: typeof ServicioTecnicoPlantillasRoute
+  ServicioTecnicoCatalogoRoute: typeof ServicioTecnicoCatalogoRoute
+  ServicioTecnicoProtocolosRoute: typeof ServicioTecnicoProtocolosRoute
 }
 
 const ServicioTecnicoRouteChildren: ServicioTecnicoRouteChildren = {
@@ -674,6 +714,8 @@ const ServicioTecnicoRouteChildren: ServicioTecnicoRouteChildren = {
   ServicioTecnicoContratosRoute: ServicioTecnicoContratosRoute,
   ServicioTecnicoOrdenesRoute: ServicioTecnicoOrdenesRoute,
   ServicioTecnicoPlantillasRoute: ServicioTecnicoPlantillasRoute,
+  ServicioTecnicoCatalogoRoute: ServicioTecnicoCatalogoRoute,
+  ServicioTecnicoProtocolosRoute: ServicioTecnicoProtocolosRoute,
 }
 
 const ServicioTecnicoRouteWithChildren = ServicioTecnicoRoute._addFileChildren(

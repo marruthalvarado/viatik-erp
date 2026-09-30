@@ -23,6 +23,8 @@ import {
   Package,
   FileCheck,
   ListChecks,
+  Stethoscope,
+  BookMarked,
 } from "lucide-react";
 
 import {
@@ -82,7 +84,8 @@ const servicioTecnicoItems: NavItem[] = [
   { title: "Órdenes de Servicio", url: "/servicio-tecnico/ordenes", icon: ClipboardList, modulo: "servicio_tecnico" },
   { title: "Base Instalada", url: "/servicio-tecnico/base-instalada", icon: Shield, modulo: "servicio_tecnico" },
   { title: "Contratos Mant.", url: "/servicio-tecnico/contratos", icon: FileCheck, modulo: "servicio_tecnico" },
-  { title: "Plantillas", url: "/servicio-tecnico/plantillas", icon: ListChecks, modulo: "servicio_tecnico" },
+  { title: "Catálogo Equipos", url: "/servicio-tecnico/catalogo", icon: Stethoscope, modulo: "servicio_tecnico" },
+  { title: "Protocolos MP", url: "/servicio-tecnico/protocolos", icon: BookMarked, modulo: "servicio_tecnico" },
 ];
 
 const systemItems: NavItem[] = [

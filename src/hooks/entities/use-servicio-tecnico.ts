@@ -30,6 +30,26 @@ import {
   type ActividadUpdate, type FirmaPayload,
 } from "@/services/servicio-tecnico/actividades";
 
+import {
+  getModalidades, crearModalidad, actualizarModalidad,
+  type Modalidad, type ModalidadPayload,
+} from "@/services/servicio-tecnico/modalidades";
+
+import {
+  getModelosEquipo, crearModeloEquipo, actualizarModeloEquipo,
+  type ModeloEquipo, type ModeloEquipoPayload,
+} from "@/services/servicio-tecnico/modelos-equipo";
+
+import {
+  getProtocolos, getProtocoloDetalle,
+  crearProtocolo, actualizarProtocolo,
+  crearSeccion, actualizarSeccion, eliminarSeccion,
+  crearActividad as crearActividadProtocolo,
+  actualizarActividad as actualizarActividadProtocolo,
+  eliminarActividad as eliminarActividadProtocolo,
+  type Protocolo, type ProtocoloSeccion, type ProtocoloActividad, type ProtocoloConDetalle,
+} from "@/services/servicio-tecnico/protocolos";
+
 // ── EQUIPOS INSTALADOS ────────────────────────────────────────────────────────
 
 export function useEquiposInstalados() {
@@ -311,3 +331,154 @@ export function useActualizarPlantillaActividad() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["plantillas_actividad"] }),
   });
 }
+
+// ── MODALIDADES ───────────────────────────────────────────────────────────────
+
+export function useModalidades() {
+  const { empresaActivaId } = useCompany();
+  return useQuery({
+    queryKey: ["modalidades", empresaActivaId],
+    queryFn: () => getModalidades(empresaActivaId!),
+    enabled: !!empresaActivaId,
+  });
+}
+
+export function useCrearModalidad() {
+  const qc = useQueryClient();
+  const { empresaActivaId } = useCompany();
+  return useMutation({
+    mutationFn: (payload: ModalidadPayload) => crearModalidad(empresaActivaId!, payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["modalidades"] }),
+  });
+}
+
+export function useActualizarModalidad() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: Partial<ModalidadPayload & { activa: boolean }> }) =>
+      actualizarModalidad(id, payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["modalidades"] }),
+  });
+}
+
+// ── MODELOS DE EQUIPO ─────────────────────────────────────────────────────────
+
+export function useModelosEquipo(modalidadId?: string) {
+  const { empresaActivaId } = useCompany();
+  return useQuery({
+    queryKey: ["modelos_equipo", empresaActivaId, modalidadId],
+    queryFn: () => getModelosEquipo(empresaActivaId!, modalidadId),
+    enabled: !!empresaActivaId,
+  });
+}
+
+export function useCrearModeloEquipo() {
+  const qc = useQueryClient();
+  const { empresaActivaId } = useCompany();
+  return useMutation({
+    mutationFn: (payload: ModeloEquipoPayload) => crearModeloEquipo(empresaActivaId!, payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["modelos_equipo"] }),
+  });
+}
+
+export function useActualizarModeloEquipo() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: Partial<Omit<ModeloEquipoPayload, "modalidad_id"> & { activo: boolean }> }) =>
+      actualizarModeloEquipo(id, payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["modelos_equipo"] }),
+  });
+}
+
+// ── PROTOCOLOS ────────────────────────────────────────────────────────────────
+
+export function useProtocolos(modeloId?: string) {
+  const { empresaActivaId } = useCompany();
+  return useQuery({
+    queryKey: ["protocolos", empresaActivaId, modeloId],
+    queryFn: () => getProtocolos(empresaActivaId!, modeloId),
+    enabled: !!empresaActivaId,
+  });
+}
+
+export function useProtocoloDetalle(protocoloId: string | null) {
+  return useQuery({
+    queryKey: ["protocolo_detalle", protocoloId],
+    queryFn: () => getProtocoloDetalle(protocoloId!),
+    enabled: !!protocoloId,
+  });
+}
+
+export function useCrearProtocolo() {
+  const qc = useQueryClient();
+  const { empresaActivaId } = useCompany();
+  return useMutation({
+    mutationFn: (payload: { modelo_id: string; nombre: string; version?: string | null; descripcion?: string | null }) =>
+      crearProtocolo(empresaActivaId!, payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["protocolos"] }),
+  });
+}
+
+export function useActualizarProtocolo() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: Partial<{ nombre: string; version: string | null; descripcion: string | null; activo: boolean }> }) =>
+      actualizarProtocolo(id, payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["protocolos"] }),
+  });
+}
+
+export function useCrearSeccion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: crearSeccion,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["protocolo_detalle"] }),
+  });
+}
+
+export function useActualizarSeccion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: Partial<{ titulo: string; intervalo_meses: number | null; descripcion_frecuencia: string | null }> }) =>
+      actualizarSeccion(id, payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["protocolo_detalle"] }),
+  });
+}
+
+export function useEliminarSeccion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: eliminarSeccion,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["protocolo_detalle"] }),
+  });
+}
+
+export function useCrearActividadProtocolo() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: crearActividadProtocolo,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["protocolo_detalle"] }),
+  });
+}
+
+export function useActualizarActividadProtocolo() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: Parameters<typeof actualizarActividadProtocolo>[1] }) =>
+      actualizarActividadProtocolo(id, payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["protocolo_detalle"] }),
+  });
+}
+
+export function useEliminarActividadProtocolo() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: eliminarActividadProtocolo,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["protocolo_detalle"] }),
+  });
+}
+
+// Re-exports de tipos para consumo en componentes
+export type {
+  Modalidad, ModeloEquipo, Protocolo, ProtocoloSeccion, ProtocoloActividad, ProtocoloConDetalle,
+};
