@@ -4,7 +4,8 @@
 import { useState } from "react";
 import {
   Plus, ClipboardList, CheckCircle2, Clock, Wrench, XCircle,
-  AlertCircle, RotateCw, FileDown, FileText, Loader2, ClipboardCheck,
+  AlertCircle, RotateCw, FileDown, FileText, Loader2,
+  ExternalLink,
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -19,13 +20,9 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  Sheet, SheetContent, SheetHeader, SheetTitle,
-} from "@/components/ui/sheet";
-import {
   useOrdenesServicio,
   useCrearOrdenServicio,
   useActualizarOrdenServicio,
-  useCerrarOrdenServicio,
   useEliminarOrdenServicio,
   useGenerarOrdenesPreventivasManual,
 } from "@/hooks/entities/use-servicio-tecnico";
@@ -36,8 +33,7 @@ import type {
 } from "@/services/servicio-tecnico/ordenes-servicio";
 import { getOsActividades } from "@/services/servicio-tecnico/ordenes-servicio";
 import { OrdenForm } from "./orden-form";
-import { CerrarOrdenDialog } from "./cerrar-orden-dialog";
-import { OsChecklist } from "./os-checklist";
+import { OrdenDetalleSheet } from "./orden-detalle-sheet";
 import {
   exportOrdenServicioPdf,
   exportOrdenServicioDocx,
@@ -73,21 +69,19 @@ function EstadoBadge({ estado }: { estado: string }) {
 export function OrdenesLayout() {
   const { empresaActiva } = useCompany();
   const { data: ordenes = [], isLoading } = useOrdenesServicio();
-  const crear = useCrearOrdenServicio();
+  const crear     = useCrearOrdenServicio();
   const actualizar = useActualizarOrdenServicio();
-  const cerrar = useCerrarOrdenServicio();
-  const eliminar = useEliminarOrdenServicio();
-  const generar = useGenerarOrdenesPreventivasManual();
+  const eliminar  = useEliminarOrdenServicio();
+  const generar   = useGenerarOrdenesPreventivasManual();
 
-  const [busqueda, setBusqueda] = useState("");
+  const [busqueda,    setBusqueda]    = useState("");
   const [filtroEstado, setFiltroEstado] = useState<string>("todos");
-  const [filtroTipo, setFiltroTipo] = useState<string>("todos");
-  const [formOpen, setFormOpen] = useState(false);
-  const [editando, setEditando] = useState<OrdenConRelaciones | null>(null);
-  const [cerrando, setCerrando] = useState<OrdenConRelaciones | null>(null);
-  const [exportingPdf, setExportingPdf] = useState<string | null>(null);
+  const [filtroTipo,   setFiltroTipo]   = useState<string>("todos");
+  const [formOpen,    setFormOpen]    = useState(false);
+  const [editando,    setEditando]    = useState<OrdenConRelaciones | null>(null);
+  const [detalleOrden, setDetalleOrden] = useState<OrdenConRelaciones | null>(null);
+  const [exportingPdf,  setExportingPdf]  = useState<string | null>(null);
   const [exportingDocx, setExportingDocx] = useState<string | null>(null);
-  const [checklistOrden, setChecklistOrden] = useState<OrdenConRelaciones | null>(null);
 
   const filtradas = ordenes.filter((o) => {
     const q = busqueda.toLowerCase();
@@ -97,7 +91,7 @@ export function OrdenesLayout() {
       (o.cliente?.nombre ?? "").toLowerCase().includes(q) ||
       (o.tecnico?.nombres ?? "").toLowerCase().includes(q);
     const matchEstado = filtroEstado === "todos" || o.estado === filtroEstado;
-    const matchTipo = filtroTipo === "todos" || o.tipo === filtroTipo;
+    const matchTipo   = filtroTipo   === "todos" || o.tipo   === filtroTipo;
     return matchQ && matchEstado && matchTipo;
   });
 
@@ -110,16 +104,6 @@ export function OrdenesLayout() {
         const res = await crear.mutateAsync({ payload, repuestos });
         toast.success(`Orden ${res.numero} creada`);
       }
-    } catch (e) {
-      toast.error((e as Error).message);
-      throw e;
-    }
-  };
-
-  const handleCerrar = async (id: string, trabajos: string, obs?: string, costo?: number) => {
-    try {
-      await cerrar.mutateAsync({ id, trabajos_realizados: trabajos, observaciones: obs, costo_mano_obra: costo });
-      toast.success("Orden cerrada y stock descontado");
     } catch (e) {
       toast.error((e as Error).message);
       throw e;
@@ -139,7 +123,11 @@ export function OrdenesLayout() {
   const handleGenerar = async () => {
     try {
       const n = await generar.mutateAsync(14);
-      toast.success(n > 0 ? `${n} orden(es) preventiva(s) generada(s)` : "No hay equipos con mantenimiento próximo");
+      toast.success(
+        n > 0
+          ? `${n} orden(es) preventiva(s) generada(s)`
+          : "No hay equipos con mantenimiento próximo",
+      );
     } catch (e) {
       toast.error((e as Error).message);
     }
@@ -189,6 +177,7 @@ export function OrdenesLayout() {
 
   return (
     <div className="space-y-4">
+      {/* Título */}
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-xl font-semibold flex items-center gap-2">
@@ -243,6 +232,7 @@ export function OrdenesLayout() {
         </Select>
       </div>
 
+      {/* Tabla */}
       {isLoading ? (
         <p className="text-sm text-muted-foreground py-8 text-center">Cargando…</p>
       ) : filtradas.length === 0 ? (
@@ -262,14 +252,17 @@ export function OrdenesLayout() {
                 <TableHead>Cliente</TableHead>
                 <TableHead>Técnico</TableHead>
                 <TableHead>Programada</TableHead>
-                <TableHead>Cobro</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtradas.map((o) => (
-                <TableRow key={o.id}>
+                <TableRow
+                  key={o.id}
+                  className="cursor-pointer hover:bg-muted/40"
+                  onClick={() => setDetalleOrden(o)}
+                >
                   <TableCell className="font-mono text-sm">{o.numero}</TableCell>
                   <TableCell>
                     <Badge variant="outline" className="text-xs">
@@ -284,47 +277,42 @@ export function OrdenesLayout() {
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="text-sm">{o.cliente?.nombre ?? o.equipo?.cliente?.nombre ?? "—"}</TableCell>
+                  <TableCell className="text-sm">
+                    {o.cliente?.nombre ?? o.equipo?.cliente?.nombre ?? "—"}
+                  </TableCell>
                   <TableCell className="text-sm">
                     {o.tecnico ? `${o.tecnico.nombres} ${o.tecnico.apellidos}` : "—"}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {fmtDate(o.fecha_programada)}
                   </TableCell>
-                  <TableCell className="text-xs text-muted-foreground capitalize">
-                    {(o.modalidad_cobro ?? "—").replace(/_/g, " ")}
-                  </TableCell>
                   <TableCell><EstadoBadge estado={o.estado ?? "pendiente"} /></TableCell>
                   <TableCell className="text-right">
-                    <div className="flex justify-end gap-1 flex-wrap">
-                      {o.tipo === "preventivo" && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-blue-700"
-                          onClick={() => setChecklistOrden(o)}
-                          title="Ver checklist de protocolo"
-                        >
-                          <ClipboardCheck className="size-3 mr-1" />Checklist
-                        </Button>
-                      )}
-                      {o.estado !== "completada" && o.estado !== "cancelada" && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-green-700"
-                          onClick={() => setCerrando(o)}
-                        >
-                          Cerrar
-                        </Button>
-                      )}
+                    <div
+                      className="flex justify-end gap-1"
+                      onClick={(e) => e.stopPropagation()} // evita abrir el detalle al hacer click en acciones
+                    >
+                      {/* Abrir detalle */}
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => setDetalleOrden(o)}
+                        title="Abrir OS"
+                      >
+                        <ExternalLink className="size-3 mr-1" />Abrir
+                      </Button>
+
+                      {/* Editar metadatos */}
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => { setEditando(o); setFormOpen(true); }}
+                        title="Editar datos de la orden"
                       >
                         Editar
                       </Button>
+
+                      {/* Export rápido */}
                       <Button
                         variant="ghost"
                         size="icon"
@@ -349,6 +337,8 @@ export function OrdenesLayout() {
                           ? <Loader2 className="size-3.5 animate-spin" />
                           : <FileText className="size-3.5" />}
                       </Button>
+
+                      {/* Eliminar */}
                       <Button
                         variant="ghost"
                         size="sm"
@@ -366,6 +356,7 @@ export function OrdenesLayout() {
         </div>
       )}
 
+      {/* Formulario de crear / editar metadatos */}
       <OrdenForm
         open={formOpen}
         orden={editando}
@@ -373,34 +364,12 @@ export function OrdenesLayout() {
         onClose={() => setFormOpen(false)}
       />
 
-      <CerrarOrdenDialog
-        open={cerrando !== null}
-        orden={cerrando}
-        onClose={() => setCerrando(null)}
-        onCerrar={handleCerrar}
+      {/* Panel de detalle unificado */}
+      <OrdenDetalleSheet
+        orden={detalleOrden}
+        open={detalleOrden !== null}
+        onClose={() => setDetalleOrden(null)}
       />
-
-      {/* Sheet de Checklist de Protocolo */}
-      <Sheet open={checklistOrden !== null} onOpenChange={(o) => !o && setChecklistOrden(null)}>
-        <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
-          <SheetHeader className="mb-4">
-            <SheetTitle className="flex items-center gap-2">
-              <ClipboardCheck className="size-5 text-primary" />
-              Checklist MP — {checklistOrden?.numero}
-            </SheetTitle>
-            <p className="text-sm text-muted-foreground">
-              {checklistOrden?.equipo?.nombre}
-              {checklistOrden?.equipo?.numero_serie && ` · S/N: ${checklistOrden.equipo.numero_serie}`}
-            </p>
-          </SheetHeader>
-          {checklistOrden && (
-            <OsChecklist
-              ordenId={checklistOrden.id}
-              equipoId={checklistOrden.equipo_id ?? checklistOrden.equipo?.id ?? null}
-            />
-          )}
-        </SheetContent>
-      </Sheet>
     </div>
   );
 }
