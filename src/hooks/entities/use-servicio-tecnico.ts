@@ -525,9 +525,16 @@ export function useActualizarOsActividad(ordenId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({
-      id, resultado, valor_medido, texto_respuesta, notas_resultado,
-    }: { id: string; resultado?: string | null; valor_medido?: number | null; texto_respuesta?: string | null; notas_resultado?: string | null }) =>
-      actualizarOsActividad(id, resultado, valor_medido, texto_respuesta, notas_resultado),
+      id, resultado, valor_medido, texto_respuesta, notas_resultado, valores_medidos,
+    }: {
+      id: string;
+      resultado?: string | null;
+      valor_medido?: number | null;
+      texto_respuesta?: string | null;
+      notas_resultado?: string | null;
+      valores_medidos?: number[] | null;
+    }) =>
+      actualizarOsActividad(id, resultado, valor_medido, texto_respuesta, notas_resultado, valores_medidos),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["os_actividades", ordenId] }),
   });
 }

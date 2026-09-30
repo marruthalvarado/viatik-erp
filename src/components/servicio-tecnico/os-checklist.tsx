@@ -74,9 +74,17 @@ function ActividadRow({
 }) {
   const actualizar = useActualizarOsActividad(ordenId);
   const [valorMedido, setValorMedido] = useState<string>(act.valor_medido?.toString() ?? "");
+  // Medición múltiple: array paralelo a etiquetas_medicion
+  const [valoresMedidos, setValoresMedidos] = useState<string[]>(
+    () => (act.valores_medidos ?? []).map((v) => v?.toString() ?? ""),
+  );
   const [textoRespuesta, setTextoRespuesta] = useState(act.texto_respuesta ?? "");
   const [notas, setNotas] = useState(act.notas_resultado ?? "");
   const [guardandoMed, setGuardandoMed] = useState(false);
+
+  const esMultiple = act.tipo_campo === "medicion"
+    && act.etiquetas_medicion !== null
+    && act.etiquetas_medicion.length > 1;
 
   const handleResultado = async (resultado: string) => {
     try {
@@ -105,6 +113,26 @@ function ActividadRow({
     }
   };
 
+  // Guarda el array completo al perder foco en cualquier campo múltiple
+  const handleMultiMedicionBlur = async (idx: number, raw: string) => {
+    const updated = [...valoresMedidos];
+    updated[idx] = raw;
+    setValoresMedidos(updated);
+    const parsed = updated.map((s) => parseFloat(s));
+    if (parsed.some(isNaN)) return;       // esperar a que completen todos
+    setGuardandoMed(true);
+    try {
+      await actualizar.mutateAsync({
+        id: act.id,
+        valores_medidos: parsed,
+      });
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setGuardandoMed(false);
+    }
+  };
+
   const handleTextoBlur = async () => {
     try {
       await actualizar.mutateAsync({ id: act.id, texto_respuesta: textoRespuesta || null });
@@ -121,7 +149,7 @@ function ActividadRow({
     }
   };
 
-  const fuera = act.tipo_campo === "medicion" && act.valor_medido !== null
+  const fuera = act.tipo_campo === "medicion" && !esMultiple && act.valor_medido !== null
     && act.valor_min !== null && act.valor_max !== null
     && (act.valor_medido < act.valor_min || act.valor_medido > act.valor_max);
 
@@ -135,19 +163,47 @@ function ActividadRow({
         <span className="text-xs text-muted-foreground font-mono mt-0.5 w-10 shrink-0">
           {act.numero_paso ?? "—"}
         </span>
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <p className="text-sm leading-snug">
             {act.descripcion}
             {act.es_critico && (
               <Badge variant="destructive" className="ml-2 text-[10px] py-0 px-1">CRÍTICO</Badge>
             )}
           </p>
+
+          {/* ── Medición múltiple: grid de inputs con etiqueta ── */}
+          {esMultiple && (
+            <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5">
+              {act.etiquetas_medicion!.map((etiqueta, idx) => (
+                <div key={idx} className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-muted-foreground whitespace-nowrap min-w-0 truncate" title={etiqueta}>
+                    {etiqueta}
+                  </span>
+                  <Input
+                    type="number"
+                    step="any"
+                    value={valoresMedidos[idx] ?? ""}
+                    onChange={(e) => {
+                      const updated = [...valoresMedidos];
+                      updated[idx] = e.target.value;
+                      setValoresMedidos(updated);
+                    }}
+                    onBlur={(e) => handleMultiMedicionBlur(idx, e.target.value)}
+                    className="w-20 h-7 text-right text-sm shrink-0"
+                    placeholder="—"
+                    disabled={guardandoMed}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
+
         <div className="shrink-0">
           {act.tipo_campo === "check3" && (
             <Check3Buttons value={act.resultado} onChange={handleResultado} />
           )}
-          {act.tipo_campo === "medicion" && (
+          {act.tipo_campo === "medicion" && !esMultiple && (
             <div className="flex items-center gap-1.5">
               <div className="flex flex-col items-end">
                 <div className="flex items-center gap-1">

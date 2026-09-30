@@ -29,6 +29,10 @@ export interface OsActividad {
   orden: number;
   completado_en: string | null;
   created_at: string;
+  /** Array de etiquetas para medición múltiple (ej. ['HD3C +5.15V', ...]). NULL = medición simple. */
+  etiquetas_medicion: string[] | null;
+  /** Array paralelo a etiquetas_medicion con los valores reales medidos. */
+  valores_medidos: number[] | null;
 }
 
 export interface ResumenOsActividades {
@@ -251,6 +255,7 @@ export async function actualizarOsActividad(
   valor_medido?: number | null,
   texto_respuesta?: string | null,
   notas_resultado?: string | null,
+  valores_medidos?: number[] | null,
 ): Promise<void> {
   const { error } = await supabase.rpc("rpc_actualizar_os_actividad", {
     p_id: id,
@@ -258,6 +263,7 @@ export async function actualizarOsActividad(
     p_valor_medido: valor_medido ?? null,
     p_texto_respuesta: texto_respuesta ?? null,
     p_notas_resultado: notas_resultado ?? null,
+    p_valores_medidos: valores_medidos ?? null,
   });
   if (error) throw new Error(error.message);
 }
