@@ -4,7 +4,7 @@
 -- ─────────────────────────────────────────────────────────────────────────────
 
 -- 1. Actualizar en protocolos_actividades (afecta futuras OS)
-UPDATE public.protocolos_actividades
+UPDATE public.protocolo_actividades
 SET
   tipo_campo         = 'medicion',
   etiquetas_medicion = ARRAY['+5 V', '+12 V', '-12 V', '+24 V DC'],
