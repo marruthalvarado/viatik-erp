@@ -173,43 +173,32 @@ export async function exportOrdenServicioPdf(
   doc.setFillColor(...NAVY);
   doc.rect(0, 0, W, HDR_H, "F");
 
-  // Logo empresa (izquierda)
+  // Logo empresa (izquierda) — se escala manteniendo proporción dentro de un área fija
   const empresaImg = getImg(opts.empresa?.logo_url);
+  const LOGO_AREA_W = 52;
+  const LOGO_AREA_H = 28;
+  const LOGO_Y      = (HDR_H - LOGO_AREA_H) / 2;   // centrado vertical en el header
   if (empresaImg) {
-    addImg(empresaImg, ML, 7, 36, 22);
+    addImg(empresaImg, ML, LOGO_Y, LOGO_AREA_W, LOGO_AREA_H);
   } else {
-    addImg({ b64: LOGO_VIATIQ_PNG_B64, mime: "PNG" }, ML, 8, LOGO_VIATIQ_W * 0.09, LOGO_VIATIQ_H * 0.09);
+    addImg({ b64: LOGO_VIATIQ_PNG_B64, mime: "PNG" }, ML, LOGO_Y + 4, LOGO_VIATIQ_W * 0.09, LOGO_VIATIQ_H * 0.09);
   }
 
-  // Título centro/derecha
+  // Título y N° a la derecha del logo
+  const TITLE_X = ML + LOGO_AREA_W + 6;
   doc.setTextColor(...WHITE);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(13);
-  doc.text("REPORTE DE SERVICIO TÉCNICO", W / 2, 13, { align: "center" });
+  doc.text("REPORTE DE SERVICIO TÉCNICO", W / 2 + 10, 13, { align: "center" });
 
-  // N° y fecha a la derecha
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8.5);
-  doc.text(`N° ${os.numero ?? "—"}`, W - MR, 21, { align: "right" });
-  doc.text(fmtFecha(hoy), W - MR, 28, { align: "right" });
+  doc.text(`N° ${os.numero ?? "—"}`, W - MR, 22, { align: "right" });
+  doc.text(fmtFecha(hoy), W - MR, 29, { align: "right" });
 
-  // Empresa: franja delgada bajo el header
-  let y = HDR_H + 3;
-  if (opts.empresa) {
-    doc.setFillColor(...BGNAVY);
-    doc.rect(0, HDR_H, W, 9, "F");
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8);
-    doc.setTextColor(...NAVY);
-    doc.text(opts.empresa.nombre, ML, HDR_H + 6);
-    const contactLine = [opts.empresa.ruc, opts.empresa.telefono, opts.empresa.correo].filter(Boolean).join("  ·  ");
-    if (contactLine) {
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(7);
-      doc.text(contactLine, W - MR, HDR_H + 6, { align: "right" });
-    }
-    y = HDR_H + 12;
-  }
+  // Sin franja de empresa bajo el header — los datos van al pie de página
+  let y = HDR_H + 4;
+  void TITLE_X; // evitar warning "declared but never read"
 
   // ── GRILLA COMPACTA DE DATOS ──────────────────────────────────────────────
   const BDRCLR = [203, 213, 225] as const;
@@ -438,9 +427,8 @@ export async function exportOrdenServicioPdf(
           if (data.section !== "body") return;
           const act = rowMeta[data.row.index];
           if (!act) return;
-          if (act.resultado === "ok") {
-            data.cell.styles.fillColor = ACT_GREEN as unknown as [number,number,number];
-          } else if (act.resultado === "no_ok") {
+          // Sin color verde para OK — solo rojo para No OK
+          if (act.resultado === "no_ok") {
             data.cell.styles.fillColor = ACT_RED as unknown as [number,number,number];
             if (act.es_critico) {
               data.cell.styles.textColor = ACT_RED_TXT as unknown as [number,number,number];
@@ -567,12 +555,30 @@ export async function exportOrdenServicioPdf(
   const totalPages = (doc.internal as unknown as { getNumberOfPages: () => number }).getNumberOfPages();
   for (let pg = 1; pg <= totalPages; pg++) {
     doc.setPage(pg);
+
+    // Línea separadora del pie
+    doc.setDrawColor(...BORDER);
+    doc.line(ML, H - 16, W - MR, H - 16);
+
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(7);
+    doc.setFontSize(6.5);
     doc.setTextColor(...GRAY);
-    doc.text(`${os.numero ?? ""} · Pág. ${pg} / ${totalPages}`, W / 2, H - 8, { align: "center" });
-    doc.text("Generado con VIATIQ ERP", ML, H - 8);
-    doc.text(fmtFecha(hoy), W - MR, H - 8, { align: "right" });
+
+    // Datos de empresa (izquierda)
+    if (opts.empresa) {
+      const empresaFooter = [opts.empresa.nombre, opts.empresa.telefono, opts.empresa.correo]
+        .filter(Boolean).join("  ·  ");
+      const dirFooter = opts.empresa.direccion ?? "";
+      doc.text(empresaFooter, ML, H - 11);
+      if (dirFooter) doc.text(dirFooter, ML, H - 7);
+    }
+
+    // N° + paginación (centro)
+    doc.text(`${os.numero ?? ""} · Pág. ${pg} / ${totalPages}`, W / 2, H - 7, { align: "center" });
+
+    // Fecha (derecha)
+    doc.text(fmtFecha(hoy), W - MR, H - 11, { align: "right" });
+    doc.text("Generado con VIATIQ ERP", W - MR, H - 7, { align: "right" });
   }
 
   triggerDownload(
