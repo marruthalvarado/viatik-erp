@@ -49,6 +49,7 @@ export function CotizacionDetalle({ cotizacion: c, onCambiarEstado, onGenerar, o
           telefono: empresaActiva.telefono,
           correo: empresaActiva.correo,
           direccion: empresaActiva.direccion,
+          sitio_web: empresaActiva.sitio_web,
           logo_url: empresaActiva.logo_url ?? null,
         }
       : undefined,

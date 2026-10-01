@@ -1990,6 +1990,7 @@ export type Database = {
           moneda_base: string | null;
           nombre: string;
           ruc: string | null;
+          sitio_web: string | null;
           telefono: string | null;
           tipo_contribuyente: string | null;
           updated_at: string | null;
@@ -2006,6 +2007,7 @@ export type Database = {
           moneda_base?: string | null;
           nombre: string;
           ruc?: string | null;
+          sitio_web?: string | null;
           telefono?: string | null;
           tipo_contribuyente?: string | null;
           updated_at?: string | null;
@@ -2022,6 +2024,7 @@ export type Database = {
           moneda_base?: string | null;
           nombre?: string;
           ruc?: string | null;
+          sitio_web?: string | null;
           telefono?: string | null;
           tipo_contribuyente?: string | null;
           updated_at?: string | null;

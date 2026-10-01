@@ -27,7 +27,7 @@ import {
 
 export interface ExportOptions {
   empresa_id: string;
-  empresa?: Pick<Empresa, "nombre" | "ruc" | "telefono" | "correo" | "direccion" | "logo_url">;
+  empresa?: Pick<Empresa, "nombre" | "ruc" | "telefono" | "correo" | "direccion" | "sitio_web" | "logo_url">;
 }
 
 interface PropuestaParametros {
@@ -602,6 +602,7 @@ export async function exportCotizacionPdf(
       ...(emp.direccion ? [["Dirección", emp.direccion] as [string, string]] : []),
       ...(emp.telefono  ? [["Teléfono", emp.telefono] as [string, string]] : []),
       ...(emp.correo    ? [["Correo", emp.correo] as [string, string]] : []),
+      ...(emp.sitio_web ? [["Web", emp.sitio_web] as [string, string]] : []),
     ];
     for (const [label, val] of oferenteLines) {
       if (y + 5 > H - 22) { doc.addPage(); y = HDRH + 8; }
@@ -1131,7 +1132,8 @@ export async function exportCotizacionDocx(
         ...(opts.empresa.ruc       ? [para([small(`RUC: ${opts.empresa.ruc}`)], AlignmentType.LEFT, 40)] : []),
         ...(opts.empresa.direccion ? [para([small(opts.empresa.direccion)], AlignmentType.LEFT, 40)] : []),
         ...(opts.empresa.telefono  ? [para([small(`Tel: ${opts.empresa.telefono}`)], AlignmentType.LEFT, 40)] : []),
-        ...(opts.empresa.correo    ? [para([small(opts.empresa.correo)], AlignmentType.LEFT, 60)] : []),
+        ...(opts.empresa.correo    ? [para([small(opts.empresa.correo)], AlignmentType.LEFT, 40)] : []),
+        ...(opts.empresa.sitio_web ? [para([small(`Web: ${opts.empresa.sitio_web}`)], AlignmentType.LEFT, 60)] : []),
       ]
     : [];
 

@@ -43,6 +43,7 @@ const empresaSchema = z.object({
     .refine((v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), { message: "Correo inválido" }),
   telefono: z.string().nullable().optional(),
   direccion: z.string().nullable().optional(),
+  sitio_web: z.string().nullable().optional(),
   estado: z.string().nullable().optional(),
   moneda_base: z.string().nullable().optional(),
 });
@@ -85,6 +86,7 @@ export function EmpresaSection() {
       correo: e.correo ?? "",
       telefono: e.telefono ?? "",
       direccion: e.direccion ?? "",
+      sitio_web: e.sitio_web ?? "",
       estado: e.estado ?? "activo",
       moneda_base: e.moneda_base ?? "",
     };
@@ -100,6 +102,7 @@ export function EmpresaSection() {
         correo: emptyToNull(values.correo),
         telefono: emptyToNull(values.telefono),
         direccion: emptyToNull(values.direccion),
+        sitio_web: emptyToNull(values.sitio_web),
         estado: values.estado ?? null,
         moneda_base: emptyToNull(values.moneda_base),
       };
@@ -138,6 +141,7 @@ export function EmpresaSection() {
             ["Correo", empresa.correo ?? "—"],
             ["Teléfono", empresa.telefono ?? "—"],
             ["Dirección", empresa.direccion ?? "—"],
+            ["Página Web", empresa.sitio_web ?? "—"],
             ["Moneda base", empresa.moneda_base ?? "—"],
             ["Estado", empresa.estado ?? "—"],
           ].map(([label, value]) => (
@@ -291,6 +295,23 @@ export function EmpresaSection() {
                         <FormControl>
                           <Input
                             placeholder="Av. Principal 123"
+                            {...field}
+                            value={field.value ?? ""}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="sitio_web"
+                    render={({ field }) => (
+                      <FormItem className="col-span-2">
+                        <FormLabel>Página Web</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="www.empresa.com"
                             {...field}
                             value={field.value ?? ""}
                           />
