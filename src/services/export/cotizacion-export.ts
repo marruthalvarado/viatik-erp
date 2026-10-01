@@ -342,10 +342,12 @@ export async function exportCotizacionPdf(
 
   const cuadroRows: [string, string][] = [];
   if (c.asunto) cuadroRows.push(["Proyecto", c.asunto]);
-  cuadroRows.push(["Precio", fmtMoney(c.subtotal)]);
+  // Precio original (antes de descuento) = subtotal + descuento_total
+  const precioOriginal = c.subtotal + c.descuento_total;
+  cuadroRows.push(["Precio", fmtMoney(precioOriginal)]);
   if (c.descuento_total > 0) cuadroRows.push(["Descuento", `- ${fmtMoney(c.descuento_total)}`]);
   if (c.iva_pct > 0) cuadroRows.push([`IVA ${c.iva_pct}%`, fmtMoney(c.iva)]);
-  cuadroRows.push([`Precio ${c.razon_social || "cliente"}`, fmtMoney(c.total)]);
+  cuadroRows.push([`Precio ${c.razon_social || "cliente"} (IVA incluido)`, fmtMoney(c.total)]);
   if (c.terminos_pago?.length)
     cuadroRows.push(["Forma de pago", c.terminos_pago.map((t) => `${t.porcentaje}% ${t.concepto}`).join("\n")]);
   if (c.dias_entrega) cuadroRows.push(["Plazo de entrega", `${c.dias_entrega} días hábiles a partir de la recepción del anticipo y entrega de documentación habilitante para la importación`]);
@@ -428,10 +430,8 @@ export async function exportCotizacionPdf(
       // Descripción larga (izquierda) + foto (derecha) — texto justificado
       if (descLarga) {
         doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(...DARK);
-        for (let li = 0; li < descLines.length; li++) {
-          const isLastLine = li === descLines.length - 1;
-          doc.text(descLines[li], ML, y + li * 4.2, isLastLine ? {} : { align: "justify", maxWidth: leftW });
-        }
+        // Pasar el texto completo con maxWidth para que jsPDF justifique cada línea internamente
+        doc.text(descLarga, ML, y, { maxWidth: leftW, align: "justify", lineHeightFactor: 1.55 });
       }
       if (fotoImg) {
         const imgX = ML + leftW + 4;
@@ -471,7 +471,8 @@ export async function exportCotizacionPdf(
       y += 13;
     }
 
-    const subtotal = items.reduce((s, it) => s + it.precio_neto, 0);
+    // Subtotal por fabricante sin descuento (precio_unitario * cantidad)
+    const subtotalOriginal = items.reduce((s, it) => s + it.precio_unitario * it.cantidad, 0);
 
     autoTable(doc as Parameters<typeof autoTable>[0], {
       startY: y,
@@ -481,12 +482,13 @@ export async function exportCotizacionPdf(
       body: ([
         ...items.map((it) => {
           globalItemNum++;
+          const totalOriginal = it.precio_unitario * it.cantidad;
           return [
             String(globalItemNum),
             it.catalogo?.nombre ?? it.descripcion,
             String(it.cantidad),
             fmtMoney(it.precio_unitario),
-            fmtMoney(it.precio_neto),
+            fmtMoney(totalOriginal),
           ];
         }),
         ...(byFab.size > 1 ? [[
@@ -494,7 +496,7 @@ export async function exportCotizacionPdf(
           { content: `SUBTOTAL ${fab.toUpperCase()}`, styles: { fillColor: [...BGROW], fontStyle: "bold" as const, textColor: [...TEAL] } },
           { content: "", styles: { fillColor: [...BGROW] } },
           { content: "", styles: { fillColor: [...BGROW] } },
-          { content: fmtMoney(subtotal), styles: { fillColor: [...BGROW], fontStyle: "bold" as const, textColor: [...TEAL] } },
+          { content: fmtMoney(subtotalOriginal), styles: { fillColor: [...BGROW], fontStyle: "bold" as const, textColor: [...TEAL] } },
         ]] : []),
       ] as unknown as import("jspdf-autotable").RowInput[]),
       styles: { fontSize: 7.5, cellPadding: 2, textColor: [...DARK] },
