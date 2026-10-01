@@ -396,8 +396,8 @@ export async function exportCotizacionPdf(
     // ── Tarjeta por producto ──────────────────────────────────────────────
     for (const it of items) {
       const fotoImg = getImg(it.catalogo?.foto_url);
-      // Usar descripcion_larga del catálogo si existe; si no, el campo descripcion del ítem
-      const descLarga = it.catalogo?.descripcion_larga || it.descripcion;
+      // Prioridad: descripcion_larga → descripcion_tecnica (catálogo) → descripcion del ítem
+      const descLarga = it.catalogo?.descripcion_larga || it.catalogo?.descripcion_tecnica || it.descripcion;
       // Para el header teal: nombre del catálogo si existe, si no la primera línea de descripcion
       const headerName = it.catalogo?.nombre ?? it.descripcion;
       const leftW = fotoImg ? CW * 0.62 : CW;
