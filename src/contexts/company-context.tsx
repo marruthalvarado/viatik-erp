@@ -71,7 +71,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
       .from("empresas_usuarios")
       .select(
         "empresa_id, activo, " +
-          "empresa:empresas(id, nombre, codigo, logo_url, deleted_at), " +
+          "empresa:empresas(id, nombre, codigo, logo_url, ruc, telefono, correo, direccion, deleted_at), " +
           "rol:roles(id, codigo, nombre, modulos_permitidos)",
       )
       .eq("usuario_id", user.id)

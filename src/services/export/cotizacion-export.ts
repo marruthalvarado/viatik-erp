@@ -595,14 +595,27 @@ export async function exportCotizacionPdf(
     y += 8;
 
     const emp = opts.empresa;
-    doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(...DARK);
-    doc.text(emp.nombre, ML, y); y += 5;
-    doc.setFont("helvetica", "normal"); doc.setTextColor(...GRAY); doc.setFontSize(8);
-    if (emp.ruc)       { doc.text(`RUC: ${emp.ruc}`, ML, y); y += 4.5; }
-    if (emp.direccion) { const ls = doc.splitTextToSize(emp.direccion, CW) as string[]; doc.text(ls, ML, y); y += ls.length * 4.5; }
-    if (emp.telefono)  { doc.text(`Tel: ${emp.telefono}`, ML, y); y += 4.5; }
-    if (emp.correo)    { doc.text(emp.correo, ML, y); y += 4.5; }
+    doc.setFontSize(9); doc.setFont("helvetica", "normal"); doc.setTextColor(...DARK);
+    const oferenteLines: [string, string][] = [
+      ["Razón social", emp.nombre],
+      ...(emp.ruc       ? [["RUC", emp.ruc] as [string, string]] : []),
+      ...(emp.direccion ? [["Dirección", emp.direccion] as [string, string]] : []),
+      ...(emp.telefono  ? [["Teléfono", emp.telefono] as [string, string]] : []),
+      ...(emp.correo    ? [["Correo", emp.correo] as [string, string]] : []),
+    ];
+    for (const [label, val] of oferenteLines) {
+      if (y + 5 > H - 22) { doc.addPage(); y = HDRH + 8; }
+      doc.setFont("helvetica", "bold"); doc.text(`${label}:`, ML, y);
+      const labelW = doc.getTextWidth(`${label}: `);
+      doc.setFont("helvetica", "normal"); doc.text(val, ML + labelW + 1, y);
+      y += 5;
+    }
     y += 6;
+    // Párrafo legal
+    doc.setFontSize(7.5); doc.setFont("helvetica", "italic"); doc.setTextColor(...GRAY);
+    const legalText = "La presente Oferta se encuentra integrada por el presente Cuadro Técnico-Comercial, las especificaciones técnicas del equipo y los anexos detallados en la sección de Términos y Condiciones.";
+    const legalLines = doc.splitTextToSize(legalText, CW) as string[];
+    doc.text(legalLines, ML, y); y += legalLines.length * 4.2 + 4;
   }
 
   // ── NOTAS ────────────────────────────────────────────────────────────────
