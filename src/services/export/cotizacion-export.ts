@@ -403,6 +403,8 @@ export async function exportCotizacionPdf(
       const leftW = fotoImg ? CW * 0.62 : CW;
       const rightW = CW - leftW - 4;
 
+      // FIX: set rendering font BEFORE splitTextToSize so descH is computed at correct 8pt size
+      doc.setFontSize(8); doc.setFont("helvetica", "normal");
       const descLines = descLarga ? doc.splitTextToSize(descLarga, leftW) as string[] : [];
       const descH = descLines.length * 4.2;
       const cardH = Math.max(
@@ -428,10 +430,10 @@ export async function exportCotizacionPdf(
       y += 8;
 
       // Descripción larga (izquierda) + foto (derecha) — texto justificado
-      if (descLarga) {
+      if (descLines.length > 0) {
         doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(...DARK);
         // Pasar el texto completo con maxWidth para que jsPDF justifique cada línea internamente
-        doc.text(descLarga, ML, y, { maxWidth: leftW, align: "justify", lineHeightFactor: 1.55 });
+        doc.text(descLarga!, ML, y, { maxWidth: leftW, align: "justify", lineHeightFactor: 1.55 });
       }
       if (fotoImg) {
         const imgX = ML + leftW + 4;
