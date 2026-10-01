@@ -16,7 +16,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import {
   FileDown, FileText, CheckCircle2, XCircle, Clock,
   Loader2, ClipboardCheck, Wrench, Plus, Trash2,
-  Package, PenLine, DollarSign, AlertCircle,
+  Package, PenLine, DollarSign, AlertCircle, AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
 } from "@/components/ui/sheet";
@@ -217,15 +218,17 @@ export function OrdenDetalleSheet({ orden, open, onClose }: Props) {
   const cerrar              = useCerrarOrdenServicio();
   const firmaOrdenMut       = useGuardarFirmaOrden();
 
-  const [trabajos,      setTrabajos]      = useState("");
-  const [observaciones, setObservaciones] = useState("");
-  const [costo,         setCosto]         = useState("");
-  const [firmaCliente,  setFirmaCliente]  = useState<FirmaData>(emptyFirma());
-  const [firmaTecnico,  setFirmaTecnico]  = useState<FirmaData>(emptyFirma());
-  const [cerrando,      setCerrando]      = useState(false);
-  const [exportingPdf,  setExportingPdf]  = useState(false);
-  const [exportingDocx, setExportingDocx] = useState(false);
-  const [savedAt,       setSavedAt]       = useState<Date | null>(null);
+  const [trabajos,          setTrabajos]          = useState("");
+  const [observaciones,     setObservaciones]     = useState("");
+  const [costo,             setCosto]             = useState("");
+  const [incluyeCorrectivo, setIncluyeCorrectivo] = useState(false);
+  const [descCorrectivo,    setDescCorrectivo]    = useState("");
+  const [firmaCliente,      setFirmaCliente]      = useState<FirmaData>(emptyFirma());
+  const [firmaTecnico,      setFirmaTecnico]      = useState<FirmaData>(emptyFirma());
+  const [cerrando,          setCerrando]          = useState(false);
+  const [exportingPdf,      setExportingPdf]      = useState(false);
+  const [exportingDocx,     setExportingDocx]     = useState(false);
+  const [savedAt,           setSavedAt]           = useState<Date | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Re-sincroniza los campos cuando cambia la orden abierta
@@ -234,6 +237,8 @@ export function OrdenDetalleSheet({ orden, open, onClose }: Props) {
       setTrabajos(orden.trabajos_realizados ?? "");
       setObservaciones(orden.observaciones ?? "");
       setCosto(orden.costo_mano_obra != null ? String(orden.costo_mano_obra) : "");
+      setIncluyeCorrectivo(orden.incluye_correctivo ?? false);
+      setDescCorrectivo(orden.descripcion_correctivo ?? "");
       setFirmaCliente(emptyFirma());
       setFirmaTecnico(emptyFirma());
     }
@@ -258,9 +263,11 @@ export function OrdenDetalleSheet({ orden, open, onClose }: Props) {
   // Orden enriquecida con los valores actuales del formulario (para export sin esperar autosave)
   const ordenParaExport = (): OrdenConRelaciones => ({
     ...orden!,
-    trabajos_realizados: trabajos || null,
-    observaciones:       observaciones || null,
-    costo_mano_obra:     parseFloat(costo) || 0,
+    trabajos_realizados:   trabajos || null,
+    observaciones:         observaciones || null,
+    costo_mano_obra:       parseFloat(costo) || 0,
+    incluye_correctivo:    incluyeCorrectivo,
+    descripcion_correctivo: descCorrectivo || null,
   });
 
   // Indicador visual de guardado
@@ -425,6 +432,44 @@ export function OrdenDetalleSheet({ orden, open, onClose }: Props) {
                 ordenId={orden.id}
                 equipoId={orden.equipo_id ?? orden.equipo?.id ?? null}
               />
+
+              {/* Toggle: incluye trabajo correctivo */}
+              <div className="mt-5 pt-4 border-t space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="size-4 text-amber-500 shrink-0" />
+                    <span className="text-sm font-medium">Incluye trabajo correctivo</span>
+                  </div>
+                  <Switch
+                    checked={incluyeCorrectivo}
+                    onCheckedChange={async (val) => {
+                      setIncluyeCorrectivo(val);
+                      if (!val) setDescCorrectivo("");
+                      await autoSave({
+                        incluye_correctivo: val,
+                        descripcion_correctivo: val ? (descCorrectivo || null) : null,
+                      });
+                    }}
+                    disabled={!editable}
+                  />
+                </div>
+                {incluyeCorrectivo && (
+                  <div>
+                    <Label className="text-xs font-medium text-muted-foreground mb-1 block">
+                      Descripción del problema y diagnóstico
+                    </Label>
+                    <Textarea
+                      value={descCorrectivo}
+                      onChange={(e) => setDescCorrectivo(e.target.value)}
+                      onBlur={() => autoSave({ descripcion_correctivo: descCorrectivo || null })}
+                      placeholder="Describe el problema encontrado y el diagnóstico realizado…"
+                      rows={3}
+                      disabled={!editable}
+                      className="text-sm resize-none"
+                    />
+                  </div>
+                )}
+              </div>
             </section>
           )}
 

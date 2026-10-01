@@ -159,6 +159,15 @@ export async function exportOrdenServicioPdf(
     } catch { /* ignorar */ }
   };
 
+  // Fecha local (evita desfase UTC)
+  const hoy = (() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  })();
+
   // ── ENCABEZADO ───────────────────────────────────────────────────────────────
   doc.setFillColor(...NAVY);
   doc.rect(0, 0, W, 38, "F");
@@ -181,20 +190,7 @@ export async function exportOrdenServicioPdf(
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.text(`N° ${os.numero ?? "—"}`, W - MR, 21, { align: "right" });
-  doc.text(`Fecha emisión: ${fmtFecha(new Date().toISOString())}`, W - MR, 27, { align: "right" });
-
-  // Estado badge
-  const estadoText = ESTADO_LABEL[os.estado ?? ""] ?? os.estado ?? "";
-  const badgeColors: Record<string, readonly [number,number,number]> = {
-    completada: [22,163,74], en_proceso: [234,179,8], pendiente: [148,163,184], cancelada: [239,68,68],
-  };
-  const bc = badgeColors[os.estado ?? ""] ?? ([148,163,184] as const);
-  doc.setFillColor(...bc);
-  doc.roundedRect(ML, 12, 28, 7, 1.5, 1.5, "F");
-  doc.setTextColor(...WHITE);
-  doc.setFontSize(7.5);
-  doc.setFont("helvetica", "bold");
-  doc.text(estadoText.toUpperCase(), ML + 14, 17, { align: "center" });
+  doc.text(`Fecha emisión: ${fmtFecha(hoy)}`, W - MR, 27, { align: "right" });
 
   let y = 46;
 
@@ -247,7 +243,7 @@ export async function exportOrdenServicioPdf(
     doc.setTextColor(...DARK);
     doc.text(v1 || "—", ML, y + 4);
     doc.text(v2 || "—", ML + CW / 2 + 4, y + 4);
-    y += 12;
+    y += 10;
   };
 
   const drawText = (label: string, value: string | null | undefined) => {
@@ -311,10 +307,24 @@ export async function exportOrdenServicioPdf(
   );
 
   // ── DESCRIPCIÓN Y DIAGNÓSTICO ─────────────────────────────────────────────
-  hr();
-  drawSection("4. Descripción del problema y diagnóstico");
-  drawText("Descripción del problema:", os.descripcion_problema);
-  drawText("Diagnóstico:", os.diagnostico);
+  // Para correctivos: siempre. Para preventivos: solo si incluye_correctivo está activo.
+  const mostrarSeccion4 = os.tipo === "correctivo"
+    || os.tipo === "instalacion"
+    || os.tipo === "actualizacion"
+    || os.tipo === "repuesto"
+    || (os.tipo === "preventivo" && !!os.incluye_correctivo);
+
+  if (mostrarSeccion4) {
+    hr();
+    drawSection("4. Descripción del problema y diagnóstico");
+    if (os.tipo === "preventivo") {
+      // Para preventivos con correctivo, la descripción se guarda en descripcion_correctivo
+      drawText("Descripción del problema:", os.descripcion_correctivo ?? os.descripcion_problema);
+    } else {
+      drawText("Descripción del problema:", os.descripcion_problema);
+      drawText("Diagnóstico:", os.diagnostico);
+    }
+  }
 
   // ── TRABAJOS REALIZADOS ───────────────────────────────────────────────────
   const checkNewPage = (needed = 30) => {
@@ -360,29 +370,11 @@ export async function exportOrdenServicioPdf(
     y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
   }
 
-  // ── COSTOS ───────────────────────────────────────────────────────────────
-  checkNewPage(30);
-  hr();
-  drawSection("7. Resumen de costos");
-  const costoMO = os.costo_mano_obra ?? 0;
-  const costoRep = (os.repuestos ?? []).reduce((s, r) => s + (r.cantidad ?? 0) * (r.precio_unitario ?? 0), 0);
-  const total = costoMO + costoRep;
-  drawPair("Mano de obra", fmtMoney(costoMO), "Repuestos / materiales", fmtMoney(costoRep));
-
-  doc.setFillColor(...NAVY);
-  doc.rect(ML + CW - 55, y - 2, 55, 9, "F");
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(9);
-  doc.setTextColor(...WHITE);
-  doc.text("TOTAL", ML + CW - 52, y + 3.5);
-  doc.text(fmtMoney(total), ML + CW - 3, y + 3.5, { align: "right" });
-  y += 14;
-
   // ── OBSERVACIONES ─────────────────────────────────────────────────────────
   if (os.observaciones) {
     checkNewPage(25);
     hr();
-    drawSection("8. Observaciones");
+    drawSection("7. Observaciones");
     drawText("", os.observaciones);
   }
 
@@ -391,7 +383,7 @@ export async function exportOrdenServicioPdf(
   if (actividades.length > 0) {
     checkNewPage(40);
     hr();
-    drawSection("9. Actividades de mantenimiento");
+    drawSection("8. Actividades de mantenimiento");
 
     const actSecciones = actividades.reduce<Record<string, OsActividad[]>>((acc, a) => {
       const key = a.seccion_titulo ?? "Sin sección";
@@ -401,12 +393,17 @@ export async function exportOrdenServicioPdf(
     }, {});
 
     const RES_LABEL: Record<string, string> = { ok: "OK ✓", no_ok: "No OK ✗", na: "N/A" };
-    const ACT_GREEN  = [220, 252, 231] as const;
-    const ACT_RED    = [254, 226, 226] as const;
-    const ACT_LGRAY  = [241, 245, 249] as const;
-    const ACT_RED_TXT = [185, 28, 28]  as const;
+    const ACT_GREEN   = [220, 252, 231] as const;
+    const ACT_RED     = [254, 226, 226] as const;
+    const ACT_RED_TXT = [185, 28, 28]   as const;
+    const SUB_FILL    = [245, 247, 250] as const;
+    const SUB_TXT     = [100, 116, 139] as const;
 
     for (const [titulo, acts] of Object.entries(actSecciones)) {
+      // Filtrar N/A
+      const actsFiltradas = acts.filter((a) => a.resultado !== "na");
+      if (actsFiltradas.length === 0) continue;
+
       checkNewPage(25);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(7.5);
@@ -414,34 +411,74 @@ export async function exportOrdenServicioPdf(
       doc.text(titulo.toUpperCase(), ML + 2, y);
       y += 5;
 
+      // Construir filas: fila principal + sub-fila opcional de valores medidos
+      type AnyCell = string | { content: string; colSpan?: number; styles?: Record<string, unknown> };
+      const body: AnyCell[][] = [];
+      const rowMeta: (OsActividad | null)[] = [];
+
+      for (const a of actsFiltradas) {
+        // Descripción con modelo si aplica
+        let desc = a.descripcion + (a.es_critico ? "  ★" : "");
+        if (a.modelo_seleccionado) {
+          desc = desc.replace(/\s*\(.*?\)\s*$/, "") + ` ${a.modelo_seleccionado}`;
+        }
+
+        // Resultado
+        let resultado = RES_LABEL[a.resultado ?? ""] ?? "—";
+        if (a.tipo_campo === "medicion") {
+          if (a.etiquetas_medicion && a.etiquetas_medicion.length > 1) {
+            // Multi-medición: resultado global en celda, detalles en sub-fila
+            resultado = a.resultado === "ok" ? "OK ✓" : a.resultado === "no_ok" ? "No OK ✗" : "—";
+          } else if (a.valor_medido !== null && a.valor_medido !== undefined) {
+            resultado = `${a.valor_medido}${a.unidad ? " " + a.unidad : ""} (${RES_LABEL[a.resultado ?? ""] ?? "—"})`;
+          }
+        }
+
+        body.push([desc, resultado]);
+        rowMeta.push(a);
+
+        // Sub-fila de valores medidos (solo para multi-medición)
+        if (a.etiquetas_medicion && a.valores_medidos && a.etiquetas_medicion.length > 1) {
+          const partes = a.etiquetas_medicion.map((etq, i) => {
+            const val = (a.valores_medidos as (number | null)[])[i];
+            if (val === null || val === undefined) return `${etq}: —`;
+            const rango = a.rangos_medicion?.[i];
+            const ok = rango
+              ? ((rango.min === null || val >= rango.min) && (rango.max === null || val <= rango.max))
+              : true;
+            return `${etq}: ${val}  ${ok ? "✓" : "✗"}`;
+          });
+          body.push([{
+            content: partes.join("     "),
+            colSpan: 2,
+            styles: {
+              fontSize: 6.5,
+              textColor: SUB_TXT,
+              fillColor: SUB_FILL,
+              fontStyle: "italic",
+              halign: "left",
+              cellPadding: { top: 2, bottom: 3, left: 8, right: 4 },
+            },
+          }]);
+          rowMeta.push(null);
+        }
+      }
+
       autoTable(doc, {
         startY: y,
         margin: { left: ML, right: MR },
-        head: [["Paso", "Actividad", "Resultado", "Notas"]],
-        body: acts.map((a) => {
-          let resultado = RES_LABEL[a.resultado ?? ""] ?? "—";
-          if (a.tipo_campo === "medicion" && a.valor_medido !== null) {
-            resultado = `${a.valor_medido}${a.unidad ? " " + a.unidad : ""}`;
-            if (a.resultado) resultado += ` (${RES_LABEL[a.resultado] ?? a.resultado})`;
-          }
-          return [
-            a.numero_paso ?? "—",
-            a.descripcion + (a.es_critico ? "  ★" : ""),
-            resultado,
-            a.notas_resultado ?? "—",
-          ];
-        }),
-        headStyles:  { fillColor: NAVY as unknown as [number,number,number], textColor: 255, fontSize: 7.5, fontStyle: "bold" },
-        bodyStyles:  { fontSize: 7.5, textColor: DARK as unknown as [number,number,number] },
+        head: [["Actividad", "Resultado"]],
+        body,
+        headStyles: { fillColor: NAVY as unknown as [number,number,number], textColor: 255, fontSize: 7.5, fontStyle: "bold" },
+        bodyStyles: { fontSize: 7.5, textColor: DARK as unknown as [number,number,number] },
         columnStyles: {
-          0: { cellWidth: 14 },
-          2: { cellWidth: 28, halign: "center" as const },
-          3: { cellWidth: 40 },
+          0: { cellWidth: "auto" as unknown as number },
+          1: { cellWidth: 32, halign: "center" as const },
         },
         didParseCell: (data) => {
           if (data.section !== "body") return;
-          const act = acts[data.row.index];
-          if (!act) return;
+          const act = rowMeta[data.row.index];
+          if (!act) return; // sub-fila: estilos ya definidos en cell data
           if (act.resultado === "ok") {
             data.cell.styles.fillColor = ACT_GREEN as unknown as [number,number,number];
           } else if (act.resultado === "no_ok") {
@@ -450,8 +487,6 @@ export async function exportOrdenServicioPdf(
               data.cell.styles.textColor = ACT_RED_TXT as unknown as [number,number,number];
               data.cell.styles.fontStyle = "bold";
             }
-          } else if (act.resultado === "na") {
-            data.cell.styles.fillColor = ACT_LGRAY as unknown as [number,number,number];
           }
         },
       });
@@ -464,7 +499,7 @@ export async function exportOrdenServicioPdf(
   if (fotos.length > 0) {
     checkNewPage(70);
     hr();
-    drawSection("10. Registro fotográfico");
+    drawSection("9. Registro fotográfico");
 
     const momentoLabel: Record<string, string> = { antes: "ANTES", durante: "DURANTE", despues: "DESPUÉS" };
     let col = 0;
@@ -548,7 +583,7 @@ export async function exportOrdenServicioPdf(
     doc.setTextColor(...GRAY);
     doc.text(`Reporte ${os.numero ?? ""} · Pág. ${pg} / ${totalPages}`, W / 2, H - 8, { align: "center" });
     doc.text("Generado con VIATIQ ERP", ML, H - 8);
-    doc.text(new Date().toLocaleDateString("es-EC"), W - MR, H - 8, { align: "right" });
+    doc.text(fmtFecha(hoy), W - MR, H - 8, { align: "right" });
   }
 
   triggerDownload(

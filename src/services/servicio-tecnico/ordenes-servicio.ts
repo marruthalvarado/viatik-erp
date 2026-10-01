@@ -65,6 +65,9 @@ export interface ResumenOsActividades {
 }
 
 export interface OrdenConRelaciones extends OrdenServicio {
+  /** Añadidos por migración 20260930000007 — no están aún en los tipos auto-generados */
+  incluye_correctivo?: boolean | null;
+  descripcion_correctivo?: string | null;
   equipo?: {
     id: string; nombre: string; numero_serie: string | null;
     modelo: string | null; ubicacion_instalacion: string | null;
