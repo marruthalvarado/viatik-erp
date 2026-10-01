@@ -429,11 +429,11 @@ export async function exportCotizacionPdf(
       doc.text(subLabel, ML, y + 4);
       y += 8;
 
-      // Descripción larga (izquierda) + foto (derecha) — texto justificado
+      // Descripción larga (izquierda) + foto (derecha)
       if (descLines.length > 0) {
         doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(...DARK);
-        // Pasar el texto completo con maxWidth para que jsPDF justifique cada línea internamente
-        doc.text(descLarga!, ML, y, { maxWidth: leftW, align: "justify", lineHeightFactor: 1.55 });
+        // Usar array pre-dividido (sin align:justify ni maxWidth) para compatibilidad con Adobe Acrobat
+        doc.text(descLines, ML, y, { lineHeightFactor: 1.55 });
       }
       if (fotoImg) {
         const imgX = ML + leftW + 4;
