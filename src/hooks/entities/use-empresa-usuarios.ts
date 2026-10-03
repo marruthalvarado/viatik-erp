@@ -19,6 +19,7 @@ export interface EmpresaUsuario {
   fecha_inicio: string | null;
   fecha_fin: string | null;
   roles_adicionales: string[] | null;
+  roles_adicionales_codigos: string[];
   nombres: string;
   apellidos: string | null;
   cargo: string | null;
