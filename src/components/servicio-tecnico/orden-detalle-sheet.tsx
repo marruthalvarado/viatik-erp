@@ -247,8 +247,22 @@ export function OrdenDetalleSheet({ orden, open, onClose }: Props) {
       setDosIngenieros(!!orden.tecnico2_id);
       setTecnico2Id(orden.tecnico2_id ?? "");
       setFirmaCliente(emptyFirma());
-      setFirmaTecnico(emptyFirma());
-      setFirmaTecnico2(emptyFirma());
+      setFirmaTecnico({
+        nombre: orden.tecnico
+          ? `${orden.tecnico.nombres} ${orden.tecnico.apellidos}`.trim()
+          : "",
+        cargo: "Ingeniero de Servicio",
+        dataUrl: null,
+      });
+      setFirmaTecnico2(
+        orden.tecnico2_id && orden.tecnico2
+          ? {
+              nombre: `${orden.tecnico2.nombres} ${orden.tecnico2.apellidos}`.trim(),
+              cargo: "Ingeniero de Servicio",
+              dataUrl: null,
+            }
+          : emptyFirma()
+      );
     }
   }, [orden?.id]);
 

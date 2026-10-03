@@ -80,7 +80,9 @@ export function OrdenForm({ open, orden, onSubmit, onClose }: Props) {
         proyecto_id: orden.proyecto_id,
         contrato_id: orden.contrato_id,
         tecnico_id: orden.tecnico_id,
-        fecha_programada: orden.fecha_programada,
+        fecha_programada: orden.fecha_programada
+          ? orden.fecha_programada.slice(0, 16)
+          : undefined,
         descripcion_problema: orden.descripcion_problema,
         diagnostico: orden.diagnostico,
       });
@@ -191,7 +193,7 @@ export function OrdenForm({ open, orden, onSubmit, onClose }: Props) {
               </Select>
             </div>
             <div>
-              <Label>Técnico asignado</Label>
+              <Label>FE asignado</Label>
               <Select
                 value={form.tecnico_id ?? "none"}
                 onValueChange={(v) => set("tecnico_id", v === "none" ? null : v)}
