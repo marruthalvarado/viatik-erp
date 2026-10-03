@@ -240,7 +240,7 @@ export async function exportOrdenServicioPdf(
 
   // Fila 1: Fecha | Técnico | Tipo | Cobro
   drawCompactCell(GX,             y, col4, GH1, "Fecha de servicio",  fmtFecha(os.fecha_programada));
-  drawCompactCell(GX + col4,      y, col4, GH1, "Técnico",            tecnicoStr);
+  drawCompactCell(GX + col4,      y, col4, GH1, "Ingeniero / FE",     tecnicoStr);
   drawCompactCell(GX + 2 * col4,  y, col4, GH1, "Tipo de servicio",   TIPO_LABEL[os.tipo ?? ""] ?? "—");
   drawCompactCell(GX + 3 * col4,  y, col4, GH1, "Modalidad de cobro", COBRO_LABEL[os.modalidad_cobro ?? ""] ?? "—");
   y += GH1;
@@ -255,7 +255,7 @@ export async function exportOrdenServicioPdf(
   drawCompactCell(GX,             y, col4, GH3, "Equipo",              os.equipo?.nombre ?? "—");
   drawCompactCell(GX + col4,      y, col4, GH3, "Fabricante / Modelo", fabModStr);
   drawCompactCell(GX + 2 * col4,  y, col4, GH3, "N° de serie",         os.equipo?.numero_serie ?? "—");
-  drawCompactCell(GX + 3 * col4,  y, col4, GH3, "Ubicación",           os.equipo?.ubicacion_instalacion ?? "—");
+  drawCompactCell(GX + 3 * col4,  y, col4, GH3, "Dirección",           os.equipo?.ubicacion_instalacion ?? "—");
   y += GH3 + 5;
 
   // ── Helpers de sección ────────────────────────────────────────────────────
