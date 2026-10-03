@@ -232,7 +232,7 @@ export async function exportOrdenServicioPdf(
   const GX  = ML;
 
   const tecnicoStr = os.tecnico
-    ? `${os.tecnico.nombres} ${os.tecnico.apellidos}${os.tecnico.cargo ? ", " + os.tecnico.cargo : ""}`
+    ? `${os.tecnico.nombres} ${os.tecnico.apellidos}`
     : "—";
   const clienteNombreStr = os.cliente?.nombre ?? os.equipo?.cliente?.nombre ?? "—";
   const contactoStr = [os.cliente?.contacto_nombre, os.cliente?.contacto_cargo].filter(Boolean).join(" · ");
