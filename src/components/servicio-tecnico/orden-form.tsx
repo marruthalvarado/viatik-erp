@@ -18,6 +18,24 @@ import { useClientes } from "@/hooks/entities/use-clientes";
 import { useUsuarios } from "@/hooks/entities/use-usuarios";
 import type { OrdenConRelaciones, OrdenServicioPayload, OsRepuestoPayload } from "@/services/servicio-tecnico/ordenes-servicio";
 
+/** Convierte una cadena UTC de Supabase (ej. "2026-10-05T20:00:00+00:00") al
+ *  formato que necesita datetime-local: "YYYY-MM-DDTHH:mm" en hora LOCAL. */
+function utcToLocalInput(utcStr: string): string {
+  const d = new Date(utcStr);
+  const yyyy = d.getFullYear();
+  const mo   = String(d.getMonth() + 1).padStart(2, "0");
+  const dd   = String(d.getDate()).padStart(2, "0");
+  const hh   = String(d.getHours()).padStart(2, "0");
+  const mm   = String(d.getMinutes()).padStart(2, "0");
+  return `${yyyy}-${mo}-${dd}T${hh}:${mm}`;
+}
+
+/** Convierte la cadena "YYYY-MM-DDTHH:mm" del datetime-local (hora LOCAL) a
+ *  ISO UTC para enviarlo a la RPC (PostgreSQL timestamptz). */
+function localInputToUtcIso(localStr: string): string {
+  return new Date(localStr).toISOString();
+}
+
 interface Props {
   open: boolean;
   orden?: OrdenConRelaciones | null;
@@ -81,7 +99,7 @@ export function OrdenForm({ open, orden, onSubmit, onClose }: Props) {
         contrato_id: orden.contrato_id,
         tecnico_id: orden.tecnico_id,
         fecha_programada: orden.fecha_programada
-          ? orden.fecha_programada.slice(0, 16)
+          ? utcToLocalInput(orden.fecha_programada)
           : undefined,
         descripcion_problema: orden.descripcion_problema,
         diagnostico: orden.diagnostico,
@@ -113,7 +131,14 @@ export function OrdenForm({ open, orden, onSubmit, onClose }: Props) {
     e.preventDefault();
     setLoading(true);
     try {
-      await onSubmit(form, repuestos);
+      // Convertir fecha_programada de hora local a UTC ISO antes de enviar
+      const payload = {
+        ...form,
+        fecha_programada: form.fecha_programada
+          ? localInputToUtcIso(form.fecha_programada)
+          : form.fecha_programada,
+      };
+      await onSubmit(payload, repuestos);
       onClose();
     } finally {
       setLoading(false);
