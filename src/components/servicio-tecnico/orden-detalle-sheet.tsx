@@ -229,7 +229,8 @@ export function OrdenDetalleSheet({ orden, open, onClose }: Props) {
   const [firmaCliente,      setFirmaCliente]      = useState<FirmaData>(emptyFirma());
   const [firmaTecnico,      setFirmaTecnico]      = useState<FirmaData>(emptyFirma());
   const [firmaTecnico2,     setFirmaTecnico2]     = useState<FirmaData>(emptyFirma());
-  const { data: usuarios = [] } = useUsuarios();
+  const { data: usuariosPag } = useUsuarios();
+  const usuarios = usuariosPag?.rows ?? [];
   const [cerrando,          setCerrando]          = useState(false);
   const [exportingPdf,      setExportingPdf]      = useState(false);
   const [exportingDocx,     setExportingDocx]     = useState(false);
