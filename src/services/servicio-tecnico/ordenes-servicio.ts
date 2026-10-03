@@ -68,6 +68,9 @@ export interface OrdenConRelaciones extends OrdenServicio {
   /** Añadidos por migración 20260930000007 — no están aún en los tipos auto-generados */
   incluye_correctivo?: boolean | null;
   descripcion_correctivo?: string | null;
+  /** Añadidos por migración 20261003000001 */
+  tecnico2_id?: string | null;
+  firma_tecnico2_url?: string | null;
   equipo?: {
     id: string; nombre: string; numero_serie: string | null;
     modelo: string | null; ubicacion_instalacion: string | null;
@@ -76,6 +79,7 @@ export interface OrdenConRelaciones extends OrdenServicio {
   } | null;
   cliente?: { id: string; nombre: string; contacto_nombre: string | null; contacto_cargo: string | null } | null;
   tecnico?: { id: string; nombres: string; apellidos: string; cargo: string | null } | null;
+  tecnico2?: { id: string; nombres: string; apellidos: string; cargo: string | null } | null;
   contrato?: { id: string; numero: string } | null;
   repuestos?: OsRepuesto[];
   fotos?: OsFoto[];
@@ -98,6 +102,7 @@ export interface OrdenServicioPayload {
   proyecto_id?: string | null;
   contrato_id?: string | null;
   tecnico_id?: string | null;
+  tecnico2_id?: string | null;
   fecha_programada?: string | null;
   descripcion_problema?: string | null;
   diagnostico?: string | null;
@@ -107,6 +112,7 @@ export interface OrdenServicioPayload {
   cotizacion_id?: string | null;
   factura_id?: string | null;
   firma_tecnico_url?: string | null;
+  firma_tecnico2_url?: string | null;
   firma_cliente_url?: string | null;
 }
 
@@ -119,6 +125,7 @@ const OS_SELECT = `
   ),
   cliente:clientes(id, nombre, contacto_nombre, contacto_cargo),
   tecnico:usuarios!ordenes_servicio_tecnico_id_fkey(id, nombres, apellidos, cargo),
+  tecnico2:usuarios!ordenes_servicio_tecnico2_id_fkey(id, nombres, apellidos, cargo),
   contrato:contratos_mantenimiento(id, numero),
   repuestos:os_repuestos(*),
   fotos:os_fotos(*)

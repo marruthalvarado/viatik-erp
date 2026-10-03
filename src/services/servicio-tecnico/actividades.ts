@@ -123,6 +123,7 @@ export interface FirmaPayload {
   firma_cliente_cargo?: string | null;
   firma_cliente_data?: string | null;
   firma_tecnico_data?: string | null;
+  firma_tecnico2_url?: string | null;
 }
 
 export async function guardarFirmaOrden(

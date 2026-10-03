@@ -34,6 +34,7 @@ import {
   useCerrarOrdenServicio,
   useGuardarFirmaOrden,
 } from "@/hooks/entities/use-servicio-tecnico";
+import { useUsuarios } from "@/hooks/entities/use-usuarios";
 import type { OrdenConRelaciones, OsRepuestoPayload } from "@/services/servicio-tecnico/ordenes-servicio";
 import { getOsActividades } from "@/services/servicio-tecnico/ordenes-servicio";
 import { OsChecklist } from "./os-checklist";
@@ -223,8 +224,12 @@ export function OrdenDetalleSheet({ orden, open, onClose }: Props) {
   const [costo,             setCosto]             = useState("");
   const [incluyeCorrectivo, setIncluyeCorrectivo] = useState(false);
   const [descCorrectivo,    setDescCorrectivo]    = useState("");
+  const [dosIngenieros,     setDosIngenieros]     = useState(false);
+  const [tecnico2Id,        setTecnico2Id]        = useState<string>("");
   const [firmaCliente,      setFirmaCliente]      = useState<FirmaData>(emptyFirma());
   const [firmaTecnico,      setFirmaTecnico]      = useState<FirmaData>(emptyFirma());
+  const [firmaTecnico2,     setFirmaTecnico2]     = useState<FirmaData>(emptyFirma());
+  const { data: usuarios = [] } = useUsuarios();
   const [cerrando,          setCerrando]          = useState(false);
   const [exportingPdf,      setExportingPdf]      = useState(false);
   const [exportingDocx,     setExportingDocx]     = useState(false);
@@ -239,8 +244,11 @@ export function OrdenDetalleSheet({ orden, open, onClose }: Props) {
       setCosto(orden.costo_mano_obra != null ? String(orden.costo_mano_obra) : "");
       setIncluyeCorrectivo(orden.incluye_correctivo ?? false);
       setDescCorrectivo(orden.descripcion_correctivo ?? "");
+      setDosIngenieros(!!orden.tecnico2_id);
+      setTecnico2Id(orden.tecnico2_id ?? "");
       setFirmaCliente(emptyFirma());
       setFirmaTecnico(emptyFirma());
+      setFirmaTecnico2(emptyFirma());
     }
   }, [orden?.id]);
 
@@ -261,14 +269,23 @@ export function OrdenDetalleSheet({ orden, open, onClose }: Props) {
     : {};
 
   // Orden enriquecida con los valores actuales del formulario (para export sin esperar autosave)
-  const ordenParaExport = (): OrdenConRelaciones => ({
-    ...orden!,
-    trabajos_realizados:   trabajos || null,
-    observaciones:         observaciones || null,
-    costo_mano_obra:       parseFloat(costo) || 0,
-    incluye_correctivo:    incluyeCorrectivo,
-    descripcion_correctivo: descCorrectivo || null,
-  });
+  const ordenParaExport = (): OrdenConRelaciones => {
+    const t2 = dosIngenieros && tecnico2Id
+      ? usuarios.find((u) => u.id === tecnico2Id) ?? null
+      : null;
+    return {
+      ...orden!,
+      trabajos_realizados:    trabajos || null,
+      observaciones:          observaciones || null,
+      costo_mano_obra:        parseFloat(costo) || 0,
+      incluye_correctivo:     incluyeCorrectivo,
+      descripcion_correctivo: descCorrectivo || null,
+      tecnico2_id:            dosIngenieros && tecnico2Id ? tecnico2Id : null,
+      tecnico2:               t2
+        ? { id: t2.id, nombres: t2.nombres, apellidos: t2.apellidos, cargo: t2.cargo ?? null }
+        : null,
+    };
+  };
 
   // Indicador visual de guardado
   const flashSaved = useCallback(() => {
@@ -327,15 +344,16 @@ export function OrdenDetalleSheet({ orden, open, onClose }: Props) {
         costo_mano_obra:      parseFloat(costo) || undefined,
       });
 
-      const tieneFirma = firmaCliente.nombre || firmaCliente.dataUrl || firmaTecnico.dataUrl;
+      const tieneFirma = firmaCliente.nombre || firmaCliente.dataUrl || firmaTecnico.dataUrl || firmaTecnico2.dataUrl;
       if (tieneFirma) {
         await firmaOrdenMut.mutateAsync({
           orden_id: orden.id,
           firma: {
-            firma_cliente_nombre: firmaCliente.nombre || null,
-            firma_cliente_cargo:  firmaCliente.cargo  || null,
-            firma_cliente_data:   firmaCliente.dataUrl,
-            firma_tecnico_data:   firmaTecnico.dataUrl,
+            firma_cliente_nombre:  firmaCliente.nombre || null,
+            firma_cliente_cargo:   firmaCliente.cargo  || null,
+            firma_cliente_data:    firmaCliente.dataUrl,
+            firma_tecnico_data:    firmaTecnico.dataUrl,
+            firma_tecnico2_url:    dosIngenieros ? (firmaTecnico2.dataUrl || null) : null,
           },
         });
       }
@@ -560,11 +578,65 @@ export function OrdenDetalleSheet({ orden, open, onClose }: Props) {
             <section>
               <SectionHeader icon={PenLine} title="Firmas" />
               <div className="space-y-5">
+
+                {/* Toggle: 2 ingenieros */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Wrench className="size-4 text-muted-foreground shrink-0" />
+                    <span className="text-sm font-medium">Realizado por 2 ingenieros</span>
+                  </div>
+                  <Switch
+                    checked={dosIngenieros}
+                    onCheckedChange={async (val) => {
+                      setDosIngenieros(val);
+                      if (!val) setTecnico2Id("");
+                      await autoSave({ tecnico2_id: val ? (tecnico2Id || null) : null });
+                    }}
+                    disabled={!editable}
+                  />
+                </div>
+
+                {dosIngenieros && (
+                  <div>
+                    <Label className="text-xs font-medium text-muted-foreground mb-1 block">
+                      Segundo ingeniero / FE
+                    </Label>
+                    <select
+                      value={tecnico2Id}
+                      onChange={async (e) => {
+                        setTecnico2Id(e.target.value);
+                        await autoSave({ tecnico2_id: e.target.value || null });
+                      }}
+                      disabled={!editable}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      <option value="">— Seleccionar ingeniero —</option>
+                      {usuarios
+                        .filter((u) => u.id !== orden?.tecnico_id)
+                        .map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.nombres} {u.apellidos}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                )}
+
                 <FirmaPad
-                  title="Firma del técnico"
+                  title={dosIngenieros ? "Firma Ingeniero 1" : "Firma del técnico"}
                   value={firmaTecnico}
                   onChange={setFirmaTecnico}
                 />
+                {dosIngenieros && (
+                  <>
+                    <Separator />
+                    <FirmaPad
+                      title="Firma Ingeniero 2"
+                      value={firmaTecnico2}
+                      onChange={setFirmaTecnico2}
+                    />
+                  </>
+                )}
                 <Separator />
                 <FirmaPad
                   title="Firma del cliente / responsable"
@@ -576,31 +648,32 @@ export function OrdenDetalleSheet({ orden, open, onClose }: Props) {
           )}
 
           {/* 5b. Firmas guardadas — solo si la OS está cerrada */}
-          {!editable && (orden.firma_tecnico_url || orden.firma_cliente_url) && (
+          {!editable && (orden.firma_tecnico_url || orden.firma_tecnico2_url || orden.firma_cliente_url) && (
             <section>
               <SectionHeader icon={PenLine} title="Firmas registradas" />
-              <div className="grid grid-cols-2 gap-6">
+              <div className={`grid gap-6 ${orden.firma_tecnico2_url ? "grid-cols-3" : "grid-cols-2"}`}>
                 {orden.firma_tecnico_url && (
                   <div className="text-center space-y-1">
-                    <img
-                      src={orden.firma_tecnico_url}
-                      alt="Firma técnico"
-                      className="max-h-24 mx-auto border rounded bg-white"
-                    />
+                    <img src={orden.firma_tecnico_url} alt="Firma ingeniero 1"
+                      className="max-h-24 mx-auto border rounded bg-white" />
                     <p className="text-xs text-muted-foreground">
-                      {orden.tecnico
-                        ? `${orden.tecnico.nombres} ${orden.tecnico.apellidos}`
-                        : "Técnico"}
+                      {orden.tecnico ? `${orden.tecnico.nombres} ${orden.tecnico.apellidos}` : "Ingeniero 1"}
+                    </p>
+                  </div>
+                )}
+                {orden.firma_tecnico2_url && (
+                  <div className="text-center space-y-1">
+                    <img src={orden.firma_tecnico2_url} alt="Firma ingeniero 2"
+                      className="max-h-24 mx-auto border rounded bg-white" />
+                    <p className="text-xs text-muted-foreground">
+                      {orden.tecnico2 ? `${orden.tecnico2.nombres} ${orden.tecnico2.apellidos}` : "Ingeniero 2"}
                     </p>
                   </div>
                 )}
                 {orden.firma_cliente_url && (
                   <div className="text-center space-y-1">
-                    <img
-                      src={orden.firma_cliente_url}
-                      alt="Firma cliente"
-                      className="max-h-24 mx-auto border rounded bg-white"
-                    />
+                    <img src={orden.firma_cliente_url} alt="Firma cliente"
+                      className="max-h-24 mx-auto border rounded bg-white" />
                     <p className="text-xs text-muted-foreground">
                       {orden.cliente?.nombre ?? orden.equipo?.cliente?.nombre ?? "Cliente"}
                     </p>

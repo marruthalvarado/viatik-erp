@@ -233,6 +233,7 @@ export async function exportOrdenServicioPdf(
 
   const tecnicoStr = os.tecnico
     ? `${os.tecnico.nombres} ${os.tecnico.apellidos}`
+    + (os.tecnico2 ? ` / ${os.tecnico2.nombres} ${os.tecnico2.apellidos}` : "")
     : "—";
   const clienteNombreStr = os.cliente?.nombre ?? os.equipo?.cliente?.nombre ?? "—";
   const contactoStr = [os.cliente?.contacto_nombre, os.cliente?.contacto_cargo].filter(Boolean).join(" · ");
@@ -522,34 +523,45 @@ export async function exportOrdenServicioPdf(
   hr();
   y += 5;
 
-  const sigW  = (CW - 10) / 2;
-  const sigH  = 24;
-  const sigX2 = ML + sigW + 10;
+  const hasTecnico2 = !!os.tecnico2;
+  const numSigs   = hasTecnico2 ? 3 : 2;
+  const sigGap    = 5;
+  const sigW      = (CW - sigGap * (numSigs - 1)) / numSigs;
+  const sigH      = 24;
+
+  const firmaT  = getImg(os.firma_tecnico_url);
+  const firmaT2 = hasTecnico2 ? getImg(os.firma_tecnico2_url) : null;
+  const firmaC  = getImg(os.firma_cliente_url);
+
+  // Calcular posiciones X de cada caja
+  const sigXs = Array.from({ length: numSigs }, (_, i) => ML + i * (sigW + sigGap));
 
   doc.setDrawColor(...BDRCLR);
   doc.setFillColor(...BGROW);
-  doc.rect(ML, y, sigW, sigH, "FD");
-  doc.rect(sigX2, y, sigW, sigH, "FD");
+  sigXs.forEach((sx) => doc.rect(sx, y, sigW, sigH, "FD"));
 
-  const firmaT = getImg(os.firma_tecnico_url);
-  const firmaC = getImg(os.firma_cliente_url);
-  if (firmaT) addImg(firmaT, ML + 4, y + 2, sigW - 8, sigH - 4);
-  if (firmaC) addImg(firmaC, sigX2 + 4, y + 2, sigW - 8, sigH - 4);
+  if (firmaT)  addImg(firmaT,  sigXs[0] + 4, y + 2, sigW - 8, sigH - 4);
+  if (hasTecnico2 && firmaT2) addImg(firmaT2, sigXs[1] + 4, y + 2, sigW - 8, sigH - 4);
+  if (firmaC)  addImg(firmaC,  sigXs[numSigs - 1] + 4, y + 2, sigW - 8, sigH - 4);
 
   y += sigH + 3;
-  const tecnicoNombre = os.tecnico ? `${os.tecnico.nombres} ${os.tecnico.apellidos}` : "Técnico";
+  const tecnicoNombre  = os.tecnico  ? `${os.tecnico.nombres} ${os.tecnico.apellidos}`  : "Técnico";
+  const tecnico2Nombre = os.tecnico2 ? `${os.tecnico2.nombres} ${os.tecnico2.apellidos}` : "Ingeniero 2";
   const clienteNombreSig = os.cliente?.nombre ?? os.equipo?.cliente?.nombre ?? "Cliente";
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
   doc.setTextColor(...DARK);
-  doc.text(tecnicoNombre, ML + sigW / 2, y, { align: "center" });
-  doc.text(clienteNombreSig, sigX2 + sigW / 2, y, { align: "center" });
+  doc.text(tecnicoNombre, sigXs[0] + sigW / 2, y, { align: "center" });
+  if (hasTecnico2) doc.text(tecnico2Nombre, sigXs[1] + sigW / 2, y, { align: "center" });
+  doc.text(clienteNombreSig, sigXs[numSigs - 1] + sigW / 2, y, { align: "center" });
+
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7);
   doc.setTextColor(...GRAY);
-  doc.text("Responsable de mantenimiento", ML + sigW / 2, y + 4, { align: "center" });
-  doc.text("Cliente / Responsable", sigX2 + sigW / 2, y + 4, { align: "center" });
+  doc.text("Ingeniero 1", sigXs[0] + sigW / 2, y + 4, { align: "center" });
+  if (hasTecnico2) doc.text("Ingeniero 2", sigXs[1] + sigW / 2, y + 4, { align: "center" });
+  doc.text("Cliente / Responsable", sigXs[numSigs - 1] + sigW / 2, y + 4, { align: "center" });
 
   // ── PIE DE PÁGINA ─────────────────────────────────────────────────────────
   const totalPages = (doc.internal as unknown as { getNumberOfPages: () => number }).getNumberOfPages();
@@ -676,6 +688,7 @@ export async function exportOrdenServicioDocx(
 
   const tecnicoDocx = os.tecnico
     ? `${os.tecnico.nombres} ${os.tecnico.apellidos}`
+      + (os.tecnico2 ? ` / ${os.tecnico2.nombres} ${os.tecnico2.apellidos}` : "")
     : "—";
   const clienteDocx   = os.cliente?.nombre ?? os.equipo?.cliente?.nombre ?? "—";
   const contactoDocx  = [os.cliente?.contacto_nombre, os.cliente?.contacto_cargo].filter(Boolean).join(" · ");
@@ -846,30 +859,45 @@ export async function exportOrdenServicioDocx(
   }
 
   // ── Firmas ──
-  const firmaT = await makeImg(os.firma_tecnico_url, 160, 70);
-  const firmaC = await makeImg(os.firma_cliente_url, 160, 70);
+  const sigImgW = os.tecnico2 ? 110 : 160;
+  const sigImgH = 60;
+  const firmaT  = await makeImg(os.firma_tecnico_url, sigImgW, sigImgH);
+  const firmaT2 = os.tecnico2 ? await makeImg(os.firma_tecnico2_url, sigImgW, sigImgH) : null;
+  const firmaC  = await makeImg(os.firma_cliente_url, sigImgW, sigImgH);
+
+  const makeSigCell = (
+    img: Awaited<ReturnType<typeof makeImg>>,
+    nombre: string,
+    rol: string,
+    widthPct: number,
+  ) =>
+    new TableCell({
+      width: { size: widthPct, type: WidthType.PERCENTAGE },
+      children: [
+        img
+          ? new Paragraph({ children: [img as never], alignment: AlignmentType.CENTER })
+          : new Paragraph({ text: "", spacing: { before: convertInchesToTwip(0.7) } }),
+        new Paragraph({ children: [new TextRun({ text: nombre, bold: true, size: 18 })], alignment: AlignmentType.CENTER }),
+        new Paragraph({ children: [new TextRun({ text: rol, size: 16, color: GRAY_HEX })], alignment: AlignmentType.CENTER }),
+      ],
+      shading: { type: ShadingType.CLEAR, fill: "F8FAFC" },
+      borders: { top: BDR, bottom: BDR, left: BDR, right: BDR },
+    });
+
+  const sigCells = os.tecnico2
+    ? [
+        makeSigCell(firmaT,  os.tecnico ? `${os.tecnico.nombres} ${os.tecnico.apellidos}` : "Ingeniero 1", "Ingeniero 1", 34),
+        makeSigCell(firmaT2, `${os.tecnico2.nombres} ${os.tecnico2.apellidos}`, "Ingeniero 2", 33),
+        makeSigCell(firmaC,  os.cliente?.nombre ?? os.equipo?.cliente?.nombre ?? "Cliente", "Cliente / Responsable", 33),
+      ]
+    : [
+        makeSigCell(firmaT, os.tecnico ? `${os.tecnico.nombres} ${os.tecnico.apellidos}` : "Técnico", "Responsable de mantenimiento", 50),
+        makeSigCell(firmaC, os.cliente?.nombre ?? os.equipo?.cliente?.nombre ?? "Cliente", "Cliente / Responsable", 50),
+      ];
+
   const firmasTable = new Table({
     width: { size: 100, type: WidthType.PERCENTAGE },
-    rows: [new TableRow({ children: [
-      new TableCell({
-        children: [
-          firmaT ? new Paragraph({ children: [firmaT as never], alignment: AlignmentType.CENTER }) : new Paragraph({ text: "", spacing: { before: convertInchesToTwip(0.8) } }),
-          new Paragraph({ children: [new TextRun({ text: os.tecnico ? `${os.tecnico.nombres} ${os.tecnico.apellidos}` : "Técnico", bold: true, size: 18 })], alignment: AlignmentType.CENTER }),
-          new Paragraph({ children: [new TextRun({ text: "Responsable de mantenimiento", size: 16, color: GRAY_HEX })], alignment: AlignmentType.CENTER }),
-        ],
-        shading: { type: ShadingType.CLEAR, fill: "F8FAFC" },
-        borders: { top: BDR, bottom: BDR, left: BDR, right: BDR },
-      }),
-      new TableCell({
-        children: [
-          firmaC ? new Paragraph({ children: [firmaC as never], alignment: AlignmentType.CENTER }) : new Paragraph({ text: "", spacing: { before: convertInchesToTwip(0.8) } }),
-          new Paragraph({ children: [new TextRun({ text: os.cliente?.nombre ?? os.equipo?.cliente?.nombre ?? "Cliente", bold: true, size: 18 })], alignment: AlignmentType.CENTER }),
-          new Paragraph({ children: [new TextRun({ text: "Cliente / Responsable", size: 16, color: GRAY_HEX })], alignment: AlignmentType.CENTER }),
-        ],
-        shading: { type: ShadingType.CLEAR, fill: "F8FAFC" },
-        borders: { top: BDR, bottom: BDR, left: BDR, right: BDR },
-      }),
-    ]})],
+    rows: [new TableRow({ children: sigCells })],
   });
 
   // ── Logo ──
