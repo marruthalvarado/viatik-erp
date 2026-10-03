@@ -34,7 +34,7 @@ import {
   useCerrarOrdenServicio,
   useGuardarFirmaOrden,
 } from "@/hooks/entities/use-servicio-tecnico";
-import { useUsuarios } from "@/hooks/entities/use-usuarios";
+import { useEmpresaUsuarios } from "@/hooks/entities/use-empresa-usuarios";
 import type { OrdenConRelaciones, OsRepuestoPayload } from "@/services/servicio-tecnico/ordenes-servicio";
 import { getOsActividades } from "@/services/servicio-tecnico/ordenes-servicio";
 import { OsChecklist } from "./os-checklist";
@@ -229,8 +229,7 @@ export function OrdenDetalleSheet({ orden, open, onClose }: Props) {
   const [firmaCliente,      setFirmaCliente]      = useState<FirmaData>(emptyFirma());
   const [firmaTecnico,      setFirmaTecnico]      = useState<FirmaData>(emptyFirma());
   const [firmaTecnico2,     setFirmaTecnico2]     = useState<FirmaData>(emptyFirma());
-  const { data: usuariosPag } = useUsuarios();
-  const usuarios = usuariosPag?.rows ?? [];
+  const { data: usuarios = [] } = useEmpresaUsuarios();
   const [cerrando,          setCerrando]          = useState(false);
   const [exportingPdf,      setExportingPdf]      = useState(false);
   const [exportingDocx,     setExportingDocx]     = useState(false);
@@ -272,7 +271,7 @@ export function OrdenDetalleSheet({ orden, open, onClose }: Props) {
   // Orden enriquecida con los valores actuales del formulario (para export sin esperar autosave)
   const ordenParaExport = (): OrdenConRelaciones => {
     const t2 = dosIngenieros && tecnico2Id
-      ? usuarios.find((u) => u.id === tecnico2Id) ?? null
+      ? usuarios.find((u) => u.usuario_id === tecnico2Id) ?? null
       : null;
     return {
       ...orden!,
@@ -283,7 +282,7 @@ export function OrdenDetalleSheet({ orden, open, onClose }: Props) {
       descripcion_correctivo: descCorrectivo || null,
       tecnico2_id:            dosIngenieros && tecnico2Id ? tecnico2Id : null,
       tecnico2:               t2
-        ? { id: t2.id, nombres: t2.nombres, apellidos: t2.apellidos, cargo: t2.cargo ?? null }
+        ? { id: t2.usuario_id, nombres: t2.nombres, apellidos: t2.apellidos ?? "", cargo: t2.cargo ?? null }
         : null,
     };
   };
@@ -613,9 +612,9 @@ export function OrdenDetalleSheet({ orden, open, onClose }: Props) {
                     >
                       <option value="">— Seleccionar ingeniero —</option>
                       {usuarios
-                        .filter((u) => u.id !== orden?.tecnico_id)
+                        .filter((u) => u.usuario_id !== orden?.tecnico_id)
                         .map((u) => (
-                          <option key={u.id} value={u.id}>
+                          <option key={u.usuario_id} value={u.usuario_id}>
                             {u.nombres} {u.apellidos}
                           </option>
                         ))}
@@ -668,7 +667,8 @@ export function OrdenDetalleSheet({ orden, open, onClose }: Props) {
                       className="max-h-24 mx-auto border rounded bg-white" />
                     <p className="text-xs text-muted-foreground">
                       {(() => {
-                        const u = usuarios.find((x) => x.id === orden.tecnico2_id) ?? orden.tecnico2;
+                        const eu = usuarios.find((x) => x.usuario_id === orden.tecnico2_id);
+                        const u = eu ?? orden.tecnico2;
                         return u ? `${u.nombres} ${u.apellidos}` : "Ingeniero 2";
                       })()}
                     </p>
