@@ -675,7 +675,7 @@ export async function exportOrdenServicioDocx(
     });
 
   const tecnicoDocx = os.tecnico
-    ? `${os.tecnico.nombres} ${os.tecnico.apellidos}${os.tecnico.cargo ? ", " + os.tecnico.cargo : ""}`
+    ? `${os.tecnico.nombres} ${os.tecnico.apellidos}`
     : "—";
   const clienteDocx   = os.cliente?.nombre ?? os.equipo?.cliente?.nombre ?? "—";
   const contactoDocx  = [os.cliente?.contacto_nombre, os.cliente?.contacto_cargo].filter(Boolean).join(" · ");
