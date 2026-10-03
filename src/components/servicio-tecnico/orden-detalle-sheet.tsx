@@ -612,7 +612,11 @@ export function OrdenDetalleSheet({ orden, open, onClose }: Props) {
                     >
                       <option value="">— Seleccionar ingeniero —</option>
                       {usuarios
-                        .filter((u) => u.usuario_id !== orden?.tecnico_id)
+                        .filter((u) =>
+                          u.usuario_id !== orden?.tecnico_id &&
+                          (u.rol_codigo === "servicio_tecnico" ||
+                            (u.roles_adicionales ?? []).includes("servicio_tecnico"))
+                        )
                         .map((u) => (
                           <option key={u.usuario_id} value={u.usuario_id}>
                             {u.nombres} {u.apellidos}
