@@ -597,9 +597,17 @@ export async function exportOrdenServicioDocx(
 ): Promise<void> {
   const {
     Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
-    WidthType, BorderStyle, AlignmentType, HeadingLevel, PageBreak,
-    ShadingType, convertInchesToTwip,
+    WidthType, BorderStyle, AlignmentType, ShadingType, convertInchesToTwip,
   } = await import("docx");
+
+  // Fecha local
+  const hoyDocx = (() => {
+    const d = new Date();
+    const yy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yy}-${mm}-${dd}`;
+  })();
 
   // Pre-cargar imágenes
   const fotoUrls = (os.fotos ?? []).map((f) => f.url).filter(Boolean) as string[];
@@ -610,68 +618,109 @@ export async function exportOrdenServicioDocx(
     bufMap.set(url, await fetchImageBuffer(url));
   }));
 
-  // Helper para ImageRun
   const makeImg = async (url: string | null | undefined, widthPx: number, heightPx: number) => {
     if (!url) return null;
     const buf = bufMap.get(url);
     if (!buf) return null;
     const { ImageRun } = await import("docx");
-    try {
-      return new ImageRun({ data: buf, transformation: { width: widthPx, height: heightPx } } as never);
-    } catch { return null; }
+    try { return new ImageRun({ data: buf, transformation: { width: widthPx, height: heightPx } } as never); }
+    catch { return null; }
   };
 
   const NAVY_HEX  = "0F2864";
   const LIGHT_HEX = "EBF0FF";
+  const GRAY_HEX  = "64748B";
+  const BDR_HEX   = "CBD5E1";
+  const BDR       = { style: BorderStyle.SINGLE, size: 4, color: BDR_HEX } as const;
 
-  // Párrafo de sección
-  const sectionTitle = (text: string) =>
-    new Paragraph({
-      children: [new TextRun({ text: text.toUpperCase(), bold: true, color: NAVY_HEX, size: 18 })],
+  // ── Helpers ──
+  let secNumDocx = 0;
+  const sectionTitle = (title: string) => {
+    secNumDocx++;
+    return new Paragraph({
+      children: [new TextRun({ text: `${secNumDocx}. ${title.toUpperCase()}`, bold: true, color: NAVY_HEX, size: 18 })],
       shading:  { type: ShadingType.CLEAR, fill: LIGHT_HEX },
-      spacing:  { before: 200, after: 80 },
+      spacing:  { before: 240, after: 80 },
       border:   { bottom: { style: BorderStyle.SINGLE, size: 4, color: NAVY_HEX } },
     });
-
-  const labelValue = (label: string, value: string | null | undefined) =>
-    new Paragraph({
-      children: [
-        new TextRun({ text: label + ": ", bold: true, size: 18, color: "475569" }),
-        new TextRun({ text: value || "—", size: 18 }),
-      ],
-      spacing: { after: 60 },
-    });
+  };
 
   const bodyPara = (text: string | null | undefined) =>
     new Paragraph({
       children: [new TextRun({ text: text || "—", size: 18 })],
-      spacing:  { after: 120 },
+      spacing:  { after: 100 },
     });
 
-  const h1 = (text: string) =>
+  const boldLabel = (label: string) =>
     new Paragraph({
-      text,
-      heading: HeadingLevel.HEADING_1,
-      spacing: { after: 120 },
+      children: [new TextRun({ text: label, bold: true, size: 17, color: GRAY_HEX })],
+      spacing: { after: 20 },
     });
 
-  const repuestos = os.repuestos ?? [];
-  const costoMO   = os.costo_mano_obra ?? 0;
-  const costoRep  = repuestos.reduce((s, r) => s + (r.cantidad ?? 0) * (r.precio_unitario ?? 0), 0);
-  const total     = costoMO + costoRep;
+  // Celda de grilla compacta (etiqueta + valor)
+  const gridCell = (label: string, value: string, widthPct: number) =>
+    new TableCell({
+      width: { size: widthPct, type: WidthType.PERCENTAGE },
+      borders: { top: BDR, bottom: BDR, left: BDR, right: BDR },
+      shading: { type: ShadingType.CLEAR, fill: "FCFDFE" },
+      children: [
+        new Paragraph({
+          children: [new TextRun({ text: label.toUpperCase(), bold: true, size: 13, color: GRAY_HEX })],
+          spacing: { after: 20 },
+        }),
+        new Paragraph({
+          children: [new TextRun({ text: value || "—", size: 17, color: "0F172A" })],
+        }),
+      ],
+    });
 
-  // Tabla de repuestos
+  const tecnicoDocx = os.tecnico
+    ? `${os.tecnico.nombres} ${os.tecnico.apellidos}${os.tecnico.cargo ? ", " + os.tecnico.cargo : ""}`
+    : "—";
+  const clienteDocx   = os.cliente?.nombre ?? os.equipo?.cliente?.nombre ?? "—";
+  const contactoDocx  = [os.cliente?.contacto_nombre, os.cliente?.contacto_cargo].filter(Boolean).join(" · ");
+  const fabModDocx    = [os.equipo?.fabricante, os.equipo?.modelo].filter(Boolean).join(" / ") || "—";
+
+  // ── Grilla compacta 3 filas × 4 columnas ──
+  const dataGrid = new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    rows: [
+      // Fila 1: Fecha | Ingeniero/FE | Tipo | Cobro
+      new TableRow({ children: [
+        gridCell("Fecha de servicio",  fmtFecha(os.fecha_programada), 25),
+        gridCell("Ingeniero / FE",     tecnicoDocx, 25),
+        gridCell("Tipo de servicio",   TIPO_LABEL[os.tipo ?? ""] ?? "—", 25),
+        gridCell("Modalidad de cobro", COBRO_LABEL[os.modalidad_cobro ?? ""] ?? "—", 25),
+      ]}),
+      // Fila 2: Cliente (50%) | Contrato | Estado
+      new TableRow({ children: [
+        gridCell("Cliente",            clienteDocx + (contactoDocx ? "  ·  " + contactoDocx : ""), 50),
+        gridCell("Contrato",           os.contrato?.numero ?? "—", 25),
+        gridCell("Estado de la orden", ESTADO_LABEL[os.estado ?? ""] ?? "—", 25),
+      ]}),
+      // Fila 3: Equipo | Fab/Modelo | N° Serie | Dirección
+      new TableRow({ children: [
+        gridCell("Equipo",              os.equipo?.nombre ?? "—", 25),
+        gridCell("Fabricante / Modelo", fabModDocx, 25),
+        gridCell("N° de serie",         os.equipo?.numero_serie ?? "—", 25),
+        gridCell("Dirección",           os.equipo?.ubicacion_instalacion ?? "—", 25),
+      ]}),
+    ],
+  });
+
+  // ── Tabla de repuestos ──
+  const repuestos = os.repuestos ?? [];
   const repuestosTable = repuestos.length > 0
     ? new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
         rows: [
           new TableRow({
             tableHeader: true,
-            children: ["Descripción", "Cant.", "P. Unitario", "Subtotal"].map((h) =>
+            children: [["Descripción", 55], ["Cant.", 10], ["P. Unitario", 17], ["Subtotal", 18]].map(([h, w]) =>
               new TableCell({
-                children: [new Paragraph({ children: [new TextRun({ text: h, bold: true, color: "FFFFFF", size: 18 })] })],
+                children: [new Paragraph({ children: [new TextRun({ text: h as string, bold: true, color: "FFFFFF", size: 17 })] })],
                 shading:  { type: ShadingType.CLEAR, fill: NAVY_HEX },
-                width:    { size: 25, type: WidthType.PERCENTAGE },
+                width:    { size: w as number, type: WidthType.PERCENTAGE },
               }),
             ),
           }),
@@ -684,279 +733,220 @@ export async function exportOrdenServicioDocx(
                 fmtMoney((r.cantidad ?? 1) * (r.precio_unitario ?? 0)),
               ].map((val) =>
                 new TableCell({
-                  children: [new Paragraph({ children: [new TextRun({ text: val, size: 18 })] })],
+                  children: [new Paragraph({ children: [new TextRun({ text: val, size: 17 })] })],
                   shading:  { type: ShadingType.CLEAR, fill: i % 2 === 0 ? "F8FAFC" : "FFFFFF" },
                 }),
               ),
             }),
           ),
-          new TableRow({
-            children: [
-              new TableCell({ children: [new Paragraph("")], columnSpan: 2 }),
-              new TableCell({
-                children: [new Paragraph({ children: [new TextRun({ text: "TOTAL REPUESTOS", bold: true, size: 18, color: NAVY_HEX })] })],
-                shading:  { type: ShadingType.CLEAR, fill: LIGHT_HEX },
-              }),
-              new TableCell({
-                children: [new Paragraph({ children: [new TextRun({ text: fmtMoney(costoRep), bold: true, size: 18, color: NAVY_HEX })] })],
-                shading:  { type: ShadingType.CLEAR, fill: LIGHT_HEX },
-              }),
-            ],
-          }),
+          new TableRow({ children: [
+            new TableCell({ children: [new Paragraph("")], columnSpan: 2 }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "TOTAL", bold: true, size: 17, color: "FFFFFF" })] })], shading: { type: ShadingType.CLEAR, fill: NAVY_HEX } }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: fmtMoney(repuestos.reduce((s, r) => s + (r.cantidad ?? 0) * (r.precio_unitario ?? 0), 0)), bold: true, size: 17, color: "FFFFFF" })] })], shading: { type: ShadingType.CLEAR, fill: NAVY_HEX } }),
+          ]}),
         ],
       })
     : null;
 
-  // Tabla de costos
-  const costosTable = new Table({
-    width: { size: 60, type: WidthType.PERCENTAGE },
-    rows: [
-      ["Mano de obra", fmtMoney(costoMO)],
-      ["Repuestos / materiales", fmtMoney(costoRep)],
-    ].map(([l, v], i) =>
-      new TableRow({
-        children: [
-          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: l, bold: true, size: 18 })] })], shading: { type: ShadingType.CLEAR, fill: i % 2 === 0 ? "F8FAFC" : "FFFFFF" } }),
-          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: v, size: 18 })] })], shading: { type: ShadingType.CLEAR, fill: i % 2 === 0 ? "F8FAFC" : "FFFFFF" } }),
-        ],
-      }),
-    ).concat([
-      new TableRow({
-        children: [
-          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "TOTAL", bold: true, size: 20, color: "FFFFFF" })] })], shading: { type: ShadingType.CLEAR, fill: NAVY_HEX } }),
-          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: fmtMoney(total), bold: true, size: 20, color: "FFFFFF" })] })], shading: { type: ShadingType.CLEAR, fill: NAVY_HEX } }),
-        ],
-      }),
-    ]),
-  });
+  // ── Actividades ──
+  const actividades = opts.actividades ?? [];
+  const actItems: unknown[] = [];
+  if (actividades.length > 0) {
+    actItems.push(sectionTitle("Actividades de mantenimiento"));
 
-  // Firma (si existe imagen)
-  const firmaT = await makeImg(os.firma_tecnico_url, 160, 70);
-  const firmaC = await makeImg(os.firma_cliente_url, 160, 70);
+    const actSecciones = actividades.reduce<Record<string, OsActividad[]>>((acc, a) => {
+      const key = a.seccion_titulo ?? "Sin sección";
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(a);
+      return acc;
+    }, {});
 
-  const firmasTable = new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
-    rows: [
-      new TableRow({
+    const RES_LABEL: Record<string, string> = { ok: "OK", no_ok: "No OK", na: "N/A" };
+    const ACT_RED_HEX = "FEE2E2";
+
+    for (const [titulo, acts] of Object.entries(actSecciones)) {
+      const actsFiltradas = acts.filter((a) => a.resultado !== "na");
+      if (actsFiltradas.length === 0) continue;
+
+      actItems.push(new Paragraph({
+        children: [new TextRun({ text: titulo.toUpperCase(), bold: true, size: 17, color: GRAY_HEX })],
+        spacing: { before: 120, after: 60 },
+      }));
+
+      const headerRow = new TableRow({
+        tableHeader: true,
         children: [
-          new TableCell({
-            children: [
-              firmaT
-                ? new Paragraph({ children: [firmaT], alignment: AlignmentType.CENTER })
-                : new Paragraph({ text: "", spacing: { before: convertInchesToTwip(0.8) } }),
-              new Paragraph({ children: [new TextRun({ text: os.tecnico ? `${os.tecnico.nombres} ${os.tecnico.apellidos}` : "Técnico", bold: true, size: 18 })], alignment: AlignmentType.CENTER }),
-              new Paragraph({ children: [new TextRun({ text: "Firma del Técnico", size: 16, color: "94A3B8" })], alignment: AlignmentType.CENTER }),
-            ],
-            shading: { type: ShadingType.CLEAR, fill: "F8FAFC" },
-            borders: { top: { style: BorderStyle.SINGLE, size: 4, color: "CBD5E1" }, bottom: { style: BorderStyle.SINGLE, size: 4, color: "CBD5E1" }, left: { style: BorderStyle.SINGLE, size: 4, color: "CBD5E1" }, right: { style: BorderStyle.SINGLE, size: 4, color: "CBD5E1" } },
-          }),
-          new TableCell({
-            children: [
-              firmaC
-                ? new Paragraph({ children: [firmaC], alignment: AlignmentType.CENTER })
-                : new Paragraph({ text: "", spacing: { before: convertInchesToTwip(0.8) } }),
-              new Paragraph({ children: [new TextRun({ text: os.cliente?.nombre ?? os.equipo?.cliente?.nombre ?? "Cliente", bold: true, size: 18 })], alignment: AlignmentType.CENTER }),
-              new Paragraph({ children: [new TextRun({ text: "Firma del Cliente / Responsable", size: 16, color: "94A3B8" })], alignment: AlignmentType.CENTER }),
-            ],
-            shading: { type: ShadingType.CLEAR, fill: "F8FAFC" },
-            borders: { top: { style: BorderStyle.SINGLE, size: 4, color: "CBD5E1" }, bottom: { style: BorderStyle.SINGLE, size: 4, color: "CBD5E1" }, left: { style: BorderStyle.SINGLE, size: 4, color: "CBD5E1" }, right: { style: BorderStyle.SINGLE, size: 4, color: "CBD5E1" } },
-          }),
+          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Actividad", bold: true, color: "FFFFFF", size: 17 })] })], shading: { type: ShadingType.CLEAR, fill: NAVY_HEX }, width: { size: 78, type: WidthType.PERCENTAGE } }),
+          new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Resultado", bold: true, color: "FFFFFF", size: 17 })] })], shading: { type: ShadingType.CLEAR, fill: NAVY_HEX }, width: { size: 22, type: WidthType.PERCENTAGE } }),
         ],
-      }),
-    ],
-  });
+      });
 
-  // Fotos
+      const bodyRows = actsFiltradas.map((a) => {
+        // Descripción
+        let desc = a.descripcion + (a.es_critico ? "  (*)" : "");
+        if (a.modelo_seleccionado) desc = desc.replace(/\s*\(.*?\)\s*$/, "").trim() + " " + a.modelo_seleccionado;
+
+        // Resultado
+        let resultado = RES_LABEL[a.resultado ?? ""] ?? "—";
+        if (a.tipo_campo === "medicion") {
+          if (a.etiquetas_medicion && a.etiquetas_medicion.length > 1) {
+            resultado = a.resultado === "ok" ? "OK" : a.resultado === "no_ok" ? "No OK" : "—";
+          } else if (a.valor_medido !== null && a.valor_medido !== undefined) {
+            resultado = `${a.valor_medido}${a.unidad ? " " + a.unidad : ""}\n(${RES_LABEL[a.resultado ?? ""] ?? "—"})`;
+          }
+        }
+
+        const isNoOk   = a.resultado === "no_ok";
+        const fillColor = isNoOk ? ACT_RED_HEX : "FFFFFF";
+        const textColor = (isNoOk && a.es_critico) ? "B91C1C" : "0F172A";
+        const cellStyle = { type: ShadingType.CLEAR as typeof ShadingType.CLEAR, fill: fillColor };
+
+        const descChildren: unknown[] = [new TextRun({ text: desc, size: 17, color: textColor, bold: isNoOk && a.es_critico })];
+
+        // Sub-fila de medición múltiple inline (en el mismo párrafo, línea siguiente)
+        if (a.etiquetas_medicion && a.valores_medidos && a.etiquetas_medicion.length > 1) {
+          const partes = a.etiquetas_medicion.map((etq, i) => {
+            const val = (a.valores_medidos as (number | null)[])[i];
+            if (val === null || val === undefined) return `${etq}: —`;
+            const rango = a.rangos_medicion?.[i];
+            const inRange = rango ? ((rango.min === null || val >= rango.min) && (rango.max === null || val <= rango.max)) : true;
+            return `${etq}: ${val}${a.unidad ? " " + a.unidad : ""}  ${inRange ? "OK" : "NO OK"}`;
+          });
+          descChildren.push(new TextRun({ text: "\n" + partes.join("     "), size: 14, color: GRAY_HEX, italics: true }));
+        }
+
+        return new TableRow({
+          children: [
+            new TableCell({ children: [new Paragraph({ children: descChildren as never })], shading: cellStyle }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: resultado, size: 17, color: textColor, bold: isNoOk && a.es_critico })], alignment: AlignmentType.CENTER })], shading: cellStyle }),
+          ],
+        });
+      });
+
+      actItems.push(new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [headerRow, ...bodyRows],
+      }), new Paragraph(""));
+    }
+  }
+
+  // ── Fotos ──
   const fotoParagraphs: unknown[] = [];
   for (const foto of (os.fotos ?? [])) {
     if (!foto.url) continue;
     const img = await makeImg(foto.url, 200, 130);
     if (!img) continue;
-    const momentoLabel: Record<string, string> = { antes: "ANTES", durante: "DURANTE", despues: "DESPUÉS" };
+    const momentoLabel: Record<string, string> = { antes: "ANTES", durante: "DURANTE", despues: "DESPUES" };
     fotoParagraphs.push(
-      new Paragraph({ children: [new TextRun({ text: momentoLabel[foto.momento ?? ""] ?? (foto.momento ?? "").toUpperCase(), bold: true, size: 16, color: "475569" })] }),
-      new Paragraph({ children: [img] }),
+      new Paragraph({ children: [new TextRun({ text: momentoLabel[foto.momento ?? ""] ?? (foto.momento ?? "").toUpperCase(), bold: true, size: 16, color: GRAY_HEX })] }),
+      new Paragraph({ children: [img as never] }),
     );
-    if (foto.descripcion) {
-      fotoParagraphs.push(new Paragraph({ children: [new TextRun({ text: foto.descripcion, size: 15, color: "94A3B8" })] }));
-    }
+    if (foto.descripcion) fotoParagraphs.push(new Paragraph({ children: [new TextRun({ text: foto.descripcion, size: 15, color: GRAY_HEX })] }));
     fotoParagraphs.push(new Paragraph(""));
   }
 
-  const logoImg = await makeImg(logoUrl, Math.round(LOGO_VIATIQ_W * 0.12), Math.round(LOGO_VIATIQ_H * 0.12));
+  // ── Firmas ──
+  const firmaT = await makeImg(os.firma_tecnico_url, 160, 70);
+  const firmaC = await makeImg(os.firma_cliente_url, 160, 70);
+  const firmasTable = new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    rows: [new TableRow({ children: [
+      new TableCell({
+        children: [
+          firmaT ? new Paragraph({ children: [firmaT as never], alignment: AlignmentType.CENTER }) : new Paragraph({ text: "", spacing: { before: convertInchesToTwip(0.8) } }),
+          new Paragraph({ children: [new TextRun({ text: os.tecnico ? `${os.tecnico.nombres} ${os.tecnico.apellidos}` : "Técnico", bold: true, size: 18 })], alignment: AlignmentType.CENTER }),
+          new Paragraph({ children: [new TextRun({ text: "Responsable de mantenimiento", size: 16, color: GRAY_HEX })], alignment: AlignmentType.CENTER }),
+        ],
+        shading: { type: ShadingType.CLEAR, fill: "F8FAFC" },
+        borders: { top: BDR, bottom: BDR, left: BDR, right: BDR },
+      }),
+      new TableCell({
+        children: [
+          firmaC ? new Paragraph({ children: [firmaC as never], alignment: AlignmentType.CENTER }) : new Paragraph({ text: "", spacing: { before: convertInchesToTwip(0.8) } }),
+          new Paragraph({ children: [new TextRun({ text: os.cliente?.nombre ?? os.equipo?.cliente?.nombre ?? "Cliente", bold: true, size: 18 })], alignment: AlignmentType.CENTER }),
+          new Paragraph({ children: [new TextRun({ text: "Cliente / Responsable", size: 16, color: GRAY_HEX })], alignment: AlignmentType.CENTER }),
+        ],
+        shading: { type: ShadingType.CLEAR, fill: "F8FAFC" },
+        borders: { top: BDR, bottom: BDR, left: BDR, right: BDR },
+      }),
+    ]})],
+  });
+
+  // ── Logo ──
+  const logoImg = await makeImg(logoUrl, 120, 60);
+
+  // ── HEADER del documento ──
+  const headerPara = new Paragraph({
+    children: [
+      ...(logoImg ? [logoImg as never] : []),
+      new TextRun({ text: "  REPORTE DE SERVICIO TÉCNICO", bold: true, size: 28, color: NAVY_HEX }),
+      new TextRun({ text: `\t\tN° ${os.numero ?? "—"}  ·  ${fmtFecha(hoyDocx)}`, size: 17, color: GRAY_HEX }),
+    ],
+    border: { bottom: { style: BorderStyle.SINGLE, size: 8, color: NAVY_HEX } },
+    spacing: { after: 160 },
+  });
+
+  // ── SECCIÓN 4 condicional ──
+  const mostrarProblemaDocx = os.tipo === "correctivo"
+    || os.tipo === "instalacion"
+    || os.tipo === "actualizacion"
+    || os.tipo === "repuesto"
+    || (os.tipo === "preventivo" && !!os.incluye_correctivo);
 
   const children: unknown[] = [
-    // ── PORTADA ──
-    new Paragraph({
-      children: [
-        ...(logoImg ? [logoImg] : []),
-        new TextRun({ break: 1 }),
-        new TextRun({ text: "REPORTE DE SERVICIO TÉCNICO", bold: true, size: 36, color: NAVY_HEX }),
-        new TextRun({ break: 1 }),
-        new TextRun({ text: `N° ${os.numero ?? "—"}`, size: 24, color: "475569" }),
-        new TextRun({ break: 1 }),
-        new TextRun({ text: `Fecha emisión: ${fmtFecha(new Date().toISOString())}`, size: 18, color: "94A3B8" }),
-        new TextRun({ break: 1 }),
-        new TextRun({ text: `Estado: ${ESTADO_LABEL[os.estado ?? ""] ?? os.estado ?? "—"}`, bold: true, size: 20, color: NAVY_HEX }),
-      ],
-      spacing: { before: 200, after: 400 },
-    }),
-    new Paragraph({ children: [new PageBreak()] }),
-
-    // ── CLIENTE ──
-    sectionTitle("1. Datos del cliente"),
-    labelValue("Razón social", os.cliente?.nombre ?? os.equipo?.cliente?.nombre),
-    labelValue("Contacto", [os.cliente?.contacto_nombre, os.cliente?.contacto_cargo].filter(Boolean).join(" · ")),
+    headerPara,
+    dataGrid,
     new Paragraph(""),
 
-    // ── EQUIPO ──
-    sectionTitle("2. Datos del equipo"),
-    labelValue("Equipo",          os.equipo?.nombre),
-    labelValue("Fabricante",      os.equipo?.fabricante),
-    labelValue("Modelo",          os.equipo?.modelo),
-    labelValue("N° de serie",     os.equipo?.numero_serie),
-    labelValue("Ubicación",       os.equipo?.ubicacion_instalacion),
-    labelValue("Garantía hasta",  fmtFecha(os.equipo?.garantia_hasta)),
-    new Paragraph(""),
+    // Empresa info
+    ...(opts.empresa ? [
+      new Paragraph({
+        children: [
+          new TextRun({ text: opts.empresa.nombre, bold: true, size: 17, color: NAVY_HEX }),
+          ...([opts.empresa.ruc, opts.empresa.telefono, opts.empresa.correo].filter(Boolean).length > 0
+            ? [new TextRun({ text: "  ·  " + [opts.empresa.ruc, opts.empresa.telefono, opts.empresa.correo].filter(Boolean).join("  ·  "), size: 15, color: GRAY_HEX })]
+            : []),
+        ],
+        spacing: { after: 40 },
+      }),
+      ...(opts.empresa.direccion ? [new Paragraph({ children: [new TextRun({ text: opts.empresa.direccion, size: 15, color: GRAY_HEX })], spacing: { after: 160 } })] : []),
+    ] : [new Paragraph({ spacing: { after: 80 } })]),
 
-    // ── ORDEN ──
-    sectionTitle("3. Información de la orden"),
-    labelValue("Tipo",             TIPO_LABEL[os.tipo ?? ""] ?? os.tipo),
-    labelValue("Modalidad cobro",  COBRO_LABEL[os.modalidad_cobro ?? ""] ?? os.modalidad_cobro),
-    labelValue("Técnico",          os.tecnico ? `${os.tecnico.nombres} ${os.tecnico.apellidos}${os.tecnico.cargo ? " · " + os.tecnico.cargo : ""}` : null),
-    labelValue("Contrato",         os.contrato?.numero),
-    labelValue("Fecha programada", fmtFecha(os.fecha_programada)),
-    labelValue("Fecha cierre",     fmtFecha(os.fecha_cierre)),
-    new Paragraph(""),
+    // Descripción del problema (condicional)
+    ...(mostrarProblemaDocx ? [
+      sectionTitle("Descripción del problema y diagnóstico"),
+      ...(os.tipo === "preventivo"
+        ? [bodyPara(os.descripcion_correctivo ?? os.descripcion_problema)]
+        : [boldLabel("Descripción:"), bodyPara(os.descripcion_problema), boldLabel("Diagnóstico:"), bodyPara(os.diagnostico)]),
+    ] : []),
 
-    // ── DESCRIPCIÓN / DIAGNÓSTICO ──
-    sectionTitle("4. Descripción del problema y diagnóstico"),
-    new Paragraph({ children: [new TextRun({ text: "Descripción del problema:", bold: true, size: 18 })] }),
-    bodyPara(os.descripcion_problema),
-    new Paragraph({ children: [new TextRun({ text: "Diagnóstico:", bold: true, size: 18 })] }),
-    bodyPara(os.diagnostico),
+    // Trabajos realizados
+    ...(os.trabajos_realizados ? [sectionTitle("Trabajos realizados"), bodyPara(os.trabajos_realizados)] : []),
 
-    // ── TRABAJOS ──
-    sectionTitle("5. Trabajos realizados"),
-    bodyPara(os.trabajos_realizados),
+    // Actividades
+    ...actItems,
 
-    // ── REPUESTOS ──
-    ...(repuestos.length > 0
-      ? [
-          sectionTitle("6. Repuestos / materiales utilizados"),
-          repuestosTable,
-          new Paragraph(""),
-        ]
-      : []),
+    // Repuestos
+    ...(repuestos.length > 0 ? [sectionTitle("Repuestos / materiales utilizados"), repuestosTable!, new Paragraph("")] : []),
 
-    // ── COSTOS ──
-    sectionTitle("7. Resumen de costos"),
-    costosTable,
-    new Paragraph(""),
+    // Conclusiones
+    ...(os.observaciones ? [sectionTitle("Conclusiones y observaciones"), bodyPara(os.observaciones)] : []),
 
-    // ── OBSERVACIONES ──
-    ...(os.observaciones
-      ? [sectionTitle("8. Observaciones"), bodyPara(os.observaciones)]
-      : []),
+    // Fotos
+    ...(fotoParagraphs.length > 0 ? [sectionTitle("Anexo de imágenes"), ...fotoParagraphs] : []),
 
-    // ── ACTIVIDADES DE MANTENIMIENTO ──
-    ...await (async () => {
-      const actividades = opts.actividades ?? [];
-      if (actividades.length === 0) return [];
-
-      const RES_LABEL: Record<string, string> = { ok: "OK ✓", no_ok: "No OK ✗", na: "N/A" };
-      const ACT_NAVY_HEX  = NAVY_HEX;
-      const ACT_GREEN_HEX = "DCFCE7";
-      const ACT_RED_HEX   = "FEE2E2";
-      const ACT_GRAY_HEX  = "F1F5F9";
-
-      const actSecciones = actividades.reduce<Record<string, OsActividad[]>>((acc, a) => {
-        const key = a.seccion_titulo ?? "Sin sección";
-        if (!acc[key]) acc[key] = [];
-        acc[key].push(a);
-        return acc;
-      }, {});
-
-      const result: unknown[] = [sectionTitle("9. Actividades de mantenimiento")];
-
-      for (const [titulo, acts] of Object.entries(actSecciones)) {
-        result.push(
-          new Paragraph({
-            children: [new TextRun({ text: titulo.toUpperCase(), bold: true, size: 17, color: "475569" })],
-            spacing: { before: 120, after: 60 },
-          }),
-        );
-
-        const headerRow = new TableRow({
-          tableHeader: true,
-          children: ["Paso", "Actividad", "Resultado", "Notas"].map((h) =>
-            new TableCell({
-              children: [new Paragraph({ children: [new TextRun({ text: h, bold: true, color: "FFFFFF", size: 17 })] })],
-              shading:  { type: ShadingType.CLEAR, fill: ACT_NAVY_HEX },
-              width:    { size: h === "Paso" ? 8 : h === "Resultado" ? 15 : h === "Notas" ? 22 : 55, type: WidthType.PERCENTAGE },
-            }),
-          ),
-        });
-
-        const bodyRows = acts.map((a) => {
-          let resultado = RES_LABEL[a.resultado ?? ""] ?? "—";
-          if (a.tipo_campo === "medicion" && a.valor_medido !== null) {
-            resultado = `${a.valor_medido}${a.unidad ? " " + a.unidad : ""}`;
-            if (a.resultado) resultado += ` (${RES_LABEL[a.resultado] ?? a.resultado})`;
-          }
-
-          const fillColor = a.resultado === "ok" ? ACT_GREEN_HEX
-            : a.resultado === "no_ok" ? ACT_RED_HEX
-            : a.resultado === "na" ? ACT_GRAY_HEX
-            : "FFFFFF";
-          const textColor = (a.resultado === "no_ok" && a.es_critico) ? "B91C1C" : "0F172A";
-
-          const cellStyle = { type: ShadingType.CLEAR as typeof ShadingType.CLEAR, fill: fillColor };
-          const makeCellRun = (text: string) => new TextRun({ text, size: 17, color: textColor, bold: a.resultado === "no_ok" && a.es_critico });
-
-          return new TableRow({
-            children: [
-              new TableCell({ children: [new Paragraph({ children: [makeCellRun(a.numero_paso ?? "—")] })], shading: cellStyle }),
-              new TableCell({ children: [new Paragraph({ children: [makeCellRun(a.descripcion + (a.es_critico ? "  ★" : ""))] })], shading: cellStyle }),
-              new TableCell({ children: [new Paragraph({ children: [makeCellRun(resultado)], alignment: AlignmentType.CENTER })], shading: cellStyle }),
-              new TableCell({ children: [new Paragraph({ children: [makeCellRun(a.notas_resultado ?? "—")] })], shading: cellStyle }),
-            ],
-          });
-        });
-
-        result.push(
-          new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
-            rows: [headerRow, ...bodyRows],
-          }),
-          new Paragraph(""),
-        );
-      }
-
-      return result;
-    })(),
-
-    // ── FOTOS ──
-    ...(fotoParagraphs.length > 0
-      ? [sectionTitle("10. Registro fotográfico"), ...fotoParagraphs]
-      : []),
-
-    // ── FIRMAS ──
-    sectionTitle("11. Firmas"),
+    // Firmas
+    sectionTitle("Firmas"),
     firmasTable,
     new Paragraph(""),
     new Paragraph({
-      children: [new TextRun({ text: `Generado con VIATIQ ERP · ${new Date().toLocaleDateString("es-EC")}`, size: 14, color: "94A3B8" })],
+      children: [new TextRun({ text: `Generado con VIATIQ ERP  ·  ${fmtFecha(hoyDocx)}`, size: 14, color: GRAY_HEX })],
       alignment: AlignmentType.CENTER,
     }),
   ];
 
   const doc = new Document({
-    styles: {
-      default: {
-        document: { run: { font: "Arial", size: 18, color: "0F172A" } },
-      },
-    },
+    styles: { default: { document: { run: { font: "Arial", size: 18, color: "0F172A" } } } },
     sections: [{
       properties: { page: { margin: { top: convertInchesToTwip(0.75), bottom: convertInchesToTwip(0.75), left: convertInchesToTwip(0.9), right: convertInchesToTwip(0.9) } } },
       children: children as never,
