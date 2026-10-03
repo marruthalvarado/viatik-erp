@@ -666,7 +666,10 @@ export function OrdenDetalleSheet({ orden, open, onClose }: Props) {
                     <img src={orden.firma_tecnico2_url} alt="Firma ingeniero 2"
                       className="max-h-24 mx-auto border rounded bg-white" />
                     <p className="text-xs text-muted-foreground">
-                      {orden.tecnico2 ? `${orden.tecnico2.nombres} ${orden.tecnico2.apellidos}` : "Ingeniero 2"}
+                      {(() => {
+                        const u = usuarios.find((x) => x.id === orden.tecnico2_id) ?? orden.tecnico2;
+                        return u ? `${u.nombres} ${u.apellidos}` : "Ingeniero 2";
+                      })()}
                     </p>
                   </div>
                 )}

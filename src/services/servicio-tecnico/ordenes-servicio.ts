@@ -125,7 +125,6 @@ const OS_SELECT = `
   ),
   cliente:clientes(id, nombre, contacto_nombre, contacto_cargo),
   tecnico:usuarios!ordenes_servicio_tecnico_id_fkey(id, nombres, apellidos, cargo),
-  tecnico2:usuarios!ordenes_servicio_tecnico2_id_fkey(id, nombres, apellidos, cargo),
   contrato:contratos_mantenimiento(id, numero),
   repuestos:os_repuestos(*),
   fotos:os_fotos(*)
