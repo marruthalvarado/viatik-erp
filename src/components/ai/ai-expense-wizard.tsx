@@ -127,14 +127,18 @@ export function AiExpenseWizard({
     }
   }, [upload.estado, upload.resultado, upload.error]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ─── Cuando la IA termina → pasar a revisión ────────────────────────
+  // ─── Cuando la IA termina → auto-crear proveedor → pasar a revisión ──
   useEffect(() => {
     if (ai.procesando) return;
     if (ai.propuesta) {
-      setPropuesta(ai.propuesta);
-      setWizardEstado("revision");
-      // Auto-crear proveedor si tiene RUC y no existe en la lista
-      void autoCrearProveedor(ai.propuesta.proveedor, ai.propuesta.ruc);
+      const propuestaCapturada = ai.propuesta;
+      setPropuesta(propuestaCapturada);
+      // Primero crear/verificar el proveedor; luego cambiar estado para que
+      // buildDefaultValues() ya encuentre el proveedor en la lista.
+      void (async () => {
+        await autoCrearProveedor(propuestaCapturada.proveedor, propuestaCapturada.ruc);
+        setWizardEstado("revision");
+      })();
     }
     if (ai.error && wizardEstado === "ai_procesando") {
       setErrorMsg(ai.error);

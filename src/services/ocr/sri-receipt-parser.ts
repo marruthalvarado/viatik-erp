@@ -131,9 +131,16 @@ function extractRazonSocial(lines: string[], rucLineIdx: number): string | null 
       !/https?:\/\//i.test(l),
   );
 
-  // Solo aceptar línea que sea mayúsculas y letras (nombre de empresa estilo SRI)
-  // NO usar candidatos[last] como fallback — eso devuelve "R.U.C.:" o etiquetas
-  const empresa = candidatos.find((c) => /^[A-ZÁÉÍÓÚÑÜ\s\.&,'"()\-\/]{3,60}$/.test(c));
+  // Aceptar nombres de empresa: letras, dígitos, espacios y puntuación común.
+  // Excluir líneas que parezcan etiquetas (terminan en ":" o son cortas tipo "RUC")
+  // o números puros / direcciones.
+  const RE_EMPRESA = /^[A-ZÁÉÍÓÚÑÜ0-9\s\.&,'"()\-\/]{3,80}$/i;
+  const empresa = candidatos.find(
+    (c) =>
+      RE_EMPRESA.test(c) &&
+      !/:\s*$/.test(c) &&           // no termina en ":"
+      !/^(RUC|FACTURA|NRO|N°|AMBIENTE|EMISIÓN|RAZÓN|RAZON)/i.test(c),
+  );
   return empresa ?? null;
 }
 
@@ -215,7 +222,11 @@ export function parseSriReceipt(texto: string): SriParseResult {
           !l.includes("@") && !/https?:\/\//i.test(l) &&
           !/^(FACTURA|No\.|NÚMERO|AMBIENTE|EMISIÓN|CLAVE|NORMAL|PRODUCCIÓN|Agente)/i.test(l),
       );
-      const empresa = candidatos.find((c) => /^[A-ZÁÉÍÓÚÑÜ\s\.&,'"()\-\/]{5,80}$/.test(c));
+      const RE_EMP_POST = /^[A-ZÁÉÍÓÚÑÜ0-9\s\.&,'"()\-\/]{5,80}$/i;
+      const empresa = candidatos.find(
+        (c) => RE_EMP_POST.test(c) && !/:\s*$/.test(c) &&
+               !/^(RUC|FACTURA|NRO|N°|AMBIENTE|EMISIÓN|RAZÓN|RAZON)/i.test(c),
+      );
       razonSocial = empresa ?? null;
     }
   } else {
