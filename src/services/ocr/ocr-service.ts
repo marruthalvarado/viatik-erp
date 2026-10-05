@@ -21,8 +21,7 @@ import type { OcrExtraccion, OcrExtraccionInsert } from "@/types/entities";
 import { uploadDocumento, type StorageUploadOptions } from "./ocr-storage";
 import { activeOcrProvider, type IOcrProvider } from "./ocr-provider";
 import { extractFromXml } from "./xml-extractor";
-import { readPdfAsBase64, extractPdfTextLocal } from "./pdf-extractor";
-import { EdgeFunctionDocumentProvider } from "@/services/ai/edge-function-provider";
+import { extractPdfTextLocal } from "./pdf-extractor";
 import { parseSriReceipt } from "./sri-receipt-parser";
 
 // ─── Tipos de entrada/salida ──────────────────────────────────────────────────
@@ -302,49 +301,51 @@ async function ejecutarExtraccionXml(file: File, extraccionId: string): Promise<
 }
 
 /**
- * Envía el PDF como base64 a la Edge Function (OpenAI Vision) y guarda el texto.
+ * Extrae texto de un PDF usando PDF.js (local, sin backend) y luego corre el
+ * parser SRI para estructurar los datos. NO llama a Edge Functions ni OpenAI.
+ * Si el PDF no tiene capa de texto (escaneado sin OCR), devuelve estado
+ * "completado" con texto vacío para que el usuario complete manualmente.
  */
 async function ejecutarExtraccionPdf(file: File, extraccionId: string): Promise<OcrExtraccion> {
   let textoExtraido: string | null = null;
   let ocrProveedor = "pdf_text";
-  let estado = "completado";
-  let errorMensaje: string | null = null;
+  const estado = "completado";
+  let jsonOcr: Record<string, unknown> | null = null;
   const t0 = Date.now();
 
+  // 1. Extraer texto con PDF.js (sin backend) — nunca falla fatalmente
   try {
-    // 1. Intentar extracción local de texto con PDF.js (no requiere Edge Function)
-    const textoLocal = await extractPdfTextLocal(file);
+    textoExtraido = await extractPdfTextLocal(file);
+  } catch {
+    // PDF.js no disponible o PDF inválido — seguimos con texto vacío
+    textoExtraido = "";
+  }
 
-    if (textoLocal.trim().length >= 20) {
-      // PDF digital con capa de texto — lo guardamos directo
-      textoExtraido = textoLocal;
-      ocrProveedor = "pdf_text";
-    } else {
-      // PDF escaneado (sin texto extraíble) — intentar Edge Function con Vision
-      const { base64 } = await readPdfAsBase64(file);
-      const edgeProvider = new EdgeFunctionDocumentProvider();
-      const extraccion = await edgeProvider.extractExpenseFromPdf(base64);
-      textoExtraido = JSON.stringify(extraccion);
-      ocrProveedor = "openai_vision_pdf";
+  // 2. Correr el parser SRI sobre el texto extraído
+  if (textoExtraido && textoExtraido.trim().length >= 10) {
+    try {
+      const sriData = parseSriReceipt(textoExtraido);
+      if (sriData.confianza >= 30) {
+        jsonOcr = sriData as unknown as Record<string, unknown>;
+        ocrProveedor = "pdf_sri_parser";
+      }
+    } catch {
+      // Parser fallback — no bloqueante
     }
-  } catch (err) {
-    if (textoExtraido) {
-      // Extracción local funcionó pero Edge Function falló en PDF escaneado
-      // Guardamos el texto parcial para que el usuario llene manualmente
-      ocrProveedor = "pdf_text";
-      estado = "completado";
-    } else {
-      estado = "error";
-      errorMensaje = err instanceof Error ? err.message : String(err);
-    }
+  }
+
+  if (!textoExtraido || textoExtraido.trim().length === 0) {
+    // PDF escaneado sin capa de texto — el usuario deberá completar manualmente
+    ocrProveedor = "pdf_sin_texto";
   }
 
   const { data, error } = await supabase
     .from("ocr_extracciones")
     .update({
       estado,
-      texto_extraido: textoExtraido,
-      error_mensaje: errorMensaje,
+      texto_extraido: textoExtraido || null,
+      json_ocr: jsonOcr,
+      error_mensaje: null,
       ocr_proveedor: ocrProveedor,
       tiempo_procesamiento_ms: Date.now() - t0,
     })
