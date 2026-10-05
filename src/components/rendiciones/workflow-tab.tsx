@@ -17,7 +17,7 @@ import {
   useAprobacionesRendicion,
   useHistorialRendicion,
   useComentariosRendicion,
-  useRolUsuarioEnEmpresa,
+  useRolesUsuarioEnEmpresa,
   useWorkflowPasos,
   useEnviarAprobacion,
   useRegistrarAccion,
@@ -93,7 +93,8 @@ function WorkflowTabComplejo({
     rendicion.id,
   );
   const { data: pasosDef = [] } = useWorkflowPasos(rendicion.workflow_id);
-  const { data: rolUsuario } = useRolUsuarioEnEmpresa();
+  // Usar todos los roles del usuario (multi-rol: ej. Financiero + Aprobador)
+  const { data: rolesUsuario = [] } = useRolesUsuarioEnEmpresa();
 
   const enviarMut = useEnviarAprobacion();
   const accionMut = useRegistrarAccion();
@@ -109,7 +110,7 @@ function WorkflowTabComplejo({
   const puedeActuar = canActuarEnPaso({
     estadoCodigo,
     pasoRolId: pasoActual?.rol_id ?? null,
-    usuarioRolId: rolUsuario?.rol_id ?? null,
+    usuarioRolIds: rolesUsuario.map((r) => r.rol_id),
     rendicionUsuarioId: rendicion.usuario_id,
     usuarioActualId: user?.id,
   });
@@ -118,7 +119,7 @@ function WorkflowTabComplejo({
     estadoCodigo,
     rendicionUsuarioId: rendicion.usuario_id,
     usuarioActualId: user?.id,
-    esAprobadorEnEmpresa: !!rolUsuario,
+    esAprobadorEnEmpresa: rolesUsuario.length > 0,
   });
 
   const aprobacionesByPaso = new Map<string, AprobacionConDetalle>();

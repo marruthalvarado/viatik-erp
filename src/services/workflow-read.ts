@@ -113,60 +113,189 @@ export async function getPasoActual(rendicionId: string): Promise<PasoActual | n
 }
 
 // ---------------------------------------------------------------------------
-// Bandeja del aprobador (Sistema 1: aprobacion directa)
-// Usa rendir_mis_pendientes (RPC simple y estable) en lugar de wf_mis_pendientes
-// que tiene un mismatch de columnas en la BD.
+// Bandeja del aprobador — combina Sistema 1 (aprobacion directa) y
+// Sistema 2 (workflow por pasos). wf_mis_pendientes tiene un mismatch de
+// columnas en la BD; lo reemplazamos con queries directas.
 // ---------------------------------------------------------------------------
 
 export async function getMisAprobacionesPendientes(
-  _usuarioId: string,
-  _empresaId: string,
+  usuarioId: string,
+  empresaId: string,
 ): Promise<AprobacionPendiente[]> {
-  // rendir_mis_pendientes retorna rendiciones donde aprobador_id = auth.uid() AND estado = "enviada"
-  const { data, error } = await supabase.rpc("rendir_mis_pendientes");
-  if (error) throw new Error(error.message);
+  // ── Sistema 1: aprobacion directa (aprobador_id = yo, estado = enviada) ──
+  const directasProm = supabase.rpc("rendir_mis_pendientes");
 
-  const rows = (data ?? []) as Array<{
-    id: string;
-    numero: string;
-    descripcion?: string | null;
-    proyecto_id: string;
-    empresa_id: string;
-    usuario_id: string;
-    total_facturado: number;
-    fecha_envio?: string | null;
-    fecha_rendicion?: string | null;
-  }>;
+  // ── Sistema 2: workflow por pasos ─────────────────────────────────────────
+  // 1. Obtener rol_ids del usuario en la empresa
+  const rolesProm = supabase
+    .from("empresas_usuarios")
+    .select("rol_id")
+    .eq("usuario_id", usuarioId)
+    .eq("empresa_id", empresaId)
+    .eq("activo", true);
 
-  // Enriquecer con nombres de solicitantes
-  const uids = [...new Set(rows.map((r) => r.usuario_id).filter(Boolean))];
-  const nombresMap = new Map<string, string>();
-  if (uids.length > 0) {
-    const { data: usrs } = await supabase
-      .from("usuarios")
-      .select("id, nombres, apellidos")
-      .in("id", uids);
-    for (const u of usrs ?? []) {
-      nombresMap.set(u.id, `${u.nombres} ${u.apellidos ?? ""}`.trim());
+  const [directasResult, rolesResult] = await Promise.all([directasProm, rolesProm]);
+
+  // Directas
+  type RendicionMisPendientes = {
+    id: string; numero: string; descripcion?: string | null;
+    proyecto_id: string; empresa_id: string; usuario_id: string;
+    total_facturado: number; fecha_envio?: string | null; fecha_rendicion?: string | null;
+  };
+  const directasRows = ((directasResult.data ?? []) as RendicionMisPendientes[]);
+
+  // Roles del usuario
+  const rolIds = (rolesResult.data ?? []).map((r) => r.rol_id as string);
+
+  // 2. Pasos de workflows donde el rol del usuario puede actuar
+  const wfPendientes: AprobacionPendiente[] = [];
+
+  if (rolIds.length > 0) {
+    const { data: pasosMatchData } = await supabase
+      .from("workflow_pasos")
+      .select("id, workflow_id, orden, nombre")
+      .in("rol_id", rolIds);
+
+    const pasosMatch = pasosMatchData ?? [];
+    const workflowIdsConMiRol = [...new Set(pasosMatch.map((p) => p.workflow_id as string))];
+
+    if (workflowIdsConMiRol.length > 0) {
+      // 3. Rendiciones "enviada" en esta empresa que usen esos workflows
+      const { data: estadoData } = await supabase
+        .from("estados_rendicion")
+        .select("id")
+        .eq("empresa_id", empresaId)
+        .eq("codigo", "enviada")
+        .maybeSingle();
+
+      if (estadoData?.id) {
+        const { data: wfRendData } = await supabase
+          .from("rendiciones")
+          .select("id, numero, descripcion, proyecto_id, total_facturado, fecha_rendicion, fecha_envio, usuario_id, workflow_id")
+          .eq("empresa_id", empresaId)
+          .eq("estado_id", estadoData.id)
+          .in("workflow_id", workflowIdsConMiRol);
+
+        const wfRendiciones = wfRendData ?? [];
+
+        if (wfRendiciones.length > 0) {
+          // 4. Aprobaciones ya realizadas (para determinar paso actual)
+          const { data: aprobData } = await supabase
+            .from("aprobaciones")
+            .select("rendicion_id, workflow_paso_id, acciones_aprobacion(codigo)")
+            .in("rendicion_id", wfRendiciones.map((r) => r.id as string));
+
+          // Construir set de pasos aprobados por rendicion
+          const aprobadosPorRendicion = new Map<string, Set<string>>();
+          for (const ap of aprobData ?? []) {
+            const codigo = (ap.acciones_aprobacion as unknown as { codigo: string } | null)?.codigo;
+            if (codigo === "aprobar") {
+              const rid = ap.rendicion_id as string;
+              if (!aprobadosPorRendicion.has(rid)) aprobadosPorRendicion.set(rid, new Set());
+              aprobadosPorRendicion.get(rid)!.add(ap.workflow_paso_id as string);
+            }
+          }
+
+          // Pasos por workflow (ordenados)
+          const pasosPorWorkflow = new Map<string, typeof pasosMatch>();
+          for (const paso of pasosMatch) {
+            const wid = paso.workflow_id as string;
+            if (!pasosPorWorkflow.has(wid)) pasosPorWorkflow.set(wid, []);
+            pasosPorWorkflow.get(wid)!.push(paso);
+          }
+
+          const pasoIdsConMiRol = new Set(pasosMatch.map((p) => p.id as string));
+
+          for (const r of wfRendiciones) {
+            const wid = r.workflow_id as string;
+            const pasos = [...(pasosPorWorkflow.get(wid) ?? [])].sort(
+              (a, b) => (a.orden as number) - (b.orden as number),
+            );
+            const aprobados = aprobadosPorRendicion.get(r.id as string) ?? new Set();
+            const pasoActual = pasos.find((p) => !aprobados.has(p.id as string));
+
+            // El paso actual debe ser uno que yo pueda resolver
+            if (pasoActual && pasoIdsConMiRol.has(pasoActual.id as string)) {
+              wfPendientes.push({
+                rendicion_id: r.id as string,
+                numero: r.numero as string,
+                descripcion: r.descripcion as string | null,
+                proyecto_id: r.proyecto_id as string,
+                total_facturado: r.total_facturado as number,
+                total_reembolsable: null,
+                fecha_rendicion: r.fecha_rendicion as string | null,
+                fecha_envio: r.fecha_envio as string | null,
+                estado_codigo: "enviada",
+                estado_nombre: "Enviada",
+                paso_nombre: pasoActual.nombre as string | null,
+                paso_orden: pasoActual.orden as number,
+                usuario_nombre: null, // se enriquece abajo
+                workflow_paso_id: pasoActual.id as string,
+              });
+            }
+          }
+        }
+      }
     }
   }
 
-  return rows.map((r) => ({
-    rendicion_id: r.id,
-    numero: r.numero,
-    descripcion: r.descripcion ?? null,
-    proyecto_id: r.proyecto_id,
-    total_facturado: r.total_facturado,
-    total_reembolsable: null,
-    fecha_rendicion: r.fecha_rendicion ?? null,
-    fecha_envio: r.fecha_envio ?? null,
-    estado_codigo: "enviada",
-    estado_nombre: "Enviada",
-    paso_nombre: null,
-    paso_orden: 1,
-    usuario_nombre: nombresMap.get(r.usuario_id) ?? null,
-    workflow_paso_id: "",
-  } as AprobacionPendiente));
+  // ── Combinar y enriquecer con nombres de solicitantes ─────────────────────
+  const todasRows: AprobacionPendiente[] = [
+    ...directasRows.map((r) => ({
+      rendicion_id: r.id,
+      numero: r.numero,
+      descripcion: r.descripcion ?? null,
+      proyecto_id: r.proyecto_id,
+      total_facturado: r.total_facturado,
+      total_reembolsable: null,
+      fecha_rendicion: r.fecha_rendicion ?? null,
+      fecha_envio: r.fecha_envio ?? null,
+      estado_codigo: "enviada",
+      estado_nombre: "Enviada",
+      paso_nombre: null,
+      paso_orden: 1,
+      usuario_nombre: null,
+      workflow_paso_id: "",
+    } as AprobacionPendiente)),
+    ...wfPendientes,
+  ];
+
+  // Deduplicar por rendicion_id (podría aparecer en ambos sistemas)
+  const vistas = new Set<string>();
+  const unicas = todasRows.filter((r) => {
+    if (vistas.has(r.rendicion_id)) return false;
+    vistas.add(r.rendicion_id);
+    return true;
+  });
+
+  // Enriquecer nombres
+  const uids = [...new Set(unicas.map((r) => r.usuario_nombre === null ? r.rendicion_id : null).filter(Boolean))];
+  // Obtener usuario_id de directasRows y wfPendientes para lookup
+  const idToUsuarioId = new Map<string, string>();
+  for (const r of directasRows) idToUsuarioId.set(r.id, r.usuario_id);
+  for (const r of (wfPendientes as AprobacionPendiente[])) {
+    // wfPendientes no tienen usuario_id directamente, buscar en wfRendData derivado
+  }
+
+  // Re-query para obtener nombres — más simple y confiable
+  const rendicionIds = unicas.map((r) => r.rendicion_id);
+  if (rendicionIds.length > 0) {
+    const { data: rendNombres } = await supabase
+      .from("rendiciones")
+      .select("id, usuario_id, usuarios(nombres, apellidos)")
+      .in("id", rendicionIds);
+
+    for (const rn of rendNombres ?? []) {
+      const u = rn.usuarios as unknown as { nombres: string; apellidos: string | null } | null;
+      const nombre = u ? `${u.nombres} ${u.apellidos ?? ""}`.trim() : null;
+      const found = unicas.find((x) => x.rendicion_id === rn.id);
+      if (found) found.usuario_nombre = nombre;
+    }
+  }
+
+  void uids; // usado implícitamente arriba
+
+  return unicas;
 }
 
 // ---------------------------------------------------------------------------

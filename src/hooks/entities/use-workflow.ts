@@ -23,7 +23,7 @@ import {
 
 import { enviarAprobacion, registrarAccion, agregarComentario } from "@/services/workflow-actions";
 
-import { getRolUsuarioEnEmpresa } from "@/services/permissions";
+import { getRolUsuarioEnEmpresa, getRolesUsuarioEnEmpresa } from "@/services/permissions";
 
 // ---------------------------------------------------------------------------
 // Lectura
@@ -108,7 +108,19 @@ export function useRolUsuarioEnEmpresa() {
     queryKey: ["rol-usuario-empresa", user?.id, empresaActivaId],
     queryFn: () => getRolUsuarioEnEmpresa(user!.id, empresaActivaId!),
     enabled: !!user?.id && !!empresaActivaId,
-    staleTime: 5 * 60_000, // 5 minutos
+    staleTime: 5 * 60_000,
+  });
+}
+
+/** Retorna TODOS los roles del usuario en la empresa (soporta multi-rol). */
+export function useRolesUsuarioEnEmpresa() {
+  const { user } = useAuth();
+  const { empresaActivaId } = useCompany();
+  return useQuery({
+    queryKey: ["roles-usuario-empresa", user?.id, empresaActivaId],
+    queryFn: () => getRolesUsuarioEnEmpresa(user!.id, empresaActivaId!),
+    enabled: !!user?.id && !!empresaActivaId,
+    staleTime: 5 * 60_000,
   });
 }
 
