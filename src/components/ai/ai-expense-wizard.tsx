@@ -28,7 +28,7 @@ import { useUploadDocument } from "@/hooks/use-upload-document";
 import { useAiExpense } from "@/hooks/use-ai-expense";
 import { useCrearGasto } from "@/hooks/entities/use-gastos";
 import { useRendiciones } from "@/hooks/entities/use-rendiciones";
-import { useProveedores, useCrearProveedor } from "@/hooks/entities/use-proveedores";
+import { useProveedores, useCrearProveedor, useActualizarProveedor } from "@/hooks/entities/use-proveedores";
 import { supabase } from "@/integrations/supabase/client";
 import { useCategoriasGasto, useMonedas } from "@/hooks/entities/use-catalogs";
 import { usePoliticas } from "@/hooks/entities/use-politicas";
@@ -72,6 +72,7 @@ export function AiExpenseWizard({
   const { data: rendicionesData } = useRendiciones({ pageSize: 200 });
   const { data: proveedoresData, refetch: refetchProveedores } = useProveedores({ pageSize: 200 });
   const crearProveedor = useCrearProveedor();
+  const actualizarProveedor = useActualizarProveedor();
   const { data: categoriasData } = useCategoriasGasto({ pageSize: 200 });
   const { data: monedasData } = useMonedas({ pageSize: 200 });
 
@@ -178,9 +179,15 @@ export function AiExpenseWizard({
       if (identificacion) {
         // Buscar por RUC/identificación (más confiable)
         const { data: existing } = await dbBase
+          .select("id, nombre")
           .eq("identificacion", identificacion.trim())
           .maybeSingle();
         if (existing) {
+          // Corregir nombre si el guardado tiene prefijo de etiqueta RIDE (bug previo)
+          if (normaliza(existing.nombre) !== normaliza(nombre.trim())) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await actualizarProveedor.mutateAsync({ id: existing.id, payload: { nombre: nombre.trim() } as any });
+          }
           void refetchProveedores();
           return;
         }
