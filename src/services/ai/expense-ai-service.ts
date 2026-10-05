@@ -76,14 +76,13 @@ export async function extractExpenseFromDocumento(
     );
   }
 
-  if (ocrData.estado !== "completado" || !ocrData.texto_extraido?.trim()) {
+  // PDFs sin texto (escaneados) y PDFs con parser SRI se manejan más abajo como casos especiales
+  const esPdfLocal = ocrData.ocr_proveedor === "pdf_sin_texto" ||
+                     ocrData.ocr_proveedor === "pdf_sri_parser";
+  if (ocrData.estado !== "completado" || (!ocrData.texto_extraido?.trim() && !esPdfLocal)) {
     const extra = (ocrData as Record<string, unknown>)["error_mensaje"];
     const detalle = typeof extra === "string" && extra ? `: ${extra}` : "";
-    // Mensaje diferenciado según el tipo de error
-    const esPdfEscaneado = detalle.includes("Edge Function") || detalle.includes("OpenAI");
-    const msgBase = esPdfEscaneado
-      ? `PDF escaneado: no se pudo extraer texto automáticamente${detalle}. Ingresa los datos manualmente.`
-      : `El documento no pudo procesarse (estado: ${ocrData.estado})${detalle}.`;
+    const msgBase = `El documento no pudo procesarse (estado: ${ocrData.estado})${detalle}.`;
     throw new DocumentAIError(msgBase, "TEXT_TOO_SHORT");
   }
 
@@ -118,6 +117,37 @@ export async function extractExpenseFromDocumento(
       confianza: typeof d["confianza"] === "number" ? d["confianza"] : 70,
       observaciones: obs,
       inconsistencias: [],
+    });
+  }
+
+  // Caso especial: PDF con parser SRI local — usar json_ocr sin llamar a OpenAI
+  if (ocrData.ocr_proveedor === "pdf_sri_parser" && ocrData.json_ocr) {
+    const d = ocrData.json_ocr as Record<string, unknown>;
+    const items = Array.isArray(d["items"]) ? (d["items"] as string[]) : [];
+    const catInferida = typeof d["categoriaInferida"] === "string" ? d["categoriaInferida"] : null;
+    const obs = items.length ? items.join(", ") : null;
+    return postProcess({
+      proveedor: typeof d["razonSocial"] === "string" ? d["razonSocial"] : null,
+      ruc: typeof d["ruc"] === "string" ? d["ruc"] : null,
+      numeroFactura: typeof d["numeroFactura"] === "string" ? d["numeroFactura"] : null,
+      fecha: typeof d["fecha"] === "string" ? d["fecha"] : null,
+      moneda: typeof d["moneda"] === "string" ? d["moneda"] : "USD",
+      subtotal: typeof d["subtotal"] === "number" ? d["subtotal"] : null,
+      iva: typeof d["iva"] === "number" ? d["iva"] : null,
+      total: typeof d["total"] === "number" ? d["total"] : null,
+      categoriasSugeridas: catInferida ? [catInferida] : [],
+      confianza: typeof d["confianza"] === "number" ? d["confianza"] : 70,
+      observaciones: obs,
+      inconsistencias: [],
+    });
+  }
+
+  // Caso especial: PDF sin texto extraíble — no llamar a OpenAI, retornar vacío
+  if (ocrData.ocr_proveedor === "pdf_sin_texto") {
+    return postProcess({
+      proveedor: null, ruc: null, numeroFactura: null, fecha: null,
+      moneda: "USD", subtotal: null, iva: null, total: null,
+      categoriasSugeridas: [], confianza: 0, observaciones: null, inconsistencias: [],
     });
   }
 
