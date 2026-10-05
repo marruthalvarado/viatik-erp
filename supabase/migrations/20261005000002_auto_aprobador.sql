@@ -11,7 +11,10 @@
 -- =============================================================================
 
 -- ─── 1. rendir_aprobadores_disponibles: dedup + es_aprobador ─────────────────
-CREATE OR REPLACE FUNCTION rendir_aprobadores_disponibles()
+-- DROP primero: PostgreSQL no permite cambiar la firma con CREATE OR REPLACE
+DROP FUNCTION IF EXISTS rendir_aprobadores_disponibles();
+
+CREATE FUNCTION rendir_aprobadores_disponibles()
 RETURNS TABLE (
   usuario_id   UUID,
   nombres      TEXT,
