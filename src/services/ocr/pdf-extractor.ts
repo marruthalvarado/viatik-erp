@@ -51,15 +51,36 @@ export async function extractPdfTextLocal(file: File): Promise<string> {
   const pdfjsLib = await loadPdfjs();
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
-  const lines: string[] = [];
+  const pageTexts: string[] = [];
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p);
     const content = await page.getTextContent();
+
+    // Agrupar ítems por coordenada Y (tolerancia ±3 pt) para recuperar líneas reales.
+    // PDF.js no inserta \n — la posición vertical es la única señal de salto de línea.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const pageText = content.items.map((i: any) => i.str ?? "").join(" ");
-    if (pageText.trim()) lines.push(pageText.trim());
+    const rowMap = new Map<number, string[]>();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const item of content.items as any[]) {
+      const y = Math.round((item.transform?.[5] ?? 0) as number);
+      // Buscar fila existente dentro de ±3 unidades
+      let key = y;
+      for (const k of rowMap.keys()) {
+        if (Math.abs(k - y) <= 3) { key = k; break; }
+      }
+      if (!rowMap.has(key)) rowMap.set(key, []);
+      rowMap.get(key)!.push(item.str ?? "");
+    }
+
+    // Ordenar de arriba abajo (Y mayor = parte superior en PDF)
+    const sortedLines = [...rowMap.entries()]
+      .sort((a, b) => b[0] - a[0])
+      .map(([, tokens]) => tokens.join(" ").trim())
+      .filter(Boolean);
+
+    if (sortedLines.length) pageTexts.push(sortedLines.join("\n"));
   }
-  return lines.join("\n");
+  return pageTexts.join("\n");
 }
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────

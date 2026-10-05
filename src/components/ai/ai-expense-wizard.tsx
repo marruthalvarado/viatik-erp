@@ -394,6 +394,20 @@ export function AiExpenseWizard({
             simbolo: m.simbolo ?? null,
           }))}
           politica={politica}
+          onCrearProveedor={async (nombre) => {
+            if (!empresaActivaId) return null;
+            try {
+              const nuevo = await crearProveedor.mutateAsync({
+                empresa_id: empresaActivaId,
+                nombre: nombre.trim(),
+                identificacion: null,
+              } as Parameters<typeof crearProveedor.mutateAsync>[0]);
+              void refetchProveedores();
+              return nuevo?.id ?? null;
+            } catch {
+              return null;
+            }
+          }}
         />
       </div>
     );
