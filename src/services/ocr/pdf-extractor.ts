@@ -35,6 +35,15 @@ async function loadPdfjs(): Promise<PdfjsLib> {
 }
 
 /**
+ * Precarga PDF.js desde CDN en background.
+ * Llamar al abrir el wizard para que la primera extracción no espere la descarga.
+ */
+export function preloadPdfjs(): void {
+  // fire-and-forget: ignora errores (el usuario puede cargar igual, solo tarda más)
+  loadPdfjs().catch(() => {/* ignorar */});
+}
+
+/**
  * Extrae todo el texto de un PDF usando PDF.js (sin backend).
  * Retorna string vacío si el PDF es solo imágenes (escaneado).
  */

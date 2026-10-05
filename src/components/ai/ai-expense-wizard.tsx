@@ -40,6 +40,7 @@ import type { GastoFormValues } from "@/components/gastos/gasto-types";
 import type { GastoInsert } from "@/types/entities";
 import type { ExpenseExtraction } from "@/services/ai/document-ai-provider";
 import { EMPTY_FORM } from "@/components/gastos/gasto-types";
+import { preloadPdfjs } from "@/services/ocr/pdf-extractor";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -98,6 +99,9 @@ export function AiExpenseWizard({
 
   const ai = useAiExpense();
   const crearGasto = useCrearGasto();
+
+  // ─── Precarga PDF.js al montar el wizard ─────────────────────────────
+  useEffect(() => { preloadPdfjs(); }, []);
 
   // ─── Progreso: subida → OCR terminado → disparar IA ──────────────────
   useEffect(() => {

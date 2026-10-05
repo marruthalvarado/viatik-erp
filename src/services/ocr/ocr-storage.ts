@@ -61,7 +61,7 @@ function safePath(
 
 /**
  * Sube un archivo al bucket y retorna el path y una URL firmada.
- * Usa XHR para tracking de progreso real.
+ * Usa el cliente de Supabase directamente (más robusto que signed upload URL + XHR).
  */
 export async function uploadDocumento(
   file: File,
@@ -73,32 +73,41 @@ export async function uploadDocumento(
   const { onProgress, signal } = options;
 
   // Para el path de Storage usamos "sin_rendicion" cuando no hay rendición asignada.
-  // Este valor es solo para organizar carpetas en el bucket, no se guarda en BD.
   const pathRendicionId = rendicionId ?? "sin_rendicion";
   const path = safePath(empresaId, pathRendicionId, documentoId, file.name);
 
-  // Crear URL de upload firmada para poder usar XHR con progreso
-  const { data: signedData, error: signedError } = await supabase.storage
-    .from(BUCKET)
-    .createSignedUploadUrl(path);
+  // Progreso simulado: 0% → 40% mientras iniciamos, 40% → 95% durante upload
+  onProgress?.(10);
 
-  if (signedError || !signedData) {
-    throw new Error(`[ocr-storage] No se pudo crear URL de upload: ${signedError?.message}`);
+  if (signal?.aborted) {
+    throw new DOMException("Upload cancelado", "AbortError");
   }
 
-  // Upload real con XHR para progreso byte a byte
-  await uploadWithProgress(signedData.signedUrl, file, { onProgress, signal });
-
-  // Generar URL firmada de lectura (1 hora)
-  const { data: urlData, error: urlError } = await supabase.storage
+  // Upload estándar Supabase (más confiable que signed URL + XHR)
+  const contentType = file.type || "application/octet-stream";
+  const { error: uploadError } = await supabase.storage
     .from(BUCKET)
-    .createSignedUrl(path, 3600);
+    .upload(path, file, { upsert: true, contentType });
 
-  if (urlError || !urlData) {
-    throw new Error(`[ocr-storage] No se pudo crear URL de lectura: ${urlError?.message}`);
+  if (uploadError) {
+    throw new Error(`[ocr-storage] Upload falló: ${uploadError.message}`);
   }
 
-  return { storagePath: path, signedUrl: urlData.signedUrl };
+  onProgress?.(90);
+
+  // Generar URL firmada de lectura (1 hora) — no fatal si falla
+  let signedUrl = "";
+  try {
+    const { data: urlData } = await supabase.storage
+      .from(BUCKET)
+      .createSignedUrl(path, 3600);
+    signedUrl = urlData?.signedUrl ?? "";
+  } catch {
+    // URL firmada es solo para preview — el pipeline continúa sin ella
+  }
+
+  onProgress?.(100);
+  return { storagePath: path, signedUrl };
 }
 
 /** Descarga un archivo del bucket como Blob. */
@@ -127,49 +136,6 @@ export async function getSignedUrl(storagePath: string, ttlSeconds = 3600): Prom
     throw new Error(`[ocr-storage] Error al crear URL firmada: ${error?.message}`);
   }
   return data.signedUrl;
-}
-
-// ─── Upload con progreso (XHR) ────────────────────────────────────────────────
-
-function uploadWithProgress(
-  signedUrl: string,
-  file: File,
-  options: StorageUploadOptions,
-): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-
-    if (options.signal) {
-      options.signal.addEventListener("abort", () => {
-        xhr.abort();
-        reject(new DOMException("Upload cancelado", "AbortError"));
-      });
-    }
-
-    xhr.upload.addEventListener("progress", (ev) => {
-      if (ev.lengthComputable && options.onProgress) {
-        options.onProgress(Math.round((ev.loaded / ev.total) * 100));
-      }
-    });
-
-    xhr.addEventListener("load", () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        options.onProgress?.(100);
-        resolve();
-      } else {
-        reject(new Error(`[ocr-storage] Upload falló con estado ${xhr.status}`));
-      }
-    });
-
-    xhr.addEventListener("error", () =>
-      reject(new Error("[ocr-storage] Error de red durante el upload")),
-    );
-    xhr.addEventListener("abort", () => reject(new DOMException("Upload cancelado", "AbortError")));
-
-    xhr.open("PUT", signedUrl);
-    xhr.setRequestHeader("Content-Type", file.type);
-    xhr.send(file);
-  });
 }
 
 void buildPath; // evita warning de unused — buildPath es alias interno
