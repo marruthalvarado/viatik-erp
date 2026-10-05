@@ -13,7 +13,6 @@ import { useAuth } from "@/contexts/auth-context";
 import { toast } from "@/components/common/toast";
 
 import {
-  usePasoActual,
   useAprobacionesRendicion,
   useHistorialRendicion,
   useComentariosRendicion,
@@ -84,7 +83,6 @@ function WorkflowTabComplejo({
 }: WorkflowTabComplejoProps) {
   const { user } = useAuth();
 
-  const { data: pasoActual, isLoading: loadingPaso } = usePasoActual(rendicion.id);
   const { data: aprobaciones = [], isLoading: loadingAprobaciones } = useAprobacionesRendicion(
     rendicion.id,
   );
@@ -100,6 +98,15 @@ function WorkflowTabComplejo({
   const accionMut = useRegistrarAccion();
   const comentarioMut = useAgregarComentario();
 
+  // ── Calcular paso actual CLIENT-SIDE (evita RPC wf_paso_actual que puede estar roto) ──
+  // El paso actual = primer paso (por orden) sin aprobacion "aprobar" registrada.
+  const aprobacionesByPaso = new Map<string, AprobacionConDetalle>();
+  for (const ap of aprobaciones) {
+    if (ap.accion_codigo === "aprobar") aprobacionesByPaso.set(ap.workflow_paso_id, ap);
+  }
+  const pasosOrdenados = [...pasosDef].sort((a, b) => a.orden - b.orden);
+  const pasoActualLocal = pasosOrdenados.find((p) => !aprobacionesByPaso.has(p.id)) ?? null;
+
   const puedeEnviar = canEnviarAprobacion({
     estadoCodigo,
     rendicionUsuarioId: rendicion.usuario_id,
@@ -109,7 +116,7 @@ function WorkflowTabComplejo({
 
   const puedeActuar = canActuarEnPaso({
     estadoCodigo,
-    pasoRolId: pasoActual?.rol_id ?? null,
+    pasoRolId: pasoActualLocal?.rol_id ?? null,
     usuarioRolIds: rolesUsuario.map((r) => r.rol_id),
     rendicionUsuarioId: rendicion.usuario_id,
     usuarioActualId: user?.id,
@@ -122,14 +129,9 @@ function WorkflowTabComplejo({
     esAprobadorEnEmpresa: rolesUsuario.length > 0,
   });
 
-  const aprobacionesByPaso = new Map<string, AprobacionConDetalle>();
-  for (const ap of aprobaciones) {
-    if (ap.accion_codigo === "aprobar") aprobacionesByPaso.set(ap.workflow_paso_id, ap);
-  }
-
-  const pasosConEstado: PasoConEstado[] = pasosDef.map((paso) => {
+  const pasosConEstado: PasoConEstado[] = pasosOrdenados.map((paso) => {
     const aprobacion = aprobacionesByPaso.get(paso.id);
-    const esPasoActivo = pasoActual?.paso_id === paso.id;
+    const esPasoActivo = pasoActualLocal?.id === paso.id;
     const tieneRechazo = aprobaciones.some(
       (a) => a.workflow_paso_id === paso.id && a.accion_codigo === "rechazar",
     );
@@ -143,14 +145,14 @@ function WorkflowTabComplejo({
       nombre: paso.nombre,
       orden: paso.orden,
       rol_id: paso.rol_id,
-      es_ultimo: paso.orden === Math.max(...pasosDef.map((p) => p.orden)),
+      es_ultimo: paso.orden === Math.max(...pasosOrdenados.map((p) => p.orden)),
       estado,
       aprobacion,
     };
   });
 
   const timeline = buildTimeline(historial, comentarios, aprobaciones);
-  const loadingAll = loadingPaso || loadingAprobaciones || loadingHistorial || loadingComentarios;
+  const loadingAll = loadingAprobaciones || loadingHistorial || loadingComentarios;
   const pasoActivoConEstado = pasosConEstado.find((p) => p.estado === "activo") ?? null;
 
   async function handleEnviar() {
@@ -166,11 +168,11 @@ function WorkflowTabComplejo({
     accion: "aprobar" | "rechazar" | "devolver",
     comentario: string | null,
   ) {
-    if (!pasoActual) return;
+    if (!pasoActualLocal) return;
     try {
       await accionMut.mutateAsync({
         rendicionId: rendicion.id,
-        workflowPasoId: pasoActual.paso_id,
+        workflowPasoId: pasoActualLocal.id,
         accionCodigo: accion,
         comentario,
       });

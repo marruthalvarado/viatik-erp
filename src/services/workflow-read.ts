@@ -160,23 +160,22 @@ export async function getMisAprobacionesPendientes(
     const workflowIdsConMiRol = [...new Set(pasosMatch.map((p) => p.workflow_id as string))];
 
     if (workflowIdsConMiRol.length > 0) {
-      // 3. Rendiciones "enviada" en esta empresa que usen esos workflows
-      const { data: estadoData } = await supabase
-        .from("estados_rendicion")
-        .select("id")
+      // 3. Rendiciones en esta empresa con esos workflows — filtramos por estado "enviada"
+      //    via join para evitar el lookup de estado_id (estados_rendicion puede ser catálogo global)
+      const { data: wfRendData } = await supabase
+        .from("rendiciones")
+        .select(
+          "id, numero, descripcion, proyecto_id, total_facturado, fecha_rendicion, fecha_envio, usuario_id, workflow_id, estados_rendicion(codigo)",
+        )
         .eq("empresa_id", empresaId)
-        .eq("codigo", "enviada")
-        .maybeSingle();
+        .in("workflow_id", workflowIdsConMiRol);
 
-      if (estadoData?.id) {
-        const { data: wfRendData } = await supabase
-          .from("rendiciones")
-          .select("id, numero, descripcion, proyecto_id, total_facturado, fecha_rendicion, fecha_envio, usuario_id, workflow_id")
-          .eq("empresa_id", empresaId)
-          .eq("estado_id", estadoData.id)
-          .in("workflow_id", workflowIdsConMiRol);
-
-        const wfRendiciones = wfRendData ?? [];
+      if (wfRendData && wfRendData.length > 0) {
+        // Filtrar solo las "enviada" client-side
+        const wfRendiciones = wfRendData.filter((r) => {
+          const est = r.estados_rendicion as unknown as { codigo: string } | null;
+          return est?.codigo === "enviada";
+        });
 
         if (wfRendiciones.length > 0) {
           // 4. Aprobaciones ya realizadas (para determinar paso actual)
