@@ -113,20 +113,60 @@ export async function getPasoActual(rendicionId: string): Promise<PasoActual | n
 }
 
 // ---------------------------------------------------------------------------
-// Bandeja del aprobador (vía RPC)
+// Bandeja del aprobador (Sistema 1: aprobacion directa)
+// Usa rendir_mis_pendientes (RPC simple y estable) en lugar de wf_mis_pendientes
+// que tiene un mismatch de columnas en la BD.
 // ---------------------------------------------------------------------------
 
 export async function getMisAprobacionesPendientes(
-  usuarioId: string,
-  empresaId: string,
+  _usuarioId: string,
+  _empresaId: string,
 ): Promise<AprobacionPendiente[]> {
-  const { data, error } = await supabase.rpc("wf_mis_pendientes", {
-    p_usuario_id: usuarioId,
-    p_empresa_id: empresaId,
-  });
-
+  // rendir_mis_pendientes retorna rendiciones donde aprobador_id = auth.uid() AND estado = "enviada"
+  const { data, error } = await supabase.rpc("rendir_mis_pendientes");
   if (error) throw new Error(error.message);
-  return (data ?? []) as AprobacionPendiente[];
+
+  const rows = (data ?? []) as Array<{
+    id: string;
+    numero: string;
+    descripcion?: string | null;
+    proyecto_id: string;
+    empresa_id: string;
+    usuario_id: string;
+    total_facturado: number;
+    fecha_envio?: string | null;
+    fecha_rendicion?: string | null;
+  }>;
+
+  // Enriquecer con nombres de solicitantes
+  const uids = [...new Set(rows.map((r) => r.usuario_id).filter(Boolean))];
+  const nombresMap = new Map<string, string>();
+  if (uids.length > 0) {
+    const { data: usrs } = await supabase
+      .from("usuarios")
+      .select("id, nombres, apellidos")
+      .in("id", uids);
+    for (const u of usrs ?? []) {
+      nombresMap.set(u.id, `${u.nombres} ${u.apellidos ?? ""}`.trim());
+    }
+  }
+
+  return rows.map((r) => ({
+    rendicion_id: r.id,
+    numero: r.numero,
+    descripcion: r.descripcion ?? null,
+    proyecto_id: r.proyecto_id,
+    total_facturado: r.total_facturado,
+    total_reembolsable: null,
+    fecha_rendicion: r.fecha_rendicion ?? null,
+    fecha_envio: r.fecha_envio ?? null,
+    estado_codigo: "enviada",
+    estado_nombre: "Enviada",
+    paso_nombre: null,
+    paso_orden: 1,
+    usuario_nombre: nombresMap.get(r.usuario_id) ?? null,
+    workflow_paso_id: "",
+  } as AprobacionPendiente));
 }
 
 // ---------------------------------------------------------------------------

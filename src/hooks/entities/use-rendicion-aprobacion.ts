@@ -111,6 +111,55 @@ export function useDevolverRendicion(rendicionId: string) {
 }
 
 // ---------------------------------------------------------------------------
+// Mutations directas: reciben rendicionId al llamar mutateAsync,
+// para usar desde listas (Workflow page) sin necesitar un hook por fila.
+// ---------------------------------------------------------------------------
+
+export function useAprobarRendicionDirect() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ rendicionId, comentario }: { rendicionId: string; comentario?: string }) =>
+      aprobarRendicion(rendicionId, comentario),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["rendiciones"] });
+      void qc.invalidateQueries({ queryKey: ["rendiciones-pendientes-aprobacion"] });
+      void qc.invalidateQueries({ queryKey: ["mis-aprobaciones-pendientes"] });
+    },
+  });
+}
+
+export function useDevolverRendicionDirect() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      rendicionId,
+      observacion,
+    }: {
+      rendicionId: string;
+      observacion?: string | null;
+    }) => devolverRendicion(rendicionId, observacion),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["rendiciones"] });
+      void qc.invalidateQueries({ queryKey: ["rendiciones-pendientes-aprobacion"] });
+      void qc.invalidateQueries({ queryKey: ["mis-aprobaciones-pendientes"] });
+    },
+  });
+}
+
+export function useRechazarRendicionDirect() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ rendicionId, motivo }: { rendicionId: string; motivo: string }) =>
+      rechazarRendicion(rendicionId, motivo),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["rendiciones"] });
+      void qc.invalidateQueries({ queryKey: ["rendiciones-pendientes-aprobacion"] });
+      void qc.invalidateQueries({ queryKey: ["mis-aprobaciones-pendientes"] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Query: historial de estados de una rendicion (V1.2)
 // ---------------------------------------------------------------------------
 export function useRendirLog(rendicionId: string) {
