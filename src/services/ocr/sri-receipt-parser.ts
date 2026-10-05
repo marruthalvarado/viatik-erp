@@ -62,13 +62,14 @@ const RE_FACTURA = /\b(\d{3})[\s\-](\d{3})[\s\-](\d{9})\b/;
 // Fecha: DD/MM/YYYY o DD-MM-YYYY
 const RE_FECHA = /\b(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})\b/;
 
-// Totales — búsqueda global para capturar último valor
+// Totales — búsqueda global para capturar último valor (mismo línea o siguiente)
 const RE_VALOR_PAGAR_SRC =
   /(?:VALOR\s+A\s+PAGAR|VALOR\s+TOTAL)\s*[:\-]?\s*\$?\s*([\d,\.]+)/i;
 
 // Subtotal base 0% IVA (farmacia/exento) y subtotal genérico
+// Excluir patrones "SUBTOTAL 15%" donde el número va seguido de % (es tasa, no monto)
 const RE_SUBTOTAL_0 = /SUBTOTAL\s+0\s*%\s*[:\-]?\s*\$?\s*([\d,\.]+)/i;
-const RE_SUBTOTAL = /\bSUBTOTAL\b\s*[:\-]?\s*\$?\s*([\d,\.]+)/i;
+const RE_SUBTOTAL = /\bSUBTOTAL\b\s*[:\-]?\s*\$?\s*([\d,\.]+)(?!\s*%)/i;
 
 // IVA: acepta "IVA 15%:", "IVA 12%:", "IVA15%:" etc.
 const RE_IVA = /\bIVA\s*[\d,\.]+\s*%\s*[:\-]?\s*\$?\s*([\d,\.]+)/i;
@@ -130,9 +131,10 @@ function extractRazonSocial(lines: string[], rucLineIdx: number): string | null 
       !/https?:\/\//i.test(l),
   );
 
-  // Preferir línea que sea mayúsculas y letras (nombre de empresa estilo SRI)
+  // Solo aceptar línea que sea mayúsculas y letras (nombre de empresa estilo SRI)
+  // NO usar candidatos[last] como fallback — eso devuelve "R.U.C.:" o etiquetas
   const empresa = candidatos.find((c) => /^[A-ZÁÉÍÓÚÑÜ\s\.&,'"()\-\/]{3,60}$/.test(c));
-  return empresa ?? candidatos[candidatos.length - 1] ?? null;
+  return empresa ?? null;
 }
 
 // ─── Categoría por tipo de negocio ───────────────────────────────────────────
@@ -200,7 +202,22 @@ export function parseSriReceipt(texto: string): SriParseResult {
   // ─── 2. Razón social ────────────────────────────────────────────────────
   let razonSocial: string | null = null;
   if (rucLineIdx >= 0) {
+    // Intentar primero antes del RUC (layout normal)
     razonSocial = extractRazonSocial(lines, rucLineIdx);
+    // RIDE PDFs ponen la razón social DESPUÉS del RUC/número de factura:
+    // buscar en las siguientes 15 líneas si no se encontró antes
+    if (!razonSocial) {
+      const ventanaPost = lines.slice(rucLineIdx + 1, rucLineIdx + 16);
+      const candidatos = ventanaPost.filter(
+        (l) =>
+          l.length >= 5 && l.length <= 80 &&
+          !ADDR_TOKENS.test(l) && !/^\d/.test(l) &&
+          !l.includes("@") && !/https?:\/\//i.test(l) &&
+          !/^(FACTURA|No\.|NÚMERO|AMBIENTE|EMISIÓN|CLAVE|NORMAL|PRODUCCIÓN|Agente)/i.test(l),
+      );
+      const empresa = candidatos.find((c) => /^[A-ZÁÉÍÓÚÑÜ\s\.&,'"()\-\/]{5,80}$/.test(c));
+      razonSocial = empresa ?? null;
+    }
   } else {
     // Fallback: primera línea no vacía que no sea número
     razonSocial = lines.find((l) => l.length > 3 && !/^\d/.test(l)) ?? null;
@@ -229,12 +246,51 @@ export function parseSriReceipt(texto: string): SriParseResult {
 
   // ─── 5. Valor total ─────────────────────────────────────────────────────
   let total: number | null = null;
+
+  // Intento 1: regex en línea (formato "VALOR TOTAL: 161.03")
   const allTotalMatches = [...texto.matchAll(new RegExp(RE_VALOR_PAGAR_SRC.source, "gi"))];
   if (allTotalMatches.length > 0) {
-    // Tomar el ÚLTIMO match (el valor final, no subtotales intermedios)
     const lastMatch = allTotalMatches[allTotalMatches.length - 1];
     total = parseNum(lastMatch[1]);
     if (total !== null) confianza += 25;
+  }
+
+  // Intento 2: RIDE multi-columna — etiquetas en columna izquierda, valores en derecha.
+  // PDF.js las concatena como: LABEL1\nLABEL2\n...\nVALOR_TOTAL\n...\nnum1\nnum2\n...
+  // Necesitamos contar la posición de "VALOR TOTAL" entre las etiquetas financieras
+  // para encontrar el número correspondiente en la columna de valores.
+  if (total === null) {
+    // Etiquetas financieras del bloque final de un RIDE
+    const RIDE_LABELS = /^(SUBTOTAL|TOTAL\s+DESCUENTO|ICE|IVA|IRBPNR|PROPINA|VALOR\s+TOTAL|AHORRO)/i;
+    // Encontrar el primer índice del bloque financiero
+    const blockStart = lines.findIndex((l) => RIDE_LABELS.test(l));
+    if (blockStart >= 0) {
+      // Separar etiquetas vs números dentro del bloque
+      const blockLines = lines.slice(blockStart);
+      const labelLines: number[] = [];  // índices de etiquetas
+      const valueLines: number[] = [];  // índices de números
+      blockLines.forEach((l, i) => {
+        if (RIDE_LABELS.test(l)) labelLines.push(i);
+        else if (parseNum(l) !== null) valueLines.push(i);
+      });
+      // Posición de "VALOR TOTAL" exacto entre las etiquetas
+      const vtPos = labelLines.findIndex((i) => /^VALOR\s+TOTAL$/i.test(blockLines[i]));
+      if (vtPos >= 0 && vtPos < valueLines.length) {
+        const n = parseNum(blockLines[valueLines[vtPos]]);
+        if (n !== null) { total = n; confianza += 25; }
+      }
+    }
+  }
+
+  // Intento 3: "Forma de pago" — valor al final de la sección de pagos
+  if (total === null) {
+    const formaPagoIdx = lines.findIndex((l) => /forma\s+de\s+pago/i.test(l));
+    if (formaPagoIdx >= 0) {
+      for (let i = formaPagoIdx + 1; i < Math.min(lines.length, formaPagoIdx + 8); i++) {
+        const n = parseNum(lines[i]);
+        if (n !== null && n > 0) { total = n; confianza += 20; break; }
+      }
+    }
   }
 
   // ─── 6. Subtotal ────────────────────────────────────────────────────────
