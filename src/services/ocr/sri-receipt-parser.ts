@@ -114,34 +114,43 @@ const ADDR_TOKENS =
   /\b(CALLE|AV\.|AVDA|KM\b|LOCAL|PISO|OFIC|URB\.|BARRIO|PARROQUIA|CANTON|CIUDAD|SUCURSAL|VENTA\s+POR|PUNT[OA]\s+(DE\s+)?(VENTA|FISICO)|MOSTRADOR|PLAZA|MALL|CENTRO\s+COMERC)\b/i;
 
 /**
+ * Etiquetas RIDE que pueden aparecer pegadas al nombre de empresa por estar en
+ * la misma fila Y del layout de dos columnas (PDF.js las fusiona en una línea).
+ * Ejemplos: "FECHA Y HORA DE DISTRIBUIDORA..." → "DISTRIBUIDORA..."
+ */
+const RE_LABEL_PREFIX =
+  /^(FECHA\s+Y\s+HORA\s+DE\s+|FECHA\s+DE\s+EMISIÓN[:\s]*|HORA\s+DE\s+EMISIÓN[:\s]*|RAZÓN\s+SOCIAL[:\s]*|DIRECCIÓN[:\s]*|TELÉFONO[:\s]*|CORREO[:\s]*|REPRESENTANTE[:\s]*|OBLIGADO\s+A\s+LLEVAR[:\s]*)/i;
+
+/** Quita prefijos de etiqueta RIDE para aislar el nombre de empresa. */
+function stripLabelPrefix(line: string): string {
+  return line.replace(RE_LABEL_PREFIX, "").trim();
+}
+
+/**
  * Extrae la razón social buscando en las líneas anteriores al RUC.
- * Heurística: primera línea corta (3–60 chars) sin tokens de dirección ni dígitos iniciales.
+ * Aplica limpieza de prefijos de etiqueta antes de evaluar candidatos.
  */
 function extractRazonSocial(lines: string[], rucLineIdx: number): string | null {
   const ventana = lines.slice(Math.max(0, rucLineIdx - 8), rucLineIdx);
 
-  // Candidatos: sin dirección, sin número inicial, sin @, sin URL
-  const candidatos = ventana.filter(
-    (l) =>
-      l.length >= 3 &&
-      l.length <= 70 &&
-      !ADDR_TOKENS.test(l) &&
-      !/^\d/.test(l) &&
-      !l.includes("@") &&
-      !/https?:\/\//i.test(l),
-  );
-
-  // Aceptar nombres de empresa: letras, dígitos, espacios y puntuación común.
-  // Excluir líneas que parezcan etiquetas (terminan en ":" o son cortas tipo "RUC")
-  // o números puros / direcciones.
   const RE_EMPRESA = /^[A-ZÁÉÍÓÚÑÜ0-9\s\.&,'"()\-\/]{3,80}$/i;
-  const empresa = candidatos.find(
-    (c) =>
-      RE_EMPRESA.test(c) &&
-      !/:\s*$/.test(c) &&           // no termina en ":"
-      !/^(RUC|FACTURA|NRO|N°|AMBIENTE|EMISIÓN|RAZÓN|RAZON)/i.test(c),
-  );
-  return empresa ?? null;
+  const RE_ETIQUETA_INICIO = /^(RUC|FACTURA|NRO|N°|AMBIENTE|EMISIÓN|FECHA|HORA|RAZÓN|RAZON|DIREC)/i;
+
+  for (const raw of ventana) {
+    if (!/^\d/.test(raw) && !raw.includes("@") && !/https?:\/\//i.test(raw) && !ADDR_TOKENS.test(raw)) {
+      const cleaned = stripLabelPrefix(raw);
+      if (
+        cleaned.length >= 3 &&
+        cleaned.length <= 80 &&
+        RE_EMPRESA.test(cleaned) &&
+        !/:\s*$/.test(cleaned) &&
+        !RE_ETIQUETA_INICIO.test(cleaned)
+      ) {
+        return cleaned;
+      }
+    }
+  }
+  return null;
 }
 
 // ─── Categoría por tipo de negocio ───────────────────────────────────────────
@@ -215,19 +224,16 @@ export function parseSriReceipt(texto: string): SriParseResult {
     // buscar en las siguientes 15 líneas si no se encontró antes
     if (!razonSocial) {
       const ventanaPost = lines.slice(rucLineIdx + 1, rucLineIdx + 16);
-      const candidatos = ventanaPost.filter(
-        (l) =>
-          l.length >= 5 && l.length <= 80 &&
-          !ADDR_TOKENS.test(l) && !/^\d/.test(l) &&
-          !l.includes("@") && !/https?:\/\//i.test(l) &&
-          !/^(FACTURA|No\.|NÚMERO|AMBIENTE|EMISIÓN|CLAVE|NORMAL|PRODUCCIÓN|Agente)/i.test(l),
-      );
       const RE_EMP_POST = /^[A-ZÁÉÍÓÚÑÜ0-9\s\.&,'"()\-\/]{5,80}$/i;
-      const empresa = candidatos.find(
-        (c) => RE_EMP_POST.test(c) && !/:\s*$/.test(c) &&
-               !/^(RUC|FACTURA|NRO|N°|AMBIENTE|EMISIÓN|RAZÓN|RAZON)/i.test(c),
-      );
-      razonSocial = empresa ?? null;
+      const RE_ETIQ_POST = /^(RUC|FACTURA|No\.|NÚMERO|AMBIENTE|EMISIÓN|CLAVE|NORMAL|PRODUCCIÓN|Agente|FECHA|HORA|DIREC|RAZÓN|RAZON)/i;
+      for (const raw of ventanaPost) {
+        if (raw.length < 5 || ADDR_TOKENS.test(raw) || /^\d/.test(raw) || raw.includes("@") || /https?:\/\//i.test(raw)) continue;
+        const cleaned = stripLabelPrefix(raw);
+        if (cleaned.length >= 5 && RE_EMP_POST.test(cleaned) && !/:\s*$/.test(cleaned) && !RE_ETIQ_POST.test(cleaned)) {
+          razonSocial = cleaned;
+          break;
+        }
+      }
     }
   } else {
     // Fallback: primera línea no vacía que no sea número
