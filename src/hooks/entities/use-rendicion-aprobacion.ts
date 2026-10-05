@@ -52,7 +52,7 @@ export function useEnviarRendicion(rendicionId: string) {
   const qc = useQueryClient();
 
   return useMutation({
-    mutationFn: (aprobadorId: string) => enviarRendicion(rendicionId, aprobadorId),
+    mutationFn: (aprobadorId: string | null | undefined) => enviarRendicion(rendicionId, aprobadorId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["rendicion", rendicionId] });
       void qc.invalidateQueries({ queryKey: ["rendiciones"] });

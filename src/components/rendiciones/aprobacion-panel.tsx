@@ -480,8 +480,11 @@ function EnviarDialog({
   const enviar = useEnviarRendicion(rendicionId);
   void empresaId;
 
-  // If policy has a default approver, send directly without showing the dialog
+  // Solo los que tienen rol "aprobador"
+  const aprobadoresConRol = aprobadores.filter((a) => a.es_aprobador);
+
   async function handleClick() {
+    // Prioridad 1: aprobador fijo en la política
     if (defaultAprobadorId) {
       try {
         await enviar.mutateAsync(defaultAprobadorId);
@@ -491,6 +494,19 @@ function EnviarDialog({
       }
       return;
     }
+
+    // Prioridad 2: exactamente 1 aprobador → auto-enviar sin diálogo
+    if (aprobadoresConRol.length === 1) {
+      try {
+        await enviar.mutateAsync(aprobadoresConRol[0].usuario_id);
+        toast.success("Rendicion enviada para aprobacion.");
+      } catch (err) {
+        toast.error((err as Error).message ?? "Error al enviar.");
+      }
+      return;
+    }
+
+    // Prioridad 3: >1 aprobadores → mostrar picker
     setAprobadorId("");
     setOpen(true);
   }
@@ -506,13 +522,16 @@ function EnviarDialog({
     }
   }
 
+  // Opciones del picker: si hay aprobadores con rol, mostrar solo ellos; si no, todos
+  const opcionesPicker = aprobadoresConRol.length > 0 ? aprobadoresConRol : aprobadores;
+
   return (
     <>
       <Button
         onClick={() => void handleClick()}
         className="w-full gap-2"
         variant="default"
-        disabled={enviar.isPending}
+        disabled={enviar.isPending || isLoading}
       >
         <Send className="size-4" />
         {enviar.isPending ? "Enviando..." : "Enviar para aprobacion"}
@@ -529,16 +548,16 @@ function EnviarDialog({
                 <SelectValue placeholder={isLoading ? "Cargando..." : "Seleccionar aprobador"} />
               </SelectTrigger>
               <SelectContent>
-                {aprobadores.map((a) => (
+                {opcionesPicker.map((a) => (
                   <SelectItem key={a.usuario_id} value={a.usuario_id}>
                     {a.nombres}
                     {a.apellidos ? " " + a.apellidos : ""}
                     {a.email ? ` (${a.email})` : ""}
                   </SelectItem>
                 ))}
-                {aprobadores.length === 0 && !isLoading && (
+                {opcionesPicker.length === 0 && !isLoading && (
                   <SelectItem value="__none__" disabled>
-                    No hay otros usuarios en la empresa
+                    No hay aprobadores configurados
                   </SelectItem>
                 )}
               </SelectContent>

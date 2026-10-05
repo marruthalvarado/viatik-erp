@@ -27,6 +27,7 @@ export interface UsuarioAprobador {
   nombres: string;
   apellidos: string | null;
   email: string | null;
+  es_aprobador: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -34,13 +35,15 @@ export interface UsuarioAprobador {
 // ---------------------------------------------------------------------------
 
 /**
- * Empleado envía la rendición a un aprobador específico.
- * Estado: borrador | rechazada → enviada
+ * Empleado envía la rendición a un aprobador.
+ * Si aprobadorId es undefined/null, el servidor auto-detecta al único
+ * usuario con rol "aprobador" en la empresa.
+ * Estado: borrador | rechazada | devuelta | registrada → enviada
  */
-export async function enviarRendicion(rendicionId: string, aprobadorId: string): Promise<void> {
+export async function enviarRendicion(rendicionId: string, aprobadorId?: string | null): Promise<void> {
   const { error } = await supabase.rpc("rendir_enviar", {
     p_rendicion_id: rendicionId,
-    p_aprobador_id: aprobadorId,
+    p_aprobador_id: aprobadorId ?? null,
   });
   if (error) throw new Error(error.message);
 }
