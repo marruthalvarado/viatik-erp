@@ -69,7 +69,7 @@ const RE_VALOR_PAGAR_SRC =
 // Subtotal base 0% IVA (farmacia/exento) y subtotal genérico
 // Excluir patrones "SUBTOTAL 15%" donde el número va seguido de % (es tasa, no monto)
 const RE_SUBTOTAL_0 = /SUBTOTAL\s+0\s*%\s*[:\-]?\s*\$?\s*([\d,\.]+)/i;
-const RE_SUBTOTAL = /\bSUBTOTAL\b\s*[:\-]?\s*\$?\s*([\d,\.]+)(?!\s*%)/i;
+const RE_SUBTOTAL = /\bSUBTOTAL\b\s*[:\-]?\s*\$?\s*([\d,\.]+)(?!\s*%|\d)/i;
 
 // IVA: acepta "IVA 15%:", "IVA 12%:", "IVA15%:" etc.
 const RE_IVA = /\bIVA\s*[\d,\.]+\s*%\s*[:\-]?\s*\$?\s*([\d,\.]+)/i;
@@ -244,8 +244,10 @@ export function parseSriReceipt(texto: string): SriParseResult {
     }
   }
 
-  // ─── 5. Valor total ─────────────────────────────────────────────────────
+  // ─── 5-7. Total, Subtotal e IVA ─────────────────────────────────────────
   let total: number | null = null;
+  let subtotal: number | null = null;
+  let iva: number | null = null;
 
   // Intento 1: regex en línea (formato "VALOR TOTAL: 161.03")
   const allTotalMatches = [...texto.matchAll(new RegExp(RE_VALOR_PAGAR_SRC.source, "gi"))];
@@ -256,29 +258,47 @@ export function parseSriReceipt(texto: string): SriParseResult {
   }
 
   // Intento 2: RIDE multi-columna — etiquetas en columna izquierda, valores en derecha.
-  // PDF.js las concatena como: LABEL1\nLABEL2\n...\nVALOR_TOTAL\n...\nnum1\nnum2\n...
-  // Necesitamos contar la posición de "VALOR TOTAL" entre las etiquetas financieras
-  // para encontrar el número correspondiente en la columna de valores.
-  if (total === null) {
-    // Etiquetas financieras del bloque final de un RIDE
+  // PDF.js las concatena como: LABEL1\nLABEL2\n...\nnum1\nnum2\n...
+  // Usamos position matching para extraer total, subtotal e IVA al mismo tiempo.
+  {
     const RIDE_LABELS = /^(SUBTOTAL|TOTAL\s+DESCUENTO|ICE|IVA|IRBPNR|PROPINA|VALOR\s+TOTAL|AHORRO)/i;
-    // Encontrar el primer índice del bloque financiero
     const blockStart = lines.findIndex((l) => RIDE_LABELS.test(l));
     if (blockStart >= 0) {
-      // Separar etiquetas vs números dentro del bloque
       const blockLines = lines.slice(blockStart);
-      const labelLines: number[] = [];  // índices de etiquetas
-      const valueLines: number[] = [];  // índices de números
+      const labelLines: number[] = [];
+      const valueLines: number[] = [];
       blockLines.forEach((l, i) => {
         if (RIDE_LABELS.test(l)) labelLines.push(i);
         else if (parseNum(l) !== null) valueLines.push(i);
       });
-      // Posición de "VALOR TOTAL" exacto entre las etiquetas
-      const vtPos = labelLines.findIndex((i) => /^VALOR\s+TOTAL$/i.test(blockLines[i]));
-      if (vtPos >= 0 && vtPos < valueLines.length) {
-        const n = parseNum(blockLines[valueLines[vtPos]]);
+
+      const getBlockValue = (pat: RegExp): number | null => {
+        const pos = labelLines.findIndex((i) => pat.test(blockLines[i]));
+        if (pos >= 0 && pos < valueLines.length) {
+          return parseNum(blockLines[valueLines[pos]]);
+        }
+        return null;
+      };
+
+      // Total por posición
+      if (total === null) {
+        const n = getBlockValue(/^VALOR\s+TOTAL$/i);
         if (n !== null) { total = n; confianza += 25; }
       }
+
+      // Subtotal: "SUBTOTAL 15%", "SUBTOTAL 12%", etc. (base imponible con IVA)
+      const subTaxable = getBlockValue(/^SUBTOTAL\s+\d+\s*%$/i);
+      if (subTaxable !== null) {
+        subtotal = subTaxable;
+      } else {
+        // Fallback: cualquier SUBTOTAL que no sea "SIN IMPUESTOS"
+        const subAny = getBlockValue(/^SUBTOTAL(?!\s+SIN\b)/i);
+        if (subAny !== null) subtotal = subAny;
+      }
+
+      // IVA por posición
+      const ivaBlock = getBlockValue(/^IVA\b/i);
+      if (ivaBlock !== null && ivaBlock > 0) iva = ivaBlock;
     }
   }
 
@@ -293,23 +313,25 @@ export function parseSriReceipt(texto: string): SriParseResult {
     }
   }
 
-  // ─── 6. Subtotal ────────────────────────────────────────────────────────
-  let subtotal: number | null = null;
-  const sub0Match = RE_SUBTOTAL_0.exec(texto);
-  if (sub0Match) {
-    subtotal = parseNum(sub0Match[1]);
-  } else {
-    const subMatch = RE_SUBTOTAL.exec(texto);
-    if (subMatch) subtotal = parseNum(subMatch[1]);
+  // ─── 6. Subtotal (fallback para facturas no-RIDE con valor en la misma línea) ─
+  if (subtotal === null) {
+    const sub0Match = RE_SUBTOTAL_0.exec(texto);
+    if (sub0Match) {
+      subtotal = parseNum(sub0Match[1]);
+    } else {
+      const subMatch = RE_SUBTOTAL.exec(texto);
+      if (subMatch) subtotal = parseNum(subMatch[1]);
+    }
   }
 
-  // ─── 7. IVA ─────────────────────────────────────────────────────────────
-  let iva: number | null = null;
-  const ivaMatch = RE_IVA.exec(texto);
-  if (ivaMatch) {
-    const ivaVal = parseNum(ivaMatch[1]);
-    // Ignorar si el IVA es 0 (comprobante exento), guardarlo como null
-    if (ivaVal !== null && ivaVal > 0) iva = ivaVal;
+  // ─── 7. IVA (fallback para facturas no-RIDE con valor en la misma línea) ────
+  if (iva === null) {
+    const ivaMatch = RE_IVA.exec(texto);
+    if (ivaMatch) {
+      const ivaVal = parseNum(ivaMatch[1]);
+      // Ignorar si el IVA es 0 (comprobante exento), guardarlo como null
+      if (ivaVal !== null && ivaVal > 0) iva = ivaVal;
+    }
   }
 
   // ─── 8. Clave de acceso ─────────────────────────────────────────────────
