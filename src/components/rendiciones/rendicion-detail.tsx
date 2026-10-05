@@ -12,6 +12,7 @@ import {
   GitBranch,
   Clock,
   Download,
+  Send,
 } from "lucide-react";
 
 import { PageHeader } from "@/components/common/page-header";
@@ -27,6 +28,16 @@ import {
 } from "@/components/common/drawer";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,7 +45,7 @@ import { useProyectos } from "@/hooks/entities/use-proyectos";
 import { useEstadosRendicion, useTiposRendicion } from "@/hooks/entities/use-catalogs";
 import { useActualizarRendicion, useEliminarRendicion } from "@/hooks/entities/use-rendiciones";
 import { useActualizarViaje } from "@/hooks/entities/use-viajes";
-import { useRolUsuarioEnEmpresa } from "@/hooks/entities/use-workflow";
+import { useRolUsuarioEnEmpresa, useEnviarAprobacion } from "@/hooks/entities/use-workflow";
 import { useViajes } from "@/hooks/entities/use-viajes";
 import { usePoliticas } from "@/hooks/entities/use-politicas";
 import { useCompany } from "@/contexts/company-context";
@@ -93,6 +104,8 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
   const [exportando, setExportando] = useState(false);
   const [exportandoPDF, setExportandoPDF] = useState(false);
   const [activeTab, setActiveTab] = useState("gastos");
+  const [alertEnvioMsg, setAlertEnvioMsg] = useState<string | null>(null);
+  const [confirmarEnvio, setConfirmarEnvio] = useState(false);
 
   const { data: proyectosData } = useProyectos({ pageSize: 200 });
   const { data: estadosData } = useEstadosRendicion({ pageSize: 100 });
@@ -105,6 +118,7 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
   const actualizarViaje = useActualizarViaje();
   const eliminar = useEliminarRendicion();
   const enviar = useEnviarRendicion(rendicion.id);
+  const enviarAprobacion = useEnviarAprobacion();
 
   // --- Computo de total efectivo (gastos filtrados + vehiculo propio + km ciudad) ---
   const { data: viajesData } = useViajes({
@@ -185,6 +199,29 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
     proyectos.find((p) => p.id === rendicion.proyecto_id)?.nombre ?? rendicion.proyecto_id;
 
   const viajeExistente = viajes[0] ?? null;
+
+  function handleEnviar() {
+    if (gastosRaw.length === 0) {
+      setAlertEnvioMsg("Debes registrar al menos un gasto antes de enviar la rendición.");
+      return;
+    }
+    if (!rendicion.proyecto_id) {
+      setAlertEnvioMsg("La rendición debe tener un proyecto asignado antes de enviarse.");
+      return;
+    }
+    setConfirmarEnvio(true);
+  }
+
+  async function handleConfirmarEnvio() {
+    try {
+      await enviarAprobacion.mutateAsync(rendicion.id);
+      toast.success("Rendición enviada a aprobación correctamente.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al enviar la rendición.");
+    } finally {
+      setConfirmarEnvio(false);
+    }
+  }
 
   async function handleSubmitEdit(values: RendicionFormValues) {
     if (!empresaActivaId || !user?.id) return;
@@ -322,6 +359,19 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
               {exportando ? "Generando…" : "Excel"}
             </Button>
 
+            {(estadoCodigo === "registrada" || estadoCodigo === "devuelta") && (
+              <Button
+                size="sm"
+                className="gap-1.5"
+                aria-label="Enviar rendición a aprobación"
+                disabled={enviarAprobacion.isPending}
+                onClick={handleEnviar}
+              >
+                <Send className="size-4" />
+                {enviarAprobacion.isPending ? "Enviando…" : "Enviar"}
+              </Button>
+            )}
+
             <Button
               variant="outline"
               size="sm"
@@ -402,10 +452,12 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
             <FileText className="size-4" />
             Documentos
           </TabsTrigger>
-          <TabsTrigger value="workflow" className="gap-1.5">
-            <GitBranch className="size-4" />
-            Workflow
-          </TabsTrigger>
+          {estadoCodigo !== "registrada" && (
+            <TabsTrigger value="workflow" className="gap-1.5">
+              <GitBranch className="size-4" />
+              Workflow
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="gastos">
@@ -463,6 +515,41 @@ export function RendicionDetail({ rendicion, onBack, onUpdated }: RendicionDetai
         onConfirm={handleDelete}
         loading={eliminar.isPending}
       />
+
+      {/* Validación de envío */}
+      <AlertDialog open={!!alertEnvioMsg} onOpenChange={() => setAlertEnvioMsg(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>No se puede enviar</AlertDialogTitle>
+            <AlertDialogDescription>{alertEnvioMsg}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setAlertEnvioMsg(null)}>Entendido</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirmación de envío */}
+      <AlertDialog open={confirmarEnvio} onOpenChange={setConfirmarEnvio}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Enviar rendición a aprobación?</AlertDialogTitle>
+            <AlertDialogDescription>
+              La rendición <strong>{rendicion.numero}</strong> será enviada al aprobador. Una vez
+              enviada no podrás modificar los gastos.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => void handleConfirmarEnvio()}
+              disabled={enviarAprobacion.isPending}
+            >
+              {enviarAprobacion.isPending ? "Enviando..." : "Confirmar envío"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

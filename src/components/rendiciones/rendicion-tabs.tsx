@@ -4,7 +4,7 @@
  * Consumidos por RendicionDetail (rendicion-detail.tsx).
  */
 import { useState } from "react";
-import { Pencil, Plus, ScanLine, Send, Trash2 } from "lucide-react";
+import { Pencil, Plus, ScanLine, Trash2 } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,7 +40,6 @@ import { useCrearProveedor, useProveedores } from "@/hooks/entities/use-proveedo
 import { useCategoriasGasto, useMonedas } from "@/hooks/entities/use-catalogs";
 import { toast } from "@/components/common/toast";
 import { AiExpenseWizard } from "@/components/ai/ai-expense-wizard";
-import { useEnviarAprobacion } from "@/hooks/entities/use-workflow";
 import type { DataTableColumn } from "@/components/common/data-table";
 import type { Gasto, Documento, Viaje, GastoInsert, Politica } from "@/types/entities";
 
@@ -178,9 +177,6 @@ export function GastosTab({
   const queryClient = useQueryClient();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [wizardOpen, setWizardOpen] = useState(false);
-  const [alertMsg, setAlertMsg] = useState<string | null>(null);
-  const [confirmarEnvio, setConfirmarEnvio] = useState(false);
-  const enviarAprobacion = useEnviarAprobacion();
 
   // Catalog data for the gasto form
   const { data: proveedoresData, refetch: refetchProveedores } = useProveedores({ pageSize: 200 });
@@ -281,29 +277,6 @@ export function GastosTab({
       return (nuevo as { id: string }).id ?? null;
     } catch {
       return null;
-    }
-  }
-
-  async function handleEnviar() {
-    if (gastosRaw.length === 0) {
-      setAlertMsg("Debes registrar al menos un gasto antes de enviar la rendición.");
-      return;
-    }
-    if (!rendicionProyectoId) {
-      setAlertMsg("La rendición debe tener un proyecto asignado antes de enviarse.");
-      return;
-    }
-    setConfirmarEnvio(true);
-  }
-
-  async function handleConfirmarEnvio() {
-    try {
-      await enviarAprobacion.mutateAsync(rendicionId);
-      toast.success("Rendición enviada a aprobación correctamente.");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al enviar la rendición.");
-    } finally {
-      setConfirmarEnvio(false);
     }
   }
 
@@ -543,15 +516,19 @@ export function GastosTab({
             {gastosRaw.length !== 1 ? "s" : ""}
           </p>
           {puedeEditar && (
-            <div className="flex items-center gap-2">
-              <Button size="sm" variant="outline" onClick={() => setWizardOpen(true)}>
+            <div className="flex items-center gap-3">
+              <Button size="sm" onClick={() => setWizardOpen(true)}>
                 <ScanLine className="mr-1 size-3.5" />
                 Cargar Factura
               </Button>
-              <Button size="sm" onClick={() => setDrawerOpen(true)}>
-                <Plus className="mr-1 size-3.5" />
-                Nuevo Gasto
-              </Button>
+              <button
+                type="button"
+                className="text-sm text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                onClick={() => setDrawerOpen(true)}
+              >
+                <Plus className="mr-0.5 inline size-3" />
+                Agregar manualmente
+              </button>
             </div>
           )}
         </div>
@@ -589,54 +566,6 @@ export function GastosTab({
           </div>
         )}
       </div>
-
-      {puedeEditar && (
-        <div className="mt-4 flex justify-end border-t pt-4">
-          <Button
-            variant="default"
-            onClick={() => void handleEnviar()}
-            disabled={enviarAprobacion.isPending}
-          >
-            <Send className="mr-1.5 size-4" />
-            {enviarAprobacion.isPending ? "Enviando..." : "Enviar rendición"}
-          </Button>
-        </div>
-      )}
-
-      {/* Alert: validación fallida */}
-      <AlertDialog open={!!alertMsg} onOpenChange={() => setAlertMsg(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>No se puede enviar</AlertDialogTitle>
-            <AlertDialogDescription>{alertMsg}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction onClick={() => setAlertMsg(null)}>Entendido</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Confirmación de envío */}
-      <AlertDialog open={confirmarEnvio} onOpenChange={setConfirmarEnvio}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Enviar rendición a aprobación?</AlertDialogTitle>
-            <AlertDialogDescription>
-              La rendición <strong>{rendicionNumero}</strong> será enviada al aprobador. Una vez
-              enviada no podrás modificar los gastos.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => void handleConfirmarEnvio()}
-              disabled={enviarAprobacion.isPending}
-            >
-              {enviarAprobacion.isPending ? "Enviando..." : "Confirmar envío"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       {/* Wizard IA: Cargar Factura */}
       <Drawer open={wizardOpen} onOpenChange={setWizardOpen}>

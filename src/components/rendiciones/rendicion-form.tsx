@@ -3,13 +3,7 @@ import { Check, ChevronsUpDown, Plus } from "lucide-react";
 import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Command,
@@ -73,6 +67,12 @@ export function RendicionForm({
   const [nuevoNombre, setNuevoNombre] = useState("");
   const [nuevoDescripcion, setNuevoDescripcion] = useState("");
   const [extraProyectos, setExtraProyectos] = useState<Array<{ id: string; nombre: string }>>([]);
+  const [incluyeViaje, setIncluyeViaje] = useState(
+    // nueva rendición → true (70% tienen viaje); edición → según datos existentes
+    isEditing
+      ? !!(defaultValues.viaje_origen || defaultValues.viaje_destino || defaultValues.viaje_fecha_inicio)
+      : true,
+  );
 
   const formRef = useRef<UseFormReturn<RendicionFormValues> | null>(null);
 
@@ -113,22 +113,34 @@ export function RendicionForm({
           formRef.current = form;
           const vehiculoPropio = form.watch("viaje_vehiculo_propio");
 
+          function handleToggleViaje(checked: boolean) {
+            setIncluyeViaje(checked);
+            if (!checked) {
+              form.setValue("viaje_origen", null);
+              form.setValue("viaje_destino", null);
+              form.setValue("viaje_fecha_inicio", null);
+              form.setValue("viaje_fecha_fin", null);
+              form.setValue("viaje_vehiculo_propio", false);
+              form.setValue("viaje_distancia_km", null);
+            }
+          }
+
           return (
             <div className="grid grid-cols-2 gap-4">
-              {/* ── Número (auto-generado) ─────────────────────── */}
+              {/* ── Número + Fecha (auto, fila compacta) ──────── */}
               <FormField
                 control={form.control}
                 name="numero"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Número</FormLabel>
+                    <FormLabel className="text-xs text-muted-foreground">Número</FormLabel>
                     <FormControl>
                       <Input
                         {...field}
                         value={field.value ?? ""}
                         disabled
-                        placeholder="Se generará automáticamente"
-                        className="bg-muted text-muted-foreground cursor-not-allowed"
+                        placeholder="Auto"
+                        className="bg-muted text-muted-foreground cursor-not-allowed text-sm"
                       />
                     </FormControl>
                     <FormMessage />
@@ -136,20 +148,19 @@ export function RendicionForm({
                 )}
               />
 
-              {/* ── Fecha (auto-llenado, no editable) ────────── */}
               <FormField
                 control={form.control}
                 name="fecha_rendicion"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Fecha</FormLabel>
+                    <FormLabel className="text-xs text-muted-foreground">Fecha</FormLabel>
                     <FormControl>
                       <Input
                         type="date"
                         {...field}
                         value={field.value ?? ""}
                         disabled
-                        className="bg-muted text-muted-foreground cursor-not-allowed"
+                        className="bg-muted text-muted-foreground cursor-not-allowed text-sm"
                       />
                     </FormControl>
                     <FormMessage />
@@ -157,7 +168,7 @@ export function RendicionForm({
                 )}
               />
 
-              {/* ── Proyecto (combobox con búsqueda) ──────────── */}
+              {/* ── Proyecto * ────────────────────────────────── */}
               <FormField
                 control={form.control}
                 name="proyecto_id"
@@ -232,16 +243,16 @@ export function RendicionForm({
                 )}
               />
 
-              {/* ── Motivo ────────────────────────────────────── */}
+              {/* ── Descripción ───────────────────────────────── */}
               <FormField
                 control={form.control}
-                name="motivo"
+                name="descripcion"
                 render={({ field }) => (
                   <FormItem className="col-span-2">
-                    <FormLabel>Motivo del viaje</FormLabel>
+                    <FormLabel>Descripción</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder="Ej: Visita a cliente, mantenimiento, capacitación"
+                        placeholder={incluyeViaje ? "Ej: Visita a cliente en Guayaquil" : "Notas adicionales"}
                         {...field}
                         value={field.value ?? ""}
                       />
@@ -251,225 +262,131 @@ export function RendicionForm({
                 )}
               />
 
-              {/* ── Descripción ───────────────────────────────── */}
-              <FormField
-                control={form.control}
-                name="descripcion"
-                render={({ field }) => (
-                  <FormItem className="col-span-2">
-                    <FormLabel>Descripción</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Notas adicionales" {...field} value={field.value ?? ""} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* ── Tipo ─────────────────────────────────────── */}
-              <FormField
-                control={form.control}
-                name="tipo_rendicion_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tipo</FormLabel>
-                    <Select
-                      value={field.value ?? "__none__"}
-                      onValueChange={(v) => field.onChange(v === "__none__" ? null : v)}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Sin tipo" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="__none__">Sin tipo</SelectItem>
-                        {tipos.map((t) => (
-                          <SelectItem key={t.id} value={t.id}>
-                            {t.nombre}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* ── Anticipos ─────────────────────────────────── */}
-              <p className="col-span-2 mt-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Anticipos
-              </p>
-
-              <FormField
-                control={form.control}
-                name="anticipo_efectivo"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Anticipo en efectivo</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="0.00"
-                        value={field.value ?? ""}
-                        onChange={(e) =>
-                          field.onChange(e.target.value === "" ? null : Number(e.target.value))
-                        }
-                        onBlur={field.onBlur}
-                        name={field.name}
-                        ref={field.ref}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="anticipo_credito"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Anticipo en tarjeta</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="0.00"
-                        value={field.value ?? ""}
-                        onChange={(e) =>
-                          field.onChange(e.target.value === "" ? null : Number(e.target.value))
-                        }
-                        onBlur={field.onBlur}
-                        name={field.name}
-                        ref={field.ref}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* ── Sección Viaje ─────────────────────────────── */}
-              <div className="col-span-2 mt-2 rounded-md border border-border bg-muted/30 px-4 py-3">
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Datos del Viaje
-                </p>
-                {!isEditing && (
-                  <p className="mb-4 text-xs text-muted-foreground">
-                    Registra los datos del viaje para esta rendición
-                  </p>
-                )}
-
-                <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="viaje_origen"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Ciudad Origen</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Ej: Quito" {...field} value={field.value ?? ""} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="viaje_destino"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Ciudad Destino</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Ej: Guayaquil" {...field} value={field.value ?? ""} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="viaje_fecha_inicio"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Fecha Inicio</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} value={field.value ?? ""} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="viaje_fecha_fin"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Fecha Fin</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} value={field.value ?? ""} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="viaje_vehiculo_propio"
-                    render={({ field }) => (
-                      <FormItem className="col-span-2 flex flex-row items-center gap-3 space-y-0">
-                        <FormControl>
-                          <Checkbox
-                            checked={field.value ?? false}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                        <FormLabel className="cursor-pointer font-normal">
-                          Vehículo propio
-                        </FormLabel>
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="viaje_distancia_km"
-                    render={({ field }) => (
-                      <FormItem className="col-span-2">
-                        <FormLabel className={cn(!vehiculoPropio && "text-muted-foreground")}>
-                          Distancia (km)
-                        </FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.1"
-                            placeholder="0"
-                            disabled={!vehiculoPropio}
-                            className={cn(!vehiculoPropio && "bg-muted cursor-not-allowed")}
-                            value={field.value ?? ""}
-                            onChange={(e) =>
-                              field.onChange(e.target.value === "" ? null : Number(e.target.value))
-                            }
-                            onBlur={field.onBlur}
-                            name={field.name}
-                            ref={field.ref}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
+              {/* ── Toggle: ¿Incluye viaje? ───────────────────── */}
+              <div className="col-span-2 flex items-center gap-3 py-1">
+                <Switch
+                  id="incluye-viaje"
+                  checked={incluyeViaje}
+                  onCheckedChange={handleToggleViaje}
+                />
+                <label
+                  htmlFor="incluye-viaje"
+                  className="cursor-pointer select-none text-sm font-medium"
+                >
+                  ¿Incluye viaje?
+                </label>
               </div>
+
+              {/* ── Sección Viaje (condicional) ───────────────── */}
+              {incluyeViaje && (
+                <div className="col-span-2 rounded-md border border-border bg-muted/30 px-4 py-3">
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="viaje_origen"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Ciudad Origen</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Ej: Quito" {...field} value={field.value ?? ""} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="viaje_destino"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Ciudad Destino</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Ej: Guayaquil" {...field} value={field.value ?? ""} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="viaje_fecha_inicio"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Fecha Inicio</FormLabel>
+                          <FormControl>
+                            <Input type="date" {...field} value={field.value ?? ""} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="viaje_fecha_fin"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Fecha Fin</FormLabel>
+                          <FormControl>
+                            <Input type="date" {...field} value={field.value ?? ""} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="viaje_vehiculo_propio"
+                      render={({ field }) => (
+                        <FormItem className="col-span-2 flex flex-row items-center gap-3 space-y-0">
+                          <FormControl>
+                            <Checkbox
+                              checked={field.value ?? false}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormLabel className="cursor-pointer font-normal">
+                            Vehículo propio
+                          </FormLabel>
+                        </FormItem>
+                      )}
+                    />
+
+                    {vehiculoPropio && (
+                      <FormField
+                        control={form.control}
+                        name="viaje_distancia_km"
+                        render={({ field }) => (
+                          <FormItem className="col-span-2">
+                            <FormLabel>Distancia (km)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.1"
+                                placeholder="0"
+                                value={field.value ?? ""}
+                                onChange={(e) =>
+                                  field.onChange(
+                                    e.target.value === "" ? null : Number(e.target.value),
+                                  )
+                                }
+                                onBlur={field.onBlur}
+                                name={field.name}
+                                ref={field.ref}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           );
         }}
