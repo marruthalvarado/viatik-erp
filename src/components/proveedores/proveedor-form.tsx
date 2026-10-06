@@ -4,6 +4,7 @@ import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/comp
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { RucConsultaButton } from "@/components/common/ruc-consulta-button";
 import {
   Select,
   SelectContent,
@@ -77,9 +78,18 @@ export function ProveedorForm({
             render={({ field }) => (
               <FormItem>
                 <FormLabel>RUC / Identificación</FormLabel>
-                <FormControl>
-                  <Input placeholder="20123456789" {...field} value={field.value ?? ""} />
-                </FormControl>
+                <div className="flex gap-1.5">
+                  <FormControl>
+                    <Input placeholder="20123456789" {...field} value={field.value ?? ""} />
+                  </FormControl>
+                  <RucConsultaButton
+                    ruc={field.value}
+                    onDatos={(datos) => {
+                      form.setValue("identificacion", datos.ruc);
+                      form.setValue("nombre", datos.razon_social);
+                    }}
+                  />
+                </div>
                 <FormMessage />
               </FormItem>
             )}

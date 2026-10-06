@@ -3,6 +3,7 @@ import { EntityForm } from "@/components/common/entity-form";
 import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { RucConsultaButton } from "@/components/common/ruc-consulta-button";
 import {
   Select,
   SelectContent,
@@ -94,9 +95,22 @@ export function ClienteForm({
             render={({ field }) => (
               <FormItem>
                 <FormLabel>RUC / Identificación</FormLabel>
-                <FormControl>
-                  <Input placeholder="20123456789" {...field} value={field.value ?? ""} />
-                </FormControl>
+                <div className="flex gap-1.5">
+                  <FormControl>
+                    <Input placeholder="20123456789" {...field} value={field.value ?? ""} />
+                  </FormControl>
+                  <RucConsultaButton
+                    ruc={field.value}
+                    onDatos={(datos) => {
+                      form.setValue("ruc", datos.ruc);
+                      form.setValue("nombre", datos.razon_social);
+                      if (datos.nombre_comercial && datos.nombre_comercial !== datos.razon_social) {
+                        form.setValue("nombre_comercial", datos.nombre_comercial);
+                      }
+                      if (datos.direccion) form.setValue("direccion", datos.direccion);
+                    }}
+                  />
+                </div>
                 <FormMessage />
               </FormItem>
             )}

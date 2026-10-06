@@ -43,6 +43,7 @@ import type { FacturaEmitida } from "@/services/facturas-emitidas";
 import type { FacturaXmlData } from "@/services/factura-xml-parser";
 import type { FormValues } from "./factura-types";
 import { ValorNetoPreviewWrapper } from "./valor-neto-preview";
+import { RucConsultaButton } from "@/components/common/ruc-consulta-button";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -315,13 +316,22 @@ export function FacturaDrawer({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>RUC / ID Cliente</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="1791365372001"
-                          {...field}
-                          value={field.value ?? ""}
+                      <div className="flex gap-1.5">
+                        <FormControl>
+                          <Input
+                            placeholder="1791365372001"
+                            {...field}
+                            value={field.value ?? ""}
+                          />
+                        </FormControl>
+                        <RucConsultaButton
+                          ruc={field.value}
+                          onDatos={(datos) => {
+                            form.setValue("ruc_cliente", datos.ruc);
+                            form.setValue("razon_social", datos.razon_social);
+                          }}
                         />
-                      </FormControl>
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}
