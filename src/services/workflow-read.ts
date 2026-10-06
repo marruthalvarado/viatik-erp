@@ -126,10 +126,10 @@ export async function getMisAprobacionesPendientes(
   const directasProm = supabase.rpc("rendir_mis_pendientes");
 
   // ── Sistema 2: workflow por pasos ─────────────────────────────────────────
-  // 1. Obtener rol_ids del usuario en la empresa
+  // 1. Obtener rol_ids del usuario en la empresa (primario + adicionales)
   const rolesProm = supabase
     .from("empresas_usuarios")
-    .select("rol_id")
+    .select("rol_id, roles_adicionales")
     .eq("usuario_id", usuarioId)
     .eq("empresa_id", empresaId)
     .eq("activo", true);
@@ -144,8 +144,13 @@ export async function getMisAprobacionesPendientes(
   };
   const directasRows = ((directasResult.data ?? []) as RendicionMisPendientes[]);
 
-  // Roles del usuario
-  const rolIds = (rolesResult.data ?? []).map((r) => r.rol_id as string);
+  // Roles del usuario: aplanar rol_id + roles_adicionales de todas las filas
+  const rolIds = [...new Set(
+    (rolesResult.data ?? []).flatMap((r) => [
+      r.rol_id as string,
+      ...((r.roles_adicionales as string[] | null) ?? []),
+    ]).filter(Boolean)
+  )];
 
   // 2. Pasos de workflows donde el rol del usuario puede actuar
   const wfPendientes: AprobacionPendiente[] = [];
