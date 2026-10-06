@@ -14,13 +14,17 @@ import type { PasoConEstado } from "./workflow-types";
 interface WorkflowEnviarPanelProps {
   onEnviar: () => void;
   loading: boolean;
+  estadoCodigo?: string | null;
 }
 
-export function WorkflowEnviarPanel({ onEnviar, loading }: WorkflowEnviarPanelProps) {
+export function WorkflowEnviarPanel({ onEnviar, loading, estadoCodigo }: WorkflowEnviarPanelProps) {
+  const esDevuelta = estadoCodigo === "devuelta";
   return (
-    <div className="rounded-lg border border-dashed border-border p-4">
-      <p className="mb-3 text-sm text-muted-foreground">
-        La rendición está en borrador. Envíala a aprobación cuando esté lista.
+    <div className={`rounded-lg border p-4 ${esDevuelta ? "border-orange-300 bg-orange-50 dark:border-orange-800 dark:bg-orange-950/30" : "border-dashed border-border"}`}>
+      <p className={`mb-3 text-sm ${esDevuelta ? "text-orange-700 dark:text-orange-400" : "text-muted-foreground"}`}>
+        {esDevuelta
+          ? "Esta rendición fue devuelta para corrección. Revisa los comentarios del aprobador, realiza los ajustes necesarios y reenvíala cuando esté lista."
+          : "La rendición está en borrador. Envíala a aprobación cuando esté lista."}
       </p>
       <Button
         onClick={onEnviar}
@@ -226,7 +230,7 @@ export function WorkflowPanel({
 
       {/* Acciones contextuales */}
       {!esTerminal && puedeEnviar && (
-        <WorkflowEnviarPanel onEnviar={onEnviar} loading={loadingEnviar} />
+        <WorkflowEnviarPanel onEnviar={onEnviar} loading={loadingEnviar} estadoCodigo={estadoCodigo} />
       )}
 
       {!esTerminal && puedeActuar && pasoActivo && (

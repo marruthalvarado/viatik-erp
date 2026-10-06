@@ -151,7 +151,27 @@ function WorkflowTabComplejo({
     };
   });
 
-  const timeline = buildTimeline(historial, comentarios, aprobaciones);
+  // Si la rendición está devuelta pero el historial no tiene un evento "devolver"
+  // (puede ocurrir cuando la devolución se realizó por el sistema de aprobación directa),
+  // agregamos una entrada sintética para que el propietario entienda el estado.
+  let timelineBase = buildTimeline(historial, comentarios, aprobaciones);
+  if (
+    estadoCodigo === "devuelta" &&
+    !historial.some((h) => h.evento === "devolver")
+  ) {
+    const entradaDevuelta = {
+      id: "synthetic-devuelta",
+      tipo: "decision" as const,
+      fecha: new Date().toISOString(),
+      usuario_nombre: null,
+      texto: "Rendición devuelta para corrección.",
+      evento: "devolver",
+      accion_codigo: "devolver",
+      paso_nombre: null,
+    };
+    timelineBase = [...timelineBase, entradaDevuelta];
+  }
+  const timeline = timelineBase;
   const loadingAll = loadingAprobaciones || loadingHistorial || loadingComentarios;
   const pasoActivoConEstado = pasosConEstado.find((p) => p.estado === "activo") ?? null;
 
