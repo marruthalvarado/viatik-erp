@@ -35,13 +35,13 @@ import {
 import { useProyectos } from "@/hooks/entities/use-proyectos";
 import { useEstadosRendicion, useTiposRendicion } from "@/hooks/entities/use-catalogs";
 import { useRolUsuarioEnEmpresa } from "@/hooks/entities/use-workflow";
-import { useCrearViaje } from "@/hooks/entities/use-viajes";
+import { useCrearViaje, useActualizarViaje, useEliminarViaje, useViajes } from "@/hooks/entities/use-viajes";
 import { useCompany } from "@/contexts/company-context";
 import { useAuth } from "@/contexts/auth-context";
 import { formatCurrency, formatDate, emptyToNull } from "@/utils/formatters";
 
 import type { DataTableColumn } from "@/components/common/data-table";
-import type { Rendicion, RendicionInsert, RendicionUpdate, ViajeInsert } from "@/types/entities";
+import type { Rendicion, RendicionInsert, RendicionUpdate, ViajeInsert, ViajeUpdate } from "@/types/entities";
 import type { ListParams } from "@/types/common";
 
 import { RendicionForm } from "@/components/rendiciones/rendicion-form";
@@ -112,6 +112,15 @@ function RendicionesList({ onSelect }: RendicionesListProps) {
   const actualizar = useActualizarRendicion();
   const eliminar = useEliminarRendicion();
   const crearViaje = useCrearViaje();
+  const actualizarViaje = useActualizarViaje();
+  const eliminarViaje = useEliminarViaje();
+
+  // Cargar viaje existente cuando se abre el drawer de edición
+  const { data: viajesEditData, isLoading: loadingViaje } = useViajes(
+    { filters: { rendicion_id: editingRendicion?.id ?? "" }, pageSize: 5 },
+    { enabled: !!editingRendicion?.id },
+  );
+  const viajeActual = viajesEditData?.rows?.[0] ?? null;
 
   const proyectos = proyectosData?.rows ?? [];
   const estados = estadosData?.rows ?? [];
@@ -276,6 +285,35 @@ function RendicionesList({ onSelect }: RendicionesListProps) {
           anticipo_credito: values.anticipo_credito ?? null,
         };
         await actualizar.mutateAsync({ id: editingRendicion.id, payload });
+
+        // Sincronizar viaje: crear / actualizar / eliminar según toggle
+        const tieneViaje = !!(
+          values.viaje_origen ||
+          values.viaje_destino ||
+          values.viaje_fecha_inicio ||
+          values.viaje_fecha_fin ||
+          values.viaje_vehiculo_propio
+        );
+
+        if (tieneViaje) {
+          const viajePayload = {
+            origen: emptyToNull(values.viaje_origen),
+            destino: values.viaje_destino ?? "",
+            fecha_inicio: emptyToNull(values.viaje_fecha_inicio),
+            fecha_fin: emptyToNull(values.viaje_fecha_fin),
+            vehiculo_propio: values.viaje_vehiculo_propio ?? false,
+            distancia_km: values.viaje_vehiculo_propio ? (values.viaje_distancia_km ?? null) : null,
+          };
+          if (viajeActual) {
+            await actualizarViaje.mutateAsync({ id: viajeActual.id, payload: viajePayload as ViajeUpdate });
+          } else {
+            const viajeInsert: ViajeInsert = { rendicion_id: editingRendicion.id, ...viajePayload };
+            await crearViaje.mutateAsync(viajeInsert);
+          }
+        } else if (viajeActual) {
+          await eliminarViaje.mutateAsync(viajeActual.id);
+        }
+
         toast.success("Rendición actualizada correctamente.");
       } else {
         // Al crear: número y estado los asigna el trigger automáticamente
@@ -415,10 +453,22 @@ function RendicionesList({ onSelect }: RendicionesListProps) {
           </DrawerHeader>
           <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6">
             <RendicionForm
-              defaultValues={editingRendicion ? rendicionToForm(editingRendicion) : EMPTY_RENDICION}
+              key={editingRendicion ? `${editingRendicion.id}-${viajeActual?.id ?? "noviaje"}` : "nueva"}
+              defaultValues={
+                editingRendicion
+                  ? rendicionToForm(editingRendicion, viajeActual)
+                  : EMPTY_RENDICION
+              }
               onSubmit={handleSubmit}
               onCancel={handleCloseDrawer}
-              loading={crear.isPending || actualizar.isPending || crearViaje.isPending}
+              loading={
+                crear.isPending ||
+                actualizar.isPending ||
+                crearViaje.isPending ||
+                actualizarViaje.isPending ||
+                eliminarViaje.isPending ||
+                (!!editingRendicion && loadingViaje)
+              }
               submitLabel={editingRendicion ? "Guardar cambios" : "Crear rendición"}
               proyectos={proyectos}
               tipos={tipos}
