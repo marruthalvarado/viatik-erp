@@ -31,7 +31,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/components/common/toast";
 
-import { useMisAprobacionesPendientes } from "@/hooks/entities/use-workflow";
+import { useMisAprobacionesPendientes, useRegistrarAccion } from "@/hooks/entities/use-workflow";
 import {
   useAprobarRendicionDirect,
   useDevolverRendicionDirect,
@@ -74,9 +74,12 @@ function WorkflowContent() {
   const [observacion, setObservacion] = useState("");
   const [motivo, setMotivo] = useState("");
 
+  // Sistema 1: aprobacion directa (aprobador_id)
   const aprobar = useAprobarRendicionDirect();
   const devolver = useDevolverRendicionDirect();
   const rechazar = useRechazarRendicionDirect();
+  // Sistema 2: workflow por pasos (workflow_paso_id != "")
+  const registrarAccion = useRegistrarAccion();
 
   function cerrarDialog() {
     setDialogActivo(null);
@@ -84,11 +87,26 @@ function WorkflowContent() {
     setMotivo("");
   }
 
+  /** ¿El item actual usa el workflow por pasos (Sistema 2)? */
+  function esWorkflow2(rendicion: AprobacionPendiente) {
+    return !!rendicion.workflow_paso_id;
+  }
+
   async function handleAprobar() {
     if (!dialogActivo || dialogActivo.tipo !== "aprobar") return;
+    const { rendicion } = dialogActivo;
     try {
-      await aprobar.mutateAsync({ rendicionId: dialogActivo.rendicion.rendicion_id });
-      toast.success(`Rendición ${dialogActivo.rendicion.numero} aprobada.`);
+      if (esWorkflow2(rendicion)) {
+        await registrarAccion.mutateAsync({
+          rendicionId: rendicion.rendicion_id,
+          workflowPasoId: rendicion.workflow_paso_id,
+          accionCodigo: "aprobar",
+          comentario: null,
+        });
+      } else {
+        await aprobar.mutateAsync({ rendicionId: rendicion.rendicion_id });
+      }
+      toast.success(`Rendición ${rendicion.numero} aprobada.`);
       cerrarDialog();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error al aprobar.");
@@ -97,12 +115,22 @@ function WorkflowContent() {
 
   async function handleDevolver() {
     if (!dialogActivo || dialogActivo.tipo !== "devolver") return;
+    const { rendicion } = dialogActivo;
     try {
-      await devolver.mutateAsync({
-        rendicionId: dialogActivo.rendicion.rendicion_id,
-        observacion: observacion.trim() || null,
-      });
-      toast.success(`Rendición ${dialogActivo.rendicion.numero} devuelta para corrección.`);
+      if (esWorkflow2(rendicion)) {
+        await registrarAccion.mutateAsync({
+          rendicionId: rendicion.rendicion_id,
+          workflowPasoId: rendicion.workflow_paso_id,
+          accionCodigo: "devolver",
+          comentario: observacion.trim() || null,
+        });
+      } else {
+        await devolver.mutateAsync({
+          rendicionId: rendicion.rendicion_id,
+          observacion: observacion.trim() || null,
+        });
+      }
+      toast.success(`Rendición ${rendicion.numero} devuelta para corrección.`);
       cerrarDialog();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error al devolver.");
@@ -115,12 +143,22 @@ function WorkflowContent() {
       toast.error("El motivo de rechazo es obligatorio.");
       return;
     }
+    const { rendicion } = dialogActivo;
     try {
-      await rechazar.mutateAsync({
-        rendicionId: dialogActivo.rendicion.rendicion_id,
-        motivo: motivo.trim(),
-      });
-      toast.success(`Rendición ${dialogActivo.rendicion.numero} rechazada.`);
+      if (esWorkflow2(rendicion)) {
+        await registrarAccion.mutateAsync({
+          rendicionId: rendicion.rendicion_id,
+          workflowPasoId: rendicion.workflow_paso_id,
+          accionCodigo: "rechazar",
+          comentario: motivo.trim(),
+        });
+      } else {
+        await rechazar.mutateAsync({
+          rendicionId: rendicion.rendicion_id,
+          motivo: motivo.trim(),
+        });
+      }
+      toast.success(`Rendición ${rendicion.numero} rechazada.`);
       cerrarDialog();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error al rechazar.");
@@ -167,6 +205,7 @@ function WorkflowContent() {
                 <th className="px-4 py-3 font-medium text-muted-foreground">Descripción</th>
                 <th className="px-4 py-3 text-right font-medium text-muted-foreground">Total</th>
                 <th className="px-4 py-3 font-medium text-muted-foreground">Fecha envío</th>
+                <th className="px-4 py-3 font-medium text-muted-foreground">Paso</th>
                 <th className="px-4 py-3 font-medium text-muted-foreground">Acciones</th>
                 <th className="px-2 py-3" />
               </tr>
@@ -188,6 +227,12 @@ function WorkflowContent() {
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">
                     {row.fecha_envio ? formatDate(row.fecha_envio) : "—"}
+                  </td>
+                  <td className="px-4 py-3 text-muted-foreground text-xs">
+                    {row.workflow_paso_id
+                      ? <span className="rounded bg-muted px-1.5 py-0.5">{row.paso_nombre ?? `Paso ${row.paso_orden}`}</span>
+                      : <span className="text-muted-foreground/50">Directa</span>
+                    }
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1.5">
@@ -254,8 +299,11 @@ function WorkflowContent() {
                 <>
                   <strong>{dialogActivo.rendicion.numero}</strong> de{" "}
                   {dialogActivo.rendicion.usuario_nombre} por{" "}
-                  {formatCurrency(dialogActivo.rendicion.total_facturado)}.
-                  Esta acción cambiará el estado a <em>Aprobada</em>.
+                  {formatCurrency(dialogActivo.rendicion.total_facturado)}.{" "}
+                  {dialogActivo.rendicion.workflow_paso_id
+                    ? <>Paso: <em>{dialogActivo.rendicion.paso_nombre ?? `#${dialogActivo.rendicion.paso_orden}`}</em>. Al aprobar, pasará al siguiente nivel de revisión o quedará aprobada si es el último paso.</>
+                    : <>Esta acción cambiará el estado a <em>Aprobada</em>.</>
+                  }
                 </>
               )}
             </DialogDescription>
@@ -266,11 +314,11 @@ function WorkflowContent() {
             </Button>
             <Button
               onClick={() => void handleAprobar()}
-              disabled={aprobar.isPending}
+              disabled={aprobar.isPending || registrarAccion.isPending}
               className="gap-2"
             >
               <CheckCircle className="size-4" />
-              {aprobar.isPending ? "Aprobando..." : "Confirmar aprobación"}
+              {(aprobar.isPending || registrarAccion.isPending) ? "Aprobando..." : "Confirmar aprobación"}
             </Button>
           </DialogFooter>
         </DialogContent>
