@@ -9,45 +9,55 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as WorkflowRouteImport } from './routes/workflow'
+import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdministracionRouteImport } from './routes/administracion'
+import { Route as AuthRouteImport } from './routes/auth'
 import { Route as CambiarClaveRouteImport } from './routes/cambiar-clave'
-import { Route as ReportesRouteImport } from './routes/reportes'
-import { Route as RendicionesRouteImport } from './routes/rendiciones'
-import { Route as ProyectosRouteImport } from './routes/proyectos'
-import { Route as ProveedoresRouteImport } from './routes/proveedores'
-import { Route as PresupuestosRouteImport } from './routes/presupuestos'
-import { Route as CotizacionesRouteImport } from './routes/cotizaciones'
 import { Route as CatalogoRouteImport } from './routes/catalogo'
-import { Route as ContabilidadRouteImport } from './routes/contabilidad'
+import { Route as ClientesRouteImport } from './routes/clientes'
 import { Route as ConciliacionRouteImport } from './routes/conciliacion'
+import { Route as ConfiguracionRouteImport } from './routes/configuracion'
+import { Route as ContabilidadRouteImport } from './routes/contabilidad'
+import { Route as CotizacionesRouteImport } from './routes/cotizaciones'
+import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as DocumentosRouteImport } from './routes/documentos'
+import { Route as FacturasRouteImport } from './routes/facturas'
+import { Route as GastosRouteImport } from './routes/gastos'
 import { Route as GastosEmpresaRouteImport } from './routes/gastos-empresa'
+import { Route as ImportacionesRouteImport } from './routes/importaciones'
 import { Route as ImpuestosRouteImport } from './routes/impuestos'
 import { Route as InventarioRouteImport } from './routes/inventario'
-import { Route as GastosRouteImport } from './routes/gastos'
-import { Route as FacturasRouteImport } from './routes/facturas'
-import { Route as DocumentosRouteImport } from './routes/documentos'
-import { Route as DashboardRouteImport } from './routes/dashboard'
-import { Route as ConfiguracionRouteImport } from './routes/configuracion'
-import { Route as ClientesRouteImport } from './routes/clientes'
-import { Route as AuthRouteImport } from './routes/auth'
-import { Route as AdministracionRouteImport } from './routes/administracion'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as ReportesWorkflowRouteImport } from './routes/reportes.workflow'
-import { Route as ReportesOperativosRouteImport } from './routes/reportes.operativos'
-import { Route as ReportesFinancierosRouteImport } from './routes/reportes.financieros'
+import { Route as PresupuestosRouteImport } from './routes/presupuestos'
+import { Route as ProveedoresRouteImport } from './routes/proveedores'
+import { Route as ProyectosRouteImport } from './routes/proyectos'
+import { Route as RendicionesRouteImport } from './routes/rendiciones'
+import { Route as ReportesRouteImport } from './routes/reportes'
 import { Route as ServicioTecnicoRouteImport } from './routes/servicio-tecnico'
-import { Route as ServicioTecnicoOrdenesRouteImport } from './routes/servicio-tecnico.ordenes'
-import { Route as ServicioTecnicoContratosRouteImport } from './routes/servicio-tecnico.contratos'
-import { Route as ServicioTecnicoBaseInstaladaRouteImport } from './routes/servicio-tecnico.base-instalada'
-import { Route as ServicioTecnicoPlantillasRouteImport } from './routes/servicio-tecnico.plantillas'
-import { Route as ServicioTecnicoCatalogoRouteImport } from './routes/servicio-tecnico.catalogo'
-import { Route as ServicioTecnicoProtocolosRouteImport } from './routes/servicio-tecnico.protocolos'
-import { Route as ImportacionesRouteImport } from './routes/importaciones'
+import { Route as WorkflowRouteImport } from './routes/workflow'
 import { Route as ImportacionesCosteosRouteImport } from './routes/importaciones.costeos'
+import { Route as ReportesFinancierosRouteImport } from './routes/reportes.financieros'
+import { Route as ReportesOperativosRouteImport } from './routes/reportes.operativos'
+import { Route as ReportesWorkflowRouteImport } from './routes/reportes.workflow'
+import { Route as ServicioTecnicoBaseInstaladaRouteImport } from './routes/servicio-tecnico.base-instalada'
+import { Route as ServicioTecnicoCatalogoRouteImport } from './routes/servicio-tecnico.catalogo'
+import { Route as ServicioTecnicoContratosRouteImport } from './routes/servicio-tecnico.contratos'
+import { Route as ServicioTecnicoOrdenesRouteImport } from './routes/servicio-tecnico.ordenes'
+import { Route as ServicioTecnicoPlantillasRouteImport } from './routes/servicio-tecnico.plantillas'
+import { Route as ServicioTecnicoProtocolosRouteImport } from './routes/servicio-tecnico.protocolos'
 
-const WorkflowRoute = WorkflowRouteImport.update({
-  id: '/workflow',
-  path: '/workflow',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdministracionRoute = AdministracionRouteImport.update({
+  id: '/administracion',
+  path: '/administracion',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CambiarClaveRoute = CambiarClaveRouteImport.update({
@@ -55,44 +65,14 @@ const CambiarClaveRoute = CambiarClaveRouteImport.update({
   path: '/cambiar-clave',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ReportesRoute = ReportesRouteImport.update({
-  id: '/reportes',
-  path: '/reportes',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RendicionesRoute = RendicionesRouteImport.update({
-  id: '/rendiciones',
-  path: '/rendiciones',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProyectosRoute = ProyectosRouteImport.update({
-  id: '/proyectos',
-  path: '/proyectos',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProveedoresRoute = ProveedoresRouteImport.update({
-  id: '/proveedores',
-  path: '/proveedores',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PresupuestosRoute = PresupuestosRouteImport.update({
-  id: '/presupuestos',
-  path: '/presupuestos',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CotizacionesRoute = CotizacionesRouteImport.update({
-  id: '/cotizaciones',
-  path: '/cotizaciones',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const CatalogoRoute = CatalogoRouteImport.update({
   id: '/catalogo',
   path: '/catalogo',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ContabilidadRoute = ContabilidadRouteImport.update({
-  id: '/contabilidad',
-  path: '/contabilidad',
+const ClientesRoute = ClientesRouteImport.update({
+  id: '/clientes',
+  path: '/clientes',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ConciliacionRoute = ConciliacionRouteImport.update({
@@ -100,9 +80,49 @@ const ConciliacionRoute = ConciliacionRouteImport.update({
   path: '/conciliacion',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ConfiguracionRoute = ConfiguracionRouteImport.update({
+  id: '/configuracion',
+  path: '/configuracion',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContabilidadRoute = ContabilidadRouteImport.update({
+  id: '/contabilidad',
+  path: '/contabilidad',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CotizacionesRoute = CotizacionesRouteImport.update({
+  id: '/cotizaciones',
+  path: '/cotizaciones',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocumentosRoute = DocumentosRouteImport.update({
+  id: '/documentos',
+  path: '/documentos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FacturasRoute = FacturasRouteImport.update({
+  id: '/facturas',
+  path: '/facturas',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GastosRoute = GastosRouteImport.update({
+  id: '/gastos',
+  path: '/gastos',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const GastosEmpresaRoute = GastosEmpresaRouteImport.update({
   id: '/gastos-empresa',
   path: '/gastos-empresa',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ImportacionesRoute = ImportacionesRouteImport.update({
+  id: '/importaciones',
+  path: '/importaciones',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ImpuestosRoute = ImpuestosRouteImport.update({
@@ -115,104 +135,39 @@ const InventarioRoute = InventarioRouteImport.update({
   path: '/inventario',
   getParentRoute: () => rootRouteImport,
 } as any)
-const GastosRoute = GastosRouteImport.update({
-  id: '/gastos',
-  path: '/gastos',
+const PresupuestosRoute = PresupuestosRouteImport.update({
+  id: '/presupuestos',
+  path: '/presupuestos',
   getParentRoute: () => rootRouteImport,
 } as any)
-const FacturasRoute = FacturasRouteImport.update({
-  id: '/facturas',
-  path: '/facturas',
+const ProveedoresRoute = ProveedoresRouteImport.update({
+  id: '/proveedores',
+  path: '/proveedores',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DocumentosRoute = DocumentosRouteImport.update({
-  id: '/documentos',
-  path: '/documentos',
+const ProyectosRoute = ProyectosRouteImport.update({
+  id: '/proyectos',
+  path: '/proyectos',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DashboardRoute = DashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
+const RendicionesRoute = RendicionesRouteImport.update({
+  id: '/rendiciones',
+  path: '/rendiciones',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ConfiguracionRoute = ConfiguracionRouteImport.update({
-  id: '/configuracion',
-  path: '/configuracion',
+const ReportesRoute = ReportesRouteImport.update({
+  id: '/reportes',
+  path: '/reportes',
   getParentRoute: () => rootRouteImport,
-} as any)
-const ClientesRoute = ClientesRouteImport.update({
-  id: '/clientes',
-  path: '/clientes',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthRoute = AuthRouteImport.update({
-  id: '/auth',
-  path: '/auth',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AdministracionRoute = AdministracionRouteImport.update({
-  id: '/administracion',
-  path: '/administracion',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ReportesWorkflowRoute = ReportesWorkflowRouteImport.update({
-  id: '/workflow',
-  path: '/workflow',
-  getParentRoute: () => ReportesRoute,
-} as any)
-const ReportesOperativosRoute = ReportesOperativosRouteImport.update({
-  id: '/operativos',
-  path: '/operativos',
-  getParentRoute: () => ReportesRoute,
-} as any)
-const ReportesFinancierosRoute = ReportesFinancierosRouteImport.update({
-  id: '/financieros',
-  path: '/financieros',
-  getParentRoute: () => ReportesRoute,
 } as any)
 const ServicioTecnicoRoute = ServicioTecnicoRouteImport.update({
   id: '/servicio-tecnico',
   path: '/servicio-tecnico',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ServicioTecnicoOrdenesRoute = ServicioTecnicoOrdenesRouteImport.update({
-  id: '/ordenes',
-  path: '/ordenes',
-  getParentRoute: () => ServicioTecnicoRoute,
-} as any)
-const ServicioTecnicoContratosRoute = ServicioTecnicoContratosRouteImport.update({
-  id: '/contratos',
-  path: '/contratos',
-  getParentRoute: () => ServicioTecnicoRoute,
-} as any)
-const ServicioTecnicoBaseInstaladaRoute = ServicioTecnicoBaseInstaladaRouteImport.update({
-  id: '/base-instalada',
-  path: '/base-instalada',
-  getParentRoute: () => ServicioTecnicoRoute,
-} as any)
-const ServicioTecnicoPlantillasRoute = ServicioTecnicoPlantillasRouteImport.update({
-  id: '/plantillas',
-  path: '/plantillas',
-  getParentRoute: () => ServicioTecnicoRoute,
-} as any)
-const ServicioTecnicoCatalogoRoute = ServicioTecnicoCatalogoRouteImport.update({
-  id: '/catalogo-equipos',
-  path: '/catalogo',
-  getParentRoute: () => ServicioTecnicoRoute,
-} as any)
-const ServicioTecnicoProtocolosRoute = ServicioTecnicoProtocolosRouteImport.update({
-  id: '/protocolos',
-  path: '/protocolos',
-  getParentRoute: () => ServicioTecnicoRoute,
-} as any)
-const ImportacionesRoute = ImportacionesRouteImport.update({
-  id: '/importaciones',
-  path: '/importaciones',
+const WorkflowRoute = WorkflowRouteImport.update({
+  id: '/workflow',
+  path: '/workflow',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ImportacionesCosteosRoute = ImportacionesCosteosRouteImport.update({
@@ -220,23 +175,73 @@ const ImportacionesCosteosRoute = ImportacionesCosteosRouteImport.update({
   path: '/costeos',
   getParentRoute: () => ImportacionesRoute,
 } as any)
+const ReportesFinancierosRoute = ReportesFinancierosRouteImport.update({
+  id: '/financieros',
+  path: '/financieros',
+  getParentRoute: () => ReportesRoute,
+} as any)
+const ReportesOperativosRoute = ReportesOperativosRouteImport.update({
+  id: '/operativos',
+  path: '/operativos',
+  getParentRoute: () => ReportesRoute,
+} as any)
+const ReportesWorkflowRoute = ReportesWorkflowRouteImport.update({
+  id: '/workflow',
+  path: '/workflow',
+  getParentRoute: () => ReportesRoute,
+} as any)
+const ServicioTecnicoBaseInstaladaRoute =
+  ServicioTecnicoBaseInstaladaRouteImport.update({
+    id: '/base-instalada',
+    path: '/base-instalada',
+    getParentRoute: () => ServicioTecnicoRoute,
+  } as any)
+const ServicioTecnicoCatalogoRoute = ServicioTecnicoCatalogoRouteImport.update({
+  id: '/catalogo',
+  path: '/catalogo',
+  getParentRoute: () => ServicioTecnicoRoute,
+} as any)
+const ServicioTecnicoContratosRoute =
+  ServicioTecnicoContratosRouteImport.update({
+    id: '/contratos',
+    path: '/contratos',
+    getParentRoute: () => ServicioTecnicoRoute,
+  } as any)
+const ServicioTecnicoOrdenesRoute = ServicioTecnicoOrdenesRouteImport.update({
+  id: '/ordenes',
+  path: '/ordenes',
+  getParentRoute: () => ServicioTecnicoRoute,
+} as any)
+const ServicioTecnicoPlantillasRoute =
+  ServicioTecnicoPlantillasRouteImport.update({
+    id: '/plantillas',
+    path: '/plantillas',
+    getParentRoute: () => ServicioTecnicoRoute,
+  } as any)
+const ServicioTecnicoProtocolosRoute =
+  ServicioTecnicoProtocolosRouteImport.update({
+    id: '/protocolos',
+    path: '/protocolos',
+    getParentRoute: () => ServicioTecnicoRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/administracion': typeof AdministracionRoute
   '/auth': typeof AuthRoute
   '/cambiar-clave': typeof CambiarClaveRoute
-  '/clientes': typeof ClientesRoute
   '/catalogo': typeof CatalogoRoute
+  '/clientes': typeof ClientesRoute
   '/conciliacion': typeof ConciliacionRoute
-  '/contabilidad': typeof ContabilidadRoute
   '/configuracion': typeof ConfiguracionRoute
+  '/contabilidad': typeof ContabilidadRoute
   '/cotizaciones': typeof CotizacionesRoute
   '/dashboard': typeof DashboardRoute
   '/documentos': typeof DocumentosRoute
   '/facturas': typeof FacturasRoute
   '/gastos': typeof GastosRoute
   '/gastos-empresa': typeof GastosEmpresaRoute
+  '/importaciones': typeof ImportacionesRouteWithChildren
   '/impuestos': typeof ImpuestosRoute
   '/inventario': typeof InventarioRoute
   '/presupuestos': typeof PresupuestosRoute
@@ -244,36 +249,36 @@ export interface FileRoutesByFullPath {
   '/proyectos': typeof ProyectosRoute
   '/rendiciones': typeof RendicionesRoute
   '/reportes': typeof ReportesRouteWithChildren
+  '/servicio-tecnico': typeof ServicioTecnicoRouteWithChildren
   '/workflow': typeof WorkflowRoute
+  '/importaciones/costeos': typeof ImportacionesCosteosRoute
   '/reportes/financieros': typeof ReportesFinancierosRoute
   '/reportes/operativos': typeof ReportesOperativosRoute
   '/reportes/workflow': typeof ReportesWorkflowRoute
-  '/servicio-tecnico': typeof ServicioTecnicoRouteWithChildren
   '/servicio-tecnico/base-instalada': typeof ServicioTecnicoBaseInstaladaRoute
+  '/servicio-tecnico/catalogo': typeof ServicioTecnicoCatalogoRoute
   '/servicio-tecnico/contratos': typeof ServicioTecnicoContratosRoute
   '/servicio-tecnico/ordenes': typeof ServicioTecnicoOrdenesRoute
   '/servicio-tecnico/plantillas': typeof ServicioTecnicoPlantillasRoute
-  '/servicio-tecnico/catalogo': typeof ServicioTecnicoCatalogoRoute
   '/servicio-tecnico/protocolos': typeof ServicioTecnicoProtocolosRoute
-  '/importaciones': typeof ImportacionesRouteWithChildren
-  '/importaciones/costeos': typeof ImportacionesCosteosRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/administracion': typeof AdministracionRoute
   '/auth': typeof AuthRoute
   '/cambiar-clave': typeof CambiarClaveRoute
-  '/clientes': typeof ClientesRoute
   '/catalogo': typeof CatalogoRoute
+  '/clientes': typeof ClientesRoute
   '/conciliacion': typeof ConciliacionRoute
-  '/contabilidad': typeof ContabilidadRoute
   '/configuracion': typeof ConfiguracionRoute
+  '/contabilidad': typeof ContabilidadRoute
   '/cotizaciones': typeof CotizacionesRoute
   '/dashboard': typeof DashboardRoute
   '/documentos': typeof DocumentosRoute
   '/facturas': typeof FacturasRoute
   '/gastos': typeof GastosRoute
   '/gastos-empresa': typeof GastosEmpresaRoute
+  '/importaciones': typeof ImportacionesRouteWithChildren
   '/impuestos': typeof ImpuestosRoute
   '/inventario': typeof InventarioRoute
   '/presupuestos': typeof PresupuestosRoute
@@ -281,17 +286,18 @@ export interface FileRoutesByTo {
   '/proyectos': typeof ProyectosRoute
   '/rendiciones': typeof RendicionesRoute
   '/reportes': typeof ReportesRouteWithChildren
+  '/servicio-tecnico': typeof ServicioTecnicoRouteWithChildren
   '/workflow': typeof WorkflowRoute
+  '/importaciones/costeos': typeof ImportacionesCosteosRoute
   '/reportes/financieros': typeof ReportesFinancierosRoute
   '/reportes/operativos': typeof ReportesOperativosRoute
   '/reportes/workflow': typeof ReportesWorkflowRoute
   '/servicio-tecnico/base-instalada': typeof ServicioTecnicoBaseInstaladaRoute
+  '/servicio-tecnico/catalogo': typeof ServicioTecnicoCatalogoRoute
   '/servicio-tecnico/contratos': typeof ServicioTecnicoContratosRoute
   '/servicio-tecnico/ordenes': typeof ServicioTecnicoOrdenesRoute
   '/servicio-tecnico/plantillas': typeof ServicioTecnicoPlantillasRoute
-  '/servicio-tecnico/catalogo': typeof ServicioTecnicoCatalogoRoute
   '/servicio-tecnico/protocolos': typeof ServicioTecnicoProtocolosRoute
-  '/importaciones/costeos': typeof ImportacionesCosteosRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -299,17 +305,18 @@ export interface FileRoutesById {
   '/administracion': typeof AdministracionRoute
   '/auth': typeof AuthRoute
   '/cambiar-clave': typeof CambiarClaveRoute
-  '/clientes': typeof ClientesRoute
   '/catalogo': typeof CatalogoRoute
+  '/clientes': typeof ClientesRoute
   '/conciliacion': typeof ConciliacionRoute
-  '/contabilidad': typeof ContabilidadRoute
   '/configuracion': typeof ConfiguracionRoute
+  '/contabilidad': typeof ContabilidadRoute
   '/cotizaciones': typeof CotizacionesRoute
   '/dashboard': typeof DashboardRoute
   '/documentos': typeof DocumentosRoute
   '/facturas': typeof FacturasRoute
   '/gastos': typeof GastosRoute
   '/gastos-empresa': typeof GastosEmpresaRoute
+  '/importaciones': typeof ImportacionesRouteWithChildren
   '/impuestos': typeof ImpuestosRoute
   '/inventario': typeof InventarioRoute
   '/presupuestos': typeof PresupuestosRoute
@@ -317,19 +324,18 @@ export interface FileRoutesById {
   '/proyectos': typeof ProyectosRoute
   '/rendiciones': typeof RendicionesRoute
   '/reportes': typeof ReportesRouteWithChildren
+  '/servicio-tecnico': typeof ServicioTecnicoRouteWithChildren
   '/workflow': typeof WorkflowRoute
+  '/importaciones/costeos': typeof ImportacionesCosteosRoute
   '/reportes/financieros': typeof ReportesFinancierosRoute
   '/reportes/operativos': typeof ReportesOperativosRoute
   '/reportes/workflow': typeof ReportesWorkflowRoute
-  '/servicio-tecnico': typeof ServicioTecnicoRouteWithChildren
   '/servicio-tecnico/base-instalada': typeof ServicioTecnicoBaseInstaladaRoute
+  '/servicio-tecnico/catalogo': typeof ServicioTecnicoCatalogoRoute
   '/servicio-tecnico/contratos': typeof ServicioTecnicoContratosRoute
   '/servicio-tecnico/ordenes': typeof ServicioTecnicoOrdenesRoute
   '/servicio-tecnico/plantillas': typeof ServicioTecnicoPlantillasRoute
-  '/servicio-tecnico/catalogo': typeof ServicioTecnicoCatalogoRoute
   '/servicio-tecnico/protocolos': typeof ServicioTecnicoProtocolosRoute
-  '/importaciones': typeof ImportacionesRouteWithChildren
-  '/importaciones/costeos': typeof ImportacionesCosteosRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -338,17 +344,18 @@ export interface FileRouteTypes {
     | '/administracion'
     | '/auth'
     | '/cambiar-clave'
-    | '/clientes'
     | '/catalogo'
+    | '/clientes'
     | '/conciliacion'
+    | '/configuracion'
     | '/contabilidad'
     | '/cotizaciones'
-    | '/configuracion'
     | '/dashboard'
     | '/documentos'
     | '/facturas'
     | '/gastos'
     | '/gastos-empresa'
+    | '/importaciones'
     | '/impuestos'
     | '/inventario'
     | '/presupuestos'
@@ -356,36 +363,36 @@ export interface FileRouteTypes {
     | '/proyectos'
     | '/rendiciones'
     | '/reportes'
+    | '/servicio-tecnico'
     | '/workflow'
+    | '/importaciones/costeos'
     | '/reportes/financieros'
     | '/reportes/operativos'
     | '/reportes/workflow'
-    | '/servicio-tecnico'
     | '/servicio-tecnico/base-instalada'
+    | '/servicio-tecnico/catalogo'
     | '/servicio-tecnico/contratos'
     | '/servicio-tecnico/ordenes'
     | '/servicio-tecnico/plantillas'
-    | '/servicio-tecnico/catalogo'
     | '/servicio-tecnico/protocolos'
-    | '/importaciones'
-    | '/importaciones/costeos'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/administracion'
     | '/auth'
     | '/cambiar-clave'
-    | '/clientes'
     | '/catalogo'
+    | '/clientes'
     | '/conciliacion'
+    | '/configuracion'
     | '/contabilidad'
     | '/cotizaciones'
-    | '/configuracion'
     | '/dashboard'
     | '/documentos'
     | '/facturas'
     | '/gastos'
     | '/gastos-empresa'
+    | '/importaciones'
     | '/impuestos'
     | '/inventario'
     | '/presupuestos'
@@ -393,34 +400,36 @@ export interface FileRouteTypes {
     | '/proyectos'
     | '/rendiciones'
     | '/reportes'
+    | '/servicio-tecnico'
     | '/workflow'
+    | '/importaciones/costeos'
     | '/reportes/financieros'
     | '/reportes/operativos'
     | '/reportes/workflow'
     | '/servicio-tecnico/base-instalada'
+    | '/servicio-tecnico/catalogo'
     | '/servicio-tecnico/contratos'
     | '/servicio-tecnico/ordenes'
     | '/servicio-tecnico/plantillas'
-    | '/servicio-tecnico/catalogo'
     | '/servicio-tecnico/protocolos'
-    | '/importaciones/costeos'
   id:
     | '__root__'
     | '/'
     | '/administracion'
     | '/auth'
     | '/cambiar-clave'
-    | '/clientes'
     | '/catalogo'
+    | '/clientes'
     | '/conciliacion'
+    | '/configuracion'
     | '/contabilidad'
     | '/cotizaciones'
-    | '/configuracion'
     | '/dashboard'
     | '/documentos'
     | '/facturas'
     | '/gastos'
     | '/gastos-empresa'
+    | '/importaciones'
     | '/impuestos'
     | '/inventario'
     | '/presupuestos'
@@ -428,19 +437,18 @@ export interface FileRouteTypes {
     | '/proyectos'
     | '/rendiciones'
     | '/reportes'
+    | '/servicio-tecnico'
     | '/workflow'
+    | '/importaciones/costeos'
     | '/reportes/financieros'
     | '/reportes/operativos'
     | '/reportes/workflow'
-    | '/servicio-tecnico'
     | '/servicio-tecnico/base-instalada'
+    | '/servicio-tecnico/catalogo'
     | '/servicio-tecnico/contratos'
     | '/servicio-tecnico/ordenes'
     | '/servicio-tecnico/plantillas'
-    | '/servicio-tecnico/catalogo-equipos'
     | '/servicio-tecnico/protocolos'
-    | '/importaciones'
-    | '/importaciones/costeos'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -451,14 +459,15 @@ export interface RootRouteChildren {
   CatalogoRoute: typeof CatalogoRoute
   ClientesRoute: typeof ClientesRoute
   ConciliacionRoute: typeof ConciliacionRoute
-  ContabilidadRoute: typeof ContabilidadRoute
   ConfiguracionRoute: typeof ConfiguracionRoute
+  ContabilidadRoute: typeof ContabilidadRoute
   CotizacionesRoute: typeof CotizacionesRoute
   DashboardRoute: typeof DashboardRoute
   DocumentosRoute: typeof DocumentosRoute
   FacturasRoute: typeof FacturasRoute
   GastosRoute: typeof GastosRoute
   GastosEmpresaRoute: typeof GastosEmpresaRoute
+  ImportacionesRoute: typeof ImportacionesRouteWithChildren
   ImpuestosRoute: typeof ImpuestosRoute
   InventarioRoute: typeof InventarioRoute
   PresupuestosRoute: typeof PresupuestosRoute
@@ -467,143 +476,23 @@ export interface RootRouteChildren {
   RendicionesRoute: typeof RendicionesRoute
   ReportesRoute: typeof ReportesRouteWithChildren
   ServicioTecnicoRoute: typeof ServicioTecnicoRouteWithChildren
-  ImportacionesRoute: typeof ImportacionesRouteWithChildren
   WorkflowRoute: typeof WorkflowRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/workflow': {
-      id: '/workflow'
-      path: '/workflow'
-      fullPath: '/workflow'
-      preLoaderRoute: typeof WorkflowRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/reportes': {
-      id: '/reportes'
-      path: '/reportes'
-      fullPath: '/reportes'
-      preLoaderRoute: typeof ReportesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/rendiciones': {
-      id: '/rendiciones'
-      path: '/rendiciones'
-      fullPath: '/rendiciones'
-      preLoaderRoute: typeof RendicionesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/proyectos': {
-      id: '/proyectos'
-      path: '/proyectos'
-      fullPath: '/proyectos'
-      preLoaderRoute: typeof ProyectosRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/proveedores': {
-      id: '/proveedores'
-      path: '/proveedores'
-      fullPath: '/proveedores'
-      preLoaderRoute: typeof ProveedoresRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/presupuestos': {
-      id: '/presupuestos'
-      path: '/presupuestos'
-      fullPath: '/presupuestos'
-      preLoaderRoute: typeof PresupuestosRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/gastos-empresa': {
-      id: '/gastos-empresa'
-      path: '/gastos-empresa'
-      fullPath: '/gastos-empresa'
-      preLoaderRoute: typeof GastosEmpresaRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/impuestos': {
-      id: '/impuestos'
-      path: '/impuestos'
-      fullPath: '/impuestos'
-      preLoaderRoute: typeof ImpuestosRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/inventario': {
-      id: '/inventario'
-      path: '/inventario'
-      fullPath: '/inventario'
-      preLoaderRoute: typeof InventarioRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/gastos': {
-      id: '/gastos'
-      path: '/gastos'
-      fullPath: '/gastos'
-      preLoaderRoute: typeof GastosRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/facturas': {
-      id: '/facturas'
-      path: '/facturas'
-      fullPath: '/facturas'
-      preLoaderRoute: typeof FacturasRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/documentos': {
-      id: '/documentos'
-      path: '/documentos'
-      fullPath: '/documentos'
-      preLoaderRoute: typeof DocumentosRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/dashboard': {
-      id: '/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof DashboardRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/configuracion': {
-      id: '/configuracion'
-      path: '/configuracion'
-      fullPath: '/configuracion'
-      preLoaderRoute: typeof ConfiguracionRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/clientes': {
-      id: '/clientes'
-      path: '/clientes'
-      fullPath: '/clientes'
-      preLoaderRoute: typeof ClientesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/conciliacion': {
-      id: '/conciliacion'
-      path: '/conciliacion'
-      fullPath: '/conciliacion'
-      preLoaderRoute: typeof ConciliacionRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/catalogo': {
-      id: '/catalogo'
-      path: '/catalogo'
-      fullPath: '/catalogo'
-      preLoaderRoute: typeof CatalogoRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/contabilidad': {
-      id: '/contabilidad'
-      path: '/contabilidad'
-      fullPath: '/contabilidad'
-      preLoaderRoute: typeof ContabilidadRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/cotizaciones': {
-      id: '/cotizaciones'
-      path: '/cotizaciones'
-      fullPath: '/cotizaciones'
-      preLoaderRoute: typeof CotizacionesRouteImport
+    '/administracion': {
+      id: '/administracion'
+      path: '/administracion'
+      fullPath: '/administracion'
+      preLoaderRoute: typeof AdministracionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth': {
@@ -620,25 +509,165 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CambiarClaveRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/administracion': {
-      id: '/administracion'
-      path: '/administracion'
-      fullPath: '/administracion'
-      preLoaderRoute: typeof AdministracionRouteImport
+    '/catalogo': {
+      id: '/catalogo'
+      path: '/catalogo'
+      fullPath: '/catalogo'
+      preLoaderRoute: typeof CatalogoRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/clientes': {
+      id: '/clientes'
+      path: '/clientes'
+      fullPath: '/clientes'
+      preLoaderRoute: typeof ClientesRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/reportes/workflow': {
-      id: '/reportes/workflow'
+    '/conciliacion': {
+      id: '/conciliacion'
+      path: '/conciliacion'
+      fullPath: '/conciliacion'
+      preLoaderRoute: typeof ConciliacionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/configuracion': {
+      id: '/configuracion'
+      path: '/configuracion'
+      fullPath: '/configuracion'
+      preLoaderRoute: typeof ConfiguracionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/contabilidad': {
+      id: '/contabilidad'
+      path: '/contabilidad'
+      fullPath: '/contabilidad'
+      preLoaderRoute: typeof ContabilidadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cotizaciones': {
+      id: '/cotizaciones'
+      path: '/cotizaciones'
+      fullPath: '/cotizaciones'
+      preLoaderRoute: typeof CotizacionesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/documentos': {
+      id: '/documentos'
+      path: '/documentos'
+      fullPath: '/documentos'
+      preLoaderRoute: typeof DocumentosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/facturas': {
+      id: '/facturas'
+      path: '/facturas'
+      fullPath: '/facturas'
+      preLoaderRoute: typeof FacturasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/gastos': {
+      id: '/gastos'
+      path: '/gastos'
+      fullPath: '/gastos'
+      preLoaderRoute: typeof GastosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/gastos-empresa': {
+      id: '/gastos-empresa'
+      path: '/gastos-empresa'
+      fullPath: '/gastos-empresa'
+      preLoaderRoute: typeof GastosEmpresaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/importaciones': {
+      id: '/importaciones'
+      path: '/importaciones'
+      fullPath: '/importaciones'
+      preLoaderRoute: typeof ImportacionesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/impuestos': {
+      id: '/impuestos'
+      path: '/impuestos'
+      fullPath: '/impuestos'
+      preLoaderRoute: typeof ImpuestosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/inventario': {
+      id: '/inventario'
+      path: '/inventario'
+      fullPath: '/inventario'
+      preLoaderRoute: typeof InventarioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/presupuestos': {
+      id: '/presupuestos'
+      path: '/presupuestos'
+      fullPath: '/presupuestos'
+      preLoaderRoute: typeof PresupuestosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/proveedores': {
+      id: '/proveedores'
+      path: '/proveedores'
+      fullPath: '/proveedores'
+      preLoaderRoute: typeof ProveedoresRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/proyectos': {
+      id: '/proyectos'
+      path: '/proyectos'
+      fullPath: '/proyectos'
+      preLoaderRoute: typeof ProyectosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rendiciones': {
+      id: '/rendiciones'
+      path: '/rendiciones'
+      fullPath: '/rendiciones'
+      preLoaderRoute: typeof RendicionesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reportes': {
+      id: '/reportes'
+      path: '/reportes'
+      fullPath: '/reportes'
+      preLoaderRoute: typeof ReportesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/servicio-tecnico': {
+      id: '/servicio-tecnico'
+      path: '/servicio-tecnico'
+      fullPath: '/servicio-tecnico'
+      preLoaderRoute: typeof ServicioTecnicoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/workflow': {
+      id: '/workflow'
       path: '/workflow'
-      fullPath: '/reportes/workflow'
-      preLoaderRoute: typeof ReportesWorkflowRouteImport
+      fullPath: '/workflow'
+      preLoaderRoute: typeof WorkflowRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/importaciones/costeos': {
+      id: '/importaciones/costeos'
+      path: '/costeos'
+      fullPath: '/importaciones/costeos'
+      preLoaderRoute: typeof ImportacionesCosteosRouteImport
+      parentRoute: typeof ImportacionesRoute
+    }
+    '/reportes/financieros': {
+      id: '/reportes/financieros'
+      path: '/financieros'
+      fullPath: '/reportes/financieros'
+      preLoaderRoute: typeof ReportesFinancierosRouteImport
       parentRoute: typeof ReportesRoute
     }
     '/reportes/operativos': {
@@ -648,25 +677,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReportesOperativosRouteImport
       parentRoute: typeof ReportesRoute
     }
-    '/reportes/financieros': {
-      id: '/reportes/financieros'
-      path: '/financieros'
-      fullPath: '/reportes/financieros'
-      preLoaderRoute: typeof ReportesFinancierosRouteImport
+    '/reportes/workflow': {
+      id: '/reportes/workflow'
+      path: '/workflow'
+      fullPath: '/reportes/workflow'
+      preLoaderRoute: typeof ReportesWorkflowRouteImport
       parentRoute: typeof ReportesRoute
-    }
-    '/servicio-tecnico': {
-      id: '/servicio-tecnico'
-      path: '/servicio-tecnico'
-      fullPath: '/servicio-tecnico'
-      preLoaderRoute: typeof ServicioTecnicoRouteImport
-      parentRoute: typeof rootRouteImport
     }
     '/servicio-tecnico/base-instalada': {
       id: '/servicio-tecnico/base-instalada'
       path: '/base-instalada'
       fullPath: '/servicio-tecnico/base-instalada'
       preLoaderRoute: typeof ServicioTecnicoBaseInstaladaRouteImport
+      parentRoute: typeof ServicioTecnicoRoute
+    }
+    '/servicio-tecnico/catalogo': {
+      id: '/servicio-tecnico/catalogo'
+      path: '/catalogo'
+      fullPath: '/servicio-tecnico/catalogo'
+      preLoaderRoute: typeof ServicioTecnicoCatalogoRouteImport
       parentRoute: typeof ServicioTecnicoRoute
     }
     '/servicio-tecnico/contratos': {
@@ -690,13 +719,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServicioTecnicoPlantillasRouteImport
       parentRoute: typeof ServicioTecnicoRoute
     }
-    '/servicio-tecnico/catalogo': {
-      id: '/servicio-tecnico/catalogo-equipos'
-      path: '/catalogo'
-      fullPath: '/servicio-tecnico/catalogo'
-      preLoaderRoute: typeof ServicioTecnicoCatalogoRouteImport
-      parentRoute: typeof ServicioTecnicoRoute
-    }
     '/servicio-tecnico/protocolos': {
       id: '/servicio-tecnico/protocolos'
       path: '/protocolos'
@@ -704,22 +726,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServicioTecnicoProtocolosRouteImport
       parentRoute: typeof ServicioTecnicoRoute
     }
-    '/importaciones': {
-      id: '/importaciones'
-      path: '/importaciones'
-      fullPath: '/importaciones'
-      preLoaderRoute: typeof ImportacionesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/importaciones/costeos': {
-      id: '/costeos'
-      path: '/costeos'
-      fullPath: '/importaciones/costeos'
-      preLoaderRoute: typeof ImportacionesCosteosRouteImport
-      parentRoute: typeof ImportacionesRoute
-    }
   }
 }
+
+interface ImportacionesRouteChildren {
+  ImportacionesCosteosRoute: typeof ImportacionesCosteosRoute
+}
+
+const ImportacionesRouteChildren: ImportacionesRouteChildren = {
+  ImportacionesCosteosRoute: ImportacionesCosteosRoute,
+}
+
+const ImportacionesRouteWithChildren = ImportacionesRoute._addFileChildren(
+  ImportacionesRouteChildren,
+)
 
 interface ReportesRouteChildren {
   ReportesFinancierosRoute: typeof ReportesFinancierosRoute
@@ -739,36 +759,24 @@ const ReportesRouteWithChildren = ReportesRoute._addFileChildren(
 
 interface ServicioTecnicoRouteChildren {
   ServicioTecnicoBaseInstaladaRoute: typeof ServicioTecnicoBaseInstaladaRoute
+  ServicioTecnicoCatalogoRoute: typeof ServicioTecnicoCatalogoRoute
   ServicioTecnicoContratosRoute: typeof ServicioTecnicoContratosRoute
   ServicioTecnicoOrdenesRoute: typeof ServicioTecnicoOrdenesRoute
   ServicioTecnicoPlantillasRoute: typeof ServicioTecnicoPlantillasRoute
-  ServicioTecnicoCatalogoRoute: typeof ServicioTecnicoCatalogoRoute
   ServicioTecnicoProtocolosRoute: typeof ServicioTecnicoProtocolosRoute
 }
 
 const ServicioTecnicoRouteChildren: ServicioTecnicoRouteChildren = {
   ServicioTecnicoBaseInstaladaRoute: ServicioTecnicoBaseInstaladaRoute,
+  ServicioTecnicoCatalogoRoute: ServicioTecnicoCatalogoRoute,
   ServicioTecnicoContratosRoute: ServicioTecnicoContratosRoute,
   ServicioTecnicoOrdenesRoute: ServicioTecnicoOrdenesRoute,
   ServicioTecnicoPlantillasRoute: ServicioTecnicoPlantillasRoute,
-  ServicioTecnicoCatalogoRoute: ServicioTecnicoCatalogoRoute,
   ServicioTecnicoProtocolosRoute: ServicioTecnicoProtocolosRoute,
 }
 
 const ServicioTecnicoRouteWithChildren = ServicioTecnicoRoute._addFileChildren(
   ServicioTecnicoRouteChildren,
-)
-
-interface ImportacionesRouteChildren {
-  ImportacionesCosteosRoute: typeof ImportacionesCosteosRoute
-}
-
-const ImportacionesRouteChildren: ImportacionesRouteChildren = {
-  ImportacionesCosteosRoute: ImportacionesCosteosRoute,
-}
-
-const ImportacionesRouteWithChildren = ImportacionesRoute._addFileChildren(
-  ImportacionesRouteChildren,
 )
 
 const rootRouteChildren: RootRouteChildren = {
@@ -779,14 +787,15 @@ const rootRouteChildren: RootRouteChildren = {
   CatalogoRoute: CatalogoRoute,
   ClientesRoute: ClientesRoute,
   ConciliacionRoute: ConciliacionRoute,
-  ContabilidadRoute: ContabilidadRoute,
   ConfiguracionRoute: ConfiguracionRoute,
+  ContabilidadRoute: ContabilidadRoute,
   CotizacionesRoute: CotizacionesRoute,
   DashboardRoute: DashboardRoute,
   DocumentosRoute: DocumentosRoute,
   FacturasRoute: FacturasRoute,
   GastosRoute: GastosRoute,
   GastosEmpresaRoute: GastosEmpresaRoute,
+  ImportacionesRoute: ImportacionesRouteWithChildren,
   ImpuestosRoute: ImpuestosRoute,
   InventarioRoute: InventarioRoute,
   PresupuestosRoute: PresupuestosRoute,
@@ -795,7 +804,6 @@ const rootRouteChildren: RootRouteChildren = {
   RendicionesRoute: RendicionesRoute,
   ReportesRoute: ReportesRouteWithChildren,
   ServicioTecnicoRoute: ServicioTecnicoRouteWithChildren,
-  ImportacionesRoute: ImportacionesRouteWithChildren,
   WorkflowRoute: WorkflowRoute,
 }
 export const routeTree = rootRouteImport
