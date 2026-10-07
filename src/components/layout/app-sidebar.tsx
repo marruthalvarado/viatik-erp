@@ -82,7 +82,8 @@ const financeItems: NavItem[] = [
 ];
 
 const importacionesItems: NavItem[] = [
-  { title: "Costeos", url: "/importaciones/costeos", icon: Calculator, modulo: "importaciones" },
+  { title: "Costeos",   url: "/importaciones/costeos",   icon: Calculator, modulo: "importaciones" },
+  { title: "Embarques", url: "/importaciones/embarques", icon: Globe,      modulo: "importaciones" },
 ];
 
 const servicioTecnicoItems: NavItem[] = [

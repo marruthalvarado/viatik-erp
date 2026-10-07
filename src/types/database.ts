@@ -751,6 +751,7 @@ export type Database = {
         Row: {
           id: string;
           empresa_id: string;
+          numero_embarque: string | null;
           numero_liquidacion: string | null;
           referencia_dai: string | null;
           fecha: string;
@@ -758,6 +759,7 @@ export type Database = {
           gasto_empresa_id: string | null;
           bodega_destino_id: string | null;
           pais_origen: string | null;
+          costeo_id: string | null;
           fob_total: number;
           seguro: number;
           flete: number;
@@ -778,6 +780,7 @@ export type Database = {
         Insert: {
           id?: string;
           empresa_id: string;
+          numero_embarque?: string | null;
           numero_liquidacion?: string | null;
           referencia_dai?: string | null;
           fecha: string;
@@ -785,6 +788,7 @@ export type Database = {
           gasto_empresa_id?: string | null;
           bodega_destino_id?: string | null;
           pais_origen?: string | null;
+          costeo_id?: string | null;
           fob_total?: number;
           seguro?: number;
           flete?: number;
@@ -803,6 +807,7 @@ export type Database = {
           deleted_at?: string | null;
         };
         Update: {
+          numero_embarque?: string | null;
           numero_liquidacion?: string | null;
           referencia_dai?: string | null;
           fecha?: string;
@@ -810,6 +815,7 @@ export type Database = {
           gasto_empresa_id?: string | null;
           bodega_destino_id?: string | null;
           pais_origen?: string | null;
+          costeo_id?: string | null;
           fob_total?: number;
           seguro?: number;
           flete?: number;
@@ -825,7 +831,10 @@ export type Database = {
           updated_at?: string;
           deleted_at?: string | null;
         };
-        Relationships: [{ foreignKeyName: "importaciones_empresa_id_fkey"; columns: ["empresa_id"]; referencedRelation: "empresas"; referencedColumns: ["id"]; }];
+        Relationships: [
+          { foreignKeyName: "importaciones_empresa_id_fkey"; columns: ["empresa_id"]; referencedRelation: "empresas"; referencedColumns: ["id"]; },
+          { foreignKeyName: "importaciones_costeo_id_fkey"; columns: ["costeo_id"]; referencedRelation: "costeos"; referencedColumns: ["id"]; }
+        ];
       };
       importacion_lineas: {
         Row: {
