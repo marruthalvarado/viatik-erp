@@ -11,6 +11,7 @@ import {
   actualizarCosteo,
   eliminarCosteo,
   actualizarEstadoCosteo,
+  sincronizarProductoCatalogoDesdeCosteо,
   type CosteoDatos,
   type CosteoComponentePayload,
   type EstadoCosteo,
@@ -46,8 +47,20 @@ export function useCrearCosteo() {
       datos:        CosteoDatos;
       componentes:  CosteoComponentePayload[];
     }) => crearCosteo(empresaActivaId!, datos, componentes),
-    onSuccess: () =>
-      void qc.invalidateQueries({ queryKey: QK(empresaActivaId ?? undefined) }),
+    onSuccess: async (result, { datos }) => {
+      // Auto-crear producto en catálogo si el costeo no tenía producto vinculado
+      if (!datos.producto_id && empresaActivaId) {
+        await sincronizarProductoCatalogoDesdeCosteо(
+          result.id,
+          empresaActivaId,
+          datos.descripcion_producto,
+          datos.proveedor_id,
+          datos.pvp_privado,
+        ).catch(() => {/* silencioso: no bloquear el flujo */});
+      }
+      void qc.invalidateQueries({ queryKey: QK(empresaActivaId ?? undefined) });
+      void qc.invalidateQueries({ queryKey: ["productos_catalogo", empresaActivaId] });
+    },
   });
 }
 

@@ -155,3 +155,45 @@ export async function actualizarEstadoCosteo(
     .is("deleted_at", null);
   if (error) throw new Error(error.message);
 }
+
+/**
+ * Crea un producto en productos_catalogo a partir de un costeo y lo vincula.
+ * Solo actúa si el costeo aún no tiene producto_id.
+ */
+export async function sincronizarProductoCatalogoDesdeCosteо(
+  costeoId: string,
+  empresaId: string,
+  descripcionProducto: string,
+  proveedorId: string,
+  pvpPrivado: number,
+): Promise<void> {
+  // Verificar si ya tiene producto vinculado
+  const { data: costeo } = await supabase
+    .from("costeos")
+    .select("producto_id")
+    .eq("id", costeoId)
+    .single();
+  if (costeo?.producto_id) return; // ya vinculado, no hacer nada
+
+  // Crear producto en catálogo
+  const { data: producto, error: errProd } = await supabase
+    .from("productos_catalogo")
+    .insert({
+      empresa_id:        empresaId,
+      nombre:            descripcionProducto,
+      proveedor_id:      proveedorId || null,
+      precio_referencial: pvpPrivado || null,
+      tipo_item:         "producto",
+      para_cotizar:      true,
+      estado:            "activo",
+    } as never)
+    .select("id")
+    .single();
+  if (errProd || !producto) return; // si falla, no bloquear el flujo
+
+  // Vincular al costeo
+  await supabase
+    .from("costeos")
+    .update({ producto_id: (producto as { id: string }).id } as never)
+    .eq("id", costeoId);
+}
