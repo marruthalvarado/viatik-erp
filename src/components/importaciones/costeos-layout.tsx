@@ -255,12 +255,14 @@ export function CosteosLayout() {
         </div>
       )}
 
-      {/* Form */}
-      <CosteoForm
-        open={formOpen}
-        onClose={() => { setFormOpen(false); setEditando(null); }}
-        editando={editando}
-      />
+      {/* Form — se monta sólo cuando está abierto para evitar render en frío */}
+      {formOpen && (
+        <CosteoForm
+          open={formOpen}
+          onClose={() => { setFormOpen(false); setEditando(null); }}
+          editando={editando}
+        />
+      )}
 
       {/* Detalle */}
       {detalle && (
