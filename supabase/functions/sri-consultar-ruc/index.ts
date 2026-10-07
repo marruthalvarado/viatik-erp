@@ -5,11 +5,11 @@
  * Prueba múltiples endpoints del SRI para cubrir todos los tipos de contribuyente.
  *
  * Request body (JSON):
- *   { ruc: string }
+ *   { ruc: string, debug?: boolean }
  *
  * Response:
  *   { ok: true, datos: { ruc, razon_social, nombre_comercial, estado, tipo_contribuyente, direccion } }
- *   { ok: false, error: string }
+ *   { ok: false, error: string, intentos?: DebugIntento[] }  (debug=true expone intentos)
  */
 
 const CORS = {
@@ -27,28 +27,42 @@ function json(body: unknown, status = 200) {
 
 const BASE = "https://srienlinea.sri.gob.ec/sri-catastro-sujeto-servicio-internet/rest";
 
-/** Intenta fetch con timeout; devuelve null en error de red/timeout */
-async function tryFetch(url: string): Promise<unknown | null> {
+interface FetchResult {
+  url: string;
+  status: number | null;
+  body: string | null;
+  parsed: unknown;
+  error: string | null;
+}
+
+/** Intenta fetch con timeout; siempre retorna resultado (nunca lanza) */
+async function tryFetch(url: string): Promise<FetchResult> {
   try {
     const res = await fetch(url, {
       headers: {
         "Accept": "application/json, text/plain, */*",
-        "User-Agent": "Mozilla/5.0 (compatible; VIATIQ-ERP/1.0)",
+        "Accept-Language": "es-EC,es;q=0.9",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Referer": "https://srienlinea.sri.gob.ec/",
+        "Origin": "https://srienlinea.sri.gob.ec",
       },
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(10000),
     });
-    if (!res.ok) return null;
-    const text = await res.text();
-    if (!text || text.trim() === "null" || text.trim() === "") return null;
-    return JSON.parse(text);
-  } catch {
-    return null;
+
+    const body = await res.text();
+    let parsed: unknown = null;
+    if (body && body.trim() !== "null" && body.trim() !== "") {
+      try { parsed = JSON.parse(body); } catch { /* no JSON */ }
+    }
+
+    return { url, status: res.status, body, parsed, error: null };
+  } catch (e) {
+    return { url, status: null, body: null, parsed: null, error: String(e) };
   }
 }
 
 /** Extrae datos normalizados desde cualquier forma que devuelva el SRI */
-function extraerDatos(ruc: string, raw: unknown): {
+function extraerDatos(raw: unknown): {
   razon_social: string;
   nombre_comercial: string;
   estado: string;
@@ -57,17 +71,18 @@ function extraerDatos(ruc: string, raw: unknown): {
 } | null {
   if (!raw || typeof raw !== "object") return null;
 
-  // El SRI puede devolver el objeto directamente o envuelto en .contribuyente
   const r = raw as Record<string, unknown>;
+  // El SRI puede envolver en .contribuyente
   const c = (r.contribuyente as Record<string, unknown> | undefined) ?? r;
 
   const razon_social =
     (c.razonSocial as string | undefined) ??
     (c.nombreRazonSocial as string | undefined) ??
     (r.razonSocial as string | undefined) ??
+    (r.nombreRazonSocial as string | undefined) ??
     "";
 
-  if (!razon_social) return null; // objeto vacío / sin datos útiles
+  if (!razon_social) return null;
 
   const nombre_comercial =
     (c.nombreComercial as string | undefined) ??
@@ -78,55 +93,40 @@ function extraerDatos(ruc: string, raw: unknown): {
     (c.estadoContribuyenteRuc as string | undefined) ??
     (c.estadoRuc as string | undefined) ??
     (r.estadoContribuyenteRuc as string | undefined) ??
+    (r.estadoRuc as string | undefined) ??
     (r.estado as string | undefined) ??
     "";
 
   const tipo_contribuyente =
     (c.tipoContribuyente as string | undefined) ??
     (r.tipoContribuyente as string | undefined) ??
+    (r.tipo as string | undefined) ??
     "";
 
-  // Dirección: intentamos varios patrones de campos
-  const partes: string[] = [];
-  for (const campo of [
-    "nombreProvinciaEstablecimiento", "provincia",
-    "nombreCantonEstablecimiento", "canton",
-    "nombreParroquiaEstablecimiento", "parroquia",
-    "calleEstablecimiento", "calle", "direccionMatriz",
-    "numeroEstablecimiento",
-  ]) {
-    const val = (c[campo] ?? r[campo]) as string | undefined;
-    if (val && typeof val === "string") {
-      partes.push(val);
-      break; // tomar solo el primer campo de cada par
-    }
-  }
-  // Construcción de dirección más completa
   const camposDireccion = [
-    ["nombreProvinciaEstablecimiento", "provincia"],
-    ["nombreCantonEstablecimiento", "canton"],
-    ["nombreParroquiaEstablecimiento", "parroquia"],
-    ["calleEstablecimiento", "calle", "direccionMatriz"],
-    ["numeroEstablecimiento"],
+    ["nombreProvinciaEstablecimiento", "provincia", "nombreProvincia"],
+    ["nombreCantonEstablecimiento", "canton", "nombreCanton"],
+    ["nombreParroquiaEstablecimiento", "parroquia", "nombreParroquia"],
+    ["calleEstablecimiento", "calle", "direccionMatriz", "direccion"],
+    ["numeroEstablecimiento", "numero"],
   ];
   const partesDir: string[] = [];
   for (const grupo of camposDireccion) {
     for (const campo of grupo) {
       const val = (c[campo] ?? r[campo]) as string | undefined;
-      if (val && typeof val === "string") {
-        partesDir.push(val);
+      if (val && typeof val === "string" && val.trim()) {
+        partesDir.push(val.trim());
         break;
       }
     }
   }
-  const direccion = partesDir.join(", ");
 
   return {
     razon_social,
     nombre_comercial,
     estado: estado.toUpperCase(),
     tipo_contribuyente,
-    direccion,
+    direccion: partesDir.join(", "),
   };
 }
 
@@ -135,9 +135,11 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ ok: false, error: "Método no permitido" }, 405);
 
   let ruc: string;
+  let debug = false;
   try {
     const body = await req.json();
     ruc = (body.ruc ?? "").trim().replace(/\s/g, "");
+    debug = body.debug === true;
   } catch {
     return json({ ok: false, error: "Body JSON inválido" }, 400);
   }
@@ -146,31 +148,58 @@ Deno.serve(async (req: Request) => {
     return json({ ok: false, error: "RUC o cédula debe tener 10 o 13 dígitos" }, 400);
   }
 
-  // Lista de endpoints a intentar en orden
-  const endpoints = [
+  // RUC base de 10 dígitos (sin código de establecimiento)
+  const ruc10 = ruc.length === 13 ? ruc.slice(0, 10) : ruc;
+
+  // Lista exhaustiva de endpoints a intentar
+  const urls = [
     `${BASE}/ConsolidadoContribuyente/obtenerPorNumerRuc?numeroRuc=${ruc}`,
     `${BASE}/Persona/obtenerPorNumerRuc?numeroRuc=${ruc}`,
     `${BASE}/ConsolidadoContribuyente/obtenerPorNumeroRuc?numeroRuc=${ruc}`,
     `${BASE}/Ruc/obtenerPorNumeroRuc?numeroRuc=${ruc}`,
+    // Intentar con RUC de 10 dígitos si el original es de 13
+    ...(ruc !== ruc10 ? [
+      `${BASE}/ConsolidadoContribuyente/obtenerPorNumerRuc?numeroRuc=${ruc10}`,
+      `${BASE}/Persona/obtenerPorNumerRuc?numeroRuc=${ruc10}`,
+    ] : []),
+    // Endpoints alternativos con distinto nombre de parámetro
+    `${BASE}/ConsolidadoContribuyente/obtenerPorNumerRuc?ruc=${ruc}`,
+    `${BASE}/Sociedad/obtenerPorNumerRuc?numeroRuc=${ruc}`,
+    `${BASE}/SujetoInformacion/obtenerPorNumerRuc?numeroRuc=${ruc}`,
   ];
 
-  for (const url of endpoints) {
-    const raw = await tryFetch(url);
+  const intentos: FetchResult[] = [];
 
-    if (!raw) continue; // null, vacío o error de red
+  for (const url of urls) {
+    const result = await tryFetch(url);
+    intentos.push(result);
+
+    if (result.parsed === null) continue;
 
     // El SRI a veces devuelve un array
-    const item = Array.isArray(raw) ? raw[0] : raw;
+    const item = Array.isArray(result.parsed) ? result.parsed[0] : result.parsed;
     if (!item) continue;
 
-    const datos = extraerDatos(ruc, item);
+    const datos = extraerDatos(item);
     if (datos) {
       return json({ ok: true, datos: { ruc, ...datos } });
     }
   }
 
-  return json({
+  // No encontrado — retornar diagnóstico si debug=true
+  const errorResponse: Record<string, unknown> = {
     ok: false,
     error: "No se encontró información para este RUC en el SRI. Verifica que el número sea correcto.",
-  }, 404);
+  };
+
+  if (debug) {
+    errorResponse.intentos = intentos.map((i) => ({
+      url: i.url.replace(BASE, ""),
+      status: i.status,
+      bodySnippet: i.body ? i.body.slice(0, 500) : null,
+      error: i.error,
+    }));
+  }
+
+  return json(errorResponse, 404);
 });
