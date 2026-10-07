@@ -37,6 +37,7 @@ import { Route as WorkflowRouteImport } from './routes/workflow'
 import { Route as ImportacionesDashboardRouteImport } from './routes/importaciones.dashboard'
 import { Route as ImportacionesCosteosRouteImport } from './routes/importaciones.costeos'
 import { Route as ImportacionesEmbarquesRouteImport } from './routes/importaciones.embarques'
+import { Route as ImportacionesGruposRouteImport } from './routes/importaciones.grupos'
 import { Route as ReportesFinancierosRouteImport } from './routes/reportes.financieros'
 import { Route as ReportesOperativosRouteImport } from './routes/reportes.operativos'
 import { Route as ReportesWorkflowRouteImport } from './routes/reportes.workflow'
@@ -188,6 +189,11 @@ const ImportacionesEmbarquesRoute = ImportacionesEmbarquesRouteImport.update({
   path: '/embarques',
   getParentRoute: () => ImportacionesRoute,
 } as any)
+const ImportacionesGruposRoute = ImportacionesGruposRouteImport.update({
+  id: '/grupos',
+  path: '/grupos',
+  getParentRoute: () => ImportacionesRoute,
+} as any)
 const ReportesFinancierosRoute = ReportesFinancierosRouteImport.update({
   id: '/financieros',
   path: '/financieros',
@@ -267,6 +273,7 @@ export interface FileRoutesByFullPath {
   '/importaciones/dashboard': typeof ImportacionesDashboardRoute
     '/importaciones/costeos': typeof ImportacionesCosteosRoute
   '/importaciones/embarques': typeof ImportacionesEmbarquesRoute
+  '/importaciones/grupos': typeof ImportacionesGruposRoute
   '/reportes/financieros': typeof ReportesFinancierosRoute
   '/reportes/operativos': typeof ReportesOperativosRoute
   '/reportes/workflow': typeof ReportesWorkflowRoute
@@ -306,6 +313,7 @@ export interface FileRoutesByTo {
   '/importaciones/dashboard': typeof ImportacionesDashboardRoute
     '/importaciones/costeos': typeof ImportacionesCosteosRoute
   '/importaciones/embarques': typeof ImportacionesEmbarquesRoute
+  '/importaciones/grupos': typeof ImportacionesGruposRoute
   '/reportes/financieros': typeof ReportesFinancierosRoute
   '/reportes/operativos': typeof ReportesOperativosRoute
   '/reportes/workflow': typeof ReportesWorkflowRoute
@@ -346,6 +354,7 @@ export interface FileRoutesById {
   '/importaciones/dashboard': typeof ImportacionesDashboardRoute
     '/importaciones/costeos': typeof ImportacionesCosteosRoute
   '/importaciones/embarques': typeof ImportacionesEmbarquesRoute
+  '/importaciones/grupos': typeof ImportacionesGruposRoute
   '/reportes/financieros': typeof ReportesFinancierosRoute
   '/reportes/operativos': typeof ReportesOperativosRoute
   '/reportes/workflow': typeof ReportesWorkflowRoute
@@ -384,7 +393,10 @@ export interface FileRouteTypes {
     | '/reportes'
     | '/servicio-tecnico'
     | '/workflow'
+    | '/importaciones/dashboard'
     | '/importaciones/costeos'
+    | '/importaciones/embarques'
+    | '/importaciones/grupos'
     | '/reportes/financieros'
     | '/reportes/operativos'
     | '/reportes/workflow'
@@ -421,7 +433,10 @@ export interface FileRouteTypes {
     | '/reportes'
     | '/servicio-tecnico'
     | '/workflow'
+    | '/importaciones/dashboard'
     | '/importaciones/costeos'
+    | '/importaciones/embarques'
+    | '/importaciones/grupos'
     | '/reportes/financieros'
     | '/reportes/operativos'
     | '/reportes/workflow'
@@ -458,7 +473,10 @@ export interface FileRouteTypes {
     | '/reportes'
     | '/servicio-tecnico'
     | '/workflow'
+    | '/importaciones/dashboard'
     | '/importaciones/costeos'
+    | '/importaciones/embarques'
+    | '/importaciones/grupos'
     | '/reportes/financieros'
     | '/reportes/operativos'
     | '/reportes/workflow'
@@ -675,6 +693,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WorkflowRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/importaciones/dashboard': {
+      id: '/importaciones/dashboard'
+      path: '/dashboard'
+      fullPath: '/importaciones/dashboard'
+      preLoaderRoute: typeof ImportacionesDashboardRouteImport
+      parentRoute: typeof ImportacionesRoute
+    }
     '/importaciones/costeos': {
       id: '/importaciones/costeos'
       path: '/costeos'
@@ -687,6 +712,13 @@ declare module '@tanstack/react-router' {
       path: '/embarques'
       fullPath: '/importaciones/embarques'
       preLoaderRoute: typeof ImportacionesEmbarquesRouteImport
+      parentRoute: typeof ImportacionesRoute
+    }
+    '/importaciones/grupos': {
+      id: '/importaciones/grupos'
+      path: '/grupos'
+      fullPath: '/importaciones/grupos'
+      preLoaderRoute: typeof ImportacionesGruposRouteImport
       parentRoute: typeof ImportacionesRoute
     }
     '/reportes/financieros': {
@@ -759,11 +791,13 @@ interface ImportacionesRouteChildren {
   ImportacionesDashboardRoute: typeof ImportacionesDashboardRoute
   ImportacionesCosteosRoute: typeof ImportacionesCosteosRoute
   ImportacionesEmbarquesRoute: typeof ImportacionesEmbarquesRoute
+  ImportacionesGruposRoute: typeof ImportacionesGruposRoute
 }
 
 const ImportacionesRouteChildren: ImportacionesRouteChildren = {
   ImportacionesCosteosRoute: ImportacionesCosteosRoute,
   ImportacionesEmbarquesRoute: ImportacionesEmbarquesRoute,
+  ImportacionesGruposRoute: ImportacionesGruposRoute,
 }
 
 const ImportacionesRouteWithChildren = ImportacionesRoute._addFileChildren(

@@ -747,6 +747,44 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["cotizacion_items"]["Insert"]>;
         Relationships: [];
       };
+      grupos_embarque: {
+        Row: {
+          id: string;
+          empresa_id: string;
+          numero: string;
+          descripcion: string | null;
+          fecha: string;
+          flete_total: number;
+          seguro_total: number;
+          otros_logistica: number;
+          fob_total_grupo: number;
+          estado: string;
+          observacion: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          empresa_id: string;
+          numero?: string;
+          descripcion?: string | null;
+          fecha?: string;
+          flete_total?: number;
+          seguro_total?: number;
+          otros_logistica?: number;
+          fob_total_grupo?: number;
+          estado?: string;
+          observacion?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          deleted_at?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["grupos_embarque"]["Insert"]>;
+        Relationships: [];
+      };
       importaciones: {
         Row: {
           id: string;
@@ -760,6 +798,7 @@ export type Database = {
           bodega_destino_id: string | null;
           pais_origen: string | null;
           costeo_id: string | null;
+          grupo_embarque_id: string | null;
           fob_total: number;
           seguro: number;
           flete: number;
@@ -769,6 +808,9 @@ export type Database = {
           fodinfa: number;
           iva_importacion: number;
           total_liquidado: number;
+          flete_prorrateado: number;
+          seguro_prorrateado: number;
+          otros_prorrateado: number;
           estado: string;
           observacion: string | null;
           comprobante_url: string | null;
@@ -789,6 +831,7 @@ export type Database = {
           bodega_destino_id?: string | null;
           pais_origen?: string | null;
           costeo_id?: string | null;
+          grupo_embarque_id?: string | null;
           fob_total?: number;
           seguro?: number;
           flete?: number;
@@ -798,6 +841,9 @@ export type Database = {
           fodinfa?: number;
           iva_importacion?: number;
           total_liquidado?: number;
+          flete_prorrateado?: number;
+          seguro_prorrateado?: number;
+          otros_prorrateado?: number;
           estado?: string;
           observacion?: string | null;
           comprobante_url?: string | null;

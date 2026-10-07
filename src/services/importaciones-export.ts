@@ -42,31 +42,34 @@ export async function exportLiquidacionExcel(emb: EmbarqueConLineas): Promise<vo
   // Encabezado
   aoa.push(["LIQUIDACIÓN DAI — VIATIQ"]);
   aoa.push([]);
-  aoa.push(["Embarque",          emb.numero_embarque ?? "—"]);
-  aoa.push(["N° Liquidación",    emb.numero_liquidacion ?? "—"]);
-  aoa.push(["Referencia DAI",    emb.referencia_dai ?? "—"]);
-  aoa.push(["Fecha",             fmtDate(emb.fecha)]);
-  aoa.push(["Proveedor",         emb.proveedor?.nombre ?? "—"]);
-  aoa.push(["RUC/ID Proveedor",  emb.proveedor?.ruc ?? "—"]);
-  aoa.push(["País origen",       emb.pais_origen ?? "—"]);
-  aoa.push(["Estado",            emb.estado]);
+  aoa.push(["Embarque", emb.numero_embarque ?? "—"]);
+  aoa.push(["N° Liquidación", emb.numero_liquidacion ?? "—"]);
+  aoa.push(["Referencia DAI", emb.referencia_dai ?? "—"]);
+  aoa.push(["Fecha", fmtDate(emb.fecha)]);
+  aoa.push(["Proveedor", emb.proveedor?.nombre ?? "—"]);
+  aoa.push(["RUC/ID Proveedor", emb.proveedor?.ruc ?? "—"]);
+  aoa.push(["País origen", emb.pais_origen ?? "—"]);
+  aoa.push(["Estado", emb.estado]);
   if (emb.costeo) {
-    aoa.push(["Costeo vinculado", `${emb.costeo.numero} (est. ${fmt(emb.costeo.costo_aterrizaje_usd)})`]);
+    aoa.push([
+      "Costeo vinculado",
+      `${emb.costeo.numero} (est. ${fmt(emb.costeo.costo_aterrizaje_usd)})`,
+    ]);
   }
   aoa.push([]);
 
   // Costos DAI
   aoa.push(["COSTOS DAI"]);
-  aoa.push(["Concepto",          "Valor USD"]);
-  aoa.push(["FOB Total",         emb.fob_total]);
-  aoa.push(["Seguro",            emb.seguro]);
-  aoa.push(["Flete",             emb.flete]);
-  aoa.push(["Ajustes",           emb.ajustes]);
-  aoa.push(["Valor aduanas",     emb.valor_aduanas]);
-  aoa.push(["Arancel Ad-valorem",emb.arancel]);
-  aoa.push(["FODINFA",           emb.fodinfa]);
-  aoa.push(["IVA importación",   emb.iva_importacion]);
-  aoa.push(["TOTAL LIQUIDADO",   emb.total_liquidado]);
+  aoa.push(["Concepto", "Valor USD"]);
+  aoa.push(["FOB Total", emb.fob_total]);
+  aoa.push(["Seguro", emb.seguro]);
+  aoa.push(["Flete", emb.flete]);
+  aoa.push(["Ajustes", emb.ajustes]);
+  aoa.push(["Valor aduanas", emb.valor_aduanas]);
+  aoa.push(["Arancel Ad-valorem", emb.arancel]);
+  aoa.push(["FODINFA", emb.fodinfa]);
+  aoa.push(["IVA importación", emb.iva_importacion]);
+  aoa.push(["TOTAL LIQUIDADO", emb.total_liquidado]);
   aoa.push([]);
 
   // Delta vs costeo
@@ -76,16 +79,25 @@ export async function exportLiquidacionExcel(emb: EmbarqueConLineas): Promise<vo
       ? (delta / emb.costeo.costo_aterrizaje_usd) * 100
       : 0;
     aoa.push(["COMPARATIVO COSTEO"]);
-    aoa.push(["Estimado",          emb.costeo.costo_aterrizaje_usd]);
-    aoa.push(["Real (liquidado)",  emb.total_liquidado]);
-    aoa.push(["Delta",             delta]);
-    aoa.push(["Variación %",       `${pct.toFixed(1)}%`]);
+    aoa.push(["Estimado", emb.costeo.costo_aterrizaje_usd]);
+    aoa.push(["Real (liquidado)", emb.total_liquidado]);
+    aoa.push(["Delta", delta]);
+    aoa.push(["Variación %", `${pct.toFixed(1)}%`]);
     aoa.push([]);
   }
 
   // Líneas
   aoa.push(["DETALLE DE LÍNEAS"]);
-  aoa.push(["Descripción", "FOB línea", "Cantidad", "Unidad", "Peso kg", "País origen", "Costo unit. calc.", "Observación"]);
+  aoa.push([
+    "Descripción",
+    "FOB línea",
+    "Cantidad",
+    "Unidad",
+    "Peso kg",
+    "País origen",
+    "Costo unit. calc.",
+    "Observación",
+  ]);
   for (const l of emb.lineas) {
     aoa.push([
       l.descripcion_original,
@@ -107,7 +119,16 @@ export async function exportLiquidacionExcel(emb: EmbarqueConLineas): Promise<vo
   const ws = XLSX.utils.aoa_to_sheet(aoa);
 
   // Anchos de columna
-  ws["!cols"] = [{ wch: 28 }, { wch: 22 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 18 }, { wch: 20 }];
+  ws["!cols"] = [
+    { wch: 28 },
+    { wch: 22 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 14 },
+    { wch: 18 },
+    { wch: 20 },
+  ];
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Liquidación DAI");
@@ -118,26 +139,31 @@ export async function exportLiquidacionExcel(emb: EmbarqueConLineas): Promise<vo
 
 // ── PDF ──────────────────────────────────────────────────────────────────────
 
-const PDF_BLUE       = [30, 64, 175]   as const;
-const PDF_GRAY_LIGHT = [248, 250, 252] as const;
-const PDF_GRAY_TEXT  = [100, 116, 139] as const;
-const PDF_RED        = [220, 38, 38]   as const;
-const PDF_GREEN      = [22, 163, 74]   as const;
+const PDF_BLUE = [30, 64, 175] as [number, number, number];
+const PDF_GRAY_LIGHT = [248, 250, 252] as [number, number, number];
+const PDF_GRAY_TEXT = [100, 116, 139] as [number, number, number];
+const PDF_RED = [220, 38, 38] as [number, number, number];
+const PDF_GREEN = [22, 163, 74] as [number, number, number];
 
-export async function exportLiquidacionPdf(emb: EmbarqueConLineas, empresa?: string): Promise<void> {
-  const { jsPDF }    = await import("jspdf");
+export async function exportLiquidacionPdf(
+  emb: EmbarqueConLineas,
+  empresa?: string,
+): Promise<void> {
+  const { jsPDF } = await import("jspdf");
   const { autoTable } = await import("jspdf-autotable");
 
-  const doc   = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageW = doc.internal.pageSize.width;
   const pageH = doc.internal.pageSize.height;
 
   // ── Cabecera ──────────────────────────────────────────────────────────────
   let y = 16;
 
-  (doc as unknown as {
-    addImage: (img: string, fmt: string, x: number, y: number, w: number, h: number) => void;
-  }).addImage(LOGO_VIATIQ_PNG_B64, "PNG", 14, y - 3, LOGO_VIATIQ_W, LOGO_VIATIQ_H);
+  (
+    doc as unknown as {
+      addImage: (img: string, fmt: string, x: number, y: number, w: number, h: number) => void;
+    }
+  ).addImage(LOGO_VIATIQ_PNG_B64, "PNG", 14, y - 3, LOGO_VIATIQ_W, LOGO_VIATIQ_H);
 
   doc.setFontSize(14);
   doc.setFont("helvetica", "bold");
@@ -170,19 +196,19 @@ export async function exportLiquidacionPdf(emb: EmbarqueConLineas, empresa?: str
   const metaLeft = [
     ["N° Liquidación", emb.numero_liquidacion ?? "—"],
     ["Referencia DAI", emb.referencia_dai ?? "—"],
-    ["Fecha",          fmtDate(emb.fecha)],
-    ["Estado",         emb.estado],
+    ["Fecha", fmtDate(emb.fecha)],
+    ["Estado", emb.estado],
   ];
   const metaRight = [
-    ["Proveedor",     emb.proveedor?.nombre ?? "—"],
-    ["RUC/ID",        emb.proveedor?.ruc ?? "—"],
-    ["País origen",   emb.pais_origen ?? "—"],
-    ["Costeo",        emb.costeo ? emb.costeo.numero : "Sin costeo"],
+    ["Proveedor", emb.proveedor?.nombre ?? "—"],
+    ["RUC/ID", emb.proveedor?.ruc ?? "—"],
+    ["País origen", emb.pais_origen ?? "—"],
+    ["Costeo", emb.costeo ? emb.costeo.numero : "Sin costeo"],
   ];
 
   const colLabelW = 32;
   const colValueW = 54;
-  const colMid    = 14 + colLabelW + colValueW + 4;
+  const colMid = 14 + colLabelW + colValueW + 4;
 
   for (let i = 0; i < Math.max(metaLeft.length, metaRight.length); i++) {
     if (metaLeft[i]) {
@@ -210,14 +236,14 @@ export async function exportLiquidacionPdf(emb: EmbarqueConLineas, empresa?: str
   y += 2;
 
   const costRows = [
-    ["FOB Total",            fmt(emb.fob_total)],
-    ["Seguro",               fmt(emb.seguro)],
-    ["Flete",                fmt(emb.flete)],
-    ["Ajustes",              fmt(emb.ajustes)],
-    ["Valor aduanas (CIF)",  fmt(emb.valor_aduanas)],
-    ["Arancel Ad-valorem",   fmt(emb.arancel)],
-    ["FODINFA",              fmt(emb.fodinfa)],
-    ["IVA importación",      fmt(emb.iva_importacion)],
+    ["FOB Total", fmt(emb.fob_total)],
+    ["Seguro", fmt(emb.seguro)],
+    ["Flete", fmt(emb.flete)],
+    ["Ajustes", fmt(emb.ajustes)],
+    ["Valor aduanas (CIF)", fmt(emb.valor_aduanas)],
+    ["Arancel Ad-valorem", fmt(emb.arancel)],
+    ["FODINFA", fmt(emb.fodinfa)],
+    ["IVA importación", fmt(emb.iva_importacion)],
   ];
 
   autoTable(doc, {
@@ -226,9 +252,9 @@ export async function exportLiquidacionPdf(emb: EmbarqueConLineas, empresa?: str
     body: costRows,
     foot: [["TOTAL LIQUIDADO", fmt(emb.total_liquidado)]],
     theme: "grid",
-    headStyles:   { fillColor: PDF_BLUE, textColor: 255, fontSize: 8, fontStyle: "bold" },
-    footStyles:   { fillColor: [240, 244, 255], textColor: PDF_BLUE, fontSize: 9, fontStyle: "bold" },
-    bodyStyles:   { fontSize: 8, textColor: [30, 30, 30] },
+    headStyles: { fillColor: PDF_BLUE, textColor: 255, fontSize: 8, fontStyle: "bold" },
+    footStyles: { fillColor: [240, 244, 255], textColor: PDF_BLUE, fontSize: 9, fontStyle: "bold" },
+    bodyStyles: { fontSize: 8, textColor: [30, 30, 30] },
     alternateRowStyles: { fillColor: PDF_GRAY_LIGHT },
     columnStyles: { 1: { halign: "right" } },
     margin: { left: 14, right: pageW / 2 + 5 },
@@ -237,7 +263,7 @@ export async function exportLiquidacionPdf(emb: EmbarqueConLineas, empresa?: str
   // ── Comparativo costeo (misma altura, lado derecho) ───────────────────────
   if (emb.costeo) {
     const delta = emb.total_liquidado - emb.costeo.costo_aterrizaje_usd;
-    const pct   = emb.costeo.costo_aterrizaje_usd
+    const pct = emb.costeo.costo_aterrizaje_usd
       ? (delta / emb.costeo.costo_aterrizaje_usd) * 100
       : 0;
 
@@ -245,14 +271,14 @@ export async function exportLiquidacionPdf(emb: EmbarqueConLineas, empresa?: str
       startY: y,
       head: [["Comparativo vs Costeo", ""]],
       body: [
-        ["Costeo estimado",   fmt(emb.costeo.costo_aterrizaje_usd)],
-        ["Real (liquidado)",  fmt(emb.total_liquidado)],
-        ["Delta",             (delta >= 0 ? "+" : "") + fmt(delta)],
-        ["Variación %",       (pct >= 0 ? "+" : "") + pct.toFixed(1) + "%"],
+        ["Costeo estimado", fmt(emb.costeo.costo_aterrizaje_usd)],
+        ["Real (liquidado)", fmt(emb.total_liquidado)],
+        ["Delta", (delta >= 0 ? "+" : "") + fmt(delta)],
+        ["Variación %", (pct >= 0 ? "+" : "") + pct.toFixed(1) + "%"],
       ],
       theme: "grid",
-      headStyles:   { fillColor: PDF_BLUE, textColor: 255, fontSize: 8, fontStyle: "bold" },
-      bodyStyles:   { fontSize: 8, textColor: [30, 30, 30] },
+      headStyles: { fillColor: PDF_BLUE, textColor: 255, fontSize: 8, fontStyle: "bold" },
+      bodyStyles: { fontSize: 8, textColor: [30, 30, 30] },
       alternateRowStyles: { fillColor: PDF_GRAY_LIGHT },
       columnStyles: {
         1: {
@@ -288,8 +314,8 @@ export async function exportLiquidacionPdf(emb: EmbarqueConLineas, empresa?: str
     head: [["Descripción", "FOB línea", "Cant.", "Unidad", "Costo unit. calc."]],
     body: lineaRows,
     theme: "grid",
-    headStyles:   { fillColor: PDF_BLUE, textColor: 255, fontSize: 8, fontStyle: "bold" },
-    bodyStyles:   { fontSize: 7.5, textColor: [30, 30, 30] },
+    headStyles: { fillColor: PDF_BLUE, textColor: 255, fontSize: 8, fontStyle: "bold" },
+    bodyStyles: { fontSize: 7.5, textColor: [30, 30, 30] },
     alternateRowStyles: { fillColor: PDF_GRAY_LIGHT },
     columnStyles: {
       0: { cellWidth: "auto" },
@@ -312,7 +338,9 @@ export async function exportLiquidacionPdf(emb: EmbarqueConLineas, empresa?: str
   }
 
   // ── Pie de página en todas las páginas ───────────────────────────────────
-  const totalPages = (doc as unknown as { internal: { getNumberOfPages: () => number } }).internal.getNumberOfPages();
+  const totalPages = (
+    doc as unknown as { internal: { getNumberOfPages: () => number } }
+  ).internal.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
     doc.setFontSize(7);
@@ -322,7 +350,7 @@ export async function exportLiquidacionPdf(emb: EmbarqueConLineas, empresa?: str
       `Generado por VIATIQ — ${new Date().toLocaleDateString("es-EC")} | Pág. ${i} de ${totalPages}`,
       pageW / 2,
       pageH - 8,
-      { align: "center" }
+      { align: "center" },
     );
   }
 

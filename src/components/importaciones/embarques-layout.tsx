@@ -4,26 +4,52 @@
  */
 import { useState } from "react";
 import {
-  Plus, Ship, CheckCircle2, Truck, Package,
-  Pencil, Trash2, Calculator, ChevronDown, ChevronRight, RefreshCw,
-  FileSpreadsheet, FileText,
+  Plus,
+  Ship,
+  CheckCircle2,
+  Truck,
+  Package,
+  Pencil,
+  Trash2,
+  Calculator,
+  ChevronDown,
+  ChevronRight,
+  RefreshCw,
+  FileSpreadsheet,
+  FileText,
+  PackageCheck,
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { Badge }  from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  useEmbarques, useEliminarEmbarque, useProrratearCostos, useActualizarCostoCatalogo,
+  useEmbarques,
+  useEliminarEmbarque,
+  useProrratearCostos,
+  useActualizarCostoCatalogo,
 } from "@/hooks/entities/use-embarques";
+import { useRecibirEmbarque } from "@/hooks/entities/use-grupos-embarque";
 import type { EmbarqueConLineas } from "@/services/importaciones-embarques";
 import { exportLiquidacionExcel, exportLiquidacionPdf } from "@/services/importaciones-export";
 import { EmbarqueForm } from "./embarque-form";
@@ -31,14 +57,30 @@ import { EmbarqueForm } from "./embarque-form";
 // ── Config estados ────────────────────────────────────────────────────────────
 
 const ESTADO_CFG = {
-  "En tránsito": { label: "En tránsito", className: "bg-blue-50 text-blue-700 border-blue-200",   icon: Truck },
-  "Recibida":    { label: "Recibida",    className: "bg-green-50 text-green-700 border-green-200", icon: CheckCircle2 },
-  "Parcial":     { label: "Parcial",     className: "bg-yellow-50 text-yellow-700 border-yellow-200", icon: Package },
+  "En tránsito": {
+    label: "En tránsito",
+    className: "bg-blue-50 text-blue-700 border-blue-200",
+    icon: Truck,
+  },
+  Recibida: {
+    label: "Recibida",
+    className: "bg-green-50 text-green-700 border-green-200",
+    icon: CheckCircle2,
+  },
+  Parcial: {
+    label: "Parcial",
+    className: "bg-yellow-50 text-yellow-700 border-yellow-200",
+    icon: Package,
+  },
 } as const;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fmt = (n: number) =>
-  new Intl.NumberFormat("es-EC", { style: "currency", currency: "USD", minimumFractionDigits: 2 }).format(n);
+  new Intl.NumberFormat("es-EC", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+  }).format(n);
 
 // ── Fila expandible ───────────────────────────────────────────────────────────
 function EmbarqueRow({
@@ -49,14 +91,16 @@ function EmbarqueRow({
   onActualizarCatalogo,
   onExportExcel,
   onExportPdf,
+  onRecibir,
 }: {
-  emb:                  EmbarqueConLineas;
-  onEdit:               (e: EmbarqueConLineas) => void;
-  onEliminar:           (e: EmbarqueConLineas) => void;
-  onProrratear:         (id: string) => void;
+  emb: EmbarqueConLineas;
+  onEdit: (e: EmbarqueConLineas) => void;
+  onEliminar: (e: EmbarqueConLineas) => void;
+  onProrratear: (id: string) => void;
   onActualizarCatalogo: (id: string) => void;
-  onExportExcel:        (e: EmbarqueConLineas) => void;
-  onExportPdf:          (e: EmbarqueConLineas) => void;
+  onExportExcel: (e: EmbarqueConLineas) => void;
+  onExportPdf: (e: EmbarqueConLineas) => void;
+  onRecibir: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const cfg = ESTADO_CFG[emb.estado as keyof typeof ESTADO_CFG] ?? ESTADO_CFG["En tránsito"];
@@ -66,12 +110,7 @@ function EmbarqueRow({
     <>
       <TableRow className="cursor-pointer hover:bg-muted/30">
         <TableCell>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6"
-            onClick={() => setOpen(!open)}
-          >
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setOpen(!open)}>
             {open ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
           </Button>
         </TableCell>
@@ -93,6 +132,18 @@ function EmbarqueRow({
         </TableCell>
         <TableCell>
           <div className="flex items-center gap-1">
+            {/* Recibir en bodega */}
+            {emb.estado !== "Recibida" && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-green-600"
+                title="Recibir en bodega"
+                onClick={() => onRecibir(emb.id)}
+              >
+                <PackageCheck className="size-3" />
+              </Button>
+            )}
             {/* Prorratear */}
             <Button
               variant="ghost"
@@ -156,12 +207,19 @@ function EmbarqueRow({
               {/* Comparación costeo si hay */}
               {emb.costeo && (
                 <div className="mb-3 p-2 rounded-md bg-blue-50 border border-blue-100 text-xs text-blue-800 flex gap-6">
-                  <span>Costeo vinculado: <strong>{emb.costeo.numero}</strong></span>
                   <span>
-                    Estimado: <strong>{fmt(emb.costeo.costo_aterrizaje_usd)}</strong>
-                    {" "}vs Real: <strong>{fmt(emb.total_liquidado)}</strong>
-                    {" "}
-                    <span className={emb.total_liquidado > emb.costeo.costo_aterrizaje_usd ? "text-red-600" : "text-green-600"}>
+                    Costeo vinculado: <strong>{emb.costeo.numero}</strong>
+                  </span>
+                  <span>
+                    Estimado: <strong>{fmt(emb.costeo.costo_aterrizaje_usd)}</strong> vs Real:{" "}
+                    <strong>{fmt(emb.total_liquidado)}</strong>{" "}
+                    <span
+                      className={
+                        emb.total_liquidado > emb.costeo.costo_aterrizaje_usd
+                          ? "text-red-600"
+                          : "text-green-600"
+                      }
+                    >
                       ({emb.total_liquidado > emb.costeo.costo_aterrizaje_usd ? "+" : ""}
                       {fmt(emb.total_liquidado - emb.costeo.costo_aterrizaje_usd)})
                     </span>
@@ -187,11 +245,15 @@ function EmbarqueRow({
                       <tr key={l.id} className="border-b last:border-0">
                         <td className="py-1 pr-3">{l.descripcion_original}</td>
                         <td className="text-right py-1 pr-3">{fmt(l.fob_linea)}</td>
-                        <td className="text-right py-1 pr-3">{l.cantidad} {l.unidad_medida ?? ""}</td>
                         <td className="text-right py-1 pr-3">
-                          {l.costo_unitario_calculado != null
-                            ? fmt(Number(l.costo_unitario_calculado))
-                            : <span className="text-muted-foreground italic">Calcular</span>}
+                          {l.cantidad} {l.unidad_medida ?? ""}
+                        </td>
+                        <td className="text-right py-1 pr-3">
+                          {l.costo_unitario_calculado != null ? (
+                            fmt(Number(l.costo_unitario_calculado))
+                          ) : (
+                            <span className="text-muted-foreground italic">Calcular</span>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -209,12 +271,13 @@ function EmbarqueRow({
 // ── Componente principal ──────────────────────────────────────────────────────
 export function EmbarquesLayout() {
   const { data: embarques = [], isLoading } = useEmbarques();
-  const eliminar          = useEliminarEmbarque();
-  const prorratear        = useProrratearCostos();
+  const eliminar = useEliminarEmbarque();
+  const prorratear = useProrratearCostos();
   const actualizarCatalog = useActualizarCostoCatalogo();
+  const recibir = useRecibirEmbarque();
 
-  const [formOpen, setFormOpen]     = useState(false);
-  const [editando, setEditando]     = useState<EmbarqueConLineas | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editando, setEditando] = useState<EmbarqueConLineas | null>(null);
   const [paraEliminar, setParaEliminar] = useState<EmbarqueConLineas | null>(null);
 
   function handleEdit(emb: EmbarqueConLineas) {
@@ -245,8 +308,17 @@ export function EmbarquesLayout() {
       toast.success(
         result.actualizados > 0
           ? `Catálogo actualizado: ${result.actualizados} producto(s)`
-          : "Sin productos vinculados para actualizar"
+          : "Sin productos vinculados para actualizar",
       );
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+
+  async function handleRecibir(id: string) {
+    try {
+      const r = await recibir.mutateAsync(id);
+      toast.success(`Recibido en bodega — ${r.unidades} unidades generadas`);
     } catch (e) {
       toast.error((e as Error).message);
     }
@@ -281,10 +353,10 @@ export function EmbarquesLayout() {
   }
 
   // KPIs
-  const total     = embarques.length;
-  const transito  = embarques.filter((e) => e.estado === "En tránsito").length;
+  const total = embarques.length;
+  const transito = embarques.filter((e) => e.estado === "En tránsito").length;
   const recibidas = embarques.filter((e) => e.estado === "Recibida").length;
-  const totalUsd  = embarques.reduce((acc, e) => acc + e.total_liquidado, 0);
+  const totalUsd = embarques.reduce((acc, e) => acc + e.total_liquidado, 0);
 
   return (
     <div className="p-6 space-y-6">
@@ -360,9 +432,7 @@ export function EmbarquesLayout() {
               <TableRow>
                 <TableCell colSpan={9} className="text-center py-12">
                   <Ship className="size-8 mx-auto mb-2 text-muted-foreground/40" />
-                  <p className="text-sm text-muted-foreground">
-                    Sin embarques registrados
-                  </p>
+                  <p className="text-sm text-muted-foreground">Sin embarques registrados</p>
                   <Button variant="outline" size="sm" className="mt-3" onClick={handleNuevo}>
                     <Plus className="size-4 mr-1" /> Registrar primer embarque
                   </Button>
@@ -379,6 +449,7 @@ export function EmbarquesLayout() {
                   onActualizarCatalogo={handleActualizarCatalogo}
                   onExportExcel={handleExportExcel}
                   onExportPdf={handleExportPdf}
+                  onRecibir={handleRecibir}
                 />
               ))
             )}
@@ -387,13 +458,7 @@ export function EmbarquesLayout() {
       </div>
 
       {/* Form */}
-      {formOpen && (
-        <EmbarqueForm
-          open={formOpen}
-          onClose={handleCloseForm}
-          editando={editando}
-        />
-      )}
+      {formOpen && <EmbarqueForm open={formOpen} onClose={handleCloseForm} editando={editando} />}
 
       {/* Confirmar eliminar */}
       <AlertDialog open={!!paraEliminar} onOpenChange={(o) => !o && setParaEliminar(null)}>
@@ -401,13 +466,16 @@ export function EmbarquesLayout() {
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar embarque?</AlertDialogTitle>
             <AlertDialogDescription>
-              Se eliminará el embarque <strong>{paraEliminar?.numero_embarque}</strong> y todas
-              sus líneas. Esta acción no se puede deshacer.
+              Se eliminará el embarque <strong>{paraEliminar?.numero_embarque}</strong> y todas sus
+              líneas. Esta acción no se puede deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmarEliminar} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogAction
+              onClick={confirmarEliminar}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
               Eliminar
             </AlertDialogAction>
           </AlertDialogFooter>
