@@ -201,5 +201,5 @@ Deno.serve(async (req: Request) => {
     }));
   }
 
-  return json(errorResponse, 404);
+  return json(errorResponse, 200); // 200 para que PowerShell/fetch no oculte el body
 });

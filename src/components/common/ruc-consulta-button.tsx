@@ -41,7 +41,7 @@ export function RucConsultaButton({ ruc, onDatos, disabled }: RucConsultaButtonP
       }
       onDatos(datos);
     } else {
-      toast.error("No se encontró el RUC en el SRI. Verifica el número e intenta de nuevo.");
+      toast.warning("RUC no encontrado en la API pública del SRI. Puedes completar los datos manualmente.");
     }
   }
 
