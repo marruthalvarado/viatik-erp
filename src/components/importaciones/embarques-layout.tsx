@@ -5,7 +5,8 @@
 import { useState } from "react";
 import {
   Plus, Ship, CheckCircle2, Truck, Package,
-  Pencil, Trash2, Calculator, ChevronDown, ChevronRight,
+  Pencil, Trash2, Calculator, ChevronDown, ChevronRight, RefreshCw,
+  FileSpreadsheet, FileText,
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -21,9 +22,10 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  useEmbarques, useEliminarEmbarque, useProrratearCostos,
+  useEmbarques, useEliminarEmbarque, useProrratearCostos, useActualizarCostoCatalogo,
 } from "@/hooks/entities/use-embarques";
 import type { EmbarqueConLineas } from "@/services/importaciones-embarques";
+import { exportLiquidacionExcel, exportLiquidacionPdf } from "@/services/importaciones-export";
 import { EmbarqueForm } from "./embarque-form";
 
 // ── Config estados ────────────────────────────────────────────────────────────
@@ -44,11 +46,17 @@ function EmbarqueRow({
   onEdit,
   onEliminar,
   onProrratear,
+  onActualizarCatalogo,
+  onExportExcel,
+  onExportPdf,
 }: {
-  emb:          EmbarqueConLineas;
-  onEdit:       (e: EmbarqueConLineas) => void;
-  onEliminar:   (e: EmbarqueConLineas) => void;
-  onProrratear: (id: string) => void;
+  emb:                  EmbarqueConLineas;
+  onEdit:               (e: EmbarqueConLineas) => void;
+  onEliminar:           (e: EmbarqueConLineas) => void;
+  onProrratear:         (id: string) => void;
+  onActualizarCatalogo: (id: string) => void;
+  onExportExcel:        (e: EmbarqueConLineas) => void;
+  onExportPdf:          (e: EmbarqueConLineas) => void;
 }) {
   const [open, setOpen] = useState(false);
   const cfg = ESTADO_CFG[emb.estado as keyof typeof ESTADO_CFG] ?? ESTADO_CFG["En tránsito"];
@@ -94,6 +102,36 @@ function EmbarqueRow({
               onClick={() => onProrratear(emb.id)}
             >
               <Calculator className="size-3" />
+            </Button>
+            {/* Actualizar catálogo */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              title="Actualizar precio costo en catálogo"
+              onClick={() => onActualizarCatalogo(emb.id)}
+            >
+              <RefreshCw className="size-3" />
+            </Button>
+            {/* Exportar Excel */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              title="Exportar liquidación a Excel"
+              onClick={() => onExportExcel(emb)}
+            >
+              <FileSpreadsheet className="size-3" />
+            </Button>
+            {/* Exportar PDF */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              title="Exportar liquidación a PDF"
+              onClick={() => onExportPdf(emb)}
+            >
+              <FileText className="size-3" />
             </Button>
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(emb)}>
               <Pencil className="size-3" />
@@ -171,8 +209,9 @@ function EmbarqueRow({
 // ── Componente principal ──────────────────────────────────────────────────────
 export function EmbarquesLayout() {
   const { data: embarques = [], isLoading } = useEmbarques();
-  const eliminar    = useEliminarEmbarque();
-  const prorratear  = useProrratearCostos();
+  const eliminar          = useEliminarEmbarque();
+  const prorratear        = useProrratearCostos();
+  const actualizarCatalog = useActualizarCostoCatalogo();
 
   const [formOpen, setFormOpen]     = useState(false);
   const [editando, setEditando]     = useState<EmbarqueConLineas | null>(null);
@@ -197,6 +236,35 @@ export function EmbarquesLayout() {
       toast.success("Prorrateo calculado");
     } catch (e) {
       toast.error((e as Error).message);
+    }
+  }
+
+  async function handleActualizarCatalogo(id: string) {
+    try {
+      const result = await actualizarCatalog.mutateAsync(id);
+      toast.success(
+        result.actualizados > 0
+          ? `Catálogo actualizado: ${result.actualizados} producto(s)`
+          : "Sin productos vinculados para actualizar"
+      );
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+
+  async function handleExportExcel(emb: EmbarqueConLineas) {
+    try {
+      await exportLiquidacionExcel(emb);
+    } catch (e) {
+      toast.error("Error al exportar Excel: " + (e as Error).message);
+    }
+  }
+
+  async function handleExportPdf(emb: EmbarqueConLineas) {
+    try {
+      await exportLiquidacionPdf(emb);
+    } catch (e) {
+      toast.error("Error al exportar PDF: " + (e as Error).message);
     }
   }
 
@@ -278,7 +346,7 @@ export function EmbarquesLayout() {
               <TableHead className="text-right">Total liquidado</TableHead>
               <TableHead>Estado</TableHead>
               <TableHead>Fecha</TableHead>
-              <TableHead className="w-28">Acciones</TableHead>
+              <TableHead className="w-40">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -308,6 +376,9 @@ export function EmbarquesLayout() {
                   onEdit={handleEdit}
                   onEliminar={setParaEliminar}
                   onProrratear={handleProrratear}
+                  onActualizarCatalogo={handleActualizarCatalogo}
+                  onExportExcel={handleExportExcel}
+                  onExportPdf={handleExportPdf}
                 />
               ))
             )}

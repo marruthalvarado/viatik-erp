@@ -3,12 +3,14 @@
  * Formulario para crear/editar un embarque (liquidación DAI).
  * Incluye: datos DAI, valores aduaneros, líneas de productos.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Trash2, Calculator } from "lucide-react";
+import { Plus, Trash2, Calculator, FileUp } from "lucide-react";
 import { toast } from "sonner";
+
+import { parseLiquidacionPdf } from "@/services/importaciones-pdf-parser";
 
 import { Button }    from "@/components/ui/button";
 import { Input }     from "@/components/ui/input";
@@ -137,6 +139,30 @@ export function EmbarqueForm({ open, onClose, editando }: Props) {
   const crear      = useCrearEmbarque();
   const actualizar = useActualizarEmbarque();
   const { data: proveedores = [] } = useProveedores();
+  const [parsindoPdf, setParsandoPdf] = useState(false);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
+
+  async function handlePdfUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setParsandoPdf(true);
+    try {
+      const parsed = await parseLiquidacionPdf(file);
+      if (parsed.numero_liquidacion) form.setValue("numero_liquidacion", parsed.numero_liquidacion);
+      if (parsed.fecha)              form.setValue("fecha", parsed.fecha);
+      if (parsed.arancel != null)    form.setValue("arancel", parsed.arancel);
+      if (parsed.fodinfa != null)    form.setValue("fodinfa", parsed.fodinfa);
+      if (parsed.iva_importacion != null) form.setValue("iva_importacion", parsed.iva_importacion);
+      // total_liquidado se auto-calcula con el useEffect, pero lo seteamos como fallback
+      if (parsed.total_liquidado != null) form.setValue("total_liquidado", parsed.total_liquidado);
+      toast.success("Liquidación PDF importada");
+    } catch (err) {
+      toast.error("No se pudo leer el PDF: " + (err as Error).message);
+    } finally {
+      setParsandoPdf(false);
+      if (pdfInputRef.current) pdfInputRef.current.value = "";
+    }
+  }
   const { data: costeos     = [] } = useCosteos();
 
   // Sólo proveedores internacionales
@@ -236,9 +262,29 @@ export function EmbarqueForm({ open, onClose, editando }: Props) {
 
             {/* ── Sección: Datos DAI ──────────────────────────────────────── */}
             <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
-                Datos DAI / Liquidación
-              </p>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Datos DAI / Liquidación
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs gap-1"
+                  disabled={parsindoPdf}
+                  onClick={() => pdfInputRef.current?.click()}
+                >
+                  <FileUp className="size-3" />
+                  {parsindoPdf ? "Leyendo…" : "Cargar PDF liquidación"}
+                </Button>
+                <input
+                  ref={pdfInputRef}
+                  type="file"
+                  accept="application/pdf"
+                  className="hidden"
+                  onChange={handlePdfUpload}
+                />
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <FormField control={form.control} name="numero_liquidacion" render={({ field }) => (
                   <FormItem>

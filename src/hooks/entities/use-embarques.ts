@@ -8,6 +8,7 @@ import {
   eliminarEmbarque,
   prorratearCostos,
   vincularCosteoEmbarque,
+  actualizarCostoCatalogo,
   type EmbarquePayload,
   type LineaPayload,
 } from "@/services/importaciones-embarques";
@@ -89,5 +90,11 @@ export function useVincularCosteoEmbarque() {
       costeo_id: string;
     }) => vincularCosteoEmbarque(embarque_id, costeo_id),
     onSuccess: () => qc.invalidateQueries({ queryKey: [QUERY_KEY] }),
+  });
+}
+
+export function useActualizarCostoCatalogo() {
+  return useMutation({
+    mutationFn: (embarque_id: string) => actualizarCostoCatalogo(embarque_id),
   });
 }

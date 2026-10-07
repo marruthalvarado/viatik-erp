@@ -138,3 +138,14 @@ export async function vincularCosteoEmbarque(
   });
   if (error) throw new Error(error.message);
 }
+
+export async function actualizarCostoCatalogo(
+  embarque_id: string
+): Promise<{ actualizados: number }> {
+  const { data, error } = await supabase.rpc(
+    "actualizar_costo_catalogo_desde_embarque",
+    { p_embarque_id: embarque_id }
+  );
+  if (error) throw new Error(error.message);
+  return (data as { actualizados: number }) ?? { actualizados: 0 };
+}
