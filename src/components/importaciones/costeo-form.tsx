@@ -41,18 +41,18 @@ const fmtNum = (n: number) =>
 
 // ── Schema ────────────────────────────────────────────────────────────────────
 const componenteSchema = z.object({
-  orden:           z.number().default(0),
-  tipo:            z.enum(["equipo_base", "componente_opcional", "servicio_adicional"]).default("componente_opcional"),
+  orden:           z.number(),
+  tipo:            z.enum(["equipo_base", "componente_opcional", "servicio_adicional"]),
   descripcion:     z.string().min(1, "Requerido"),
   fabricante:      z.string().optional(),
   modelo:          z.string().optional(),
-  moneda:          z.enum(["USD", "EUR"]).default("USD"),
-  precio_unitario: z.coerce.number().min(0).default(0),
-  tipo_cambio:     z.coerce.number().min(0).default(1),
-  precio_usd:      z.coerce.number().min(0).default(0),
-  cantidad:        z.coerce.number().min(1).default(1),
-  subtotal_usd:    z.coerce.number().min(0).default(0),
-  incluir_en_fob:  z.boolean().default(true),
+  moneda:          z.enum(["USD", "EUR"]),
+  precio_unitario: z.coerce.number().min(0),
+  tipo_cambio:     z.coerce.number().min(0),
+  precio_usd:      z.coerce.number().min(0),
+  cantidad:        z.coerce.number().min(1),
+  subtotal_usd:    z.coerce.number().min(0),
+  incluir_en_fob:  z.boolean(),
   notas:           z.string().optional(),
 });
 
@@ -60,31 +60,31 @@ const costeoSchema = z.object({
   proveedor_id:                 z.string().min(1, "Selecciona un proveedor"),
   proyecto_id:                  z.string().optional(),
   descripcion_producto:         z.string().min(1, "Requerido"),
-  moneda_proveedor:             z.enum(["USD", "EUR"]).default("USD"),
-  precio_fob:                   z.coerce.number().min(0).default(0),
-  tipo_cambio_eur:              z.coerce.number().min(0).default(1.08),
-  flete_estimado:               z.coerce.number().min(0).default(0),
-  seguro_estimado:              z.coerce.number().min(0).default(0),
-  agente_aduanas_est:           z.coerce.number().min(0).default(0),
-  bodega_est:                   z.coerce.number().min(0).default(0),
-  otros_logistica:              z.coerce.number().min(0).default(0),
+  moneda_proveedor:             z.enum(["USD", "EUR"]),
+  precio_fob:                   z.coerce.number().min(0),
+  tipo_cambio_eur:              z.coerce.number().min(0),
+  flete_estimado:               z.coerce.number().min(0),
+  seguro_estimado:              z.coerce.number().min(0),
+  agente_aduanas_est:           z.coerce.number().min(0),
+  bodega_est:                   z.coerce.number().min(0),
+  otros_logistica:              z.coerce.number().min(0),
   codigo_nandina:               z.string().optional(),
-  fodinfa_pct:                  z.coerce.number().min(0).max(100).default(0.5),
-  arancel_pct:                  z.coerce.number().min(0).max(100).default(0),
-  isd_pct:                      z.coerce.number().min(0).max(100).default(5),
-  iva_importacion_pct:          z.coerce.number().min(0).max(100).default(15),
-  instalacion:                  z.coerce.number().min(0).default(0),
-  entrenamiento:                z.coerce.number().min(0).default(0),
-  gastos_admin_fabrica:         z.coerce.number().min(0).default(0),
-  fee_agente_comercial:         z.coerce.number().min(0).default(0),
-  garantia_reserva:             z.coerce.number().min(0).default(0),
-  mantenimiento_preventivo_res: z.coerce.number().min(0).default(0),
-  comision_venta_pct:           z.coerce.number().min(0).max(100).default(0),
-  margen_empresa_pct:           z.coerce.number().min(0).max(99).default(0),
-  pvp_privado:                  z.coerce.number().min(0).default(0),
-  pvp_general:                  z.coerce.number().min(0).default(0),
+  fodinfa_pct:                  z.coerce.number().min(0).max(100),
+  arancel_pct:                  z.coerce.number().min(0).max(100),
+  isd_pct:                      z.coerce.number().min(0).max(100),
+  iva_importacion_pct:          z.coerce.number().min(0).max(100),
+  instalacion:                  z.coerce.number().min(0),
+  entrenamiento:                z.coerce.number().min(0),
+  gastos_admin_fabrica:         z.coerce.number().min(0),
+  fee_agente_comercial:         z.coerce.number().min(0),
+  garantia_reserva:             z.coerce.number().min(0),
+  mantenimiento_preventivo_res: z.coerce.number().min(0),
+  comision_venta_pct:           z.coerce.number().min(0).max(100),
+  margen_empresa_pct:           z.coerce.number().min(0).max(99),
+  pvp_privado:                  z.coerce.number().min(0),
+  pvp_general:                  z.coerce.number().min(0),
   notas:                        z.string().optional(),
-  componentes:                  z.array(componenteSchema).default([]),
+  componentes:                  z.array(componenteSchema),
 });
 
 type CosteoFormValues = z.infer<typeof costeoSchema>;
@@ -151,21 +151,38 @@ interface Props {
 export function CosteoForm({ open, onClose, editando }: Props) {
   const crear     = useCrearCosteo();
   const actualizar = useActualizarCosteo();
-  const { data: proveedores = [] } = useProveedores();
-  const { data: proyectos   = [] } = useProyectos();
+  const { data: proveedoresData } = useProveedores();
+  const { data: proyectosData }   = useProyectos();
 
-  // Solo proveedores internacionales
-  const proveedoresInt = proveedores.filter((p) => p.es_internacional && p.estado === "activo");
+  const proveedoresInt = (proveedoresData?.rows ?? []).filter((p) => p.es_internacional && p.estado === "activo");
+  const proyectos      = proyectosData?.rows ?? [];
 
   const form = useForm<CosteoFormValues>({
     resolver: zodResolver(costeoSchema),
     defaultValues: {
-      moneda_proveedor: "USD",
-      tipo_cambio_eur:  1.08,
-      fodinfa_pct:      0.5,
-      isd_pct:          5,
-      iva_importacion_pct: 15,
-      componentes:      [],
+      moneda_proveedor:             "USD",
+      precio_fob:                   0,
+      tipo_cambio_eur:              1.08,
+      flete_estimado:               0,
+      seguro_estimado:              0,
+      agente_aduanas_est:           0,
+      bodega_est:                   0,
+      otros_logistica:              0,
+      fodinfa_pct:                  0.5,
+      arancel_pct:                  0,
+      isd_pct:                      5,
+      iva_importacion_pct:          15,
+      instalacion:                  0,
+      entrenamiento:                0,
+      gastos_admin_fabrica:         0,
+      fee_agente_comercial:         0,
+      garantia_reserva:             0,
+      mantenimiento_preventivo_res: 0,
+      comision_venta_pct:           0,
+      margen_empresa_pct:           0,
+      pvp_privado:                  0,
+      pvp_general:                  0,
+      componentes:                  [],
     },
   });
 

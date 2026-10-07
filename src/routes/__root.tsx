@@ -47,14 +47,15 @@ function isChunkLoadError(err: Error): boolean {
   );
 }
 
-function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+function ErrorComponent({ error, reset }: { error: unknown; reset: () => void }) {
   console.error(error);
   const router = useRouter();
+  const err = error instanceof Error ? error : new Error(String(error));
 
   useEffect(() => {
     // Chunk load error: el bundle cambió en Vercel mientras la pestaña estaba abierta.
     // Recargamos automáticamente una sola vez.
-    if (isChunkLoadError(error)) {
+    if (isChunkLoadError(err)) {
       const reloadKey = "viatik:chunk_reload";
       if (!sessionStorage.getItem(reloadKey)) {
         sessionStorage.setItem(reloadKey, "1");
@@ -62,11 +63,11 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
       }
       return;
     }
-    reportLovableError(error, { boundary: "tanstack_root_error_component" });
-  }, [error]);
+    reportLovableError(err, { boundary: "tanstack_root_error_component" });
+  }, [err]);
 
   // Mientras recarga, no mostrar nada
-  if (isChunkLoadError(error)) return null;
+  if (isChunkLoadError(err)) return null;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">

@@ -72,7 +72,7 @@ export interface CosteoComponentePayload {
 // ── Select string ─────────────────────────────────────────────────────────────
 const COSTEO_SELECT = `
   *,
-  componentes:costeo_componentes(* | order(orden)),
+  componentes:costeo_componentes(*),
   proveedor:proveedores(id, nombre, logo_url),
   proyecto:proyectos(id, nombre, codigo),
   producto:productos_catalogo(id, nombre, codigo, modelo)
@@ -87,7 +87,9 @@ export async function getCosteos(empresa_id: string): Promise<CosteoConRelacione
     .is("deleted_at", null)
     .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
-  return (data ?? []) as unknown as CosteoConRelaciones[];
+  const rows = (data ?? []) as unknown as CosteoConRelaciones[];
+  rows.forEach((r) => { r.componentes?.sort((a, b) => a.orden - b.orden); });
+  return rows;
 }
 
 export async function getCosteo(id: string): Promise<CosteoConRelaciones> {
@@ -98,7 +100,9 @@ export async function getCosteo(id: string): Promise<CosteoConRelaciones> {
     .is("deleted_at", null)
     .single();
   if (error) throw new Error(error.message);
-  return data as unknown as CosteoConRelaciones;
+  const row = data as unknown as CosteoConRelaciones;
+  row.componentes?.sort((a, b) => a.orden - b.orden);
+  return row;
 }
 
 // ── Mutaciones (vía RPC SECURITY DEFINER) ────────────────────────────────────
