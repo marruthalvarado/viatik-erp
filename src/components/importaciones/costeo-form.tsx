@@ -875,6 +875,21 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+/** Convierte coma decimal (teclado ES) a punto antes de que el browser invalide el input. */
+const handleCommaToPeriod = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  if (e.key === ",") {
+    e.preventDefault();
+    const el    = e.currentTarget;
+    const start = el.selectionStart ?? el.value.length;
+    const end   = el.selectionEnd   ?? el.value.length;
+    const next  = el.value.slice(0, start) + "." + el.value.slice(end);
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set;
+    setter?.call(el, next);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.setSelectionRange(start + 1, start + 1);
+  }
+};
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function NumField({ form, name, label }: { form: any; name: string; label: string }) {
   return (
@@ -885,7 +900,15 @@ function NumField({ form, name, label }: { form: any; name: string; label: strin
         <FormItem>
           <FormLabel className="text-xs">{label}</FormLabel>
           <FormControl>
-            <Input type="number" step="0.01" min="0" className="h-9" {...field} value={(field.value as number) || 0} />
+            <Input
+              type="number"
+              step="0.01"
+              min="0"
+              className="h-9"
+              {...field}
+              value={field.value ?? 0}
+              onKeyDown={handleCommaToPeriod}
+            />
           </FormControl>
           <FormMessage />
         </FormItem>
@@ -912,7 +935,8 @@ function PctField({ form, name, label, calc }: { form: any; name: string; label:
                 max="100"
                 className="h-9 pr-7"
                 {...field}
-                value={(field.value as number) || 0}
+                value={field.value ?? 0}
+                onKeyDown={handleCommaToPeriod}
               />
               <Percent className="absolute right-2 top-2.5 size-3 text-muted-foreground" />
             </div>
