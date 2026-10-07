@@ -195,16 +195,9 @@ export function CosteosLayout() {
                         value={c.estado}
                         onValueChange={(v) => handleEstado(c, v as EstadoCosteo)}
                       >
-                        <SelectTrigger className="h-7 w-28 px-2" asChild>
-                          <button>
-                            <Badge
-                              variant="outline"
-                              className={`${cfg.className} gap-1 cursor-pointer text-xs`}
-                            >
-                              <Icon className="size-3" />
-                              {cfg.label}
-                            </Badge>
-                          </button>
+                        <SelectTrigger className={`h-7 w-auto px-2 gap-1 text-xs border rounded-md ${cfg.className} [&>svg.lucide-chevron-down]:hidden`}>
+                          <Icon className="size-3 shrink-0" />
+                          <span>{cfg.label}</span>
                         </SelectTrigger>
                         <SelectContent>
                           {Object.entries(ESTADO_CFG).map(([k, v]) => (
