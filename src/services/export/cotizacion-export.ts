@@ -571,9 +571,11 @@ export async function exportCotizacionPdf(
   doc.setDrawColor(...BORDER); doc.setLineWidth(0.3);
   doc.roundedRect(totX, boxY, totW, boxH, 2, 2, "S");
 
+  // c.subtotal en BD = neto (post-descuento). Gross = neto + descuento_total.
+  const subtotalBruto = c.subtotal + c.descuento_total;
   doc.setFontSize(8); doc.setTextColor(...GRAY); doc.setFont("helvetica", "normal");
   doc.text("Subtotal:", totX + 4, boxY + 8);
-  doc.setTextColor(...DARK); doc.text(fmtMoney(c.subtotal), totX + totW - 4, boxY + 8, { align: "right" });
+  doc.setTextColor(...DARK); doc.text(fmtMoney(subtotalBruto), totX + totW - 4, boxY + 8, { align: "right" });
   let totRowY = boxY + 15;
   if (c.descuento_total > 0) {
     doc.setTextColor(...GRAY); doc.text("Descuento:", totX + 4, totRowY);
