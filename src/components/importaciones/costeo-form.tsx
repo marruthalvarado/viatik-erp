@@ -107,31 +107,55 @@ interface Totales {
   pvp_sugerido:   number;
 }
 
-function calcular(v: CosteoFormValues): Totales {
-  const fob_base = v.moneda_proveedor === "EUR"
-    ? v.precio_fob * v.tipo_cambio_eur
-    : v.precio_fob;
+/** form.watch() devuelve strings del DOM; los coercionamos a número para evitar concatenación. */
+const n = (x: unknown): number => { const v = Number(x); return isNaN(v) ? 0 : v; };
 
-  const total_comp = (v.componentes ?? [])
+function calcular(raw: CosteoFormValues): Totales {
+  // Coercionar todos los campos numéricos (form.watch puede devolver strings)
+  const precio_fob                   = n(raw.precio_fob);
+  const tipo_cambio_eur              = n(raw.tipo_cambio_eur);
+  const flete_estimado               = n(raw.flete_estimado);
+  const seguro_estimado              = n(raw.seguro_estimado);
+  const agente_aduanas_est           = n(raw.agente_aduanas_est);
+  const bodega_est                   = n(raw.bodega_est);
+  const otros_logistica              = n(raw.otros_logistica);
+  const fodinfa_pct                  = n(raw.fodinfa_pct);
+  const arancel_pct                  = n(raw.arancel_pct);
+  const isd_pct                      = n(raw.isd_pct);
+  const iva_importacion_pct          = n(raw.iva_importacion_pct);
+  const instalacion                  = n(raw.instalacion);
+  const entrenamiento                = n(raw.entrenamiento);
+  const gastos_admin_fabrica         = n(raw.gastos_admin_fabrica);
+  const fee_agente_comercial         = n(raw.fee_agente_comercial);
+  const garantia_reserva             = n(raw.garantia_reserva);
+  const mantenimiento_preventivo_res = n(raw.mantenimiento_preventivo_res);
+  const comision_venta_pct           = n(raw.comision_venta_pct);
+  const margen_empresa_pct           = n(raw.margen_empresa_pct);
+
+  const fob_base = raw.moneda_proveedor === "EUR"
+    ? precio_fob * tipo_cambio_eur
+    : precio_fob;
+
+  const total_comp = (raw.componentes ?? [])
     .filter((c) => c.incluir_en_fob)
-    .reduce((s, c) => s + c.subtotal_usd, 0);
+    .reduce((s, c) => s + n(c.subtotal_usd), 0);
 
-  const fob_total   = fob_base + total_comp;
-  const cif         = fob_total + v.flete_estimado + v.seguro_estimado;
-  const fodinfa     = Math.round(cif * v.fodinfa_pct / 100 * 100) / 100;
-  const arancel     = Math.round(cif * v.arancel_pct / 100 * 100) / 100;
-  const isd         = Math.round(fob_total * v.isd_pct / 100 * 100) / 100;
-  const iva_imp     = Math.round((cif + fodinfa + arancel) * v.iva_importacion_pct / 100 * 100) / 100;
-  const costo_aterr = cif + fodinfa + arancel + isd + iva_imp
-    + v.agente_aduanas_est + v.bodega_est + v.otros_logistica;
-  const servicios   = v.instalacion + v.entrenamiento + v.gastos_admin_fabrica + v.fee_agente_comercial;
-  const garantia_tot = v.garantia_reserva + v.mantenimiento_preventivo_res;
+  const fob_total    = fob_base + total_comp;
+  const cif          = fob_total + flete_estimado + seguro_estimado;
+  const fodinfa      = Math.round(cif * fodinfa_pct / 100 * 100) / 100;
+  const arancel      = Math.round(cif * arancel_pct / 100 * 100) / 100;
+  const isd          = Math.round(fob_total * isd_pct / 100 * 100) / 100;
+  const iva_imp      = Math.round((cif + fodinfa + arancel) * iva_importacion_pct / 100 * 100) / 100;
+  const costo_aterr  = cif + fodinfa + arancel + isd + iva_imp
+    + agente_aduanas_est + bodega_est + otros_logistica;
+  const servicios    = instalacion + entrenamiento + gastos_admin_fabrica + fee_agente_comercial;
+  const garantia_tot = garantia_reserva + mantenimiento_preventivo_res;
   const costo_total  = costo_aterr + servicios + garantia_tot;
-  const comision     = Math.round(costo_total * v.comision_venta_pct / 100 * 100) / 100;
+  const comision     = Math.round(costo_total * comision_venta_pct / 100 * 100) / 100;
 
   let pvp_sugerido = 0;
-  if (v.margen_empresa_pct > 0 && v.margen_empresa_pct < 100) {
-    pvp_sugerido = Math.round((costo_total + comision) / (1 - v.margen_empresa_pct / 100) * 100) / 100;
+  if (margen_empresa_pct > 0 && margen_empresa_pct < 100) {
+    pvp_sugerido = Math.round((costo_total + comision) / (1 - margen_empresa_pct / 100) * 100) / 100;
   } else {
     pvp_sugerido = costo_total + comision;
   }
@@ -294,8 +318,8 @@ export function CosteoForm({ open, onClose, editando }: Props) {
       mantenimiento_preventivo_res: values.mantenimiento_preventivo_res,
       comision_venta_pct:           values.comision_venta_pct,
       margen_empresa_pct:           values.margen_empresa_pct,
-      pvp_privado:                  values.pvp_privado || totales.pvp_sugerido,
-      pvp_general:                  values.pvp_general  || totales.pvp_sugerido,
+      pvp_privado:                  n(values.pvp_privado) || n(totales.pvp_sugerido),
+      pvp_general:                  n(values.pvp_general)  || n(totales.pvp_sugerido),
       notas:                        values.notas || null,
     };
 
