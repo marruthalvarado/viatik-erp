@@ -21,10 +21,6 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Collapsible, CollapsibleContent, CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-
-import {
   useEmbarques, useEliminarEmbarque, useProrratearCostos,
 } from "@/hooks/entities/use-embarques";
 import type { EmbarqueConLineas } from "@/services/importaciones-embarques";
