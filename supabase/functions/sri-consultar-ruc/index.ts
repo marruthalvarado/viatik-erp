@@ -130,6 +130,108 @@ function extraerDatos(raw: unknown): {
   };
 }
 
+/** Extrae texto entre dos marcadores HTML (muy simple, sin DOM) */
+function entre(html: string, antes: string, despues: string): string {
+  const idx = html.indexOf(antes);
+  if (idx === -1) return "";
+  const start = idx + antes.length;
+  const end = html.indexOf(despues, start);
+  if (end === -1) return "";
+  return html.slice(start, end).replace(/<[^>]+>/g, "").trim();
+}
+
+/**
+ * Scraping del portal público HTML del SRI.
+ * URL: https://srienlinea.sri.gob.ec/sri-en-linea/SriRucWeb/ConsultaRuc/Consultas/consultaRuc
+ * Parámetro POST: nrRuc
+ */
+async function scrapearPortalSri(ruc: string): Promise<{
+  razon_social: string;
+  nombre_comercial: string;
+  estado: string;
+  tipo_contribuyente: string;
+  direccion: string;
+} | null> {
+  const portales = [
+    // Portal principal con POST
+    {
+      url: "https://srienlinea.sri.gob.ec/sri-en-linea/SriRucWeb/ConsultaRuc/Consultas/consultaRuc",
+      init: {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          "Referer": "https://srienlinea.sri.gob.ec/sri-en-linea/SriRucWeb/ConsultaRuc/Consultas/consultaRuc",
+          "Origin": "https://srienlinea.sri.gob.ec",
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        },
+        body: `nrRuc=${ruc}`,
+        signal: AbortSignal.timeout(12000),
+      } as RequestInit,
+    },
+    // GET alternativo
+    {
+      url: `https://srienlinea.sri.gob.ec/sri-en-linea/SriRucWeb/ConsultaRuc/Consultas/consultaRuc?nrRuc=${ruc}`,
+      init: {
+        method: "GET",
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "Referer": "https://srienlinea.sri.gob.ec/",
+        },
+        signal: AbortSignal.timeout(12000),
+      } as RequestInit,
+    },
+  ];
+
+  for (const { url, init } of portales) {
+    try {
+      const res = await fetch(url, init);
+      if (!res.ok) continue;
+      const html = await res.text();
+      if (!html || html.length < 100) continue;
+
+      // Buscar razón social en el HTML (distintos patrones del SRI)
+      let razon_social =
+        entre(html, "Razón Social</label>", "</") ||
+        entre(html, "Razón social</label>", "</") ||
+        entre(html, "razonSocial\">", "<") ||
+        entre(html, "Nombre / Razón Social</td>", "</td>") ||
+        entre(html, "id=\"razonSocial\"", "<").replace(/^[^>]*>/, "").trim() ||
+        "";
+
+      // Alternativa: buscar el patrón de nombre en tabla
+      if (!razon_social) {
+        const m = html.match(/Raz[oó]n\s*[Ss]ocial[^:]*:?\s*<\/[^>]+>\s*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ0-9\s.,'-]+)/u);
+        if (m) razon_social = m[1].trim();
+      }
+
+      if (!razon_social) continue;
+
+      const estado =
+        entre(html, "Estado contribuyente en el RUC</label>", "</") ||
+        entre(html, "estadoContribuyente\">", "<") ||
+        (html.includes("ACTIVO") ? "ACTIVO" : html.includes("SUSPENDIDO") ? "SUSPENDIDO" : "");
+
+      const tipo_contribuyente =
+        entre(html, "Tipo contribuyente</td>", "</td>") ||
+        entre(html, "tipoContribuyente\">", "<") ||
+        "";
+
+      return {
+        razon_social,
+        nombre_comercial: razon_social,
+        estado: estado.toUpperCase(),
+        tipo_contribuyente,
+        direccion: "",
+      };
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
   if (req.method !== "POST") return json({ ok: false, error: "Método no permitido" }, 405);
@@ -151,39 +253,34 @@ Deno.serve(async (req: Request) => {
   // RUC base de 10 dígitos (sin código de establecimiento)
   const ruc10 = ruc.length === 13 ? ruc.slice(0, 10) : ruc;
 
-  // Lista exhaustiva de endpoints a intentar
-  const urls = [
+  // 1) Intentar REST API del catastro SRI
+  const restUrls = [
     `${BASE}/ConsolidadoContribuyente/obtenerPorNumerRuc?numeroRuc=${ruc}`,
     `${BASE}/Persona/obtenerPorNumerRuc?numeroRuc=${ruc}`,
     `${BASE}/ConsolidadoContribuyente/obtenerPorNumeroRuc?numeroRuc=${ruc}`,
     `${BASE}/Ruc/obtenerPorNumeroRuc?numeroRuc=${ruc}`,
-    // Intentar con RUC de 10 dígitos si el original es de 13
     ...(ruc !== ruc10 ? [
       `${BASE}/ConsolidadoContribuyente/obtenerPorNumerRuc?numeroRuc=${ruc10}`,
       `${BASE}/Persona/obtenerPorNumerRuc?numeroRuc=${ruc10}`,
     ] : []),
-    // Endpoints alternativos con distinto nombre de parámetro
-    `${BASE}/ConsolidadoContribuyente/obtenerPorNumerRuc?ruc=${ruc}`,
-    `${BASE}/Sociedad/obtenerPorNumerRuc?numeroRuc=${ruc}`,
-    `${BASE}/SujetoInformacion/obtenerPorNumerRuc?numeroRuc=${ruc}`,
   ];
 
   const intentos: FetchResult[] = [];
 
-  for (const url of urls) {
+  for (const url of restUrls) {
     const result = await tryFetch(url);
     intentos.push(result);
-
     if (result.parsed === null) continue;
-
-    // El SRI a veces devuelve un array
     const item = Array.isArray(result.parsed) ? result.parsed[0] : result.parsed;
     if (!item) continue;
-
     const datos = extraerDatos(item);
-    if (datos) {
-      return json({ ok: true, datos: { ruc, ...datos } });
-    }
+    if (datos) return json({ ok: true, datos: { ruc, ...datos } });
+  }
+
+  // 2) Fallback: scraping del portal público HTML del SRI
+  const htmlDatos = await scrapearPortalSri(ruc);
+  if (htmlDatos) {
+    return json({ ok: true, datos: { ruc, ...htmlDatos } });
   }
 
   // No encontrado — retornar diagnóstico si debug=true
@@ -201,5 +298,5 @@ Deno.serve(async (req: Request) => {
     }));
   }
 
-  return json(errorResponse, 200); // 200 para que PowerShell/fetch no oculte el body
+  return json(errorResponse, 200);
 });
