@@ -25,6 +25,7 @@ import {
   ListChecks,
   Stethoscope,
   BookMarked,
+  Globe,
 } from "lucide-react";
 
 import {
@@ -80,6 +81,10 @@ const financeItems: NavItem[] = [
   { title: "Workflow Rpt.", url: "/reportes/workflow", icon: Network, modulo: "reportes" },
 ];
 
+const importacionesItems: NavItem[] = [
+  { title: "Costeos", url: "/importaciones/costeos", icon: Calculator, modulo: "importaciones" },
+];
+
 const servicioTecnicoItems: NavItem[] = [
   { title: "Órdenes de Servicio", url: "/servicio-tecnico/ordenes", icon: ClipboardList, modulo: "servicio_tecnico" },
   { title: "Base Instalada", url: "/servicio-tecnico/base-instalada", icon: Shield, modulo: "servicio_tecnico" },
@@ -117,6 +122,7 @@ export function AppSidebar() {
     "contabilidad",
     "catalogo",
     "cotizaciones",
+    "importaciones",
   ];
 
   function puedeVer(modulo: string): boolean {
@@ -174,6 +180,7 @@ export function AppSidebar() {
         {renderGroup("Workspace", workspaceItems)}
         {renderGroup("Relaciones", relationsItems)}
         {renderGroup("Finanzas", financeItems)}
+        {renderGroup("Importaciones", importacionesItems)}
         {renderGroup("Servicio Técnico", servicioTecnicoItems)}
         {renderGroup("Sistema", systemItems)}
       </SidebarContent>

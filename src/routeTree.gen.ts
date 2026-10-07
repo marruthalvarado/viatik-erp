@@ -42,6 +42,8 @@ import { Route as ServicioTecnicoBaseInstaladaRouteImport } from './routes/servi
 import { Route as ServicioTecnicoPlantillasRouteImport } from './routes/servicio-tecnico.plantillas'
 import { Route as ServicioTecnicoCatalogoRouteImport } from './routes/servicio-tecnico.catalogo'
 import { Route as ServicioTecnicoProtocolosRouteImport } from './routes/servicio-tecnico.protocolos'
+import { Route as ImportacionesRouteImport } from './routes/importaciones'
+import { Route as ImportacionesCosteosRouteImport } from './routes/importaciones.costeos'
 
 const WorkflowRoute = WorkflowRouteImport.update({
   id: '/workflow',
@@ -208,6 +210,16 @@ const ServicioTecnicoProtocolosRoute = ServicioTecnicoProtocolosRouteImport.upda
   path: '/protocolos',
   getParentRoute: () => ServicioTecnicoRoute,
 } as any)
+const ImportacionesRoute = ImportacionesRouteImport.update({
+  id: '/importaciones',
+  path: '/importaciones',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ImportacionesCosteosRoute = ImportacionesCosteosRouteImport.update({
+  id: '/costeos',
+  path: '/costeos',
+  getParentRoute: () => ImportacionesRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -243,6 +255,8 @@ export interface FileRoutesByFullPath {
   '/servicio-tecnico/plantillas': typeof ServicioTecnicoPlantillasRoute
   '/servicio-tecnico/catalogo': typeof ServicioTecnicoCatalogoRoute
   '/servicio-tecnico/protocolos': typeof ServicioTecnicoProtocolosRoute
+  '/importaciones': typeof ImportacionesRouteWithChildren
+  '/importaciones/costeos': typeof ImportacionesCosteosRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -277,6 +291,7 @@ export interface FileRoutesByTo {
   '/servicio-tecnico/plantillas': typeof ServicioTecnicoPlantillasRoute
   '/servicio-tecnico/catalogo': typeof ServicioTecnicoCatalogoRoute
   '/servicio-tecnico/protocolos': typeof ServicioTecnicoProtocolosRoute
+  '/importaciones/costeos': typeof ImportacionesCosteosRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -313,6 +328,8 @@ export interface FileRoutesById {
   '/servicio-tecnico/plantillas': typeof ServicioTecnicoPlantillasRoute
   '/servicio-tecnico/catalogo': typeof ServicioTecnicoCatalogoRoute
   '/servicio-tecnico/protocolos': typeof ServicioTecnicoProtocolosRoute
+  '/importaciones': typeof ImportacionesRouteWithChildren
+  '/importaciones/costeos': typeof ImportacionesCosteosRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -350,6 +367,8 @@ export interface FileRouteTypes {
     | '/servicio-tecnico/plantillas'
     | '/servicio-tecnico/catalogo'
     | '/servicio-tecnico/protocolos'
+    | '/importaciones'
+    | '/importaciones/costeos'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -384,6 +403,7 @@ export interface FileRouteTypes {
     | '/servicio-tecnico/plantillas'
     | '/servicio-tecnico/catalogo'
     | '/servicio-tecnico/protocolos'
+    | '/importaciones/costeos'
   id:
     | '__root__'
     | '/'
@@ -419,6 +439,8 @@ export interface FileRouteTypes {
     | '/servicio-tecnico/plantillas'
     | '/servicio-tecnico/catalogo-equipos'
     | '/servicio-tecnico/protocolos'
+    | '/importaciones'
+    | '/importaciones/costeos'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -445,6 +467,7 @@ export interface RootRouteChildren {
   RendicionesRoute: typeof RendicionesRoute
   ReportesRoute: typeof ReportesRouteWithChildren
   ServicioTecnicoRoute: typeof ServicioTecnicoRouteWithChildren
+  ImportacionesRoute: typeof ImportacionesRouteWithChildren
   WorkflowRoute: typeof WorkflowRoute
 }
 
@@ -681,6 +704,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServicioTecnicoProtocolosRouteImport
       parentRoute: typeof ServicioTecnicoRoute
     }
+    '/importaciones': {
+      id: '/importaciones'
+      path: '/importaciones'
+      fullPath: '/importaciones'
+      preLoaderRoute: typeof ImportacionesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/importaciones/costeos': {
+      id: '/costeos'
+      path: '/costeos'
+      fullPath: '/importaciones/costeos'
+      preLoaderRoute: typeof ImportacionesCosteosRouteImport
+      parentRoute: typeof ImportacionesRoute
+    }
   }
 }
 
@@ -722,6 +759,18 @@ const ServicioTecnicoRouteWithChildren = ServicioTecnicoRoute._addFileChildren(
   ServicioTecnicoRouteChildren,
 )
 
+interface ImportacionesRouteChildren {
+  ImportacionesCosteosRoute: typeof ImportacionesCosteosRoute
+}
+
+const ImportacionesRouteChildren: ImportacionesRouteChildren = {
+  ImportacionesCosteosRoute: ImportacionesCosteosRoute,
+}
+
+const ImportacionesRouteWithChildren = ImportacionesRoute._addFileChildren(
+  ImportacionesRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdministracionRoute: AdministracionRoute,
@@ -746,6 +795,7 @@ const rootRouteChildren: RootRouteChildren = {
   RendicionesRoute: RendicionesRoute,
   ReportesRoute: ReportesRouteWithChildren,
   ServicioTecnicoRoute: ServicioTecnicoRouteWithChildren,
+  ImportacionesRoute: ImportacionesRouteWithChildren,
   WorkflowRoute: WorkflowRoute,
 }
 export const routeTree = rootRouteImport

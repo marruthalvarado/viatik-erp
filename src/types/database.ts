@@ -516,6 +516,139 @@ export type Database = {
         };
         Relationships: [{ foreignKeyName: "productos_catalogo_empresa_id_fkey"; columns: ["empresa_id"]; referencedRelation: "empresas"; referencedColumns: ["id"]; }];
       };
+      costeos: {
+        Row: {
+          id: string;
+          empresa_id: string;
+          numero: string;
+          proyecto_id: string | null;
+          producto_id: string | null;
+          proveedor_id: string;
+          importacion_id: string | null;
+          descripcion_producto: string;
+          moneda_proveedor: "USD" | "EUR";
+          precio_fob: number;
+          tipo_cambio_eur: number;
+          precio_fob_usd: number;
+          flete_estimado: number;
+          seguro_estimado: number;
+          agente_aduanas_est: number;
+          bodega_est: number;
+          otros_logistica: number;
+          codigo_nandina: string | null;
+          fodinfa_pct: number;
+          arancel_pct: number;
+          isd_pct: number;
+          iva_importacion_pct: number;
+          instalacion: number;
+          entrenamiento: number;
+          gastos_admin_fabrica: number;
+          fee_agente_comercial: number;
+          garantia_reserva: number;
+          mantenimiento_preventivo_res: number;
+          comision_venta_pct: number;
+          margen_empresa_pct: number;
+          pvp_privado: number;
+          pvp_general: number;
+          total_componentes_usd: number;
+          fob_total_usd: number;
+          cif_usd: number;
+          fodinfa_usd: number;
+          arancel_usd: number;
+          isd_usd: number;
+          iva_importacion_usd: number;
+          costo_aterrizaje_usd: number;
+          servicios_propios_usd: number;
+          garantia_total_usd: number;
+          costo_total_usd: number;
+          comision_venta_usd: number;
+          estado: "borrador" | "aprobado" | "vigente" | "archivado";
+          version: number;
+          notas: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          empresa_id: string;
+          numero?: string;
+          proyecto_id?: string | null;
+          producto_id?: string | null;
+          proveedor_id: string;
+          importacion_id?: string | null;
+          descripcion_producto?: string;
+          moneda_proveedor?: "USD" | "EUR";
+          precio_fob?: number;
+          tipo_cambio_eur?: number;
+          flete_estimado?: number;
+          seguro_estimado?: number;
+          agente_aduanas_est?: number;
+          bodega_est?: number;
+          otros_logistica?: number;
+          codigo_nandina?: string | null;
+          fodinfa_pct?: number;
+          arancel_pct?: number;
+          isd_pct?: number;
+          iva_importacion_pct?: number;
+          instalacion?: number;
+          entrenamiento?: number;
+          gastos_admin_fabrica?: number;
+          fee_agente_comercial?: number;
+          garantia_reserva?: number;
+          mantenimiento_preventivo_res?: number;
+          comision_venta_pct?: number;
+          margen_empresa_pct?: number;
+          pvp_privado?: number;
+          pvp_general?: number;
+          estado?: "borrador" | "aprobado" | "vigente" | "archivado";
+          version?: number;
+          notas?: string | null;
+          created_by?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["costeos"]["Insert"]>;
+        Relationships: [];
+      };
+      costeo_componentes: {
+        Row: {
+          id: string;
+          costeo_id: string;
+          orden: number;
+          tipo: "equipo_base" | "componente_opcional" | "servicio_adicional";
+          descripcion: string;
+          fabricante: string | null;
+          modelo: string | null;
+          moneda: "USD" | "EUR";
+          precio_unitario: number;
+          tipo_cambio: number;
+          precio_usd: number;
+          cantidad: number;
+          subtotal_usd: number;
+          incluir_en_fob: boolean;
+          notas: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          costeo_id: string;
+          orden?: number;
+          tipo?: "equipo_base" | "componente_opcional" | "servicio_adicional";
+          descripcion: string;
+          fabricante?: string | null;
+          modelo?: string | null;
+          moneda?: "USD" | "EUR";
+          precio_unitario?: number;
+          tipo_cambio?: number;
+          precio_usd?: number;
+          cantidad?: number;
+          subtotal_usd?: number;
+          incluir_en_fob?: boolean;
+          notas?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["costeo_componentes"]["Insert"]>;
+        Relationships: [];
+      };
       cotizaciones: {
         Row: {
           id: string;
@@ -4180,6 +4313,22 @@ export type Database = {
       };
     };
     Functions: {
+      crear_costeo: {
+        Args: { p_empresa_id: string; p_datos: Record<string, unknown>; p_componentes?: unknown[] };
+        Returns: { id: string; numero: string };
+      };
+      actualizar_costeo: {
+        Args: { p_id: string; p_datos: Record<string, unknown>; p_componentes?: unknown[] };
+        Returns: void;
+      };
+      eliminar_costeo: {
+        Args: { p_id: string };
+        Returns: void;
+      };
+      calcular_costeo: {
+        Args: { p_costeo_id: string };
+        Returns: Database["public"]["Tables"]["costeos"]["Row"];
+      };
       get_resumen_bitacora: {
         Args: { p_empresa_id: string };
         Returns: {
