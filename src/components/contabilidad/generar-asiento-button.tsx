@@ -53,8 +53,8 @@ export function GenerarAsientoButton({
         onGenerado?.(id);
         toast.success("Asiento contable generado");
       }
-    } catch {
-      // error already set in hook; toast handled by caller if needed
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Error al generar asiento contable");
     }
   };
 

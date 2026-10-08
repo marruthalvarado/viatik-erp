@@ -241,8 +241,9 @@ export function useAutoAsiento() {
       try {
         return await generarAsientoFactura(facturaId, empresaId);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Error al generar asiento de factura");
-        return null;
+        const msg = e instanceof Error ? e.message : "Error al generar asiento de factura";
+        setError(msg);
+        throw new Error(msg);
       } finally {
         setLoading(false);
       }
@@ -257,8 +258,9 @@ export function useAutoAsiento() {
       try {
         return await generarAsientoGasto(gastoId, empresaId);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Error al generar asiento de gasto");
-        return null;
+        const msg = e instanceof Error ? e.message : "Error al generar asiento de gasto";
+        setError(msg);
+        throw new Error(msg);
       } finally {
         setLoading(false);
       }
@@ -273,8 +275,9 @@ export function useAutoAsiento() {
       try {
         return await generarAsientoCobro(cobroId, empresaId);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Error al generar asiento de cobro");
-        return null;
+        const msg = e instanceof Error ? e.message : "Error al generar asiento de cobro";
+        setError(msg);
+        throw new Error(msg);
       } finally {
         setLoading(false);
       }
