@@ -2,7 +2,7 @@
  * Formulario de nueva/editar cotización.
  * Cabecera + tabla de ítems (mixtos: catálogo o texto libre) + términos de pago.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm, useFieldArray, Controller } from "react-hook-form";
 import { Plus, Trash2, GripVertical, Search, UserSearch } from "lucide-react";
 import { toast } from "sonner";
@@ -101,7 +101,32 @@ export function CotizacionForm({ open, cotizacion, onClose }: Props) {
     },
   });
 
-  const { fields: itemFields, append: appendItem, remove: removeItem } = useFieldArray({ control, name: "items" });
+  const { fields: itemFields, append: appendItem, remove: removeItem, move: moveItem } = useFieldArray({ control, name: "items" });
+
+  // ── Drag-and-drop reordering ─────────────────────────────────────────────
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const itemRefsArr = useRef<(HTMLDivElement | null)[]>([]);
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    for (let i = 0; i < itemRefsArr.current.length; i++) {
+      const el = itemRefsArr.current[i];
+      if (!el) continue;
+      const rect = el.getBoundingClientRect();
+      if (touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
+        setDragOverIdx(i);
+        break;
+      }
+    }
+  };
+
+  const commitDrop = (targetIdx: number) => {
+    if (dragIdx !== null && dragIdx !== targetIdx) moveItem(dragIdx, targetIdx);
+    setDragIdx(null);
+    setDragOverIdx(null);
+  };
   const { fields: terminoFields, append: appendTermino, remove: removeTermino } = useFieldArray({ control, name: "terminos_pago" });
 
   useEffect(() => {
@@ -127,7 +152,7 @@ export function CotizacionForm({ open, cotizacion, onClose }: Props) {
               { concepto: "Pre-embarque", porcentaje: 30 },
               { concepto: "Entrega e instalación", porcentaje: 30 },
             ],
-        items: cotizacion.items.map((it) => ({
+        items: [...cotizacion.items].sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0)).map((it) => ({
           catalogo_id: it.catalogo_id ?? "",
           descripcion: it.descripcion,
           fabricante: it.fabricante ?? "",
@@ -358,26 +383,42 @@ export function CotizacionForm({ open, cotizacion, onClose }: Props) {
 
           {/* ── Ítems ── */}
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold">Ítems</h3>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => appendItem({ ...ITEM_DEFAULT })}
-              >
-                <Plus className="size-3.5 mr-1" /> Agregar ítem
-              </Button>
-            </div>
+            <h3 className="text-sm font-semibold">Ítems</h3>
 
             {itemFields.map((field, idx) => {
               const it = watchItems[idx];
               const neto = (it?.precio_unitario ?? 0) * (it?.cantidad ?? 1) * (1 - (it?.descuento_pct ?? 0) / 100);
+              const isDragOver = dragOverIdx === idx && dragIdx !== idx;
               return (
-                <div key={field.id} className="rounded-lg border p-3 space-y-3">
+                <div
+                  key={field.id}
+                  ref={(el) => { itemRefsArr.current[idx] = el; }}
+                  className={cn(
+                    "rounded-lg border p-3 space-y-3 transition-colors",
+                    isDragOver && "border-primary bg-primary/5",
+                    dragIdx === idx && "opacity-50",
+                  )}
+                  onDragOver={(e) => { e.preventDefault(); setDragOverIdx(idx); }}
+                  onDrop={(e) => { e.preventDefault(); commitDrop(idx); }}
+                  onDragEnd={() => { setDragIdx(null); setDragOverIdx(null); }}
+                >
                   {/* Fila 1: selector de catálogo + fabricante + modelo */}
                   <div className="flex items-start gap-2">
-                    <GripVertical className="size-4 mt-2 text-muted-foreground shrink-0" />
+                    {/* Grip handle — arrastra aquí */}
+                    <div
+                      className="cursor-grab active:cursor-grabbing mt-2 shrink-0 touch-none"
+                      draggable
+                      onDragStart={(e) => {
+                        e.stopPropagation();
+                        setDragIdx(idx);
+                        e.dataTransfer.effectAllowed = "move";
+                      }}
+                      onTouchStart={() => setDragIdx(idx)}
+                      onTouchMove={handleTouchMove}
+                      onTouchEnd={() => { if (dragOverIdx !== null) commitDrop(dragOverIdx); else { setDragIdx(null); setDragOverIdx(null); } }}
+                    >
+                      <GripVertical className="size-4 text-muted-foreground" />
+                    </div>
                     <div className="flex-1 grid grid-cols-3 gap-2">
                       {/* Selector catálogo */}
                       <div className="space-y-1">
@@ -387,11 +428,13 @@ export function CotizacionForm({ open, cotizacion, onClose }: Props) {
                           onOpenChange={(o) => setPopoverIdx(o ? idx : null)}
                         >
                           <PopoverTrigger asChild>
-                            <Button variant="outline" size="sm" className="w-full h-8 text-xs justify-start font-normal">
-                              <Search className="size-3 mr-1 text-muted-foreground" />
-                              {it?.catalogo_id
-                                ? (catalogo.find((c) => c.id === it.catalogo_id)?.nombre ?? "Seleccionado")
-                                : "Buscar en catálogo…"}
+                            <Button variant="outline" size="sm" className="w-full h-8 text-xs justify-start font-normal overflow-hidden">
+                              <Search className="size-3 mr-1 shrink-0 text-muted-foreground" />
+                              <span className="truncate">
+                                {it?.catalogo_id
+                                  ? (catalogo.find((c) => c.id === it.catalogo_id)?.nombre ?? "Seleccionado")
+                                  : "Buscar en catálogo…"}
+                              </span>
                             </Button>
                           </PopoverTrigger>
                           <PopoverContent className="w-72 p-2 space-y-1">
@@ -533,6 +576,17 @@ export function CotizacionForm({ open, cotizacion, onClose }: Props) {
                 </div>
               );
             })}
+
+            {/* Botón al fondo, siempre debajo del último ítem */}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={() => appendItem({ ...ITEM_DEFAULT })}
+            >
+              <Plus className="size-3.5 mr-1" /> Agregar ítem
+            </Button>
           </div>
 
           <Separator />
