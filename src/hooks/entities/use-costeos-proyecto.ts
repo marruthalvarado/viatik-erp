@@ -11,6 +11,9 @@ import {
   crearCosteoProyecto,
   actualizarCosteoProyecto,
   importarItemsDesdeCotizacion,
+  getComponentesProyectoItem,
+  copiarComponentesAProyectoItem,
+  sincronizarComponentesProyectoItem,
   type CosteoProyectoDatos,
   type CosteoProyectoItemPayload,
 } from "@/services/costeos-proyecto";
@@ -86,5 +89,44 @@ export function useImportarItemsDesdeCotizacion() {
   return useMutation({
     mutationFn: (cotizacion_id: string) =>
       importarItemsDesdeCotizacion(cotizacion_id),
+  });
+}
+
+// ── Componentes por ítem de proyecto ─────────────────────────────────────────
+
+const QK_COMP = "costeo_proyecto_item_componentes";
+
+export function useComponentesProyectoItem(item_id: string | null | undefined) {
+  return useQuery({
+    queryKey: [QK_COMP, item_id],
+    queryFn: () => getComponentesProyectoItem(item_id!),
+    enabled: !!item_id,
+  });
+}
+
+export function useCopiarComponentesAProyectoItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ item_id, costeo_id }: { item_id: string; costeo_id: string }) =>
+      copiarComponentesAProyectoItem(item_id, costeo_id),
+    onSuccess: (_, { item_id }) => {
+      void qc.invalidateQueries({ queryKey: [QK_COMP, item_id] });
+    },
+  });
+}
+
+export function useSincronizarComponentesProyectoItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      item_id,
+      componentes,
+    }: {
+      item_id: string;
+      componentes: Array<{ componente_id: string; activo: boolean }>;
+    }) => sincronizarComponentesProyectoItem(item_id, componentes),
+    onSuccess: (_, { item_id }) => {
+      void qc.invalidateQueries({ queryKey: [QK_COMP, item_id] });
+    },
   });
 }

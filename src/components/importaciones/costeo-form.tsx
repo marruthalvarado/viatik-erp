@@ -53,6 +53,7 @@ const componenteSchema = z.object({
   cantidad:        z.coerce.number().min(1),
   subtotal_usd:    z.coerce.number().min(0),
   incluir_en_fob:  z.boolean(),
+  activo:          z.boolean(),
   notas:           z.string().optional(),
 });
 
@@ -137,7 +138,7 @@ function calcular(raw: CosteoFormValues): Totales {
     : precio_fob;
 
   const total_comp = (raw.componentes ?? [])
-    .filter((c) => c.incluir_en_fob)
+    .filter((c) => c.incluir_en_fob && c.activo !== false)
     .reduce((s, c) => s + n(c.subtotal_usd), 0);
 
   const fob_total    = fob_base + total_comp;
@@ -258,6 +259,7 @@ export function CosteoForm({ open, onClose, editando }: Props) {
           cantidad:        c.cantidad,
           subtotal_usd:    c.subtotal_usd,
           incluir_en_fob:  c.incluir_en_fob,
+          activo:          c.activo,
           notas:           c.notas ?? undefined,
         })),
       });
@@ -336,6 +338,7 @@ export function CosteoForm({ open, onClose, editando }: Props) {
       cantidad:        c.cantidad,
       subtotal_usd:    c.subtotal_usd,
       incluir_en_fob:  c.incluir_en_fob,
+      activo:          c.activo,
       notas:           c.notas || null,
     }));
 
@@ -519,15 +522,23 @@ export function CosteoForm({ open, onClose, editando }: Props) {
                 {compFields.map((field, idx) => {
                   const comp = form.watch(`componentes.${idx}`);
                   return (
-                    <div key={field.id} className="border rounded-lg p-3 bg-muted/30 space-y-3">
+                    <div key={field.id} className={`border rounded-lg p-3 space-y-3 transition-colors ${comp.activo !== false ? "bg-muted/30" : "bg-muted/10 opacity-60"}`}>
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
+                          <Switch
+                            id={`activo-${idx}`}
+                            checked={comp.activo !== false}
+                            onCheckedChange={(v) => updateComp(idx, "activo", v)}
+                          />
                           <Badge variant="outline" className="text-xs">
                             {comp.tipo === "equipo_base"         ? "Base"
                             : comp.tipo === "servicio_adicional"  ? "Servicio"
                             : "Accesorio"}
                           </Badge>
                           <span className="text-sm font-medium">{comp.descripcion || `Ítem ${idx + 1}`}</span>
+                          {comp.activo === false && (
+                            <span className="text-xs text-muted-foreground italic">deshabilitado</span>
+                          )}
                         </div>
                         <Button
                           type="button"
@@ -653,6 +664,7 @@ export function CosteoForm({ open, onClose, editando }: Props) {
                       cantidad: 1,
                       subtotal_usd: 0,
                       incluir_en_fob: true,
+                      activo: true,
                     })
                   }
                 >

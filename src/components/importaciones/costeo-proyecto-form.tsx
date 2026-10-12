@@ -6,12 +6,13 @@
  */
 import { useEffect, useState } from "react";
 import { useForm, useFieldArray, Controller } from "react-hook-form";
-import { Plus, Trash2, Download, Info } from "lucide-react";
+import { Plus, Trash2, Info, ChevronDown, ChevronRight, Package2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button }   from "@/components/ui/button";
 import { Input }    from "@/components/ui/input";
 import { Label }    from "@/components/ui/label";
+import { Switch }   from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
@@ -30,7 +31,14 @@ import {
   useCrearCosteoProyecto,
   useActualizarCosteoProyecto,
   useImportarItemsDesdeCotizacion,
+  useComponentesProyectoItem,
+  useCopiarComponentesAProyectoItem,
+  useSincronizarComponentesProyectoItem,
 } from "@/hooks/entities/use-costeos-proyecto";
+import {
+  calcularFobDesdeComponentes,
+  type ComponenteProyectoEstado,
+} from "@/services/costeos-proyecto";
 import type {
   CosteoProyectoConItems,
   CosteoProyectoDatos,
@@ -129,6 +137,107 @@ function calcItem(
   const pvpTotal    = Math.round(pvpU * qty * 100) / 100;
 
   return { fobItem, aterrizaje, aterrizajeU, pvpU, pvpTotal };
+}
+
+// ── Panel de componentes por ítem ─────────────────────────────────────────────
+
+interface ComponenteItemPanelProps {
+  item_id: string;
+  costeo_id: string;
+  onFobChange: (fob: number) => void;
+}
+
+function ComponenteItemPanel({ item_id, costeo_id, onFobChange }: ComponenteItemPanelProps) {
+  const [open, setOpen] = useState(false);
+  // Optimistic local state — mirrors DB but responds instantly to toggles
+  const [localComps, setLocalComps] = useState<ComponenteProyectoEstado[]>([]);
+  const { data: dbComps = [], isLoading } = useComponentesProyectoItem(item_id);
+  const copiar     = useCopiarComponentesAProyectoItem();
+  const sincronizar = useSincronizarComponentesProyectoItem();
+
+  // Sync DB → local whenever DB data changes
+  useEffect(() => { setLocalComps(dbComps); }, [dbComps]);
+
+  // Copy components from costeo on first open (RPC is idempotent — no-op if already copied)
+  useEffect(() => {
+    if (!open || isLoading) return;
+    copiar.mutate({ item_id, costeo_id });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, item_id, costeo_id]);
+
+  const handleToggle = (componente_id: string, activo: boolean) => {
+    const updated = localComps.map((c) =>
+      c.componente_id === componente_id ? { ...c, activo } : c,
+    );
+    setLocalComps(updated);
+    sincronizar.mutate({
+      item_id,
+      componentes: updated.map((c) => ({ componente_id: c.componente_id, activo: c.activo })),
+    });
+    onFobChange(calcularFobDesdeComponentes(updated));
+  };
+
+  const activeCount = localComps.filter((c) => c.activo).length;
+
+  return (
+    <div className="mt-2 border-t pt-2">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+      >
+        {open ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
+        <Package2 className="size-3.5" />
+        Componentes / accesorios
+        {localComps.length > 0 && (
+          <span className="text-[10px] bg-muted rounded px-1 py-0.5">
+            {activeCount}/{localComps.length} activos
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="mt-2 space-y-1.5 pl-4">
+          {(isLoading || copiar.isPending) ? (
+            <p className="text-xs text-muted-foreground">Cargando componentes…</p>
+          ) : localComps.length === 0 ? (
+            <p className="text-xs text-muted-foreground italic">
+              Este costeo no tiene componentes registrados.
+            </p>
+          ) : (
+            <>
+              {localComps.map((comp) => (
+                <div
+                  key={comp.componente_id}
+                  className={`flex items-center justify-between rounded-md border px-2.5 py-1.5 text-xs transition-opacity ${comp.activo ? "bg-background" : "bg-muted/30 opacity-60"}`}
+                >
+                  <div className="flex-1 min-w-0 mr-2">
+                    <span className={comp.activo ? "text-foreground" : "text-muted-foreground line-through"}>
+                      {comp.descripcion}
+                    </span>
+                    <span className="ml-2 text-muted-foreground">
+                      {comp.incluir_en_fob ? fmt(comp.subtotal_usd) : "excl. FOB"}
+                    </span>
+                  </div>
+                  <Switch
+                    checked={comp.activo}
+                    onCheckedChange={(v) => handleToggle(comp.componente_id, v)}
+                    disabled={sincronizar.isPending}
+                  />
+                </div>
+              ))}
+              <p className="text-[10px] text-muted-foreground pt-0.5">
+                FOB desde componentes activos:{" "}
+                <strong className="text-foreground">
+                  {fmt(calcularFobDesdeComponentes(localComps))}
+                </strong>
+              </p>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ── Componente ────────────────────────────────────────────────────────────────
@@ -474,6 +583,9 @@ export function CosteoProyectoForm({ open, onClose, costeo, defaultProyectoId }:
             <div className="space-y-3">
               {fields.map((field, idx) => {
                 const calc = calcItems[idx];
+                // DB item id available only in edit mode (after save)
+                const dbItemId = esEdicion ? costeo?.items[idx]?.id : undefined;
+                const itemCosteoId = watch(`items.${idx}.costeo_id`);
                 return (
                   <div key={field.id} className="rounded-lg border bg-muted/20 p-3 space-y-3">
                     {/* Fila 1: descripción + fabricante + modelo */}
@@ -552,6 +664,22 @@ export function CosteoProyectoForm({ open, onClose, costeo, defaultProyectoId }:
                           <Trash2 className="size-3" />
                         </Button>
                       </div>
+                    )}
+
+                    {/* Panel de componentes — solo en modo edición cuando el ítem tiene costeo asignado */}
+                    {dbItemId && itemCosteoId && (
+                      <ComponenteItemPanel
+                        item_id={dbItemId}
+                        costeo_id={itemCosteoId}
+                        onFobChange={(fob) =>
+                          setValue(`items.${idx}.precio_fob_unitario_usd`, fob)
+                        }
+                      />
+                    )}
+                    {!dbItemId && itemCosteoId && (
+                      <p className="text-[10px] text-muted-foreground border-t pt-2 mt-1 italic">
+                        Guarda el costeo para gestionar componentes de este ítem.
+                      </p>
                     )}
                   </div>
                 );

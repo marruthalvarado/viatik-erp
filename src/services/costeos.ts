@@ -66,6 +66,7 @@ export interface CosteoComponentePayload {
   cantidad:        number;
   subtotal_usd:    number;
   incluir_en_fob:  boolean;
+  activo:          boolean;
   notas?:          string | null;
 }
 

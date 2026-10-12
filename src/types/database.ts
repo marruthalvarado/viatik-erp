@@ -626,6 +626,7 @@ export type Database = {
           cantidad: number;
           subtotal_usd: number;
           incluir_en_fob: boolean;
+          activo: boolean;
           notas: string | null;
           created_at: string;
         };
@@ -644,9 +645,26 @@ export type Database = {
           cantidad?: number;
           subtotal_usd?: number;
           incluir_en_fob?: boolean;
+          activo?: boolean;
           notas?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["costeo_componentes"]["Insert"]>;
+        Relationships: [];
+      };
+      costeo_proyecto_item_componentes: {
+        Row: {
+          id: string;
+          costeo_proyecto_item_id: string;
+          componente_id: string;
+          activo: boolean;
+        };
+        Insert: {
+          id?: string;
+          costeo_proyecto_item_id: string;
+          componente_id: string;
+          activo?: boolean;
+        };
+        Update: Partial<Database["public"]["Tables"]["costeo_proyecto_item_componentes"]["Insert"]>;
         Relationships: [];
       };
       cotizaciones: {

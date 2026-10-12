@@ -6,11 +6,15 @@
  */
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/types/database";
+import type { TipoComponente } from "@/services/costeos";
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
 export type CosteoProyecto =
   Database["public"]["Tables"]["costeos_proyecto"]["Row"];
+
+export type CosteoProyectoItemComponente =
+  Database["public"]["Tables"]["costeo_proyecto_item_componentes"]["Row"];
 
 export type CosteoProyectoItem =
   Database["public"]["Tables"]["costeo_proyecto_items"]["Row"];
@@ -131,6 +135,94 @@ export async function actualizarCosteoProyecto(
     p_items: items,
   });
   if (error) throw new Error(error.message);
+}
+
+// ── Componentes por ítem de proyecto ─────────────────────────────────────────
+
+export interface ComponenteProyectoEstado {
+  componente_id: string;
+  activo: boolean;
+  descripcion: string;
+  tipo: TipoComponente;
+  subtotal_usd: number;
+  incluir_en_fob: boolean;
+}
+
+/**
+ * Retorna el estado de componentes (activo/inactivo) para un ítem de proyecto.
+ * Hace join con costeo_componentes para traer los datos base del componente.
+ */
+export async function getComponentesProyectoItem(
+  item_id: string,
+): Promise<ComponenteProyectoEstado[]> {
+  const { data, error } = await supabase
+    .from("costeo_proyecto_item_componentes")
+    .select(`
+      componente_id,
+      activo,
+      componente:costeo_componentes(descripcion, tipo, subtotal_usd, incluir_en_fob)
+    `)
+    .eq("costeo_proyecto_item_id", item_id);
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as unknown as Array<{
+    componente_id: string;
+    activo: boolean;
+    componente: {
+      descripcion: string;
+      tipo: TipoComponente;
+      subtotal_usd: number;
+      incluir_en_fob: boolean;
+    };
+  }>).map((row) => ({
+    componente_id: row.componente_id,
+    activo: row.activo,
+    descripcion: row.componente?.descripcion ?? "",
+    tipo: row.componente?.tipo ?? "componente_opcional",
+    subtotal_usd: row.componente?.subtotal_usd ?? 0,
+    incluir_en_fob: row.componente?.incluir_en_fob ?? true,
+  }));
+}
+
+/**
+ * Copia los componentes de un costeo a un ítem de proyecto (si aún no existen).
+ * Llama al RPC copiar_componentes_a_proyecto_item.
+ */
+export async function copiarComponentesAProyectoItem(
+  item_id: string,
+  costeo_id: string,
+): Promise<void> {
+  const { error } = await supabase.rpc("copiar_componentes_a_proyecto_item", {
+    p_item_id: item_id,
+    p_costeo_id: costeo_id,
+  });
+  if (error) throw new Error(error.message);
+}
+
+/**
+ * Guarda el estado activo/inactivo de cada componente para un ítem de proyecto.
+ * Llama al RPC sincronizar_componentes_proyecto_item con upsert.
+ */
+export async function sincronizarComponentesProyectoItem(
+  item_id: string,
+  componentes: Array<{ componente_id: string; activo: boolean }>,
+): Promise<void> {
+  const { error } = await supabase.rpc("sincronizar_componentes_proyecto_item", {
+    p_item_id: item_id,
+    p_componentes: componentes,
+  });
+  if (error) throw new Error(error.message);
+}
+
+/**
+ * Calcula el FOB total de los componentes activos (incluir_en_fob=true y activo=true).
+ * Helper puramente cliente, sin llamadas a la BD.
+ */
+export function calcularFobDesdeComponentes(
+  componentes: ComponenteProyectoEstado[],
+): number {
+  return componentes
+    .filter((c) => c.incluir_en_fob && c.activo)
+    .reduce((sum, c) => sum + (c.subtotal_usd ?? 0), 0);
 }
 
 /**
