@@ -83,10 +83,11 @@ const financeItems: NavItem[] = [
 ];
 
 const importacionesItems: NavItem[] = [
-  { title: "Dashboard",      url: "/importaciones/dashboard", icon: LayoutDashboard, modulo: "importaciones" },
-  { title: "Costeos",        url: "/importaciones/costeos",   icon: Calculator,      modulo: "importaciones" },
-  { title: "Embarques",      url: "/importaciones/embarques", icon: Globe,           modulo: "importaciones" },
-  { title: "Grupos de Envío", url: "/importaciones/grupos",   icon: Boxes,           modulo: "importaciones" },
+  { title: "Dashboard",       url: "/importaciones/dashboard",        icon: LayoutDashboard, modulo: "importaciones" },
+  { title: "Costeos",         url: "/importaciones/costeos",          icon: Calculator,      modulo: "importaciones" },
+  { title: "Costeos Proyecto",url: "/importaciones/costeos-proyecto", icon: FolderKanban,    modulo: "importaciones" },
+  { title: "Embarques",       url: "/importaciones/embarques",        icon: Globe,           modulo: "importaciones" },
+  { title: "Grupos de Envío", url: "/importaciones/grupos",           icon: Boxes,           modulo: "importaciones" },
 ];
 
 const servicioTecnicoItems: NavItem[] = [

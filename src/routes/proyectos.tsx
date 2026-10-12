@@ -56,6 +56,7 @@ import { BitacoraTab } from "@/components/bitacora/bitacora-tab";
 import { TIPO_PROYECTO_LABELS } from "@/services/bitacora";
 import type { TipoProyecto } from "@/services/bitacora";
 import { CotizacionesProyectoTab } from "@/components/cotizaciones/cotizaciones-proyecto-tab";
+import { CosteoProyectoTab } from "@/components/importaciones/costeo-proyecto-tab";
 
 export const Route = createFileRoute("/proyectos")({
   head: () => ({ meta: [{ title: "Proyectos · VIATIQ" }] }),
@@ -403,6 +404,7 @@ function ProyectosContent() {
                 <TabsList className="mb-4">
                   <TabsTrigger value="resumen">Resumen</TabsTrigger>
                   <TabsTrigger value="cotizaciones">Cotizaciones</TabsTrigger>
+                  <TabsTrigger value="costeo">Costeo</TabsTrigger>
                   <TabsTrigger value="bitacora">Bitácora</TabsTrigger>
                 </TabsList>
 
@@ -464,6 +466,11 @@ function ProyectosContent() {
                 {/* Cotizaciones */}
                 <TabsContent value="cotizaciones">
                   <CotizacionesProyectoTab proyectoId={detailProyecto.id} />
+                </TabsContent>
+
+                {/* Costeo de Proyecto */}
+                <TabsContent value="costeo">
+                  <CosteoProyectoTab proyectoId={detailProyecto.id} />
                 </TabsContent>
 
                 {/* Bitácora */}
