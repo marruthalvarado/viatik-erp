@@ -22,6 +22,7 @@ import {
   useCatalogoCotizar,
 } from "@/hooks/entities/use-cotizaciones";
 import { useClientes } from "@/hooks/entities/use-clientes";
+import { useProyectosSimples } from "@/hooks/entities/use-dashboard";
 import type { CotizacionConItems, CotizacionDatos, CotizacionItemPayload } from "@/services/cotizaciones";
 import { useCompany } from "@/contexts/company-context";
 
@@ -53,6 +54,7 @@ interface FormData {
   notas: string;
   observacion_interna: string;
   iva_pct: number;
+  proyecto_id: string;
   terminos_pago: TerminoPago[];
   items: ItemForm[];
 }
@@ -60,6 +62,7 @@ interface FormData {
 interface Props {
   open: boolean;
   cotizacion?: CotizacionConItems;
+  defaultProyectoId?: string;
   onClose: () => void;
 }
 
@@ -72,11 +75,12 @@ const ITEM_DEFAULT: ItemForm = {
   dias_entrega: "", meses_garantia: "", notas: "",
 };
 
-export function CotizacionForm({ open, cotizacion, onClose }: Props) {
+export function CotizacionForm({ open, cotizacion, defaultProyectoId, onClose }: Props) {
   const { empresaActivaId } = useCompany();
   const { data: catalogo = [] } = useCatalogoCotizar();
   const { data: clientesData } = useClientes();
   const clientes = clientesData?.rows ?? [];
+  const { data: proyectos = [] } = useProyectosSimples(empresaActivaId ?? null);
   const crear = useCrearCotizacion();
   const actualizar = useActualizarCotizacion();
 
@@ -92,6 +96,7 @@ export function CotizacionForm({ open, cotizacion, onClose }: Props) {
       lugar_entrega: "", dias_entrega: "120", meses_garantia: "24",
       notas: "", observacion_interna: "",
       iva_pct: 15,
+      proyecto_id: defaultProyectoId ?? "",
       terminos_pago: [
         { concepto: "Anticipo (firma contrato)", porcentaje: 40 },
         { concepto: "Pre-embarque", porcentaje: 30 },
@@ -145,6 +150,7 @@ export function CotizacionForm({ open, cotizacion, onClose }: Props) {
         notas: cotizacion.notas ?? "",
         observacion_interna: cotizacion.observacion_interna ?? "",
         iva_pct: cotizacion.iva_pct,
+        proyecto_id: cotizacion.proyecto_id ?? "",
         terminos_pago: cotizacion.terminos_pago?.length
           ? cotizacion.terminos_pago
           : [
@@ -172,6 +178,7 @@ export function CotizacionForm({ open, cotizacion, onClose }: Props) {
         lugar_entrega: "", dias_entrega: "120", meses_garantia: "24",
         notas: "", observacion_interna: "",
         iva_pct: 15,
+        proyecto_id: defaultProyectoId ?? "",
         terminos_pago: [
           { concepto: "Anticipo (firma contrato)", porcentaje: 40 },
           { concepto: "Pre-embarque", porcentaje: 30 },
@@ -180,7 +187,7 @@ export function CotizacionForm({ open, cotizacion, onClose }: Props) {
         items: [{ ...ITEM_DEFAULT }],
       });
     }
-  }, [open, cotizacion, reset]);
+  }, [open, cotizacion, defaultProyectoId, reset]);
 
   const watchItems = watch("items");
   const watchIva = watch("iva_pct");
@@ -241,6 +248,7 @@ export function CotizacionForm({ open, cotizacion, onClose }: Props) {
       observacion_interna: data.observacion_interna.trim() || undefined,
       iva_pct: data.iva_pct,
       terminos_pago: data.terminos_pago.filter((t) => t.concepto && t.porcentaje > 0),
+      proyecto_id: data.proyecto_id || undefined,
     };
 
     const items: CotizacionItemPayload[] = data.items.map((it, idx) => ({
@@ -360,6 +368,28 @@ export function CotizacionForm({ open, cotizacion, onClose }: Props) {
               {...register("asunto")}
               placeholder="Ej. Suministro e instalación de equipos de diagnóstico por imagen"
               className="text-sm"
+            />
+          </div>
+
+          {/* ── Proyecto vinculado ── */}
+          <div className="space-y-1.5">
+            <Label className="text-xs">Proyecto vinculado (opcional)</Label>
+            <Controller
+              control={control}
+              name="proyecto_id"
+              render={({ field }) => (
+                <select
+                  {...field}
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  <option value="">— Sin proyecto —</option>
+                  {proyectos.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.nombre}
+                    </option>
+                  ))}
+                </select>
+              )}
             />
           </div>
 

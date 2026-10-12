@@ -7,6 +7,7 @@ import { useCompany } from "@/contexts/company-context";
 import {
   getCotizaciones,
   getCotizacion,
+  getCotizacionesByProyecto,
   crearCotizacion,
   actualizarCotizacion,
   actualizarEstadoCotizacion,
@@ -29,6 +30,15 @@ export function useCotizaciones() {
     queryKey: ["cotizaciones", empresaActivaId],
     queryFn: () => getCotizaciones(empresaActivaId!),
     enabled: !!empresaActivaId,
+  });
+}
+
+export function useCotizacionesByProyecto(proyecto_id: string | null | undefined) {
+  const { empresaActivaId } = useCompany();
+  return useQuery({
+    queryKey: ["cotizaciones_proyecto", empresaActivaId, proyecto_id],
+    queryFn: () => getCotizacionesByProyecto(empresaActivaId!, proyecto_id!),
+    enabled: !!empresaActivaId && !!proyecto_id,
   });
 }
 

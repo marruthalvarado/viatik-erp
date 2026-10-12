@@ -675,6 +675,7 @@ export type Database = {
           total: number;
           cotizacion_origen_id: string | null;
           factura_id: string | null;
+          proyecto_id: string | null;
           created_by: string | null;
           created_at: string;
           updated_at: string;
@@ -704,6 +705,7 @@ export type Database = {
           total?: number;
           cotizacion_origen_id?: string | null;
           factura_id?: string | null;
+          proyecto_id?: string | null;
           created_by?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["cotizaciones"]["Insert"]>;

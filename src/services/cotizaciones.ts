@@ -57,6 +57,7 @@ export interface CotizacionDatos {
   notas?: string;
   observacion_interna?: string;
   iva_pct?: number;
+  proyecto_id?: string;
 }
 
 export interface CotizacionItemPayload {
@@ -90,6 +91,20 @@ export async function getCotizaciones(empresa_id: string): Promise<CotizacionCon
     .from("cotizaciones")
     .select(COTIZACION_SELECT)
     .eq("empresa_id", empresa_id)
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as unknown as CotizacionConItems[];
+}
+
+export async function getCotizacionesByProyecto(
+  empresa_id: string,
+  proyecto_id: string,
+): Promise<CotizacionConItems[]> {
+  const { data, error } = await supabase
+    .from("cotizaciones")
+    .select(COTIZACION_SELECT)
+    .eq("empresa_id", empresa_id)
+    .eq("proyecto_id", proyecto_id)
     .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
   return (data ?? []) as unknown as CotizacionConItems[];
