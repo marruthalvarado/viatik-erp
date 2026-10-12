@@ -75,8 +75,11 @@ const costeoSchema = z.object({
   isd_pct:                      z.coerce.number().min(0).max(100),
   iva_importacion_pct:          z.coerce.number().min(0).max(100),
   instalacion:                  z.coerce.number().min(0),
+  instalacion_en_fob:           z.boolean(),
   entrenamiento:                z.coerce.number().min(0),
+  entrenamiento_en_fob:         z.boolean(),
   gastos_admin_fabrica:         z.coerce.number().min(0),
+  gastos_admin_en_fob:          z.boolean(),
   fee_agente_comercial:         z.coerce.number().min(0),
   garantia_reserva:             z.coerce.number().min(0),
   mantenimiento_preventivo_res: z.coerce.number().min(0),
@@ -141,7 +144,10 @@ function calcular(raw: CosteoFormValues): Totales {
     .filter((c) => c.incluir_en_fob && c.activo !== false)
     .reduce((s, c) => s + n(c.subtotal_usd), 0);
 
-  const fob_total    = fob_base + total_comp;
+  const fob_servicios = (raw.instalacion_en_fob   ? instalacion          : 0)
+                      + (raw.entrenamiento_en_fob  ? entrenamiento         : 0)
+                      + (raw.gastos_admin_en_fob   ? gastos_admin_fabrica  : 0);
+  const fob_total    = fob_base + total_comp + fob_servicios;
   const cif          = fob_total + flete_estimado + seguro_estimado;
   const fodinfa      = Math.round(cif * fodinfa_pct / 100 * 100) / 100;
   const arancel      = Math.round(cif * arancel_pct / 100 * 100) / 100;
@@ -149,7 +155,10 @@ function calcular(raw: CosteoFormValues): Totales {
   const iva_imp      = Math.round((cif + fodinfa + arancel) * iva_importacion_pct / 100 * 100) / 100;
   const costo_aterr  = cif + fodinfa + arancel + isd + iva_imp
     + agente_aduanas_est + bodega_est + otros_logistica;
-  const servicios    = instalacion + entrenamiento + gastos_admin_fabrica + fee_agente_comercial;
+  const servicios    = (raw.instalacion_en_fob   ? 0 : instalacion)
+                     + (raw.entrenamiento_en_fob  ? 0 : entrenamiento)
+                     + (raw.gastos_admin_en_fob   ? 0 : gastos_admin_fabrica)
+                     + fee_agente_comercial;
   const garantia_tot = garantia_reserva + mantenimiento_preventivo_res;
   const costo_total  = costo_aterr + servicios + garantia_tot;
   const comision     = Math.round(costo_total * comision_venta_pct / 100 * 100) / 100;
@@ -198,8 +207,11 @@ export function CosteoForm({ open, onClose, editando }: Props) {
       isd_pct:                      5,
       iva_importacion_pct:          15,
       instalacion:                  0,
+      instalacion_en_fob:           false,
       entrenamiento:                0,
+      entrenamiento_en_fob:         false,
       gastos_admin_fabrica:         0,
+      gastos_admin_en_fob:          false,
       fee_agente_comercial:         0,
       garantia_reserva:             0,
       mantenimiento_preventivo_res: 0,
@@ -236,8 +248,11 @@ export function CosteoForm({ open, onClose, editando }: Props) {
         isd_pct:                      editando.isd_pct,
         iva_importacion_pct:          editando.iva_importacion_pct,
         instalacion:                  editando.instalacion,
+        instalacion_en_fob:           editando.instalacion_en_fob  ?? false,
         entrenamiento:                editando.entrenamiento,
+        entrenamiento_en_fob:         editando.entrenamiento_en_fob ?? false,
         gastos_admin_fabrica:         editando.gastos_admin_fabrica,
+        gastos_admin_en_fob:          editando.gastos_admin_en_fob  ?? false,
         fee_agente_comercial:         editando.fee_agente_comercial,
         garantia_reserva:             editando.garantia_reserva,
         mantenimiento_preventivo_res: editando.mantenimiento_preventivo_res,
@@ -313,8 +328,11 @@ export function CosteoForm({ open, onClose, editando }: Props) {
       isd_pct:                      values.isd_pct,
       iva_importacion_pct:          values.iva_importacion_pct,
       instalacion:                  values.instalacion,
+      instalacion_en_fob:           values.instalacion_en_fob,
       entrenamiento:                values.entrenamiento,
+      entrenamiento_en_fob:         values.entrenamiento_en_fob,
       gastos_admin_fabrica:         values.gastos_admin_fabrica,
+      gastos_admin_en_fob:          values.gastos_admin_en_fob,
       fee_agente_comercial:         values.fee_agente_comercial,
       garantia_reserva:             values.garantia_reserva,
       mantenimiento_preventivo_res: values.mantenimiento_preventivo_res,
@@ -721,10 +739,10 @@ export function CosteoForm({ open, onClose, editando }: Props) {
             {/* ─── Bloque 6: Servicios propios ─── */}
             <Section title="Servicios de la Empresa">
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <NumField form={form} name="instalacion"          label="Instalación (USD)" />
-                <NumField form={form} name="entrenamiento"        label="Entrenamiento (USD)" />
-                <NumField form={form} name="gastos_admin_fabrica" label="Gastos admin. fábrica (USD)" />
-                <NumField form={form} name="fee_agente_comercial" label="Fee agente comercial (USD)" />
+                <FobServiceField form={form} name="instalacion"          fobName="instalacion_en_fob"   label="Instalación (USD)" />
+                <FobServiceField form={form} name="entrenamiento"        fobName="entrenamiento_en_fob" label="Entrenamiento (USD)" />
+                <FobServiceField form={form} name="gastos_admin_fabrica" fobName="gastos_admin_en_fob"  label="Gastos admin. fábrica (USD)" />
+                <NumField        form={form} name="fee_agente_comercial"                                label="Fee agente comercial (USD)" />
               </div>
             </Section>
 
@@ -901,6 +919,58 @@ const handleCommaToPeriod = (e: React.KeyboardEvent<HTMLInputElement>) => {
     el.setSelectionRange(start + 1, start + 1);
   }
 };
+
+/** Campo de servicio con toggle "Incluir en FOB (viene en invoice del proveedor)". */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function FobServiceField({ form, name, fobName, label }: { form: any; name: string; fobName: string; label: string }) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1 gap-1">
+        <span className="text-xs font-medium leading-none">{label}</span>
+        <FormField
+          control={form.control}
+          name={fobName}
+          render={({ field }: { field: { value: boolean; onChange: (v: boolean) => void } }) => (
+            <div className="flex items-center gap-1 shrink-0">
+              <Switch
+                id={fobName}
+                checked={field.value}
+                onCheckedChange={field.onChange}
+                className="scale-[0.7] origin-right"
+              />
+              <Label
+                htmlFor={fobName}
+                className="text-[10px] text-muted-foreground cursor-pointer whitespace-nowrap"
+              >
+                en FOB
+              </Label>
+            </div>
+          )}
+        />
+      </div>
+      <FormField
+        control={form.control}
+        name={name}
+        render={({ field }: { field: React.InputHTMLAttributes<HTMLInputElement> }) => (
+          <FormItem>
+            <FormControl>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                className="h-9"
+                {...field}
+                value={field.value ?? 0}
+                onKeyDown={handleCommaToPeriod}
+              />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+    </div>
+  );
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function NumField({ form, name, label }: { form: any; name: string; label: string }) {

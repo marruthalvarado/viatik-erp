@@ -40,8 +40,11 @@ export interface CosteoDatos {
   isd_pct:                      number;
   iva_importacion_pct:          number;
   instalacion:                  number;
+  instalacion_en_fob?:          boolean;
   entrenamiento:                number;
+  entrenamiento_en_fob?:        boolean;
   gastos_admin_fabrica:         number;
+  gastos_admin_en_fob?:         boolean;
   fee_agente_comercial:         number;
   garantia_reserva:             number;
   mantenimiento_preventivo_res: number;
