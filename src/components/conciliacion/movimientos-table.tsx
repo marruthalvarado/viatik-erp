@@ -87,6 +87,8 @@ export function MovimientosTable({ empresaId, cuentaId, facturas, gastos }: Prop
   const [manualMap, setManualMap] = useState<
     Record<string, { tipo: "factura" | "gasto"; id: string }>
   >({});
+  // Observación manual por movimiento
+  const [manualNotas, setManualNotas] = useState<Record<string, string>>({});
 
   const filtros: FiltrosMovimientos = {
     cuentaId,
@@ -114,12 +116,13 @@ export function MovimientosTable({ empresaId, cuentaId, facturas, gastos }: Prop
 
     if (matchId && matchTipo) {
       // Asignación manual
+      const nota = manualNotas[mov.id]?.trim() || "Conciliación manual";
       try {
         await marcar.mutateAsync({
           movimientoId: mov.id,
           matchTipo,
           matchId,
-          matchNota: "Conciliación manual",
+          matchNota: nota,
           crearCobro: matchTipo === "factura",
         });
         toast.success("Movimiento conciliado");
@@ -277,7 +280,10 @@ export function MovimientosTable({ empresaId, cuentaId, facturas, gastos }: Prop
                       <td className="px-3 py-2 tabular-nums whitespace-nowrap">
                         {formatDate(mov.fecha)}
                       </td>
-                      <td className="px-3 py-2 max-w-[220px] truncate text-muted-foreground">
+                      <td
+                        className="px-3 py-2 max-w-[220px] truncate text-muted-foreground"
+                        title={mov.descripcion || undefined}
+                      >
                         {mov.descripcion || "—"}
                       </td>
                       <td className="px-3 py-2 text-center">
@@ -403,7 +409,17 @@ export function MovimientosTable({ empresaId, cuentaId, facturas, gastos }: Prop
                             )}
 
                             {/* Asignación manual */}
-                            <div className="flex-1 space-y-1.5">
+                            <div className="flex-1 space-y-2">
+                              {/* Descripción completa del movimiento */}
+                              {mov.descripcion && (
+                                <div className="rounded-md bg-muted/30 border px-3 py-2 text-xs text-foreground break-all">
+                                  <span className="font-medium text-muted-foreground uppercase text-[10px] tracking-wide">
+                                    Descripción bancaria
+                                  </span>
+                                  <p className="mt-0.5">{mov.descripcion}</p>
+                                </div>
+                              )}
+
                               <p className="text-xs font-medium flex items-center gap-1 text-muted-foreground">
                                 <Link2Off className="size-3.5" /> Asignar manualmente
                               </p>
@@ -448,6 +464,20 @@ export function MovimientosTable({ empresaId, cuentaId, facturas, gastos }: Prop
                                     ))}
                                 </select>
                               )}
+
+                              {/* Observación */}
+                              <input
+                                type="text"
+                                placeholder="Observación (opcional)…"
+                                value={manualNotas[mov.id] ?? ""}
+                                onChange={(e) =>
+                                  setManualNotas((prev) => ({
+                                    ...prev,
+                                    [mov.id]: e.target.value,
+                                  }))
+                                }
+                                className="w-full rounded border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
+                              />
                             </div>
                           </div>
                         </td>
