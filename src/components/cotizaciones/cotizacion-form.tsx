@@ -2,7 +2,7 @@
  * Formulario de nueva/editar cotización.
  * Cabecera + tabla de ítems (mixtos: catálogo o texto libre) + términos de pago.
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useForm, useFieldArray, Controller } from "react-hook-form";
 import { Plus, Trash2, GripVertical, Search, UserSearch } from "lucide-react";
 import { toast } from "sonner";
@@ -132,7 +132,7 @@ export function CotizacionForm({ open, cotizacion, defaultProyectoId, onClose }:
     setDragIdx(null);
     setDragOverIdx(null);
   };
-  const { fields: terminoFields, append: appendTermino, remove: removeTermino } = useFieldArray({ control, name: "terminos_pago" });
+  const { fields: terminoFields, append: appendTermino, remove: removeTermino, replace: replaceTerminos } = useFieldArray({ control, name: "terminos_pago" });
 
   useEffect(() => {
     if (!open) return;
@@ -191,6 +191,18 @@ export function CotizacionForm({ open, cotizacion, defaultProyectoId, onClose }:
 
   const watchItems = watch("items");
   const watchIva = watch("iva_pct");
+  const watchTerminos = watch("terminos_pago");
+  const [cuotasN, setCuotasN] = useState(12);
+
+  const generarCuotas = useCallback((n: number, concepto: string) => {
+    const pct = Math.floor(100 / n);
+    const resto = 100 - pct * n;
+    const nuevos = Array.from({ length: n }, (_, i) => ({
+      concepto: `${concepto} ${i + 1}`,
+      porcentaje: i === n - 1 ? pct + resto : pct,
+    }));
+    replaceTerminos(nuevos);
+  }, [replaceTerminos]);
 
   const subtotal = watchItems.reduce((s, it) => {
     const neto = it.precio_unitario * it.cantidad * (1 - (it.descuento_pct || 0) / 100);
@@ -634,41 +646,76 @@ export function CotizacionForm({ open, cotizacion, defaultProyectoId, onClose }:
                 <Plus className="size-3.5 mr-1" /> Agregar tramo
               </Button>
             </div>
-            {terminoFields.map((field, idx) => (
-              <div key={field.id} className="flex items-center gap-2">
-                <Input
-                  {...register(`terminos_pago.${idx}.concepto`)}
-                  placeholder="Ej. Anticipo al firmar"
-                  className="h-8 text-sm flex-1"
-                />
-                <div className="flex items-center gap-1 w-24">
-                  <Controller
-                    control={control}
-                    name={`terminos_pago.${idx}.porcentaje`}
-                    render={({ field: f }) => (
-                      <Input
-                        type="number"
-                        min="0"
-                        max="100"
-                        className="h-8 text-sm"
-                        value={f.value}
-                        onChange={(e) => f.onChange(parseInt(e.target.value) || 0)}
-                      />
-                    )}
+
+            {/* Helper cuotas periódicas */}
+            <div className="flex items-center gap-2 rounded-md bg-muted/30 border px-3 py-2">
+              <span className="text-xs text-muted-foreground shrink-0">Cuotas periódicas:</span>
+              <Input
+                type="number"
+                min="1"
+                max="120"
+                value={cuotasN}
+                onChange={(e) => setCuotasN(Math.max(1, parseInt(e.target.value) || 1))}
+                className="h-7 w-16 text-xs"
+              />
+              <span className="text-xs text-muted-foreground shrink-0">cuotas de</span>
+              <span className="text-xs font-semibold tabular-nums shrink-0">
+                {total > 0 ? fmtMoney(total / cuotasN) : "$0.00"} c/u
+              </span>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="h-7 text-xs ml-auto"
+                onClick={() => generarCuotas(cuotasN, "Cuota")}
+              >
+                Generar cuotas
+              </Button>
+            </div>
+
+            {terminoFields.map((field, idx) => {
+              const pct = watchTerminos?.[idx]?.porcentaje ?? 0;
+              const monto = total * pct / 100;
+              return (
+                <div key={field.id} className="flex items-center gap-2">
+                  <Input
+                    {...register(`terminos_pago.${idx}.concepto`)}
+                    placeholder="Ej. Anticipo al firmar"
+                    className="h-8 text-sm flex-1"
                   />
-                  <span className="text-xs text-muted-foreground">%</span>
+                  <div className="flex items-center gap-1 w-24">
+                    <Controller
+                      control={control}
+                      name={`terminos_pago.${idx}.porcentaje`}
+                      render={({ field: f }) => (
+                        <Input
+                          type="number"
+                          min="0"
+                          max="100"
+                          className="h-8 text-sm"
+                          value={f.value}
+                          onChange={(e) => f.onChange(parseInt(e.target.value) || 0)}
+                        />
+                      )}
+                    />
+                    <span className="text-xs text-muted-foreground">%</span>
+                  </div>
+                  {/* Monto calculado */}
+                  <span className="text-xs font-semibold tabular-nums w-20 text-right shrink-0">
+                    {fmtMoney(monto)}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-7 text-destructive"
+                    onClick={() => removeTermino(idx)}
+                  >
+                    <Trash2 className="size-3.5" />
+                  </Button>
                 </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="size-7 text-destructive"
-                  onClick={() => removeTermino(idx)}
-                >
-                  <Trash2 className="size-3.5" />
-                </Button>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <Separator />
