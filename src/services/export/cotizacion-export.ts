@@ -361,9 +361,11 @@ export async function exportCotizacionPdf(
     }
     cuadroRows.push(["Forma de pago", pagoStr]);
   }
-  if (c.dias_entrega) cuadroRows.push(["Plazo de entrega", `${c.dias_entrega} días hábiles a partir de la recepción del anticipo y entrega de documentación habilitante para la importación`]);
-  if (c.meses_garantia) cuadroRows.push(["Garantía", `${c.meses_garantia} meses a partir de la instalación del equipo`]);
-  cuadroRows.push(["Soporte técnico", "Local/regional - tiempo de respuesta máximo de 48 horas"]);
+  if (!c.es_servicio) {
+    if (c.dias_entrega) cuadroRows.push(["Plazo de entrega", `${c.dias_entrega} días hábiles a partir de la recepción del anticipo y entrega de documentación habilitante para la importación`]);
+    if (c.meses_garantia) cuadroRows.push(["Garantía", `${c.meses_garantia} meses a partir de la instalación del equipo`]);
+    cuadroRows.push(["Soporte técnico", "Local/regional - tiempo de respuesta máximo de 48 horas"]);
+  }
   if (c.lugar_entrega) cuadroRows.push(["Lugar de entrega e instalación", c.lugar_entrega]);
 
   autoTable(doc as Parameters<typeof autoTable>[0], {
@@ -388,22 +390,12 @@ export async function exportCotizacionPdf(
   const byFab = groupByFabricante(c.items);
 
   for (const [fab, items] of byFab) {
-    // Asegurar que caben el header del fabricante + al menos un card mínimo (70pt) antes de dibujar
-    if (y + 85 > H - 22) { doc.addPage(); y = HDRH + 8; }
-
     // ── Encabezado del fabricante: barra teal con logo ────────────────────
     const fabItem = items.find((it) => it.proveedor?.logo_url);
     const fabImg = getImg(fabItem?.proveedor?.logo_url);
+    const FAB_H = 15; // height consumed by fabricante header
 
-    doc.setFillColor(...TEAL);
-    doc.rect(ML, y, CW, 11, "F");
-    doc.setFontSize(9.5); doc.setTextColor(...WHITE); doc.setFont("helvetica", "bold");
-    doc.text(`EQUIPOS - ${fab.toUpperCase()}`, ML + 4, y + 7.5);
-
-    if (fabImg) {
-      try { addImg(fabImg, W - MR - 32, y + 1, 30, 9); } catch { /* skip */ }
-    }
-    y += 15;
+    let needFabHeader = true; // draw header before first item of this fab
 
     // ── Tarjeta por producto ──────────────────────────────────────────────
     for (const it of items) {
@@ -424,7 +416,24 @@ export async function exportCotizacionPdf(
         fotoImg ? 46 : 22,
       );
 
-      if (y + cardH + 14 > H - 22) { doc.addPage(); y = HDRH + 8; }
+      // Check if fab header + card fit; if not, page break and re-draw fab header
+      const headerNeed = needFabHeader ? FAB_H : 0;
+      if (y + headerNeed + cardH + 14 > H - 22) {
+        doc.addPage(); y = HDRH + 8;
+        needFabHeader = true; // must redraw header on new page
+      }
+
+      if (needFabHeader) {
+        doc.setFillColor(...TEAL);
+        doc.rect(ML, y, CW, 11, "F");
+        doc.setFontSize(9.5); doc.setTextColor(...WHITE); doc.setFont("helvetica", "bold");
+        doc.text(`EQUIPOS - ${fab.toUpperCase()}`, ML + 4, y + 7.5);
+        if (fabImg) {
+          try { addImg(fabImg, W - MR - 32, y + 1, 30, 9); } catch { /* skip */ }
+        }
+        y += FAB_H;
+        needFabHeader = false;
+      }
 
       // Barra del nombre del producto en teal
       doc.setFillColor(...TEAL);
@@ -580,7 +589,7 @@ export async function exportCotizacionPdf(
         body: tp2.map((t, i) => [
           String(i + 1),
           t.concepto,
-          `${fmtMoney(c.subtotal * t.porcentaje / 100)} + IVA`,
+          `${fmtMoney(montoBase2)} + IVA`,
         ]),
         foot: [[
           "", `${tp2.length} cuotas de ${fmtMoney(montoBase2)} + IVA c/u`, "",
@@ -947,9 +956,11 @@ export async function exportCotizacionDocx(
     }
     cuadroRows.push(["Forma de pago", pagoStrW]);
   }
-  if (c.dias_entrega) cuadroRows.push(["Plazo de entrega", `${c.dias_entrega} días laborables`]);
-  if (c.meses_garantia) cuadroRows.push(["Garantía", `${c.meses_garantia} meses`]);
-  cuadroRows.push(["Soporte técnico", "Incluido"]);
+  if (!c.es_servicio) {
+    if (c.dias_entrega) cuadroRows.push(["Plazo de entrega", `${c.dias_entrega} días laborables`]);
+    if (c.meses_garantia) cuadroRows.push(["Garantía", `${c.meses_garantia} meses`]);
+    cuadroRows.push(["Soporte técnico", "Incluido"]);
+  }
   if (c.lugar_entrega) cuadroRows.push(["Lugar de entrega e instalación", c.lugar_entrega]);
 
   const cuadroTable = new Table({

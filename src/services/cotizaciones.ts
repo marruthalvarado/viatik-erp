@@ -58,6 +58,7 @@ export interface CotizacionDatos {
   observacion_interna?: string;
   iva_pct?: number;
   proyecto_id?: string;
+  es_servicio?: boolean;
 }
 
 export interface CotizacionItemPayload {

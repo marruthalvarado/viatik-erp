@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import {
   Popover, PopoverContent, PopoverTrigger,
 } from "@/components/ui/popover";
@@ -55,6 +56,7 @@ interface FormData {
   observacion_interna: string;
   iva_pct: number;
   proyecto_id: string;
+  es_servicio: boolean;
   terminos_pago: TerminoPago[];
   items: ItemForm[];
 }
@@ -97,6 +99,7 @@ export function CotizacionForm({ open, cotizacion, defaultProyectoId, onClose }:
       notas: "", observacion_interna: "",
       iva_pct: 15,
       proyecto_id: defaultProyectoId ?? "",
+      es_servicio: false,
       terminos_pago: [
         { concepto: "Anticipo (firma contrato)", porcentaje: 40 },
         { concepto: "Pre-embarque", porcentaje: 30 },
@@ -151,6 +154,7 @@ export function CotizacionForm({ open, cotizacion, defaultProyectoId, onClose }:
         observacion_interna: cotizacion.observacion_interna ?? "",
         iva_pct: cotizacion.iva_pct,
         proyecto_id: cotizacion.proyecto_id ?? "",
+        es_servicio: cotizacion.es_servicio ?? false,
         terminos_pago: cotizacion.terminos_pago?.length
           ? cotizacion.terminos_pago
           : [
@@ -179,6 +183,7 @@ export function CotizacionForm({ open, cotizacion, defaultProyectoId, onClose }:
         notas: "", observacion_interna: "",
         iva_pct: 15,
         proyecto_id: defaultProyectoId ?? "",
+        es_servicio: false,
         terminos_pago: [
           { concepto: "Anticipo (firma contrato)", porcentaje: 40 },
           { concepto: "Pre-embarque", porcentaje: 30 },
@@ -261,6 +266,7 @@ export function CotizacionForm({ open, cotizacion, defaultProyectoId, onClose }:
       iva_pct: data.iva_pct,
       terminos_pago: data.terminos_pago.filter((t) => t.concepto && t.porcentaje > 0),
       proyecto_id: data.proyecto_id || undefined,
+      es_servicio: data.es_servicio,
     };
 
     const items: CotizacionItemPayload[] = data.items.map((it, idx) => ({
@@ -381,6 +387,24 @@ export function CotizacionForm({ open, cotizacion, defaultProyectoId, onClose }:
               placeholder="Ej. Suministro e instalación de equipos de diagnóstico por imagen"
               className="text-sm"
             />
+          </div>
+
+          {/* ── Tipo de oferta ── */}
+          <div className="flex items-center gap-3">
+            <Controller
+              control={control}
+              name="es_servicio"
+              render={({ field }) => (
+                <Switch
+                  id="es_servicio"
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+              )}
+            />
+            <Label htmlFor="es_servicio" className="text-xs cursor-pointer">
+              Es un servicio (oculta Plazo de entrega, Garantía y Soporte técnico en el export)
+            </Label>
           </div>
 
           {/* ── Proyecto vinculado ── */}
