@@ -348,8 +348,19 @@ export async function exportCotizacionPdf(
   if (c.descuento_total > 0) cuadroRows.push(["Descuento", `- ${fmtMoney(c.descuento_total)}`]);
   if (c.iva_pct > 0) cuadroRows.push([`IVA ${c.iva_pct}%`, fmtMoney(c.iva)]);
   cuadroRows.push([`Precio ${c.razon_social || "cliente"} (IVA incluido)`, fmtMoney(c.total)]);
-  if (c.terminos_pago?.length)
-    cuadroRows.push(["Forma de pago", c.terminos_pago.map((t) => `${t.porcentaje}% ${t.concepto}`).join("\n")]);
+  if (c.terminos_pago?.length) {
+    const tp = c.terminos_pago;
+    const allCuotas = tp.every((t) => /cuota/i.test(t.concepto));
+    const allSamePct = tp.length > 1 && tp.every((t) => Math.abs(t.porcentaje - tp[0].porcentaje) < 1.5);
+    let pagoStr: string;
+    if (allCuotas && allSamePct) {
+      const montoBase = c.subtotal / tp.length;
+      pagoStr = `${tp.length} cuotas de ${fmtMoney(montoBase)} + IVA c/u`;
+    } else {
+      pagoStr = tp.map((t) => `${t.concepto}   ${fmtMoney(c.subtotal * t.porcentaje / 100)} + IVA`).join("\n");
+    }
+    cuadroRows.push(["Forma de pago", pagoStr]);
+  }
   if (c.dias_entrega) cuadroRows.push(["Plazo de entrega", `${c.dias_entrega} días hábiles a partir de la recepción del anticipo y entrega de documentación habilitante para la importación`]);
   if (c.meses_garantia) cuadroRows.push(["Garantía", `${c.meses_garantia} meses a partir de la instalación del equipo`]);
   cuadroRows.push(["Soporte técnico", "Local/regional - tiempo de respuesta máximo de 48 horas"]);
@@ -377,7 +388,8 @@ export async function exportCotizacionPdf(
   const byFab = groupByFabricante(c.items);
 
   for (const [fab, items] of byFab) {
-    if (y + 20 > H - 22) { doc.addPage(); y = HDRH + 8; }
+    // Asegurar que caben el header del fabricante + al menos un card mínimo (70pt) antes de dibujar
+    if (y + 85 > H - 22) { doc.addPage(); y = HDRH + 8; }
 
     // ── Encabezado del fabricante: barra teal con logo ────────────────────
     const fabItem = items.find((it) => it.proveedor?.logo_url);
@@ -550,17 +562,63 @@ export async function exportCotizacionPdf(
   const totX = W - MR - totW;
 
   if (c.terminos_pago?.length) {
+    const tp2 = c.terminos_pago;
+    const allCuotas2 = tp2.every((t) => /cuota/i.test(t.concepto));
+    const allSamePct2 = tp2.length > 1 && tp2.every((t) => Math.abs(t.porcentaje - tp2[0].porcentaje) < 1.5);
+
     doc.setFontSize(9); doc.setTextColor(...TEAL); doc.setFont("helvetica", "bold");
     doc.text("Opciones de pago", ML, y + 5);
-    y += 10;
-    for (const t of c.terminos_pago) {
-      doc.setFont("helvetica", "normal"); doc.setTextColor(...DARK); doc.setFontSize(8.5);
-      doc.text(`• ${t.concepto}`, ML + 2, y);
-      doc.setFont("helvetica", "bold"); doc.setTextColor(...TEAL);
-      doc.text(`${t.porcentaje}%`, ML + 85, y, { align: "right" });
-      y += 6;
+    y += 8;
+
+    if (allCuotas2 && allSamePct2) {
+      // Cuotas iguales → una sola fila resumida
+      const montoBase2 = c.subtotal / tp2.length;
+      autoTable(doc as Parameters<typeof autoTable>[0], {
+        startY: y,
+        margin: { left: ML, right: MR },
+        head: [["#", "Descripción", "Monto (sin IVA)"]],
+        body: tp2.map((t, i) => [
+          String(i + 1),
+          t.concepto,
+          `${fmtMoney(c.subtotal * t.porcentaje / 100)} + IVA`,
+        ]),
+        foot: [[
+          "", `${tp2.length} cuotas de ${fmtMoney(montoBase2)} + IVA c/u`, "",
+        ]],
+        styles: { fontSize: 7.5, cellPadding: 2, textColor: [...DARK] },
+        headStyles: { fillColor: [...TEAL], textColor: [...WHITE], fontStyle: "bold", fontSize: 7.5 },
+        footStyles: { fillColor: [...BGROW], textColor: [...TEAL], fontStyle: "bold", fontSize: 7.5 },
+        columnStyles: {
+          0: { cellWidth: 10, halign: "center" },
+          1: { cellWidth: CW * 0.55 },
+          2: { halign: "right" },
+        },
+        tableLineColor: [...BORDER],
+        tableLineWidth: 0.2,
+      });
+    } else {
+      // Tramos distintos → tabla con concepto + monto
+      autoTable(doc as Parameters<typeof autoTable>[0], {
+        startY: y,
+        margin: { left: ML, right: MR },
+        head: [["#", "Descripción", "Monto (sin IVA)"]],
+        body: tp2.map((t, i) => [
+          String(i + 1),
+          t.concepto,
+          `${fmtMoney(c.subtotal * t.porcentaje / 100)} + IVA`,
+        ]),
+        styles: { fontSize: 7.5, cellPadding: 2, textColor: [...DARK] },
+        headStyles: { fillColor: [...TEAL], textColor: [...WHITE], fontStyle: "bold", fontSize: 7.5 },
+        columnStyles: {
+          0: { cellWidth: 10, halign: "center" },
+          1: { cellWidth: CW * 0.55 },
+          2: { halign: "right" },
+        },
+        tableLineColor: [...BORDER],
+        tableLineWidth: 0.2,
+      });
     }
-    y += 4;
+    y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
   }
 
   // Caja de totales (esquina derecha)
@@ -877,8 +935,18 @@ export async function exportCotizacionDocx(
   const cuadroRows: [string, string][] = [];
   if (c.asunto) cuadroRows.push(["Proyecto", c.asunto]);
   cuadroRows.push(["Precio total", fmtMoney(c.total)]);
-  if (c.terminos_pago?.length)
-    cuadroRows.push(["Forma de pago", c.terminos_pago.map((t) => `${t.porcentaje}% ${t.concepto}`).join(" / ")]);
+  if (c.terminos_pago?.length) {
+    const tpw = c.terminos_pago;
+    const allCuotasW = tpw.every((t) => /cuota/i.test(t.concepto));
+    const allSamePctW = tpw.length > 1 && tpw.every((t) => Math.abs(t.porcentaje - tpw[0].porcentaje) < 1.5);
+    let pagoStrW: string;
+    if (allCuotasW && allSamePctW) {
+      pagoStrW = `${tpw.length} cuotas de ${fmtMoney(c.subtotal / tpw.length)} + IVA c/u`;
+    } else {
+      pagoStrW = tpw.map((t) => `${t.concepto}  ${fmtMoney(c.subtotal * t.porcentaje / 100)} + IVA`).join(" / ");
+    }
+    cuadroRows.push(["Forma de pago", pagoStrW]);
+  }
   if (c.dias_entrega) cuadroRows.push(["Plazo de entrega", `${c.dias_entrega} días laborables`]);
   if (c.meses_garantia) cuadroRows.push(["Garantía", `${c.meses_garantia} meses`]);
   cuadroRows.push(["Soporte técnico", "Incluido"]);
