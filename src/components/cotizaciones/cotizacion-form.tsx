@@ -698,9 +698,16 @@ export function CotizacionForm({ open, cotizacion, defaultProyectoId, onClose }:
               </Button>
             </div>
 
-            {terminoFields.map((field, idx) => {
+            {(() => {
+              const n = watchTerminos?.length ?? 0;
+              const allCuotas = n > 1 && (watchTerminos ?? []).every(t => /cuota/i.test(t.concepto));
+              const allSamePct = allCuotas && (watchTerminos ?? []).every(
+                t => Math.abs(t.porcentaje - watchTerminos![0].porcentaje) < 1.5
+              );
+              const montoBase2 = allSamePct ? Math.floor(subtotal / n) : null;
+              return terminoFields.map((field, idx) => {
               const pct = watchTerminos?.[idx]?.porcentaje ?? 0;
-              const montoBase = subtotal * pct / 100;
+              const montoBase = montoBase2 !== null ? montoBase2 : subtotal * pct / 100;
               return (
                 <div key={field.id} className="flex items-center gap-2">
                   <Input
@@ -742,7 +749,8 @@ export function CotizacionForm({ open, cotizacion, defaultProyectoId, onClose }:
                   </Button>
                 </div>
               );
-            })}
+            });
+            })()}
           </div>
 
           <Separator />

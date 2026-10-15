@@ -417,8 +417,9 @@ export async function exportCotizacionPdf(
       );
 
       // Check if fab header + card fit; if not, page break and re-draw fab header
+      // Guard: only break if we're NOT at the very top of a fresh page (prevents double-blank-page)
       const headerNeed = needFabHeader ? FAB_H : 0;
-      if (y + headerNeed + cardH + 14 > H - 22) {
+      if (y + headerNeed + cardH + 14 > H - 22 && y > HDRH + 30) {
         doc.addPage(); y = HDRH + 8;
         needFabHeader = true; // must redraw header on new page
       }
@@ -451,19 +452,31 @@ export async function exportCotizacionPdf(
       y += 8;
 
       // Descripción larga (izquierda) + foto (derecha)
-      if (descLines.length > 0) {
-        doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(...DARK);
-        // Usar array pre-dividido (sin align:justify ni maxWidth) para compatibilidad con Adobe Acrobat
-        doc.text(descLines, ML, y, { lineHeightFactor: 1.55 });
-      }
+      // Foto: dibujada en la posición inicial (antes del texto) — solo primera página
+      const textStartY = y;
       if (fotoImg) {
         const imgX = ML + leftW + 4;
         const imgW = rightW - 2;
         const imgH = Math.min(imgW * 0.7, cardH - 10);
-        addImg(fotoImg, imgX, y - 2, imgW, imgH);
+        addImg(fotoImg, imgX, textStartY - 2, imgW, imgH);
       }
-
-      y += Math.max(descH, fotoImg ? 36 : 4) + 10;
+      if (descLines.length > 0) {
+        const LH = 4.2 * 1.55; // ~6.5pt por línea
+        doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(...DARK);
+        for (const line of descLines) {
+          if (y + LH > H - 22) {
+            doc.addPage(); y = HDRH + 8;
+            needFabHeader = true; // próxima tarjeta necesitará redibujar el header del fabricante
+          }
+          doc.text(line, ML, y);
+          y += LH;
+        }
+      } else {
+        y += fotoImg ? Math.max(cardH - 17, 4) : 4;
+      }
+      // Asegurar que y supere el alto de la foto si hay imagen
+      if (fotoImg) y = Math.max(y, textStartY + Math.min((rightW - 2) * 0.7, cardH - 10));
+      y += 10;
     }
     y += 4;
   }
