@@ -195,11 +195,11 @@ export function CotizacionForm({ open, cotizacion, defaultProyectoId, onClose }:
   const [cuotasN, setCuotasN] = useState(12);
 
   const generarCuotas = useCallback((n: number, concepto: string) => {
-    const pct = Math.floor(100 / n);
-    const resto = 100 - pct * n;
+    const pctUnit = parseFloat((100 / n).toFixed(2));
+    const pctLast = parseFloat((100 - pctUnit * (n - 1)).toFixed(2));
     const nuevos = Array.from({ length: n }, (_, i) => ({
       concepto: `${concepto} ${i + 1}`,
-      porcentaje: i === n - 1 ? pct + resto : pct,
+      porcentaje: i === n - 1 ? pctLast : pctUnit,
     }));
     replaceTerminos(nuevos);
   }, [replaceTerminos]);
@@ -659,8 +659,9 @@ export function CotizacionForm({ open, cotizacion, defaultProyectoId, onClose }:
                 className="h-7 w-16 text-xs"
               />
               <span className="text-xs text-muted-foreground shrink-0">cuotas de</span>
-              <span className="text-xs font-semibold tabular-nums shrink-0">
-                {total > 0 ? fmtMoney(total / cuotasN) : "$0.00"} c/u
+              <span className="text-xs font-semibold tabular-nums shrink-0 text-foreground">
+                {subtotal > 0 ? fmtMoney(subtotal / cuotasN) : "$0.00"}
+                <span className="font-normal text-muted-foreground"> + IVA c/u</span>
               </span>
               <Button
                 type="button"
@@ -675,7 +676,7 @@ export function CotizacionForm({ open, cotizacion, defaultProyectoId, onClose }:
 
             {terminoFields.map((field, idx) => {
               const pct = watchTerminos?.[idx]?.porcentaje ?? 0;
-              const monto = total * pct / 100;
+              const montoBase = subtotal * pct / 100;
               return (
                 <div key={field.id} className="flex items-center gap-2">
                   <Input
@@ -692,17 +693,19 @@ export function CotizacionForm({ open, cotizacion, defaultProyectoId, onClose }:
                           type="number"
                           min="0"
                           max="100"
+                          step="0.01"
                           className="h-8 text-sm"
                           value={f.value}
-                          onChange={(e) => f.onChange(parseInt(e.target.value) || 0)}
+                          onChange={(e) => f.onChange(parseFloat(e.target.value) || 0)}
                         />
                       )}
                     />
                     <span className="text-xs text-muted-foreground">%</span>
                   </div>
-                  {/* Monto calculado */}
-                  <span className="text-xs font-semibold tabular-nums w-20 text-right shrink-0">
-                    {fmtMoney(monto)}
+                  {/* Monto base (sin IVA) */}
+                  <span className="text-xs font-semibold tabular-nums w-32 text-right shrink-0">
+                    {fmtMoney(montoBase)}
+                    <span className="font-normal text-muted-foreground"> + IVA</span>
                   </span>
                   <Button
                     type="button"
