@@ -183,5 +183,5 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.crear_cotizacion      TO authenticated;
-GRANT EXECUTE ON FUNCTION public.actualizar_cotizacion TO authenticated;
+GRANT EXECUTE ON FUNCTION public.crear_cotizacion(uuid, jsonb, jsonb)      TO authenticated;
+GRANT EXECUTE ON FUNCTION public.actualizar_cotizacion(uuid, jsonb, jsonb) TO authenticated;
