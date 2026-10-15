@@ -100,6 +100,10 @@ export function ContratoForm({ open, contrato, onSubmit, onClose }: Props) {
     }
   };
 
+  const proyectosFiltrados = form.cliente_id
+    ? proyectos.filter((p) => p.cliente_id === form.cliente_id)
+    : proyectos;
+
   const equiposFiltrados = form.cliente_id
     ? equipos.filter((e) => e.cliente_id === form.cliente_id)
     : equipos;
@@ -135,11 +139,17 @@ export function ContratoForm({ open, contrato, onSubmit, onClose }: Props) {
               onValueChange={(v) => set("proyecto_id", v === "none" ? null : v)}
             >
               <SelectTrigger><SelectValue placeholder="Seleccionar…" /></SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-h-72 overflow-y-auto">
                 <SelectItem value="none">— Ninguno —</SelectItem>
-                {proyectos.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>{p.nombre}</SelectItem>
-                ))}
+                {proyectosFiltrados.length > 0 ? (
+                  proyectosFiltrados.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.nombre}</SelectItem>
+                  ))
+                ) : (
+                  <div className="px-3 py-2 text-sm text-muted-foreground">
+                    {form.cliente_id ? "Sin proyectos para este cliente" : "Selecciona un cliente primero"}
+                  </div>
+                )}
               </SelectContent>
             </Select>
           </div>
