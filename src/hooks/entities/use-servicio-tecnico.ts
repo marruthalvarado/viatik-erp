@@ -3,6 +3,7 @@
  */
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCompany } from "@/contexts/company-context";
+import { toast } from "sonner";
 
 import {
   getEquiposInstalados, getEquipoInstalado,
@@ -311,7 +312,12 @@ export function useLimpiarFirmasOrden() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => limpiarFirmasOrdenSvc(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["ordenes_servicio"] }),
+    onSuccess: (_data, id) => {
+      qc.invalidateQueries({ queryKey: ["ordenes_servicio"] });
+      qc.invalidateQueries({ queryKey: ["orden_servicio", id] });
+      toast.success("Firmas eliminadas");
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 }
 
