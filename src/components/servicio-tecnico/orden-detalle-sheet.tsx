@@ -244,7 +244,9 @@ export function OrdenDetalleSheet({ orden, open, onClose }: Props) {
       setCosto(orden.costo_mano_obra != null ? String(orden.costo_mano_obra) : "");
       setIncluyeCorrectivo(orden.incluye_correctivo ?? false);
       setDescCorrectivo(orden.descripcion_correctivo ?? "");
-      setDosIngenieros(!!orden.tecnico2_id);
+      // Considerar también firma_tecnico2_url: si la OS ya fue cerrada con 2 ingenieros
+      // pero tecnico2_id fue borrado por el bug de autoSave, seguimos mostrando el cuadro.
+      setDosIngenieros(!!(orden.tecnico2_id || (orden as OrdenConRelaciones).firma_tecnico2_url));
       setTecnico2Id(orden.tecnico2_id ?? "");
       setFirmaCliente(emptyFirma());
       setFirmaTecnico({
@@ -255,7 +257,7 @@ export function OrdenDetalleSheet({ orden, open, onClose }: Props) {
         dataUrl: null,
       });
       setFirmaTecnico2(
-        orden.tecnico2_id && orden.tecnico2
+        orden.tecnico2
           ? {
               nombre: `${orden.tecnico2.nombres} ${orden.tecnico2.apellidos}`.trim(),
               cargo: "Ingeniero de Servicio",
@@ -297,7 +299,11 @@ export function OrdenDetalleSheet({ orden, open, onClose }: Props) {
       tecnico2_id:            dosIngenieros && tecnico2Id ? tecnico2Id : null,
       tecnico2:               t2
         ? { id: t2.usuario_id, nombres: t2.nombres, apellidos: t2.apellidos ?? "", cargo: t2.cargo ?? null }
-        : null,
+        // Si dosIngenieros pero no hay t2 (tecnico2_id fue borrado), usar datos del join de la orden
+        // o placeholder "Ingeniero 2" para que el PDF siga mostrando el cuadro con la firma
+        : dosIngenieros
+          ? (orden!.tecnico2 ?? { id: "", nombres: "Ingeniero", apellidos: "2", cargo: null })
+          : null,
     };
   };
 
