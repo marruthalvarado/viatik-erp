@@ -523,7 +523,7 @@ export async function exportOrdenServicioPdf(
   hr();
   y += 5;
 
-  const hasTecnico2 = !!os.tecnico2;
+  const hasTecnico2 = !!(os.tecnico2 || (os as OrdenConRelaciones).firma_tecnico2_url);
   const numSigs   = hasTecnico2 ? 3 : 2;
   const sigGap    = 5;
   const sigW      = (CW - sigGap * (numSigs - 1)) / numSigs;
