@@ -41,7 +41,7 @@ function Check3Buttons({
         className={value === "ok" ? "bg-green-600 hover:bg-green-700 text-white border-0" : ""}
         onClick={() => onChange("ok")}
       >
-        <CheckCircle2 className="size-3 mr-1" />OK
+        <CheckCircle2 className="size-3 mr-1" />Conforme
       </Button>
       <Button
         type="button"
@@ -50,7 +50,7 @@ function Check3Buttons({
         className={value === "no_ok" ? "bg-red-600 hover:bg-red-700 text-white border-0" : ""}
         onClick={() => onChange("no_ok")}
       >
-        <XCircle className="size-3 mr-1" />No OK
+        <XCircle className="size-3 mr-1" />No Conforme
       </Button>
       <Button
         type="button"
@@ -59,13 +59,13 @@ function Check3Buttons({
         className={value === "na" ? "bg-gray-500 hover:bg-gray-600 text-white border-0" : ""}
         onClick={() => onChange("na")}
       >
-        <MinusCircle className="size-3 mr-1" />N/A
+        <MinusCircle className="size-3 mr-1" />No Aplica
       </Button>
     </div>
   );
 }
 
-// ─── Badge de resultado por campo (OK / No OK) ───────────────
+// ─── Badge de resultado por campo (Conforme / No Conforme) ───────────────
 function CampoBadge({ valor, rango }: { valor: string; rango: RangoMedicion | undefined }) {
   if (!rango || valor === "") return null;
   const v = parseFloat(valor);
@@ -73,8 +73,8 @@ function CampoBadge({ valor, rango }: { valor: string; rango: RangoMedicion | un
   const inMin = rango.min === null || v >= rango.min;
   const inMax = rango.max === null || v <= rango.max;
   return inMin && inMax
-    ? <span className="text-[10px] font-semibold text-green-700 whitespace-nowrap">✓ OK</span>
-    : <span className="text-[10px] font-semibold text-red-600 whitespace-nowrap">✗ No OK</span>;
+    ? <span className="text-[10px] font-semibold text-green-700 whitespace-nowrap">✓ Conforme</span>
+    : <span className="text-[10px] font-semibold text-red-600 whitespace-nowrap">✗ No Conforme</span>;
 }
 
 // ─── Fila de actividad individual ───────────────────────────
@@ -306,7 +306,7 @@ function ActividadRow({
                   {/* Badge OK / No OK inline */}
                   {tieneRango && valorMedido !== "" && !isNaN(parseFloat(valorMedido)) && (
                     fuera
-                      ? <span className="text-[10px] font-semibold text-red-600 whitespace-nowrap">✗ No OK</span>
+                      ? <span className="text-[10px] font-semibold text-red-600 whitespace-nowrap">✗ No Conforme</span>
                       : <span className="text-[10px] font-semibold text-green-700 whitespace-nowrap">✓ OK</span>
                   )}
                 </div>
@@ -480,10 +480,10 @@ export function OsChecklist({ ordenId, equipoId = null }: OsChecklistProps) {
               <CheckCircle2 className="size-3" />{resumen.ok} OK
             </span>
             <span className="flex items-center gap-1 text-red-600">
-              <XCircle className="size-3" />{resumen.no_ok} No OK
+              <XCircle className="size-3" />{resumen.no_ok} No Conforme
             </span>
             <span className="flex items-center gap-1 text-muted-foreground">
-              <MinusCircle className="size-3" />{resumen.na} N/A
+              <MinusCircle className="size-3" />{resumen.na} No Aplica
             </span>
             {resumen.criticas_no_ok > 0 && (
               <span className="flex items-center gap-1 text-red-700 font-medium">

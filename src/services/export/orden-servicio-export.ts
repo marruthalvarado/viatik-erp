@@ -364,7 +364,7 @@ export async function exportOrdenServicioPdf(
     }, {});
 
     // Sin caracteres Unicode especiales — jsPDF Helvetica no los soporta
-    const RES_LABEL: Record<string, string> = { ok: "OK", no_ok: "No OK", na: "N/A" };
+    const RES_LABEL: Record<string, string> = { ok: "Conforme", no_ok: "No Conforme", na: "No Aplica" };
     const ACT_GREEN   = [220, 252, 231] as const;
     const ACT_RED     = [254, 226, 226] as const;
     const ACT_RED_TXT = [185, 28, 28]   as const;
@@ -397,7 +397,7 @@ export async function exportOrdenServicioPdf(
         let resultado = RES_LABEL[a.resultado ?? ""] ?? "-";
         if (a.tipo_campo === "medicion") {
           if (a.etiquetas_medicion && a.etiquetas_medicion.length > 1) {
-            resultado = a.resultado === "ok" ? "OK" : a.resultado === "no_ok" ? "No OK" : "-";
+            resultado = a.resultado === "ok" ? "Conforme" : a.resultado === "no_ok" ? "No Conforme" : "-";
           } else if (a.valor_medido !== null && a.valor_medido !== undefined) {
             resultado = `${a.valor_medido}${a.unidad ? " " + a.unidad : ""}\n(${RES_LABEL[a.resultado ?? ""] ?? "-"})`;
           }
@@ -801,7 +801,7 @@ export async function exportOrdenServicioDocx(
       return acc;
     }, {});
 
-    const RES_LABEL: Record<string, string> = { ok: "OK", no_ok: "No OK", na: "N/A" };
+    const RES_LABEL: Record<string, string> = { ok: "Conforme", no_ok: "No Conforme", na: "No Aplica" };
     const ACT_RED_HEX = "FEE2E2";
 
     for (const [titulo, acts] of Object.entries(actSecciones)) {
@@ -830,7 +830,7 @@ export async function exportOrdenServicioDocx(
         let resultado = RES_LABEL[a.resultado ?? ""] ?? "—";
         if (a.tipo_campo === "medicion") {
           if (a.etiquetas_medicion && a.etiquetas_medicion.length > 1) {
-            resultado = a.resultado === "ok" ? "OK" : a.resultado === "no_ok" ? "No OK" : "—";
+            resultado = a.resultado === "ok" ? "Conforme" : a.resultado === "no_ok" ? "No Conforme" : "—";
           } else if (a.valor_medido !== null && a.valor_medido !== undefined) {
             resultado = `${a.valor_medido}${a.unidad ? " " + a.unidad : ""}\n(${RES_LABEL[a.resultado ?? ""] ?? "—"})`;
           }

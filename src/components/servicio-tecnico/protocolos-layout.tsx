@@ -41,7 +41,7 @@ const INTERVALOS = [
 ];
 
 const TIPOS_CAMPO: { value: TipoCampoActividad; label: string; badge: string }[] = [
-  { value: "check3",   label: "Check OK/No OK/N.A.", badge: "default" },
+  { value: "check3",   label: "Check Conforme/No Conforme/No Aplica", badge: "default" },
   { value: "medicion", label: "Medición con tolerancia", badge: "secondary" },
   { value: "texto",    label: "Observación libre", badge: "outline" },
   { value: "foto",     label: "Foto de evidencia", badge: "outline" },
