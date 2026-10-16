@@ -32,7 +32,7 @@ const ESTADO_OPTS = [
 
 export function ContratoForm({ open, contrato, onSubmit, onClose }: Props) {
   const { data: clientesPag } = useClientes();
-  const { data: proyectosPag } = useProyectos();
+  const { data: proyectosPag } = useProyectos({ pageSize: 200 });
   const { data: equipos = [] } = useEquiposInstalados();
   const clientes = clientesPag?.rows ?? [];
   const proyectos = proyectosPag?.rows ?? [];

@@ -34,7 +34,7 @@ const ESTADO_OPTS = [
 
 export function EquipoForm({ open, equipo, onSubmit, onClose }: Props) {
   const { data: clientesPag } = useClientes();
-  const { data: proyectosPag } = useProyectos();
+  const { data: proyectosPag } = useProyectos({ pageSize: 200 });
   const { data: proveedoresPag } = useProveedores();
   const clientes = clientesPag?.rows ?? [];
   const proyectos = proyectosPag?.rows ?? [];
