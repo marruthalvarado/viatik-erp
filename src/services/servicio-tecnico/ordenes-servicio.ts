@@ -76,6 +76,7 @@ export interface OrdenConRelaciones extends OrdenServicio {
     modelo: string | null; ubicacion_instalacion: string | null;
     fabricante: string | null; garantia_hasta: string | null;
     cliente?: { id: string; nombre: string; logo_url: string | null } | null;
+    fabricante_prov?: { id: string; nombre: string } | null;
   } | null;
   cliente?: { id: string; nombre: string; contacto_nombre: string | null; contacto_cargo: string | null } | null;
   tecnico?: { id: string; nombres: string; apellidos: string; cargo: string | null } | null;
@@ -128,7 +129,8 @@ const OS_SELECT = `
   equipo:equipos_instalados(
     id, nombre, numero_serie, modelo, ubicacion_instalacion,
     fabricante, garantia_hasta,
-    cliente:clientes(id, nombre, logo_url)
+    cliente:clientes(id, nombre, logo_url),
+    fabricante_prov:proveedores!equipos_instalados_fabricante_id_fkey(id, nombre)
   ),
   cliente:clientes(id, nombre, contacto_nombre, contacto_cargo),
   tecnico:usuarios!ordenes_servicio_tecnico_id_fkey(id, nombres, apellidos, cargo),

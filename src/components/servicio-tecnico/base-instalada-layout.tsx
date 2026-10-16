@@ -56,7 +56,7 @@ export function BaseInstaladaLayout() {
     return (
       e.nombre.toLowerCase().includes(q) ||
       (e.numero_serie ?? "").toLowerCase().includes(q) ||
-      (e.fabricante ?? "").toLowerCase().includes(q) ||
+      ((e as any).fabricante_prov?.nombre ?? e.fabricante ?? "").toLowerCase().includes(q) ||
       (e.cliente?.nombre ?? "").toLowerCase().includes(q)
     );
   });
@@ -143,7 +143,7 @@ export function BaseInstaladaLayout() {
                     <div>
                       <p className="font-medium text-sm">{eq.nombre}</p>
                       <p className="text-xs text-muted-foreground">
-                        {[eq.fabricante, eq.modelo].filter(Boolean).join(" · ")}
+                        {[(eq as any).fabricante_prov?.nombre ?? eq.fabricante, eq.modelo].filter(Boolean).join(" · ")}
                         {eq.numero_serie && <span className="ml-1">· S/N: {eq.numero_serie}</span>}
                       </p>
                     </div>

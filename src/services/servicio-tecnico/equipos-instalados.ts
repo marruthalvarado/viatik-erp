@@ -12,6 +12,8 @@ export interface EquipoInstaladoConRelaciones extends EquipoInstalado {
   catalogo?: { id: string; nombre: string; fabricante: string | null; modelo: string | null } | null;
   tecnico_instalador?: { id: string; nombres: string; apellidos: string } | null;
   modelo_equipo?: { id: string; nombre: string; modalidad_id: string; modalidad?: { id: string; nombre: string } | null } | null;
+  /** Fabricante via FK a proveedores (campo nuevo fabricante_id) */
+  fabricante_prov?: { id: string; nombre: string } | null;
 }
 
 export interface EquipoInstaladoPayload {
@@ -48,7 +50,8 @@ const EQUIPO_SELECT = `
   proyecto:proyectos(id, nombre),
   catalogo:productos_catalogo(id, nombre, fabricante, modelo),
   tecnico_instalador:usuarios!equipos_instalados_tecnico_instalador_id_fkey(id, nombres, apellidos),
-  modelo_equipo:modelos_equipo(id, nombre, modalidad_id, modalidad:modalidades(id, nombre))
+  modelo_equipo:modelos_equipo(id, nombre, modalidad_id, modalidad:modalidades(id, nombre)),
+  fabricante_prov:proveedores!equipos_instalados_fabricante_id_fkey(id, nombre)
 `;
 
 export async function getEquiposInstalados(empresa_id: string): Promise<EquipoInstaladoConRelaciones[]> {

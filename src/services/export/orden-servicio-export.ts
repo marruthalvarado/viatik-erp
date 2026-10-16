@@ -258,7 +258,7 @@ export async function exportOrdenServicioPdf(
     : "—";
   const clienteNombreStr = os.cliente?.nombre ?? os.equipo?.cliente?.nombre ?? "—";
   const contactoStr = [os.cliente?.contacto_nombre, os.cliente?.contacto_cargo].filter(Boolean).join(" · ");
-  const fabModStr   = [os.equipo?.fabricante, os.equipo?.modelo].filter(Boolean).join(" / ") || "—";
+  const fabModStr   = [(os.equipo as any)?.fabricante_prov?.nombre ?? os.equipo?.fabricante, os.equipo?.modelo].filter(Boolean).join(" / ") || "—";
 
   // Fila 1: Fecha | Técnico | Tipo | Cobro
   drawCompactCell(GX,             y, col4, GH1, "Fecha de servicio",  fmtFecha(os.fecha_programada));
@@ -719,7 +719,7 @@ export async function exportOrdenServicioDocx(
     : "—";
   const clienteDocx   = os.cliente?.nombre ?? os.equipo?.cliente?.nombre ?? "—";
   const contactoDocx  = [os.cliente?.contacto_nombre, os.cliente?.contacto_cargo].filter(Boolean).join(" · ");
-  const fabModDocx    = [os.equipo?.fabricante, os.equipo?.modelo].filter(Boolean).join(" / ") || "—";
+  const fabModDocx    = [(os.equipo as any)?.fabricante_prov?.nombre ?? os.equipo?.fabricante, os.equipo?.modelo].filter(Boolean).join(" / ") || "—";
 
   // ── Grilla compacta 3 filas × 4 columnas ──
   const dataGrid = new Table({
