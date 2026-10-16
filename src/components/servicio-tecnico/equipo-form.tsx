@@ -89,8 +89,12 @@ export function EquipoForm({ open, equipo, onSubmit, onClose }: Props) {
   const set = (k: keyof EquipoInstaladoPayload, v: unknown) =>
     setForm((f) => ({ ...f, [k]: v }));
 
+  const proyectosFiltrados = form.cliente_id
+    ? proyectos.filter((p) => p.cliente_id === form.cliente_id)
+    : proyectos;
+
   const handleClienteChange = (clienteId: string | null) => {
-    set("cliente_id", clienteId);
+    setForm((f) => ({ ...f, cliente_id: clienteId ?? undefined, proyecto_id: null }));
     if (clienteId && !form.ubicacion_instalacion) {
       const cliente = clientes.find((c) => c.id === clienteId);
       if (cliente?.direccion) {
@@ -249,11 +253,17 @@ export function EquipoForm({ open, equipo, onSubmit, onClose }: Props) {
                 onValueChange={(v) => set("proyecto_id", v === "none" ? null : v)}
               >
                 <SelectTrigger><SelectValue placeholder="Seleccionar…" /></SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-72 overflow-y-auto">
                   <SelectItem value="none">— Ninguno —</SelectItem>
-                  {proyectos.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.nombre}</SelectItem>
-                  ))}
+                  {proyectosFiltrados.length > 0 ? (
+                    proyectosFiltrados.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{p.nombre}</SelectItem>
+                    ))
+                  ) : (
+                    <div className="px-3 py-2 text-sm text-muted-foreground">
+                      {form.cliente_id ? "Sin proyectos para este cliente" : "Selecciona un cliente primero"}
+                    </div>
+                  )}
                 </SelectContent>
               </Select>
             </div>

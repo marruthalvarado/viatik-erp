@@ -120,7 +120,7 @@ export function ContratoForm({ open, contrato, onSubmit, onClose }: Props) {
             <Label>Cliente *</Label>
             <Select
               value={form.cliente_id}
-              onValueChange={(v) => { set("cliente_id", v); setEquiposSeleccionados([]); }}
+              onValueChange={(v) => { setForm((f) => ({ ...f, cliente_id: v, proyecto_id: null })); setEquiposSeleccionados([]); }}
               required
             >
               <SelectTrigger><SelectValue placeholder="Seleccionar cliente…" /></SelectTrigger>
