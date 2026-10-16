@@ -71,20 +71,43 @@ async function fetchPropuestaParametros(empresa_id: string): Promise<PropuestaPa
   };
 }
 
+/**
+ * Descarga un blob desde una URL.
+ * Para URLs de Supabase Storage usa el cliente JS (evita problemas de CORS en Vercel).
+ * Para otras URLs usa fetch normal.
+ */
+async function downloadBlob(url: string): Promise<Blob | null> {
+  try {
+    // Detectar URLs de Supabase Storage: .../storage/v1/object/public/<bucket>/<path>
+    const supabaseMatch = url.match(/\/storage\/v1\/object\/public\/([^/?#]+)\/(.+?)(\?.*)?$/);
+    if (supabaseMatch) {
+      const [, bucket, filePath] = supabaseMatch;
+      const { data, error } = await supabase.storage.from(bucket).download(filePath);
+      if (error || !data) return null;
+      return data;
+    }
+    // URL externa — fetch directo
+    const res = await fetch(url, { mode: "cors", cache: "force-cache" });
+    if (!res.ok) return null;
+    return await res.blob();
+  } catch {
+    return null;
+  }
+}
+
 /** Carga una imagen desde URL y devuelve base64 + mime, o null si falla. */
 async function fetchImageBase64(
   url: string,
 ): Promise<{ b64: string; mime: "PNG" | "JPEG" } | null> {
   try {
-    const res = await fetch(url, { mode: "cors", cache: "force-cache" });
-    if (!res.ok) return null;
-    const buf = await res.arrayBuffer();
+    const blob = await downloadBlob(url);
+    if (!blob) return null;
+    const buf = await blob.arrayBuffer();
     const bytes = new Uint8Array(buf);
     let binary = "";
     for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
     const b64 = btoa(binary);
-    const ct = res.headers.get("content-type") ?? "";
-    const mime: "PNG" | "JPEG" = ct.includes("png") ? "PNG" : "JPEG";
+    const mime: "PNG" | "JPEG" = blob.type.includes("png") ? "PNG" : "JPEG";
     return { b64, mime };
   } catch {
     return null;
@@ -96,13 +119,12 @@ async function fetchImageBuffer(
   url: string,
 ): Promise<{ data: ArrayBuffer; type: "png" | "jpg" | "gif" | "bmp" | "svg" } | null> {
   try {
-    const res = await fetch(url, { mode: "cors", cache: "force-cache" });
-    if (!res.ok) return null;
-    const data = await res.arrayBuffer();
-    const ct = res.headers.get("content-type") ?? "";
-    const type = ct.includes("png") ? "png"
-      : ct.includes("svg") ? "svg"
-      : ct.includes("gif") ? "gif"
+    const blob = await downloadBlob(url);
+    if (!blob) return null;
+    const data = await blob.arrayBuffer();
+    const type = blob.type.includes("png") ? "png"
+      : blob.type.includes("svg") ? "svg"
+      : blob.type.includes("gif") ? "gif"
       : "jpg";
     return { data, type };
   } catch {
