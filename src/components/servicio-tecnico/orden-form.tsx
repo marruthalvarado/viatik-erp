@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { useEquiposInstalados } from "@/hooks/entities/use-servicio-tecnico";
 import { useClientes } from "@/hooks/entities/use-clientes";
-import { useUsuarios } from "@/hooks/entities/use-usuarios";
+import { useEmpresaUsuarios } from "@/hooks/entities/use-empresa-usuarios";
 import type { OrdenConRelaciones, OrdenServicioPayload, OsRepuestoPayload } from "@/services/servicio-tecnico/ordenes-servicio";
 
 /** Convierte una cadena UTC de Supabase (ej. "2026-10-05T20:00:00+00:00") al
@@ -75,9 +75,13 @@ const emptyRepuesto = (): OsRepuestoPayload => ({
 export function OrdenForm({ open, orden, onSubmit, onClose }: Props) {
   const { data: equipos = [] } = useEquiposInstalados();
   const { data: clientesPag } = useClientes();
-  const { data: usuariosPag } = useUsuarios();
+  const { data: todosUsuarios = [] } = useEmpresaUsuarios();
   const clientes = clientesPag?.rows ?? [];
-  const usuarios = usuariosPag?.rows ?? [];
+  // Solo mostrar usuarios con rol Servicio Técnico (primario o adicional)
+  const usuarios = todosUsuarios.filter(
+    (u) => u.rol_codigo === "servicio_tecnico" ||
+      u.roles_adicionales_codigos.includes("servicio_tecnico")
+  );
 
   const [form, setForm] = useState<OrdenServicioPayload>({
     tipo: "correctivo",
@@ -227,7 +231,7 @@ export function OrdenForm({ open, orden, onSubmit, onClose }: Props) {
                 <SelectContent>
                   <SelectItem value="none">— Sin asignar —</SelectItem>
                   {usuarios.map((u) => (
-                    <SelectItem key={u.id} value={u.id}>
+                    <SelectItem key={u.usuario_id} value={u.usuario_id}>
                       {u.nombres} {u.apellidos}
                     </SelectItem>
                   ))}
