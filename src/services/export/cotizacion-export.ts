@@ -73,26 +73,40 @@ async function fetchPropuestaParametros(empresa_id: string): Promise<PropuestaPa
 
 /**
  * Descarga un blob desde una URL.
- * Para URLs de Supabase Storage usa el cliente JS (evita problemas de CORS en Vercel).
- * Para otras URLs usa fetch normal.
+ * Intenta tres enfoques en cascada para máxima compatibilidad.
  */
 async function downloadBlob(url: string): Promise<Blob | null> {
-  try {
-    // Detectar URLs de Supabase Storage: .../storage/v1/object/public/<bucket>/<path>
-    const supabaseMatch = url.match(/\/storage\/v1\/object\/public\/([^/?#]+)\/(.+?)(\?.*)?$/);
-    if (supabaseMatch) {
+  // Extraer bucket y path para URLs de Supabase Storage
+  const supabaseMatch = url.match(/\/storage\/v1\/object\/public\/([^/?#]+)\/([^?#]+)/);
+
+  // Intento 1: Supabase SDK download (usa endpoint autenticado)
+  if (supabaseMatch) {
+    try {
       const [, bucket, filePath] = supabaseMatch;
       const { data, error } = await supabase.storage.from(bucket).download(filePath);
-      if (error || !data) return null;
-      return data;
-    }
-    // URL externa — fetch directo
-    const res = await fetch(url, { mode: "cors", cache: "force-cache" });
-    if (!res.ok) return null;
-    return await res.blob();
-  } catch {
-    return null;
+      if (!error && data) return data;
+    } catch { /* continuar */ }
   }
+
+  // Intento 2: Signed URL (auth embebida en URL, evita CORS del header)
+  if (supabaseMatch) {
+    try {
+      const [, bucket, filePath] = supabaseMatch;
+      const { data: signed } = await supabase.storage.from(bucket).createSignedUrl(filePath, 300);
+      if (signed?.signedUrl) {
+        const res = await fetch(signed.signedUrl, { cache: "no-cache" });
+        if (res.ok) return await res.blob();
+      }
+    } catch { /* continuar */ }
+  }
+
+  // Intento 3: Fetch directo a la URL pública (funciona si CORS está habilitado)
+  try {
+    const res = await fetch(url, { cache: "no-cache" });
+    if (res.ok) return await res.blob();
+  } catch { /* continuar */ }
+
+  return null;
 }
 
 /** Carga una imagen desde URL y devuelve base64 + mime, o null si falla. */
