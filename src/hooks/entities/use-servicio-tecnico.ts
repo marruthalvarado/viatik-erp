@@ -19,7 +19,7 @@ import {
 import {
   getOrdenesServicio, getOrdenServicio,
   crearOrdenServicio, actualizarOrdenServicio, cerrarOrdenServicio,
-  eliminarOrdenServicio, generarOrdenesPreventivasManual,
+  eliminarOrdenServicio, limpiarFirmasOrden as limpiarFirmasOrdenSvc, generarOrdenesPreventivasManual,
   getOsActividades, cargarActividadesProtocolo, actualizarOsActividad, getResumenOsActividades,
   type OrdenServicioPayload, type OsRepuestoPayload,
   type OsActividad, type ResumenOsActividades,
@@ -304,6 +304,14 @@ export function useGuardarFirmaOrden() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["ordenes_servicio"] });
     },
+  });
+}
+
+export function useLimpiarFirmasOrden() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => limpiarFirmasOrdenSvc(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["ordenes_servicio"] }),
   });
 }
 

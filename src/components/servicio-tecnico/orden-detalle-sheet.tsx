@@ -33,6 +33,7 @@ import {
   useActualizarOrdenServicio,
   useCerrarOrdenServicio,
   useGuardarFirmaOrden,
+  useLimpiarFirmasOrden,
 } from "@/hooks/entities/use-servicio-tecnico";
 import { useEmpresaUsuarios } from "@/hooks/entities/use-empresa-usuarios";
 import type { OrdenConRelaciones, OsRepuestoPayload } from "@/services/servicio-tecnico/ordenes-servicio";
@@ -218,6 +219,7 @@ export function OrdenDetalleSheet({ orden, open, onClose }: Props) {
   const actualizar          = useActualizarOrdenServicio();
   const cerrar              = useCerrarOrdenServicio();
   const firmaOrdenMut       = useGuardarFirmaOrden();
+  const limpiarFirmasMut    = useLimpiarFirmasOrden();
 
   const [trabajos,          setTrabajos]          = useState("");
   const [observaciones,     setObservaciones]     = useState("");
@@ -733,6 +735,25 @@ export function OrdenDetalleSheet({ orden, open, onClose }: Props) {
                 <AlertCircle className="size-3.5 shrink-0" />
                 Completa "Trabajos realizados" para poder cerrar la orden.
               </p>
+            )}
+            {/* Limpiar firmas de prueba — visible solo si la OS aún tiene firmas guardadas */}
+            {(orden?.firma_tecnico_url || orden?.firma_tecnico2_url || orden?.firma_cliente_url) && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full text-destructive border-destructive/30 hover:bg-destructive/5"
+                disabled={limpiarFirmasMut.isPending}
+                onClick={() => {
+                  if (confirm("¿Eliminar las firmas guardadas de esta orden? Esta acción no se puede deshacer.")) {
+                    limpiarFirmasMut.mutate(orden!.id);
+                  }
+                }}
+              >
+                {limpiarFirmasMut.isPending
+                  ? <Loader2 className="size-3.5 mr-1.5 animate-spin" />
+                  : <Trash2 className="size-3.5 mr-1.5" />}
+                Limpiar firmas guardadas
+              </Button>
             )}
             <Button
               className="w-full"

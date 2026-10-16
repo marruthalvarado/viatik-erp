@@ -201,6 +201,22 @@ export async function cerrarOrdenServicio(
   if (error) throw new Error(error.message);
 }
 
+export async function limpiarFirmasOrden(id: string): Promise<void> {
+  const { error } = await supabase
+    .from("ordenes_servicio")
+    .update({
+      firma_tecnico_url:    null,
+      firma_tecnico2_url:   null,
+      firma_cliente_url:    null,
+      firma_tecnico_data:   null,
+      firma_cliente_data:   null,
+      firma_cliente_nombre: null,
+      firma_cliente_cargo:  null,
+    } as never)
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
 export async function eliminarOrdenServicio(id: string): Promise<void> {
   const { error } = await supabase
     .from("ordenes_servicio")
