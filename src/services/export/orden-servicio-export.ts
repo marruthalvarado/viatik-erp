@@ -529,9 +529,17 @@ export async function exportOrdenServicioPdf(
   const sigW      = (CW - sigGap * (numSigs - 1)) / numSigs;
   const sigH      = 24;
 
-  const firmaT  = getImg(os.firma_tecnico_url);
-  const firmaT2 = hasTecnico2 ? getImg(os.firma_tecnico2_url) : null;
-  const firmaC  = getImg(os.firma_cliente_url);
+  // Las firmas se guardan como base64 data URLs en firma_*_data.
+  // firma_tecnico2_url también puede contener base64 (inconsistencia histórica).
+  const parseDataUrl = (dataUrl: string | null | undefined): { b64: string; mime: "PNG" | "JPEG" } | null => {
+    if (!dataUrl) return null;
+    const m = dataUrl.match(/^data:image\/(png|jpeg|jpg);base64,(.+)$/i);
+    if (!m) return null;
+    return { b64: m[2], mime: m[1].toLowerCase() === "png" ? "PNG" : "JPEG" };
+  };
+  const firmaT  = parseDataUrl(os.firma_tecnico_data) ?? getImg(os.firma_tecnico_url);
+  const firmaT2 = hasTecnico2 ? (parseDataUrl(os.firma_tecnico2_url) ?? getImg(os.firma_tecnico2_url)) : null;
+  const firmaC  = parseDataUrl(os.firma_cliente_data) ?? getImg(os.firma_cliente_url);
 
   // Calcular posiciones X de cada caja
   const sigXs = Array.from({ length: numSigs }, (_, i) => ML + i * (sigW + sigGap));
@@ -859,11 +867,29 @@ export async function exportOrdenServicioDocx(
   }
 
   // ── Firmas ──
+  // Convierte un data URL base64 en ArrayBuffer para docx ImageRun
+  const dataUrlToBuffer = (dataUrl: string | null | undefined): ArrayBuffer | null => {
+    if (!dataUrl) return null;
+    const m = dataUrl.match(/^data:image\/\w+;base64,(.+)$/);
+    if (!m) return null;
+    const bin = atob(m[1]);
+    const buf = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+    return buf.buffer;
+  };
+  const makeImgFromBuf = async (buf: ArrayBuffer | null, widthPx: number, heightPx: number) => {
+    if (!buf) return null;
+    const { ImageRun } = await import("docx");
+    try { return new ImageRun({ data: buf, transformation: { width: widthPx, height: heightPx } } as never); }
+    catch { return null; }
+  };
+
   const sigImgW = os.tecnico2 ? 110 : 160;
   const sigImgH = 60;
-  const firmaT  = await makeImg(os.firma_tecnico_url, sigImgW, sigImgH);
-  const firmaT2 = os.tecnico2 ? await makeImg(os.firma_tecnico2_url, sigImgW, sigImgH) : null;
-  const firmaC  = await makeImg(os.firma_cliente_url, sigImgW, sigImgH);
+  // Priorizar data URLs (base64) sobre URLs remotas
+  const firmaT  = await makeImgFromBuf(dataUrlToBuffer(os.firma_tecnico_data) ?? (os.firma_tecnico_url ? bufMap.get(os.firma_tecnico_url) ?? null : null), sigImgW, sigImgH);
+  const firmaT2 = os.tecnico2 ? await makeImgFromBuf(dataUrlToBuffer(os.firma_tecnico2_url) ?? null, sigImgW, sigImgH) : null;
+  const firmaC  = await makeImgFromBuf(dataUrlToBuffer(os.firma_cliente_data) ?? (os.firma_cliente_url ? bufMap.get(os.firma_cliente_url) ?? null : null), sigImgW, sigImgH);
 
   const makeSigCell = (
     img: Awaited<ReturnType<typeof makeImg>>,

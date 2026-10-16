@@ -114,6 +114,13 @@ export interface OrdenServicioPayload {
   firma_tecnico_url?: string | null;
   firma_tecnico2_url?: string | null;
   firma_cliente_url?: string | null;
+  /** base64 data URL de la firma del técnico principal (guardado por guardarFirmaOrden) */
+  firma_tecnico_data?: string | null;
+  /** base64 data URL de la firma del cliente (guardado por guardarFirmaOrden) */
+  firma_cliente_data?: string | null;
+  /** Nombre y cargo del firmante cliente */
+  firma_cliente_nombre?: string | null;
+  firma_cliente_cargo?: string | null;
 }
 
 const OS_SELECT = `
