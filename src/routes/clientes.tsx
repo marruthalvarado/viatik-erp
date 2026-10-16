@@ -191,6 +191,9 @@ function ClientesContent() {
           correo: emptyToNull(values.correo),
           telefono: emptyToNull(values.telefono),
           contacto_principal: emptyToNull(values.contacto_principal),
+          contacto_nombre: emptyToNull(values.contacto_nombre),
+          contacto_cargo: emptyToNull(values.contacto_cargo),
+          logo_url: emptyToNull(values.logo_url),
           estado: values.estado ?? null,
           meta_facturacion_anual: values.meta_facturacion_anual ?? null,
         };
@@ -207,6 +210,9 @@ function ClientesContent() {
           correo: emptyToNull(values.correo),
           telefono: emptyToNull(values.telefono),
           contacto_principal: emptyToNull(values.contacto_principal),
+          contacto_nombre: emptyToNull(values.contacto_nombre),
+          contacto_cargo: emptyToNull(values.contacto_cargo),
+          logo_url: emptyToNull(values.logo_url),
           estado: values.estado ?? "activo",
           meta_facturacion_anual: values.meta_facturacion_anual ?? null,
         };
