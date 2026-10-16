@@ -737,7 +737,8 @@ export function OrdenDetalleSheet({ orden, open, onClose }: Props) {
               </p>
             )}
             {/* Limpiar firmas de prueba — visible solo si la OS aún tiene firmas guardadas */}
-            {(orden?.firma_tecnico_url || orden?.firma_tecnico2_url || orden?.firma_cliente_url) && (
+            {(orden?.firma_tecnico_url || orden?.firma_tecnico2_url || orden?.firma_cliente_url ||
+              (orden as any)?.firma_tecnico_data || (orden as any)?.firma_cliente_data) && (
               <Button
                 variant="outline"
                 size="sm"
