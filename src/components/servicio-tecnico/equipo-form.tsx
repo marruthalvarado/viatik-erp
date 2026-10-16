@@ -65,7 +65,7 @@ export function EquipoForm({ open, equipo, onSubmit, onClose }: Props) {
         fabricante_id: equipo.fabricante_id ?? null,
         fabricante: equipo.fabricante,
         modelo: equipo.modelo,
-        modelo_id: (equipo as EquipoInstaladoConRelaciones & { modelo_id?: string | null }).modelo_id ?? null,
+        modelo_id: equipo.modelo_id ?? null,
         numero_serie: equipo.numero_serie,
         numero_parte: equipo.numero_parte,
         ubicacion_instalacion: equipo.ubicacion_instalacion,

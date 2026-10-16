@@ -1289,6 +1289,7 @@ export type Database = {
           cliente_id: string | null;
           proyecto_id: string | null;
           tecnico_instalador_id: string | null;
+          modelo_id: string | null;
           nombre: string;
           fabricante: string | null;
           fabricante_id: string | null;
@@ -1322,6 +1323,7 @@ export type Database = {
           cliente_id?: string | null;
           proyecto_id?: string | null;
           tecnico_instalador_id?: string | null;
+          modelo_id?: string | null;
           nombre: string;
           fabricante?: string | null;
           fabricante_id?: string | null;
@@ -1354,6 +1356,7 @@ export type Database = {
           cliente_id?: string | null;
           proyecto_id?: string | null;
           tecnico_instalador_id?: string | null;
+          modelo_id?: string | null;
           nombre?: string;
           fabricante?: string | null;
           fabricante_id?: string | null;
