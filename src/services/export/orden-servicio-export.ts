@@ -109,6 +109,28 @@ async function fetchImageBuffer(url: string): Promise<ArrayBuffer | null> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Sanitizar texto para jsPDF (Helvetica sólo soporta Latin-1; reemplazar
+// símbolos Unicode que rompen el layout o cambian la fuente)
+// ─────────────────────────────────────────────────────────────────────────────
+function sanitize(text: string | null | undefined): string {
+  if (!text) return "";
+  return text
+    .replace(/≤/g, "<=")
+    .replace(/≥/g, ">=")
+    .replace(/−/g, "-")    // minus sign U+2212
+    .replace(/–/g, "-")    // en dash
+    .replace(/—/g, "-")    // em dash
+    .replace(/×/g, "x")
+    .replace(/÷/g, "/")
+    .replace(/°/g, "°")  // degree sign está en Latin-1, OK
+    .replace(/±/g, "+/-")
+    .replace(/’/g, "'")  // right single quotation mark
+    .replace(/“/g, '"')  // left double quotation mark
+    .replace(/”/g, '"')  // right double quotation mark
+    .replace(/[^\x00-\xFF]/g, "?");  // cualquier otro char fuera de Latin-1
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // PDF
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -194,7 +216,6 @@ export async function exportOrdenServicioPdf(
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8.5);
   doc.text(`N° ${os.numero ?? "—"}`, W - MR, 22, { align: "right" });
-  doc.text(fmtFecha(hoy), W - MR, 29, { align: "right" });
 
   // Sin franja de empresa bajo el header — los datos van al pie de página
   let y = HDR_H + 4;
@@ -366,19 +387,19 @@ export async function exportOrdenServicioPdf(
       const rowMeta: (OsActividad | null)[] = [];
 
       for (const a of actsFiltradas) {
-        // Descripción (sin caracteres especiales; (*) para crítico)
-        let desc = a.descripcion + (a.es_critico ? "  (*)" : "");
+        // Descripción (sanitizada para Latin-1 / Helvetica; (*) para crítico)
+        let desc = sanitize(a.descripcion) + (a.es_critico ? "  (*)" : "");
         if (a.modelo_seleccionado) {
           desc = desc.replace(/\s*\(.*?\)\s*$/, "").trim() + " " + a.modelo_seleccionado;
         }
 
         // Resultado
-        let resultado = RES_LABEL[a.resultado ?? ""] ?? "—";
+        let resultado = RES_LABEL[a.resultado ?? ""] ?? "-";
         if (a.tipo_campo === "medicion") {
           if (a.etiquetas_medicion && a.etiquetas_medicion.length > 1) {
-            resultado = a.resultado === "ok" ? "OK" : a.resultado === "no_ok" ? "No OK" : "—";
+            resultado = a.resultado === "ok" ? "OK" : a.resultado === "no_ok" ? "No OK" : "-";
           } else if (a.valor_medido !== null && a.valor_medido !== undefined) {
-            resultado = `${a.valor_medido}${a.unidad ? " " + a.unidad : ""}\n(${RES_LABEL[a.resultado ?? ""] ?? "—"})`;
+            resultado = `${a.valor_medido}${a.unidad ? " " + a.unidad : ""}\n(${RES_LABEL[a.resultado ?? ""] ?? "-"})`;
           }
         }
 
@@ -596,8 +617,6 @@ export async function exportOrdenServicioPdf(
     // N° + paginación (centro)
     doc.text(`${os.numero ?? ""} · Pág. ${pg} / ${totalPages}`, W / 2, H - 7, { align: "center" });
 
-    // Fecha (derecha)
-    doc.text(fmtFecha(hoy), W - MR, H - 11, { align: "right" });
     doc.text("Generado con VIATIQ ERP", W - MR, H - 7, { align: "right" });
   }
 
