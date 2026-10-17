@@ -109,6 +109,21 @@ async function downloadBlob(url: string): Promise<Blob | null> {
   return null;
 }
 
+/** Detecta MIME a partir del blob, extensión de URL o magic bytes. */
+function detectMime(blob: Blob, url: string, bytes: Uint8Array): "PNG" | "JPEG" {
+  // 1. Tipo del blob (si está disponible)
+  if (blob.type.includes("png")) return "PNG";
+  if (blob.type.includes("jpeg") || blob.type.includes("jpg")) return "JPEG";
+  // 2. Extensión de la URL
+  if (/\.png(\?|#|$)/i.test(url)) return "PNG";
+  if (/\.(jpe?g|jpg)(\?|#|$)/i.test(url)) return "JPEG";
+  // 3. Magic bytes: PNG = 0x89 50 4E 47
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47) return "PNG";
+  // 4. Magic bytes: JPEG = 0xFF 0xD8
+  if (bytes[0] === 0xFF && bytes[1] === 0xD8) return "JPEG";
+  return "JPEG"; // fallback
+}
+
 /** Carga una imagen desde URL y devuelve base64 + mime, o null si falla. */
 async function fetchImageBase64(
   url: string,
@@ -121,7 +136,7 @@ async function fetchImageBase64(
     let binary = "";
     for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
     const b64 = btoa(binary);
-    const mime: "PNG" | "JPEG" = blob.type.includes("png") ? "PNG" : "JPEG";
+    const mime = detectMime(blob, url, bytes);
     return { b64, mime };
   } catch {
     return null;
@@ -136,10 +151,9 @@ async function fetchImageBuffer(
     const blob = await downloadBlob(url);
     if (!blob) return null;
     const data = await blob.arrayBuffer();
-    const type = blob.type.includes("png") ? "png"
-      : blob.type.includes("svg") ? "svg"
-      : blob.type.includes("gif") ? "gif"
-      : "jpg";
+    const bytes = new Uint8Array(data);
+    const mime = detectMime(blob, url, bytes);
+    const type = mime === "PNG" ? "png" : "jpg";
     return { data, type };
   } catch {
     return null;
