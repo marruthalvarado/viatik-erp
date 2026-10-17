@@ -271,6 +271,39 @@ export function CiclotrónForm({ open, onOpenChange, ciclotrón }: Props) {
                   onChange={(e) => updateScalar("target_p_end_max", parseFloat(e.target.value) || 0)} />
               </div>
             </div>
+
+            {/* Phase load */}
+            <p className="text-sm font-medium pt-2">Phase load (durante irradiación activa)</p>
+            <p className="text-xs text-muted-foreground -mt-2">
+              Valores fuera de rango durante producción indican desajuste de la cavidad RF.
+              Fuera de irradiación (inicio / fin) es normal ver valores altos (~17 %).
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label>Phase load mín. (%)</Label>
+                <Input type="number" step="0.1" value={params.phase_load_irrad_min}
+                  onChange={(e) => updateScalar("phase_load_irrad_min", parseFloat(e.target.value) ?? -5)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Phase load máx. (%)</Label>
+                <Input type="number" step="0.1" value={params.phase_load_irrad_max}
+                  onChange={(e) => updateScalar("phase_load_irrad_max", parseFloat(e.target.value) || 15)} />
+              </div>
+            </div>
+
+            {/* Balance de haz */}
+            <p className="text-sm font-medium pt-2">Balance de haz (Foil − Target − Coll-l − Coll-r)</p>
+            <p className="text-xs text-muted-foreground -mt-2">
+              Según el manual, este balance debe ser ≈ 0. Se calcula el promedio durante irradiación
+              y se alerta si la desviación supera el umbral configurado.
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label>Tolerancia balance (µA)</Label>
+                <Input type="number" step="0.1" value={params.foil_balance_max_ua}
+                  onChange={(e) => updateScalar("foil_balance_max_ua", parseFloat(e.target.value) || 0.5)} />
+              </div>
+            </div>
           </TabsContent>
         </Tabs>
 

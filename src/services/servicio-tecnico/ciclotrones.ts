@@ -26,6 +26,11 @@ export const DEFAULT_CICLOTRÓN_PARAMETROS: CiclotrónParametros = {
   arc_i_max:          1000,
   arc_v_min:          250,
   arc_v_max:          900,
+  // Phase load — rangos normales durante irradiación
+  phase_load_irrad_max: 15,   // % (> 15 = posible desajuste RF)
+  phase_load_irrad_min: -5,   // % (< -5 = resonancia fuera del punto óptimo)
+  // Balance de haz: Foil-I − Target-I − Coll-l-I − Coll-r-I ≈ 0
+  foil_balance_max_ua:  0.5,  // µA de tolerancia sobre el promedio del batch
 };
 
 // ── CRUD ─────────────────────────────────────────────────────────────────────

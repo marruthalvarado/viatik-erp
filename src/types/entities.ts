@@ -178,6 +178,11 @@ export interface CiclotrónParametros {
   arc_i_max:           number;
   arc_v_min:           number;
   arc_v_max:           number;
+  // Phase load durante irradiación activa
+  phase_load_irrad_max: number;  // % máximo normal (encima = desajuste RF)
+  phase_load_irrad_min: number;  // % mínimo normal (debajo = resonancia fuera del punto)
+  // Balance de haz: Foil-I − Target-I − Coll-l-I − Coll-r-I debe ≈ 0
+  foil_balance_max_ua:  number;  // µA máxima desviación del promedio respecto a 0
 }
 
 /** Una anomalía detectada durante el análisis de un batch */

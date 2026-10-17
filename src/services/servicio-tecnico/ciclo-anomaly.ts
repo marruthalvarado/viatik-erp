@@ -81,9 +81,6 @@ export function annotatePhases(
 
 // ── Detección de anomalías ────────────────────────────────────────────────────
 
-// Phase load: límites empíricos durante irradiación activa en GE PETtrace 800
-const PHASE_LOAD_IRRAD_MAX = 15;   // > 15% durante irradiación = posible desajuste RF
-const PHASE_LOAD_IRRAD_MIN = -5;   // < -5% durante irradiación = phase load negativo anómalo
 // Colimadores: solo verificar cuando el haz está bien establecido
 const COLL_MIN_TARGET_I_UA = 20;   // µA mínimo de Target-I para aplicar regla de colimadores
 
@@ -212,19 +209,19 @@ export function detectAnomalias(
       }
 
       // Phase load durante irradiación
-      // Nota: valores de 15-18 son normales al inicio/fin de producción (calentamiento RF).
-      // Durante irradiación estable, Phase load debe estar entre ~-2 y 12.
-      if (r.phaseLoad > PHASE_LOAD_IRRAD_MAX) {
-        anomalias.push(anom(r, p, "Phase load", r.phaseLoad, undefined, PHASE_LOAD_IRRAD_MAX, "warning",
-          `Phase load ${r.phaseLoad.toFixed(1)}% por encima del umbral (${PHASE_LOAD_IRRAD_MAX}%) durante irradiación. ` +
+      // Nota: valores altos (~17 %) son normales al inicio/fin de producción (calentamiento RF).
+      // Los umbrales son configurables en el perfil del ciclotrón.
+      if (r.phaseLoad > params.phase_load_irrad_max) {
+        anomalias.push(anom(r, p, "Phase load", r.phaseLoad, undefined, params.phase_load_irrad_max, "warning",
+          `Phase load ${r.phaseLoad.toFixed(1)}% por encima del umbral (${params.phase_load_irrad_max}%) durante irradiación. ` +
           `Valores altos indican desajuste de fase entre el sistema RF y la cavidad del ciclotrón. ` +
           `Posibles causas: deriva de temperatura en la cavidad, ajuste de sintonía necesario, o degradación del condensador de sintonía. ` +
           `[SM-Acc 770650] §2.1.4 — Phase Control / Auto-Tuning.`
         ));
       }
-      if (r.phaseLoad < PHASE_LOAD_IRRAD_MIN) {
-        anomalias.push(anom(r, p, "Phase load", r.phaseLoad, PHASE_LOAD_IRRAD_MIN, undefined, "warning",
-          `Phase load ${r.phaseLoad.toFixed(1)}% negativo por debajo del umbral (${PHASE_LOAD_IRRAD_MIN}%) durante irradiación. ` +
+      if (r.phaseLoad < params.phase_load_irrad_min) {
+        anomalias.push(anom(r, p, "Phase load", r.phaseLoad, params.phase_load_irrad_min, undefined, "warning",
+          `Phase load ${r.phaseLoad.toFixed(1)}% negativo por debajo del umbral (${params.phase_load_irrad_min}%) durante irradiación. ` +
           `Phase load negativo persistente puede indicar resonancia fuera del punto óptimo. ` +
           `Verificar: control de sintonía automática y estado del condensador variable de la cavidad RF. ` +
           `[SM-Acc 770650] §2.1.4 — Phase Control.`
@@ -295,8 +292,37 @@ export function detectAnomalias(
     // Target-P al final de producción: la presión sube inicialmente porque
     // el blanco aún contiene [18F]-fluoruro en agua. Es NORMAL por ~2-5 min.
     // No se reporta aquí para evitar falsos positivos durante la transferencia.
-    // Se puede agregar en el futuro un check "Target-P persistentemente alto
-    // N minutos después del fin de irradiación".
+  }
+
+  // ── Balance de haz (verificación de promedio global) ─────────────────────────
+  // Foil-I − Target-I − Coll-l-I − Coll-r-I debe ≈ 0 según el manual.
+  // Se calcula el promedio durante irradiación activa y se reporta si
+  // la desviación supera el umbral configurado (foil_balance_max_ua).
+  const irradRows = annotated.filter((r) => r.phase === "irradiation");
+  if (irradRows.length > 5) {
+    const balances = irradRows.map(
+      (r) => r.foilI - r.targetI - r.collLI - r.collRI,
+    );
+    const avg = balances.reduce((s, v) => s + v, 0) / balances.length;
+    const absAvg = Math.abs(avg);
+
+    if (absAvg > params.foil_balance_max_ua) {
+      // Reportar en el punto medio de la irradiación
+      const mid = irradRows[Math.floor(irradRows.length / 2)];
+      const sign = avg > 0 ? "+" : "";
+      anomalias.push(anom(
+        mid, "irradiation", "Foil balance", avg, -params.foil_balance_max_ua, params.foil_balance_max_ua, "warning",
+        `Balance de haz promedio durante irradiación: ${sign}${avg.toFixed(2)} µA ` +
+        `(tolerancia ±${params.foil_balance_max_ua} µA). ` +
+        `Según el manual, Foil-I − Target-I − Coll-l-I − Coll-r-I debe ser ≈ 0. ` +
+        `Una desviación ${avg > 0 ? "positiva" : "negativa"} indica que ` +
+        `${avg > 0
+          ? "hay corriente en Foil que no llega al blanco ni a los colimadores — posible dispersión o pérdida de haz en la guía de extracción."
+          : "la suma de corrientes medidas supera a Foil-I — revisar calibración de los transformadores de corriente (CT) de Target-I, Coll-l-I o Coll-r-I."
+        } ` +
+        `[SM-Acc 770650] §3.3 — Beam Steering / Current Instrumentation.`,
+      ));
+    }
   }
 
   return anomalias;
