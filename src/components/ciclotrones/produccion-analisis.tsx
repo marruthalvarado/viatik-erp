@@ -15,7 +15,9 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, ReferenceLine, Legend,
 } from "recharts";
-import { AlertTriangle, AlertCircle, CheckCircle2, Download, Loader2 } from "lucide-react";
+import {
+  AlertTriangle, AlertCircle, CheckCircle2, Download, Loader2, ClipboardList,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,16 +25,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 
-import type { CicloProduccion, CicloAnomalia } from "@/types/entities";
+import type { CicloProduccion, CicloAnomalia, Ciclotrón } from "@/types/entities";
 import type { BatchRow } from "@/services/servicio-tecnico/ciclo-batch-parser";
 import { parseBatchFile, calcTargetISetpoint } from "@/services/servicio-tecnico/ciclo-batch-parser";
 import { detectAnomalias } from "@/services/servicio-tecnico/ciclo-anomaly";
 import { descargarArchivoBatch } from "@/services/servicio-tecnico/ciclo-producciones";
 import type { CiclotrónParametros } from "@/services/servicio-tecnico/ciclotrones";
+import { vincularOsABatch } from "@/services/servicio-tecnico/ordenes-servicio";
+import { useCrearOrdenServicio } from "@/hooks/entities/use-servicio-tecnico";
 
 interface Props {
   produccion: CicloProduccion;
   params: CiclotrónParametros;
+  ciclotrón?: Ciclotrón | null;
 }
 
 /** Reduce el dataset a max N puntos para performance en recharts */
@@ -89,11 +94,14 @@ function AnomaliaItem({ a }: { a: CicloAnomalia }) {
 
 type ChartDatum = Record<string, number | string>;
 
-export function ProduccionAnalisis({ produccion, params }: Props) {
+export function ProduccionAnalisis({ produccion, params, ciclotrón }: Props) {
   const [rows, setRows] = useState<BatchRow[]>([]);
   const [anomalias, setAnomalias] = useState<CicloAnomalia[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [generandoOs, setGenerandoOs] = useState(false);
+  const [osCreada, setOsCreada] = useState<{ id: string; numero: string } | null>(null);
+  const crearOs = useCrearOrdenServicio();
 
   const loadData = useCallback(async () => {
     if (!produccion.archivo_path) return;
@@ -115,6 +123,34 @@ export function ProduccionAnalisis({ produccion, params }: Props) {
   }, [produccion.archivo_path, produccion.archivo_nombre, params]);
 
   useEffect(() => { void loadData(); }, [loadData]);
+
+  async function handleGenerarOs() {
+    if (!ciclotrón?.equipo_id) return;
+    setGenerandoOs(true);
+    try {
+      const criticos = anomalias.filter((a) => a.severidad === "critical");
+      const warnings = anomalias.filter((a) => a.severidad === "warning");
+      const resumen = [
+        `Batch #${produccion.numero_batch ?? "?"} — ${produccion.tracer ?? "?"} — ${produccion.fecha ?? "?"}`,
+        `Anomalías detectadas: ${criticos.length} críticas, ${warnings.length} alertas.`,
+        ...criticos.slice(0, 5).map((a) => `• [CRÍTICO] ${a.parametro} @ ${a.tiempo}: valor ${a.valor} (límites ${a.limite_min ?? "?"} – ${a.limite_max ?? "?"}). ${a.hint}`),
+        ...(criticos.length > 5 ? [`• … y ${criticos.length - 5} críticos más.`] : []),
+        ...warnings.slice(0, 3).map((a) => `• [ALERTA] ${a.parametro} @ ${a.tiempo}: valor ${a.valor}.`),
+      ].join("\n");
+
+      const result = await crearOs.mutateAsync({
+        payload: {
+          tipo: "correctivo",
+          equipo_id: ciclotrón.equipo_id,
+          descripcion_problema: resumen,
+        },
+      });
+      await vincularOsABatch(result.id, produccion.id);
+      setOsCreada(result);
+    } finally {
+      setGenerandoOs(false);
+    }
+  }
 
   const chartData: ChartDatum[] = downsample(rows).map((r) => ({
     t:        r.time,
@@ -341,15 +377,35 @@ export function ProduccionAnalisis({ produccion, params }: Props) {
               </div>
             ) : (
               <>
-                <div className="flex gap-3 mb-4 flex-wrap">
+                <div className="flex gap-3 mb-4 flex-wrap items-center">
                   <Badge className="bg-red-100 text-red-700 border-0">
                     {anomalias.filter((a) => a.severidad === "critical").length} Críticos
                   </Badge>
                   <Badge className="bg-yellow-100 text-yellow-700 border-0">
                     {anomalias.filter((a) => a.severidad === "warning").length} Alertas
                   </Badge>
+                  {ciclotrón?.equipo_id && !osCreada && (
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      className="ml-auto"
+                      onClick={handleGenerarOs}
+                      disabled={generandoOs}
+                    >
+                      {generandoOs
+                        ? <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                        : <ClipboardList className="h-4 w-4 mr-1" />}
+                      Generar OS Correctiva
+                    </Button>
+                  )}
+                  {osCreada && (
+                    <div className="ml-auto flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-1.5">
+                      <CheckCircle2 className="h-4 w-4" />
+                      <span>OS <strong>{osCreada.numero}</strong> creada</span>
+                    </div>
+                  )}
                 </div>
-                <ScrollArea className="h-[420px] pr-2">
+                <ScrollArea className="h-[380px] pr-2">
                   <div className="space-y-2">
                     {anomalias.map((a, i) => (
                       <AnomaliaItem key={i} a={a} />

@@ -1498,6 +1498,7 @@ export type Database = {
           firma_cliente_data: string | null;
           costo_repuestos: number;
           costo_mano_obra: number;
+          ciclo_produccion_id: string | null;
           created_by: string | null;
           created_at: string;
           updated_at: string;
@@ -1532,6 +1533,7 @@ export type Database = {
           firma_cliente_data?: string | null;
           costo_repuestos?: number;
           costo_mano_obra?: number;
+          ciclo_produccion_id?: string | null;
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -1566,6 +1568,7 @@ export type Database = {
           firma_cliente_data?: string | null;
           costo_repuestos?: number;
           costo_mano_obra?: number;
+          ciclo_produccion_id?: string | null;
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
@@ -4874,6 +4877,7 @@ export type Database = {
           activo: boolean;
           notas: string | null;
           parametros: Json;
+          equipo_id: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -4886,6 +4890,7 @@ export type Database = {
           activo?: boolean;
           notas?: string | null;
           parametros?: Json;
+          equipo_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -4898,6 +4903,7 @@ export type Database = {
           activo?: boolean;
           notas?: string | null;
           parametros?: Json;
+          equipo_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -4907,6 +4913,13 @@ export type Database = {
             columns: ["empresa_id"];
             isOneToOne: false;
             referencedRelation: "empresas";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "ciclotrones_equipo_id_fkey";
+            columns: ["equipo_id"];
+            isOneToOne: true;
+            referencedRelation: "equipos_instalados";
             referencedColumns: ["id"];
           },
         ];

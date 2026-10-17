@@ -138,6 +138,24 @@ export type Ciclotrón = Tables<"ciclotrones">;
 export type CiclotrónInsert = TablesInsert<"ciclotrones">;
 export type CiclotrónUpdate = TablesUpdate<"ciclotrones">;
 
+/** Ciclotrón enriquecido con datos del equipo físico vinculado */
+export interface CiclotrónConEquipo extends Ciclotrón {
+  // De equipos_instalados
+  numero_serie:         string | null;
+  equipo_ubicacion:     string | null;
+  fecha_instalacion:    string | null;
+  garantia_hasta:       string | null;
+  proximo_mantenimiento: string | null;
+  equipo_estado:        string | null;
+  // De clientes
+  cliente_id:           string | null;
+  cliente_nombre:       string | null;
+  // De modelos_equipo
+  modelo_id:            string | null;
+  modelo_nombre:        string | null;
+  fabricante_nombre:    string | null;
+}
+
 export type CicloProduccion = Tables<"ciclo_producciones">;
 export type CicloProduccionInsert = TablesInsert<"ciclo_producciones">;
 export type CicloProduccionUpdate = TablesUpdate<"ciclo_producciones">;

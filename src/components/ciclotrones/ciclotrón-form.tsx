@@ -13,6 +13,9 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 
 import type { Ciclotrón } from "@/types/entities";
@@ -21,6 +24,7 @@ import { DEFAULT_CICLOTRÓN_PARAMETROS, parsearParametros } from "@/services/ser
 import {
   useCrearCiclotrón, useActualizarCiclotrón,
 } from "@/hooks/entities/use-ciclotrones";
+import { useEquiposInstalados } from "@/hooks/entities/use-servicio-tecnico";
 
 interface Props {
   open: boolean;
@@ -74,7 +78,9 @@ export function CiclotrónForm({ open, onOpenChange, ciclotrón }: Props) {
   const crear = useCrearCiclotrón();
   const actualizar = useActualizarCiclotrón();
   const isPending = crear.isPending || actualizar.isPending;
+  const { data: equipos = [] } = useEquiposInstalados();
 
+  const [equipoId, setEquipoId] = useState<string>("");
   const [nombre, setNombre] = useState("");
   const [sitio, setSitio] = useState("");
   const [modelo, setModelo] = useState("GE PETtrace 800");
@@ -84,16 +90,27 @@ export function CiclotrónForm({ open, onOpenChange, ciclotrón }: Props) {
   // Inicializar al abrir
   useEffect(() => {
     if (ciclotrón) {
+      setEquipoId(ciclotrón.equipo_id ?? "");
       setNombre(ciclotrón.nombre);
       setSitio(ciclotrón.sitio ?? "");
       setModelo(ciclotrón.modelo ?? "GE PETtrace 800");
       setNotas(ciclotrón.notas ?? "");
       setParams(parsearParametros(ciclotrón));
     } else {
-      setNombre(""); setSitio(""); setModelo("GE PETtrace 800"); setNotas("");
+      setEquipoId(""); setNombre(""); setSitio(""); setModelo("GE PETtrace 800"); setNotas("");
       setParams({ ...DEFAULT_CICLOTRÓN_PARAMETROS });
     }
   }, [ciclotrón, open]);
+
+  function handleEquipoChange(id: string) {
+    setEquipoId(id);
+    const equipo = equipos.find((e) => e.id === id);
+    if (equipo) {
+      if (!ciclotrón) setNombre(equipo.nombre);
+      setSitio(equipo.ubicacion_instalacion ?? "");
+      setModelo(equipo.modelo_equipo?.nombre ?? equipo.modelo ?? "GE PETtrace 800");
+    }
+  }
 
   function updateParam<K extends keyof CiclotrónParametros>(
     field: K,
@@ -116,6 +133,7 @@ export function CiclotrónForm({ open, onOpenChange, ciclotrón }: Props) {
       sitio: sitio.trim() || null,
       modelo: modelo.trim(),
       notas: notas.trim() || null,
+      equipo_id: equipoId || null,
       parametros: params as unknown as import("@/types/database").Json,
     };
     if (ciclotrón) {
@@ -142,6 +160,27 @@ export function CiclotrónForm({ open, onOpenChange, ciclotrón }: Props) {
 
           {/* ── General ── */}
           <TabsContent value="general" className="space-y-4 pt-4">
+            <div className="space-y-1.5">
+              <Label>Equipo base instalada</Label>
+              <Select value={equipoId} onValueChange={handleEquipoChange}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar equipo…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {equipos.map((e) => (
+                    <SelectItem key={e.id} value={e.id}>
+                      <span className="font-medium">{e.nombre}</span>
+                      {e.cliente && (
+                        <span className="text-muted-foreground ml-2 text-xs">— {e.cliente.nombre}</span>
+                      )}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Vincula este ciclotrón al equipo en base instalada. El sitio y modelo se auto-completan.
+              </p>
+            </div>
             <div className="space-y-1.5">
               <Label>Nombre del equipo *</Label>
               <Input value={nombre} onChange={(e) => setNombre(e.target.value)}

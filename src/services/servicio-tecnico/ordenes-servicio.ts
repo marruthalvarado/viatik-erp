@@ -219,6 +219,18 @@ export async function limpiarFirmasOrden(id: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+/** Vincula una OS existente con el batch de producción que la originó */
+export async function vincularOsABatch(
+  os_id: string,
+  ciclo_produccion_id: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from("ordenes_servicio")
+    .update({ ciclo_produccion_id } as never)
+    .eq("id", os_id);
+  if (error) throw new Error(error.message);
+}
+
 export async function eliminarOrdenServicio(id: string): Promise<void> {
   const { error } = await supabase
     .from("ordenes_servicio")

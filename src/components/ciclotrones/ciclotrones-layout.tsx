@@ -344,6 +344,7 @@ export function CiclotronsLayout() {
             <ProduccionAnalisis
               produccion={selectedProduccion}
               params={parsearParametros(selectedCiclotrón)}
+              ciclotrón={selectedCiclotrón}
             />
           )}
         </SheetContent>
