@@ -4864,6 +4864,131 @@ export type Database = {
           saldo_acum: number;
         }[];
       };
+      ciclotrones: {
+        Row: {
+          id: string;
+          empresa_id: string;
+          nombre: string;
+          sitio: string | null;
+          modelo: string;
+          activo: boolean;
+          notas: string | null;
+          parametros: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          empresa_id: string;
+          nombre: string;
+          sitio?: string | null;
+          modelo?: string;
+          activo?: boolean;
+          notas?: string | null;
+          parametros?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          empresa_id?: string;
+          nombre?: string;
+          sitio?: string | null;
+          modelo?: string;
+          activo?: boolean;
+          notas?: string | null;
+          parametros?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "ciclotrones_empresa_id_fkey";
+            columns: ["empresa_id"];
+            isOneToOne: false;
+            referencedRelation: "empresas";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      ciclo_producciones: {
+        Row: {
+          id: string;
+          "ciclotrón_id": string;
+          empresa_id: string;
+          numero_batch: number | null;
+          tracer: string | null;
+          sitio: string | null;
+          fecha: string | null;
+          archivo_path: string | null;
+          archivo_nombre: string | null;
+          archivo_tipo: "log" | "ods" | "xlsx" | null;
+          duracion_segundos: number | null;
+          target_i_setpoint: number | null;
+          total_filas: number | null;
+          anomalias_count: number;
+          anomalias: Json | null;
+          estado: "pendiente" | "normal" | "con_alertas" | "critico";
+          notas: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          "ciclotrón_id": string;
+          empresa_id: string;
+          numero_batch?: number | null;
+          tracer?: string | null;
+          sitio?: string | null;
+          fecha?: string | null;
+          archivo_path?: string | null;
+          archivo_nombre?: string | null;
+          archivo_tipo?: "log" | "ods" | "xlsx" | null;
+          duracion_segundos?: number | null;
+          target_i_setpoint?: number | null;
+          total_filas?: number | null;
+          anomalias_count?: number;
+          anomalias?: Json | null;
+          estado?: "pendiente" | "normal" | "con_alertas" | "critico";
+          notas?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          "ciclotrón_id"?: string;
+          empresa_id?: string;
+          numero_batch?: number | null;
+          tracer?: string | null;
+          sitio?: string | null;
+          fecha?: string | null;
+          archivo_path?: string | null;
+          archivo_nombre?: string | null;
+          archivo_tipo?: "log" | "ods" | "xlsx" | null;
+          duracion_segundos?: number | null;
+          target_i_setpoint?: number | null;
+          total_filas?: number | null;
+          anomalias_count?: number;
+          anomalias?: Json | null;
+          estado?: "pendiente" | "normal" | "con_alertas" | "critico";
+          notas?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "ciclo_producciones_ciclotrón_id_fkey";
+            columns: ["ciclotrón_id"];
+            isOneToOne: false;
+            referencedRelation: "ciclotrones";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "ciclo_producciones_empresa_id_fkey";
+            columns: ["empresa_id"];
+            isOneToOne: false;
+            referencedRelation: "empresas";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Enums: {
       [_ in never]: never;

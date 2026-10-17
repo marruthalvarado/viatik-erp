@@ -132,3 +132,45 @@ export type FacturaConSaldo = FacturaEmitida & {
 export type Cobro = Tables<"cobros">;
 export type CobroInsert = TablesInsert<"cobros">;
 export type CobroUpdate = TablesUpdate<"cobros">;
+
+// ── Módulo Ciclotrones ────────────────────────────────────────────────────────
+export type Ciclotrón = Tables<"ciclotrones">;
+export type CiclotrónInsert = TablesInsert<"ciclotrones">;
+export type CiclotrónUpdate = TablesUpdate<"ciclotrones">;
+
+export type CicloProduccion = Tables<"ciclo_producciones">;
+export type CicloProduccionInsert = TablesInsert<"ciclo_producciones">;
+export type CicloProduccionUpdate = TablesUpdate<"ciclo_producciones">;
+
+/** Perfil de parámetros operativos del ciclotrón */
+export interface CiclotrónParametros {
+  gas_flow:            { setpoint: number; min: number; max: number; alertar: boolean };
+  magnet_i:            { setpoint: number; min: number; max: number; alertar: boolean };
+  dee1_kv:             { setpoint: number; min: number; max: number; alertar: boolean };
+  dee2_kv:             { setpoint: number; min: number; max: number; alertar: boolean };
+  target_i_spike_ua:   number;   // µA de variación abrupta que dispara alerta
+  coll_max_pct:        number;   // % máximo de Target-I para colimadores
+  vacuum_p_max:        number;   // Pa máximos en producción
+  target_p_min:        number;   // mbar mínimos Target-P en producción
+  target_p_max:        number;   // mbar máximos Target-P en producción
+  target_p_end_max:    number;   // mbar máximos al fin de producción
+  he_cool_p_min:       number;
+  he_cool_p_max:       number;
+  arc_i_min:           number;
+  arc_i_max:           number;
+  arc_v_min:           number;
+  arc_v_max:           number;
+}
+
+/** Una anomalía detectada durante el análisis de un batch */
+export interface CicloAnomalia {
+  tiempo:       string;  // HH:MM:SS del log
+  fila:         number;  // índice 0-based en el array de lecturas
+  fase:         "startup" | "ramp" | "irradiation" | "end";
+  parametro:    string;  // clave legible: "Vacuum-P", "Magnet-I", …
+  valor:        number;
+  limite_min?:  number;
+  limite_max?:  number;
+  severidad:    "warning" | "critical";
+  hint:         string;  // Referencia al manual PETtrace 800
+}
