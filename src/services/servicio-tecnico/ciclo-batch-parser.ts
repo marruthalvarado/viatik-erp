@@ -96,22 +96,38 @@ async function parseTsv(file: File): Promise<ParsedBatch> {
  *   (línea de nombres de columnas)
  *   (datos…)
  */
+/**
+ * Extrae metadatos del encabezado del log.
+ *
+ * Soporta dos formatos:
+ *  A) Cada campo en su propia línea:
+ *       Tracer:\t18F-FDG
+ *       Batch no:\t6817
+ *  B) Múltiples campos en la misma línea:
+ *       Tracer:\t(1) 18F-\tBatch no:\t7610\tDate:\t2026-03-27
+ *
+ * Usamos regex sobre el texto completo del encabezado para cubrir ambos casos.
+ */
 function extractMetaFromLines(lines: string[]): BatchMeta {
-  let tracer: string | null = null;
-  let numeroBatch: number | null = null;
-  let fecha: string | null = null;
-  let sitio: string | null = null;
+  // Tomar las primeras 10 líneas y normalizar a texto plano
+  const rawText = lines.slice(0, 10).join("\n");
 
-  for (const line of lines.slice(0, 10)) {
-    const parts = line.split("\t");
-    const key = (parts[0] ?? "").toLowerCase().replace(/[:\s]/g, "");
-    const val = (parts[1] ?? "").trim();
-    if (!val) continue;
-    if (key.includes("tracer"))       tracer = val;
-    else if (key.includes("batch"))   numeroBatch = parseInt(val, 10) || null;
-    else if (key.includes("date"))    fecha = parseLogDate(val);
-    else if (key.includes("site"))    sitio = val;
-  }
+  // Tracer: puede ser "(1) 18F-" o "18F-FDG"; capturamos hasta el siguiente tab, \n o fin
+  const tracerM = rawText.match(/Tracer[:\s]+([^\t\n]+)/i);
+  const tracer = tracerM ? tracerM[1].trim() : null;
+
+  // Batch no: número entero
+  const batchM = rawText.match(/Batch\s*no[:\s]+(\d+)/i);
+  const numeroBatch = batchM ? (parseInt(batchM[1], 10) || null) : null;
+
+  // Date
+  const dateM = rawText.match(/Date[:\s]+([^\t\n]+)/i);
+  const fecha = dateM ? parseLogDate(dateM[1].trim()) : null;
+
+  // Site / Site name
+  const siteM = rawText.match(/Site(?:\s+name)?[:\s]+([^\t\n]+)/i);
+  const sitio = siteM ? siteM[1].trim() : null;
+
   return { tracer, numeroBatch, fecha, sitio };
 }
 
