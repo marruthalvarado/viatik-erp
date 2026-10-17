@@ -46,7 +46,7 @@ SELECT
   -- modelo
   m.id                 AS modelo_id,
   m.nombre             AS modelo_nombre,
-  m.fabricante_nombre
+  e.fabricante         AS fabricante_nombre
 FROM public.ciclotrones c
 LEFT JOIN public.equipos_instalados e  ON e.id = c.equipo_id
 LEFT JOIN public.clientes cl           ON cl.id = e.cliente_id
