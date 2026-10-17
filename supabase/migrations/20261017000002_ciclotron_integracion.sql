@@ -35,7 +35,7 @@ SELECT
   c.updated_at,
   -- datos del equipo vinculado
   e.numero_serie,
-  e.ubicacion          AS equipo_ubicacion,
+  e.ubicacion_instalacion AS equipo_ubicacion,
   e.fecha_instalacion,
   e.garantia_hasta,
   e.proximo_mantenimiento,
