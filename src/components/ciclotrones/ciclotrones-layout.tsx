@@ -330,23 +330,24 @@ export function CiclotronsLayout() {
         />
       )}
 
-      {/* Sheet de análisis */}
+      {/* Sheet de análisis — pantalla completa */}
       <Sheet open={showAnalisis} onOpenChange={setShowAnalisis}>
-        <SheetContent side="right" className="w-full sm:max-w-3xl overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>
-              Análisis de producción
-              {selectedProduccion?.numero_batch != null && ` — Batch #${selectedProduccion.numero_batch}`}
-            </SheetTitle>
+        <SheetContent
+          side="right"
+          className="!w-screen !max-w-full h-screen flex flex-col p-0 gap-0"
+        >
+          <SheetHeader className="px-6 py-4 border-b flex-shrink-0">
+            <SheetTitle>Análisis de producción</SheetTitle>
           </SheetHeader>
-          <Separator className="my-4" />
-          {selectedProduccion && selectedCiclotrón && (
-            <ProduccionAnalisis
-              produccion={selectedProduccion}
-              params={parsearParametros(selectedCiclotrón)}
-              ciclotrón={selectedCiclotrón}
-            />
-          )}
+          <div className="flex-1 overflow-hidden px-6 py-4">
+            {selectedProduccion && selectedCiclotrón && (
+              <ProduccionAnalisis
+                produccion={selectedProduccion}
+                params={parsearParametros(selectedCiclotrón)}
+                ciclotrón={selectedCiclotrón}
+              />
+            )}
+          </div>
         </SheetContent>
       </Sheet>
     </div>
