@@ -30,6 +30,7 @@ import { descargarArchivoBatch } from "@/services/servicio-tecnico/ciclo-producc
 import type { CiclotrónParametros } from "@/services/servicio-tecnico/ciclotrones";
 import { vincularOsABatch } from "@/services/servicio-tecnico/ordenes-servicio";
 import { useCrearOrdenServicio } from "@/hooks/entities/use-servicio-tecnico";
+import { useResincronizarAnalisisBatch } from "@/hooks/entities/use-ciclotrones";
 
 interface Props {
   produccion: CicloProduccion;
@@ -177,6 +178,7 @@ export function ProduccionAnalisis({ produccion, params, ciclotrón }: Props) {
   const [expandedParams, setExpandedParams] = useState<Set<string>>(new Set());
 
   const crearOs = useCrearOrdenServicio();
+  const resincronizar = useResincronizarAnalisisBatch();
 
   const loadData = useCallback(async () => {
     if (!produccion.archivo_path) return;
@@ -191,12 +193,25 @@ export function ProduccionAnalisis({ produccion, params, ciclotrón }: Props) {
       setRows(parsed.rows);
       setAnomalias(anoms);
       setMeta(parsed.meta);
+
+      // Sincronizar conteo en BD si difiere (motor actualizado)
+      if (anoms.length !== produccion.anomalias_count) {
+        void resincronizar.mutate({
+          produccionId: produccion.id,
+          ciclotronId:  produccion["ciclotrón_id"],
+          anomalias:    anoms,
+        });
+      }
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setLoading(false);
     }
-  }, [produccion.archivo_path, produccion.archivo_nombre, params]);
+  }, [
+    produccion.archivo_path, produccion.archivo_nombre,
+    produccion.anomalias_count, produccion.id, produccion["ciclotrón_id"],
+    params,
+  ]);
 
   useEffect(() => { void loadData(); }, [loadData]);
 

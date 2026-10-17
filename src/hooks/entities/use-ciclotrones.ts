@@ -195,3 +195,36 @@ export function useSubirAnalizarBatch() {
     onError: (e) => toast.error(`Error al procesar batch: ${(e as Error).message}`),
   });
 }
+
+/**
+ * Actualiza en BD el resultado del análisis de un batch ya existente.
+ * Se llama silenciosamente desde ProduccionAnalisis después de re-analizar
+ * con el motor actual (p.ej. cuando el motor fue mejorado y los datos en BD
+ * quedaron obsoletos).
+ */
+export function useResincronizarAnalisisBatch() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      produccionId,
+      ciclotronId,
+      anomalias,
+    }: {
+      produccionId: string;
+      ciclotronId: string;
+      anomalias: CicloAnomalia[];
+    }) => {
+      const resumen = resumirAnomalias(anomalias);
+      return actualizarCicloProduccion(produccionId, {
+        anomalias_count: resumen.total,
+        anomalias:       anomalias as unknown as import("@/types/database").Json,
+        estado:          estadoDesdeAnomalias(anomalias),
+      });
+    },
+    onSuccess: (_data, { ciclotronId }) => {
+      void qc.invalidateQueries({ queryKey: ["ciclo-producciones", ciclotronId] });
+    },
+    // Error silencioso — no mostrar toast para no interrumpir al usuario
+    onError: () => { /* silencioso */ },
+  });
+}
