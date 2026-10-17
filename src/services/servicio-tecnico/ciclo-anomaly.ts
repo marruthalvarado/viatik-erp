@@ -103,9 +103,11 @@ export function detectAnomalias(
     if (r.vacuumP > params.vacuum_p_max) {
       anomalias.push(anom(r, p, "Vacuum-P", r.vacuumP, undefined, params.vacuum_p_max, "critical",
         `Presión de vacío ${fmtSci(r.vacuumP)} mbar excede el límite máximo (${fmtSci(params.vacuum_p_max)} mbar). ` +
-        `Causas probables: fuga en el sistema de vacío, bomba difusora degradada, o válvulas de aislamiento abiertas. ` +
-        `Verificar sellados O-ring del sistema de vacío y estado de la bomba turbomolecular. ` +
-        `[SM-Acc 770650] §3.4 — Vacuum System Troubleshooting.`
+        `El ciclotrón requiere <4×10⁻⁵ mbar para emitir la señal VACUUM_OK; en estado estacionario normal es ~5×10⁻⁷ mbar. ` +
+        `Causas: fuga en la cámara de vacío, aceite de la bomba difusora degradado (cambio cada 24 meses), ` +
+        `O-rings del flange principal o falla en la válvula de alto vacío (HVV). ` +
+        `Verificar la lectura del medidor Penning (PEN) y Pirani (PIR2) en el VCU, y el estado de la bomba difusora (Balzers DIF320). ` +
+        `[SM-Acc 770650] §8-1 — Vacuum System / Pump System.`
       ));
     }
 
@@ -113,16 +115,18 @@ export function detectAnomalias(
     if (r.heCoolP < params.he_cool_p_min) {
       anomalias.push(anom(r, p, "He cool-P", r.heCoolP, params.he_cool_p_min, undefined, "warning",
         `Presión de He cooling ${r.heCoolP.toFixed(2)} bar por debajo del mínimo (${params.he_cool_p_min} bar). ` +
-        `El blanco podría sobrecalentarse si la presión de helio es insuficiente. ` +
-        `Verificar: suministro de helio (cilindro o línea), regulador de presión, y líneas de He hacia el blanco. ` +
-        `[SM-Mnt 793392] §5.2 — Target Cooling System / He Supply.`
+        `El sistema de enfriamiento de helio debe operar entre 0.3–0.5 MPa (≈3–5 bar) con flujo 3–6 l_N/s. ` +
+        `Si la presión cae, las láminas de Havar (target foils) se sobrecalientan y pueden romperse durante irradiación. ` +
+        `Verificar: nivel del cilindro de He, compresor de He, válvulas solenoides (HeV1–V6), y filtro en la línea de retorno. ` +
+        `[SM-Acc 770650] §11-12 — Helium Cooling System.`
       ));
     }
     if (r.heCoolP > params.he_cool_p_max) {
       anomalias.push(anom(r, p, "He cool-P", r.heCoolP, undefined, params.he_cool_p_max, "warning",
         `Presión de He cooling ${r.heCoolP.toFixed(2)} bar sobre el máximo (${params.he_cool_p_max} bar). ` +
-        `Verificar regulador de presión y válvula de alivio del sistema de helio. ` +
-        `[SM-Mnt 793392] §5.2 — Target Cooling System.`
+        `Presión excesiva puede indicar obstrucción en la línea de retorno o falla en la válvula de alivio. ` +
+        `Rango nominal: 0.3–0.5 MPa (3–5 bar). Verificar regulador de presión del He y válvulas de alivio del compresor. ` +
+        `[SM-Acc 770650] §11-12-4 — Helium Cooling System Specifications.`
       ));
     }
 
@@ -132,17 +136,20 @@ export function detectAnomalias(
       // Gas flow
       if (params.gas_flow.alertar && r.gasFlow < params.gas_flow.min) {
         anomalias.push(anom(r, p, "Gas flow", r.gasFlow, params.gas_flow.min, undefined, "critical",
-          `Flujo de H₂ ${r.gasFlow.toFixed(2)} sccm bajo el mínimo (${params.gas_flow.min} sccm) durante irradiación. ` +
-          `Un corte de gas detiene el haz abruptamente y puede causar variación de rendimiento del lote. ` +
-          `Verificar: controlador de flujo másico (MFC), presión de la botella de H₂, y línea de gas hasta el blanco. ` +
-          `[SM-Acc 770650] §4.1 — Target Gas Inlet System.`
+          `Flujo de H₂/D₂ ${r.gasFlow.toFixed(2)} sccm bajo el mínimo (${params.gas_flow.min} sccm) durante irradiación. ` +
+          `Este es el flujo de gas a la fuente de iones (ion source PIG). Rango normal: 2–6 sccm. ` +
+          `Un flujo insuficiente colapsa el plasma de la fuente y extingue el haz. ` +
+          `Verificar: controlador de flujo másico (mass flow controller), presión del cilindro de H₂ (debe ser 0.1±0.05 MPa), ` +
+          `válvulas de gas (V1–V4 en manifold de gas) y restrictor de flujo. ` +
+          `[SM-Acc 770650] §5-4 — Ion Source Gas Handling System.`
         ));
       }
       if (params.gas_flow.alertar && r.gasFlow > params.gas_flow.max) {
         anomalias.push(anom(r, p, "Gas flow", r.gasFlow, undefined, params.gas_flow.max, "warning",
-          `Flujo de H₂ ${r.gasFlow.toFixed(2)} sccm sobre el máximo nominal (${params.gas_flow.max} sccm). ` +
-          `Revisar: MFC (posible deriva) y presión de gas de entrada. ` +
-          `[SM-Acc 770650] §4.1 — Target Gas Inlet System.`
+          `Flujo de H₂/D₂ ${r.gasFlow.toFixed(2)} sccm sobre el máximo nominal (${params.gas_flow.max} sccm) a la fuente de iones. ` +
+          `Rango normal: 2–6 sccm (controlador 0–10 sccm). Flujo excesivo puede causar arco inestable o pérdida de vacío. ` +
+          `Verificar: deriva del MFC, ajuste del regulador del cilindro de gas, y válvulas V1/V2 del manifold. ` +
+          `[SM-Acc 770650] §5-4 — Ion Source Gas Handling System.`
         ));
       }
 
@@ -151,17 +158,20 @@ export function detectAnomalias(
         if (r.magnetI < params.magnet_i.min) {
           anomalias.push(anom(r, p, "Magnet-I", r.magnetI, params.magnet_i.min, undefined, "critical",
             `Corriente del magneto ${r.magnetI.toFixed(1)} A bajo el mínimo (${params.magnet_i.min} A). ` +
-            `Un campo magnético insuficiente desvía el haz del blanco, reduciendo Target-I. ` +
-            `Verificar: fuente de alimentación del magneto, cables de fuerza y controlador PID de Magnet-I. ` +
-            `[SM-Acc 770650] §2.3 — Magnet Power Supply.`
+            `El campo magnético guía el haz en espiral; una corriente insuficiente cambia el radio de las órbitas ` +
+            `y desvía el haz del extractor, reduciendo Target-I y aumentando Coll-I. ` +
+            `Verificar: fuente de alimentación del magneto (PSMC), cables de fuerza y temperatura de bobinas ` +
+            `(señal MAGN_TEMP_OK en ACU/P8). ` +
+            `[SM-Acc 770650] §3 — Magnet System.`
           ));
         }
         if (r.magnetI > params.magnet_i.max) {
           anomalias.push(anom(r, p, "Magnet-I", r.magnetI, undefined, params.magnet_i.max, "warning",
             `Corriente del magneto ${r.magnetI.toFixed(1)} A sobre el máximo (${params.magnet_i.max} A). ` +
-            `Valores persistentemente altos pueden indicar deriva térmica de las bobinas. ` +
-            `Verificar temperatura de bobinas y sistema de refrigeración del magneto. ` +
-            `[SM-Acc 770650] §2.3 — Magnet Power Supply.`
+            `Corriente excesiva puede indicar cortocircuito en bobinas o deriva del controlador PSMC. ` +
+            `Verificar temperatura de bobinas (MAGN_TEMP_OK), flujo de refrigeración (MAGN_FLOW_OK) ` +
+            `y ajuste del setpoint en el PSMC. ` +
+            `[SM-Acc 770650] §3 — Magnet System.`
           ));
         }
       }
@@ -172,9 +182,11 @@ export function detectAnomalias(
           const sev = Math.abs(r.dee1Kv - params.dee1_kv.setpoint) > 3 ? "critical" : "warning";
           anomalias.push(anom(r, p, "Dee-1-kV", r.dee1Kv, params.dee1_kv.min, params.dee1_kv.max, sev,
             `Voltaje Dee-1 ${r.dee1Kv.toFixed(1)} kV fuera del rango [${params.dee1_kv.min}, ${params.dee1_kv.max}] kV. ` +
-            `Un Dee-kV incorrecto afecta la energía final del haz y la eficiencia de aceleración. ` +
-            `Verificar: generador RF, frecuencia de resonancia y sistema de sintonía de cavidades. ` +
-            `[SM-Acc 770650] §2.1 — RF System / Dee Voltage Control.`
+            `Los Dees son los electrodos de aceleración del ciclotrón; su voltaje determina la energía ganada por vuelta. ` +
+            `Un voltaje incorrecto afecta la energía del haz y la tasa de producción del isótopo. ` +
+            `Verificar: generador RF (RFPG), potencia forward/reflected (FP_SIG/RP_SIG), ` +
+            `señal DVR1_SIG y sistema de sintonía de cavidad (flaps). ` +
+            `[SM-Acc 770650] §4 — RF System / Dee Voltage Control.`
           ));
         }
       }
@@ -183,9 +195,9 @@ export function detectAnomalias(
           const sev = Math.abs(r.dee2Kv - params.dee2_kv.setpoint) > 3 ? "critical" : "warning";
           anomalias.push(anom(r, p, "Dee-2-kV", r.dee2Kv, params.dee2_kv.min, params.dee2_kv.max, sev,
             `Voltaje Dee-2 ${r.dee2Kv.toFixed(1)} kV fuera del rango [${params.dee2_kv.min}, ${params.dee2_kv.max}] kV. ` +
-            `La asimetría Dee-1/Dee-2 afecta el balance del campo RF y la estabilidad del haz. ` +
-            `Verificar: control de fase y balance RF, generador RF Dee-2. ` +
-            `[SM-Acc 770650] §2.1 — RF System / Dee Voltage Control.`
+            `El desbalance Dee-1/Dee-2 (delta-Dee, señal DDVR_SIG) afecta la simetría del campo RF y la estabilidad del haz. ` +
+            `Verificar: generador RF, señal DVR2_SIG, balance de los flaps de los dos Dees (Flap 1 y Flap 2). ` +
+            `[SM-Acc 770650] §4 — RF System / Dee Voltage Control.`
           ));
         }
       }
@@ -194,17 +206,20 @@ export function detectAnomalias(
       if (r.targetP < params.target_p_min) {
         anomalias.push(anom(r, p, "Target-P", r.targetP, params.target_p_min, undefined, "critical",
           `Presión del blanco ${r.targetP.toFixed(1)} mbar bajo el mínimo de producción (${params.target_p_min} mbar). ` +
-          `Posible fuga en el blanco, en la línea de [18O]H₂O, o falla en la válvula de llenado del blanco. ` +
-          `Revisar sellados del blanco, ventana del target, y válvulas del sistema de transferencia. ` +
-          `[SM-Acc 770650] §5.1 — Target System / Leak Testing.`
+          `Los blancos líquidos (¹⁸F, ¹³N, ¹³NH₃) operan con ~5 bar de sobrepresión de helio. ` +
+          `Presión baja indica fuga en el cuerpo del blanco, en las láminas Havar/Niobium, o falla en las válvulas de llenado (V1/V2 del LTF). ` +
+          `El ACU interrumpe la irradiación si la presión cae fuera del rango preset min/max. ` +
+          `Verificar sellados O-ring del blanco, integridad de las foils, y válvulas del LTF. ` +
+          `[SM-Acc 770650] §11 — Target System / Process Description.`
         ));
       }
       if (r.targetP > params.target_p_max) {
         anomalias.push(anom(r, p, "Target-P", r.targetP, undefined, params.target_p_max, "critical",
           `Presión del blanco ${r.targetP.toFixed(1)} mbar sobre el máximo durante irradiación (${params.target_p_max} mbar). ` +
-          `Presión excesiva puede forzar la apertura del disco de ruptura (burst disk). ` +
-          `Verificar: flujo de agua del blanco, temperatura del blanco y estado del burst disk. ` +
-          `[SM-Acc 770650] §5.1 — Target System / Pressure Relief.`
+          `Presión excesiva puede deberse a sobrecalentamiento del líquido (agua irradiada) o falla en la válvula de salida. ` +
+          `El ACU monitorea continuamente la presión y detiene la irradiación si supera el límite preset. ` +
+          `Verificar: flujo de agua de refrigeración del blanco, temperatura y estado de la válvula de vaciado (V2 del LTF). ` +
+          `[SM-Acc 770650] §11 — Target System / Process Description.`
         ));
       }
 
@@ -214,17 +229,20 @@ export function detectAnomalias(
       if (r.phaseLoad > params.phase_load_irrad_max) {
         anomalias.push(anom(r, p, "Phase load", r.phaseLoad, undefined, params.phase_load_irrad_max, "warning",
           `Phase load ${r.phaseLoad.toFixed(1)}% por encima del umbral (${params.phase_load_irrad_max}%) durante irradiación. ` +
-          `Valores altos indican desajuste de fase entre el sistema RF y la cavidad del ciclotrón. ` +
-          `Posibles causas: deriva de temperatura en la cavidad, ajuste de sintonía necesario, o degradación del condensador de sintonía. ` +
-          `[SM-Acc 770650] §2.1.4 — Phase Control / Auto-Tuning.`
+          `El PHASE LOAD es la señal del Load Phase Detector en el SCU. En resonancia vale 0 V (diferencia de fase = 180°). ` +
+          `Un valor alto indica que la cavidad RF (RCAV) está fuera de resonancia. ` +
+          `El ACU corrige automáticamente moviendo los servomotores de los flaps (Flap 1 y Flap 2). ` +
+          `Si el error persiste: verificar temperatura de la cavidad, servo de los flaps, y señal PHASE_LOAD en RFPG/SKH. ` +
+          `[SM-Acc 770650] §4-2-10 — Phase Load / RF Cavity Auto-Tuning.`
         ));
       }
       if (r.phaseLoad < params.phase_load_irrad_min) {
         anomalias.push(anom(r, p, "Phase load", r.phaseLoad, params.phase_load_irrad_min, undefined, "warning",
           `Phase load ${r.phaseLoad.toFixed(1)}% negativo por debajo del umbral (${params.phase_load_irrad_min}%) durante irradiación. ` +
-          `Phase load negativo persistente puede indicar resonancia fuera del punto óptimo. ` +
-          `Verificar: control de sintonía automática y estado del condensador variable de la cavidad RF. ` +
-          `[SM-Acc 770650] §2.1.4 — Phase Control.`
+          `Phase load negativo significa que la RCAV está sobresintonizada (fase < 180°). ` +
+          `El ACU ajusta los flaps en dirección opuesta para recuperar la resonancia. ` +
+          `Si el error persiste: verificar servo de Flap 1/Flap 2 y señal PHASE_LOAD en el RFPG. ` +
+          `[SM-Acc 770650] §4-2-10 — Phase Load / RF Cavity Auto-Tuning.`
         ));
       }
 
@@ -237,9 +255,10 @@ export function detectAnomalias(
             anomalias.push(anom(r, p, "Target-I", r.targetI, undefined, undefined, "critical",
               `Target-I cambió abruptamente ${deltaI.toFixed(1)} µA en 3 s ` +
               `(anterior: ${prev.targetI.toFixed(1)} µA → actual: ${r.targetI.toFixed(1)} µA). ` +
-              `Puede indicar: inestabilidad del haz, falla en el electrodo extractor, ` +
-              `problema en el blanco (presión o temperatura), o corte momentáneo del gas de target. ` +
-              `[SM-Acc 770650] §3.2 — Beam Extraction / Extraction Probe.`
+              `Causas probables: rotura o desgaste de la lámina de extracción (stripping foil), ` +
+              `salto de posición del carrusel (Foilholder 1/2 en PSS), inestabilidad del haz (RF/magneto), ` +
+              `o problema en el blanco (presión, temperatura, o fuga de helio). ` +
+              `[SM-Acc 770650] §6 — Extraction System / Foil Carousel.`
             ));
           }
         }
@@ -252,19 +271,21 @@ export function detectAnomalias(
         if (r.collLI > limColl) {
           anomalias.push(anom(r, p, "Coll-l-I", r.collLI, undefined, limColl, "warning",
             `Colimador izquierdo ${r.collLI.toFixed(1)} µA supera el ${params.coll_max_pct}% de Target-I (límite: ${limColl.toFixed(1)} µA). ` +
-            `El haz no está bien centrado hacia el blanco izquierdo. ` +
-            `Causas: deriva del campo magnético (ajustar Magnet-I setpoint), ` +
-            `posición del colimador, o desgaste del electrodo extractor. ` +
-            `[SM-Acc 770650] §3.3 — Beam Steering and Tuning / Collimator Alignment.`
+            `El haz no está correctamente dirigido al blanco izquierdo; una fracción excesiva impacta el colimador. ` +
+            `Causas: deriva del campo magnético (PSMC), posición incorrecta de la lámina de extracción (stripping foil), ` +
+            `o desplazamiento del Foilholder (verificar parámetros "Foilholder 1"/"Foilholder 2" en PSS). ` +
+            `Los colimadores de protones son de Tantalio; máx. 15 µA cada uno. ` +
+            `[SM-Acc 770650] §6-2 — Extraction System / Foil Position.`
           ));
         }
         if (r.collRI > limColl) {
           anomalias.push(anom(r, p, "Coll-r-I", r.collRI, undefined, limColl, "warning",
             `Colimador derecho ${r.collRI.toFixed(1)} µA supera el ${params.coll_max_pct}% de Target-I (límite: ${limColl.toFixed(1)} µA). ` +
-            `El haz está desviado hacia el colimador derecho. ` +
-            `Causas: desalineación del Beam Steering, deriva del campo magnético, ` +
-            `o electrodo extractor desgastado (verificar posición "Extr pos"). ` +
-            `[SM-Acc 770650] §3.3 — Beam Steering and Tuning.`
+            `El haz está desviado hacia el colimador derecho en lugar de ir al blanco. ` +
+            `Causas: lámina de extracción (stripping foil) desgastada o rota, posición incorrecta del Foilholder ` +
+            `(verificar parámetros "Foilholder 1"/"Foilholder 2" en PSS), o deriva del campo magnético (PSMC). ` +
+            `La lámina de carbono dura ~2 mAh; el carrusel tiene 6 láminas disponibles. ` +
+            `[SM-Acc 770650] §6-2 — Extraction System / Foil Carousel.`
           ));
         }
       }
@@ -273,17 +294,19 @@ export function detectAnomalias(
       if (r.arcI < params.arc_i_min) {
         anomalias.push(anom(r, p, "Arc-I", r.arcI, params.arc_i_min, undefined, "warning",
           `Corriente de arco ${r.arcI.toFixed(1)} mA muy baja (mínimo: ${params.arc_i_min} mA). ` +
-          `La fuente de iones (ion source) está inestable o con baja emisión. ` +
-          `Verificar: estado del cátodo (vida útil ~2000 h), presión de gas de arco y voltaje de arco. ` +
-          `[SM-Acc 770650] §2.2 — Ion Source / Cathode Replacement.`
+          `La fuente de iones PIG (Penning Ionization Gauge, cátodo frío) está inestable o extinción del plasma. ` +
+          `Verificar: flujo de gas H₂/D₂ a la fuente (rango 2–6 sccm), presión del cilindro (0.1±0.05 MPa), ` +
+          `voltaje de arco (Arc-V, max 3.0 kV) y fuente PSARC (max 1.3 A / 2 kV). ` +
+          `[SM-Acc 770650] §5-2 — Ion Source / PIG Source Description.`
         ));
       }
       if (r.arcI > params.arc_i_max) {
         anomalias.push(anom(r, p, "Arc-I", r.arcI, undefined, params.arc_i_max, "warning",
           `Corriente de arco ${r.arcI.toFixed(1)} mA excesiva (máximo: ${params.arc_i_max} mA). ` +
-          `Arc-I elevado puede indicar arco inestable o ionización excesiva. ` +
-          `Verificar: voltaje de arco (Arc-V), presión de gas de arco y estado del cátodo. ` +
-          `[SM-Acc 770650] §2.2 — Ion Source.`
+          `Arc-I elevado puede indicar plasma inestable, flujo de gas excesivo o falla en la PSARC. ` +
+          `La PSARC (PS/GEMS-02A) opera a máx. 1.3 A y 2 kV; voltaje típico ~0.4 kV. ` +
+          `Verificar: flujo de H₂/D₂ (reducir si > 6 sccm), voltaje de arco (Arc-V) y límites de la PSARC. ` +
+          `[SM-Acc 770650] §5-2 — Ion Source / PIG Source; §5-3 — PSARC Power Supply.`
         ));
       }
     }
@@ -320,7 +343,7 @@ export function detectAnomalias(
           ? "hay corriente en Foil que no llega al blanco ni a los colimadores — posible dispersión o pérdida de haz en la guía de extracción."
           : "la suma de corrientes medidas supera a Foil-I — revisar calibración de los transformadores de corriente (CT) de Target-I, Coll-l-I o Coll-r-I."
         } ` +
-        `[SM-Acc 770650] §3.3 — Beam Steering / Current Instrumentation.`,
+        `[SM-Acc 770650] §7-3 — Beam Current Analyzer (BCA) / Current Instrumentation.`,
       ));
     }
   }
