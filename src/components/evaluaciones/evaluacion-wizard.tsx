@@ -27,13 +27,14 @@ const PASOS = [
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface Props {
-  onCancel:   () => void;
-  onComplete: (ev: CicloEvaluacion) => void;
+  onCancel:            () => void;
+  onComplete:          (ev: CicloEvaluacion) => void;
+  defaultCiclotrónId?: string;
 }
 
 // ── Componente ────────────────────────────────────────────────────────────────
 
-export function EvaluacionWizard({ onCancel, onComplete }: Props) {
+export function EvaluacionWizard({ onCancel, onComplete, defaultCiclotrónId }: Props) {
   const [paso, setPaso]           = useState(1);
   const [evaluacion, setEval]     = useState<CicloEvaluacion | null>(null);
 
@@ -104,6 +105,7 @@ export function EvaluacionWizard({ onCancel, onComplete }: Props) {
             ciclotrones={ciclotrones}
             crear={crear}
             onNext={handleStep1}
+            defaultCiclotrónId={defaultCiclotrónId}
           />
         )}
         {paso === 2 && evaluacion && (

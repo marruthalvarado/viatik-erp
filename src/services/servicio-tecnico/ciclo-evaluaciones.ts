@@ -2,7 +2,7 @@
  * ciclo-evaluaciones.ts
  * Servicio CRUD para Evaluaciones de Ciclotrón (DOC1604037 rev9)
  */
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/integrations/supabase/client";
 import type {
   CicloEvaluacion,
   DatosSitio,

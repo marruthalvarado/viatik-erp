@@ -3,7 +3,7 @@
  * Hook React Query para Evaluaciones de Ciclotrón
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEmpresa } from "@/hooks/use-empresa";
+import { useCompany } from "@/contexts/company-context";
 import * as svc from "@/services/servicio-tecnico/ciclo-evaluaciones";
 import type {
   CicloEvaluacion,
@@ -27,8 +27,8 @@ const KEYS = {
 
 /** Lista todas las evaluaciones de la empresa */
 export function useEvaluaciones() {
-  const { empresa } = useEmpresa();
-  const eid = empresa?.id ?? "";
+  const { empresaActivaId } = useCompany();
+  const eid = empresaActivaId ?? "";
   return useQuery({
     queryKey: KEYS.all(eid),
     queryFn:  () => svc.getEvaluaciones(eid),
@@ -38,8 +38,8 @@ export function useEvaluaciones() {
 
 /** Lista evaluaciones de un ciclotrón */
 export function useEvaluacionesByCiclotrón(ciclotrónId: string) {
-  const { empresa } = useEmpresa();
-  const eid = empresa?.id ?? "";
+  const { empresaActivaId } = useCompany();
+  const eid = empresaActivaId ?? "";
   return useQuery({
     queryKey: KEYS.byCiclo(eid, ciclotrónId),
     queryFn:  () => svc.getEvaluacionesByCiclotrón(eid, ciclotrónId),
@@ -60,14 +60,14 @@ export function useEvaluacion(id: string) {
 
 /** Crea una nueva evaluación */
 export function useCrearEvaluacion() {
-  const { empresa } = useEmpresa();
+  const { empresaActivaId } = useCompany();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (params: Omit<CrearEvaluacionParams, "empresa_id">) =>
-      svc.crearEvaluacion({ ...params, empresa_id: empresa?.id ?? "" }),
+      svc.crearEvaluacion({ ...params, empresa_id: empresaActivaId ?? "" }),
     onSuccess: (data: CicloEvaluacion) => {
-      qc.invalidateQueries({ queryKey: KEYS.all(empresa?.id ?? "") });
-      qc.invalidateQueries({ queryKey: KEYS.byCiclo(empresa?.id ?? "", data.ciclotrón_id) });
+      qc.invalidateQueries({ queryKey: KEYS.all(empresaActivaId ?? "") });
+      qc.invalidateQueries({ queryKey: KEYS.byCiclo(empresaActivaId ?? "", data.ciclotrón_id) });
     },
   });
 }
@@ -110,7 +110,7 @@ export function useGuardarDatosEvaluacion() {
 
 /** Completa la evaluación */
 export function useCompletarEvaluacion() {
-  const { empresa } = useEmpresa();
+  const { empresaActivaId } = useCompany();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({
@@ -124,20 +124,20 @@ export function useCompletarEvaluacion() {
     }) => svc.completarEvaluacion(evalId, resultado, observaciones),
     onSuccess: (data: CicloEvaluacion) => {
       qc.setQueryData(KEYS.detail(data.id), data);
-      qc.invalidateQueries({ queryKey: KEYS.all(empresa?.id ?? "") });
-      qc.invalidateQueries({ queryKey: KEYS.byCiclo(empresa?.id ?? "", data.ciclotrón_id) });
+      qc.invalidateQueries({ queryKey: KEYS.all(empresaActivaId ?? "") });
+      qc.invalidateQueries({ queryKey: KEYS.byCiclo(empresaActivaId ?? "", data.ciclotrón_id) });
     },
   });
 }
 
 /** Elimina una evaluación en borrador */
 export function useEliminarEvaluacion() {
-  const { empresa } = useEmpresa();
+  const { empresaActivaId } = useCompany();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (evalId: string) => svc.eliminarEvaluacion(evalId),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: KEYS.all(empresa?.id ?? "") });
+      qc.invalidateQueries({ queryKey: KEYS.all(empresaActivaId ?? "") });
     },
   });
 }

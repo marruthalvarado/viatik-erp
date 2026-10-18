@@ -36,19 +36,21 @@ type FormData = z.infer<typeof schema>;
 interface Ciclotrón { id: string; nombre: string }
 
 interface Props {
-  ciclotrones: Ciclotrón[];
-  crear:       UseMutationResult<CicloEvaluacion, Error, Omit<CrearEvaluacionParams, "empresa_id">>;
-  onNext:      (ev: CicloEvaluacion) => void;
+  ciclotrones:        Ciclotrón[];
+  crear:              UseMutationResult<CicloEvaluacion, Error, Omit<CrearEvaluacionParams, "empresa_id">>;
+  onNext:             (ev: CicloEvaluacion) => void;
+  defaultCiclotrónId?: string;
 }
 
 // ── Componente ────────────────────────────────────────────────────────────────
 
-export function Step1InfoGeneral({ ciclotrones, crear, onNext }: Props) {
+export function Step1InfoGeneral({ ciclotrones, crear, onNext, defaultCiclotrónId }: Props) {
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
       tipo_evaluacion: "assessment",
       tiene_deuterio:  false,
+      ciclotrón_id:    defaultCiclotrónId ?? "",
     },
   });
 
