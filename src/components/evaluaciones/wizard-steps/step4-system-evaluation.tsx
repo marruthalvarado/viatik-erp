@@ -1,7 +1,6 @@
 /**
  * step4-system-evaluation.tsx
- * Paso 4: System Evaluation — Hoja 7 del DOC1604037 rev9
- * 10 producciones dual beam con datos del Beam Evaluator Tool
+ * Paso 4: System Evaluation — 10 producciones dual beam con datos del Beam Evaluator Tool
  */
 import { useState } from "react";
 import { ChevronLeft, CheckCircle2, Info, ChevronDown, ChevronUp } from "lucide-react";
@@ -115,6 +114,8 @@ export function Step4SystemEvaluation({ evaluacion, onNext, onBack }: Props) {
     return FIELDS.some(f => p[f.key] != null);
   }
 
+  const produccionesConDatos = producciones.filter(hasDatos).length;
+
   async function handleGuardar(andComplete = false) {
     const ev = await guardar.mutateAsync({
       evalId: evaluacion.id,
@@ -136,9 +137,8 @@ export function Step4SystemEvaluation({ evaluacion, onNext, onBack }: Props) {
   }
 
   function calcResultadoGeneral(ps: ProduccionDualBeam[]): "pass" | "fail" {
-    // Verificar screen current y reflected power en las producciones que tienen datos
+    // Solo evalúa producciones con datos ingresados; sin datos no hay resultado definido
     const withData = ps.filter(hasDatos);
-    if (!withData.length) return "pass";
     const fail = withData.some(p =>
       (p.screenCurrentHigh != null && p.screenCurrentHigh > 40) ||
       (p.reflectedPowerHigh != null && p.reflectedPowerHigh > 2.0)
@@ -274,7 +274,8 @@ export function Step4SystemEvaluation({ evaluacion, onNext, onBack }: Props) {
           </Button>
           <Button
             onClick={() => handleGuardar(true)}
-            disabled={guardar.isPending || completar.isPending}
+            disabled={guardar.isPending || completar.isPending || produccionesConDatos === 0}
+            title={produccionesConDatos === 0 ? "Ingresa datos en al menos una producción para completar" : undefined}
             className="gap-2"
           >
             <CheckCircle2 className="h-4 w-4" />

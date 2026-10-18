@@ -258,7 +258,7 @@ export function EvaluacionDetalle({ evaluacion: ev, onBack }: Props) {
         <BadgeResultado resultado={ev.resultado_general} />
         {ev.resultado_general === "pass" && (
           <p className="text-xs text-green-700 mt-2">
-            El ciclotrón cumple con todos los criterios del DOC1604037 rev9
+            El ciclotrón cumple con todos los criterios de evaluación
           </p>
         )}
         {ev.resultado_general === "fail" && (
