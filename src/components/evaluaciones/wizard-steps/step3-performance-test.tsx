@@ -129,8 +129,11 @@ export function Step3PerformanceTest({ evaluacion, onNext, onBack }: Props) {
 
   // Resultado por sub-test (calculado)
   const resultados = useMemo(() => calcularResultados(datos, evaluacion.tiene_deuterio), [datos, evaluacion.tiene_deuterio]);
-  const resultadoGeneral = Object.values(resultados).every(r => r === true) ? "pass"
-    : Object.values(resultados).some(r => r === false) ? "fail" : null;
+  // Solo cuentan los sub-tests con resultado explícito (ignora null = sin datos)
+  const explicitResults = Object.values(resultados).filter((r): r is boolean => r !== null);
+  const resultadoGeneral = explicitResults.length === 0 ? null
+    : explicitResults.some(r => r === false) ? "fail"
+    : "pass";
 
   async function handleGuardar() {
     const ev = await guardar.mutateAsync({ evalId: evaluacion.id, datos });
