@@ -1,18 +1,37 @@
 /**
  * evaluacion-export.ts
  * Exporta el reporte completo de evaluación GE PETtrace 800
- * (DOC1604037 rev9) a PDF usando jsPDF + jspdf-autotable.
+ * a PDF usando jsPDF + jspdf-autotable.
  *
  * Secciones:
  *   1. Portada — número, tipo, modelo PT, ingeniero, fecha, PASS/FAIL
  *   2. Site Information (datos_sitio)
- *   3. Performance Test — 9 sub-tests con PASS/FAIL
- *   4. System Evaluation — tabla de 10 producciones dual beam
+ *   3. Performance Test — sub-tests con PASS/FAIL
+ *   4. System Evaluation — tabla de producciones dual beam
  *   5. Resultado final + observaciones
  */
 import type { CicloEvaluacion, DatosSitio, DatosPerformance, ProduccionDualBeam } from "@/types/entities";
 import { LOGO_VIATIQ_PNG_B64, LOGO_VIATIQ_W, LOGO_VIATIQ_H } from "@/assets/branding/logo-viatiq-b64";
 import { calcIarcBeam, calcIonSource, calcTransmision, calcVacuumTight, calcVacuumLeak } from "@/utils/eval-calcs";
+
+// ── Helpers privados ──────────────────────────────────────────────────────────
+
+async function fetchImageBase64(url: string): Promise<{ b64: string; mime: "PNG" | "JPEG" } | null> {
+  try {
+    const res = await fetch(url, { mode: "cors", cache: "force-cache" });
+    if (!res.ok) return null;
+    const buf = await res.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    let binary = "";
+    for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+    const b64 = btoa(binary);
+    const ct = res.headers.get("content-type") ?? "";
+    const mime: "PNG" | "JPEG" = ct.includes("png") ? "PNG" : "JPEG";
+    return { b64, mime };
+  } catch {
+    return null;
+  }
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -45,7 +64,14 @@ const TIPO_MAP: Record<string, string> = {
 // ── Tipos públicos ────────────────────────────────────────────────────────────
 
 export interface EvaluacionExportOptions {
-  empresa?: { nombre: string; ruc?: string | null };
+  empresa?: {
+    nombre: string;
+    ruc?: string | null;
+    telefono?: string | null;
+    correo?: string | null;
+    direccion?: string | null;
+    logo_url?: string | null;
+  };
 }
 
 // ── Función principal ─────────────────────────────────────────────────────────
@@ -56,6 +82,11 @@ export async function exportEvaluacionPDF(
 ): Promise<void> {
   const { jsPDF } = await import("jspdf");
   const { autoTable } = await import("jspdf-autotable");
+
+  // Pre-cargar logo de empresa si hay URL
+  const empresaLogoImg = opts.empresa?.logo_url
+    ? await fetchImageBase64(opts.empresa.logo_url)
+    : null;
 
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const PW = doc.internal.pageSize.getWidth();
@@ -71,11 +102,20 @@ export async function exportEvaluacionPDF(
     doc.setFillColor(...NAVY);
     doc.rect(0, 0, PW, HDR_H, "F");
 
-    // Logo
+    // Logo — empresa si hay, sino VIATIQ como fallback
     try {
-      const lw = LOGO_VIATIQ_W * 0.07;
-      const lh = LOGO_VIATIQ_H * 0.07;
-      doc.addImage(LOGO_VIATIQ_PNG_B64, "PNG", M, (HDR_H - lh) / 2, lw, lh);
+      if (empresaLogoImg) {
+        type JsPDFImg = { addImage: (img: string, fmt: string, x: number, y: number, w: number, h: number) => void };
+        const maxW = 38, maxH = 14;
+        (doc as unknown as JsPDFImg).addImage(
+          `data:image/${empresaLogoImg.mime.toLowerCase()};base64,${empresaLogoImg.b64}`,
+          empresaLogoImg.mime, M, (HDR_H - maxH) / 2, maxW, maxH,
+        );
+      } else {
+        const lw = LOGO_VIATIQ_W * 0.07;
+        const lh = LOGO_VIATIQ_H * 0.07;
+        doc.addImage(LOGO_VIATIQ_PNG_B64, "PNG", M, (HDR_H - lh) / 2, lw, lh);
+      }
     } catch { /* logo opcional */ }
 
     // Título en la banda
@@ -86,16 +126,25 @@ export async function exportEvaluacionPDF(
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7);
     doc.setTextColor(...BGNAVY);
-    doc.text("Reporte de Evaluacion — DOC1604037 rev9", PW / 2, 16, { align: "center" });
+    doc.text("Reporte de Evaluacion", PW / 2, 16, { align: "center" });
 
     // Footer
-    doc.setFontSize(7);
-    doc.setTextColor(...DARK);
-    doc.text(`Pag. ${pageNumber}`, PW - M, PH - 6, { align: "right" });
-    doc.text(`${ev.numero}  ${fmtFecha(ev.fecha)}`, M, PH - 6);
     doc.setDrawColor(203, 213, 225);
     doc.setLineWidth(0.2);
-    doc.line(M, PH - 9, PW - M, PH - 9);
+    doc.line(M, PH - 10, PW - M, PH - 10);
+    doc.setFontSize(7);
+    doc.setTextColor(...DARK);
+    // Datos empresa (izquierda)
+    if (opts.empresa) {
+      const partes = [opts.empresa.nombre, opts.empresa.telefono, opts.empresa.correo].filter(Boolean).join("  \xB7  ");
+      doc.text(partes, M, PH - 7);
+      if (opts.empresa.direccion) doc.text(opts.empresa.direccion, M, PH - 3.5);
+    } else {
+      doc.text(`${ev.numero}  ${fmtFecha(ev.fecha)}`, M, PH - 6);
+    }
+    // Número de página + generado con (derecha)
+    doc.text(`Pag. ${pageNumber}`, PW - M, PH - 7, { align: "right" });
+    doc.text("Generado con VIATIQ ERP", PW - M, PH - 3.5, { align: "right" });
     pageNumber++;
   }
 
@@ -229,23 +278,29 @@ export async function exportEvaluacionPDF(
   interface SubTest { nombre: string; resultado: boolean | null | undefined; detalle: string; skipped?: boolean }
   const subTests: SubTest[] = [];
 
-  // T1 – Isochronous Test (pos 1-3)
+  // T1 – Isochronous Test (pos 1-3) — solo si tiene datos
   const iso1 = p.isocronos?.[0];
-  subTests.push({
-    nombre: "T1 - Isochronous Test (Pos 1-3)",
-    resultado: skip.has("isocronos") ? true : calcIsoPerTest(iso1),
-    detalle: iso1?.filas?.length ? `${iso1.filas.length} posiciones medidas` : "—",
-    skipped: skip.has("isocronos"),
-  });
+  const iso1TieneData = (iso1?.filas?.length ?? 0) > 0;
+  if (iso1TieneData || skip.has("isocronos")) {
+    subTests.push({
+      nombre: "T1 - Isochronous Test (Pos 1-3)",
+      resultado: skip.has("isocronos") ? true : calcIsoPerTest(iso1),
+      detalle: iso1?.filas?.length ? `${iso1.filas.length} posiciones medidas` : "—",
+      skipped: skip.has("isocronos"),
+    });
+  }
 
-  // T2 – Isochronous Test (pos 4-6)
+  // T2 – Isochronous Test (pos 4-6) — solo si tiene datos
   const iso2 = p.isocronos?.[1];
-  subTests.push({
-    nombre: "T2 - Isochronous Test (Pos 4-6)",
-    resultado: skip.has("isocronos") ? true : calcIsoPerTest(iso2),
-    detalle: iso2?.filas?.length ? `${iso2.filas.length} posiciones medidas` : "—",
-    skipped: skip.has("isocronos"),
-  });
+  const iso2TieneData = (iso2?.filas?.length ?? 0) > 0;
+  if (iso2TieneData || skip.has("isocronos")) {
+    subTests.push({
+      nombre: "T2 - Isochronous Test (Pos 4-6)",
+      resultado: skip.has("isocronos") ? true : calcIsoPerTest(iso2),
+      detalle: iso2?.filas?.length ? `${iso2.filas.length} posiciones medidas` : "—",
+      skipped: skip.has("isocronos"),
+    });
+  }
 
   // T3 – RF Performance (H-)
   const rfP = p.rfProton;

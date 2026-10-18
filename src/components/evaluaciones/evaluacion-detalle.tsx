@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import type { CicloEvaluacion } from "@/types/entities";
 import { exportEvaluacionPDF } from "@/services/export/evaluacion-export";
+import { useCompany } from "@/contexts/company-context";
 import { calcVacuumTight, calcVacuumLeak, calcIonSource, calcIarcBeam } from "@/utils/eval-calcs";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -59,6 +60,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export function EvaluacionDetalle({ evaluacion: ev, onBack }: Props) {
   const [exportando, setExportando] = useState(false);
+  const { empresaActiva } = useCompany();
   const site = ev.datos_sitio ?? {};
   const perf = ev.datos_performance ?? {};
   const eval_ = ev.datos_evaluacion ?? {};
@@ -66,7 +68,16 @@ export function EvaluacionDetalle({ evaluacion: ev, onBack }: Props) {
   async function handleExportPDF() {
     setExportando(true);
     try {
-      await exportEvaluacionPDF(ev);
+      await exportEvaluacionPDF(ev, empresaActiva ? {
+        empresa: {
+          nombre:    empresaActiva.nombre,
+          ruc:       empresaActiva.ruc,
+          telefono:  empresaActiva.telefono,
+          correo:    empresaActiva.correo,
+          direccion: empresaActiva.direccion,
+          logo_url:  empresaActiva.logo_url,
+        },
+      } : undefined);
     } catch (err) {
       console.error("Error exportando PDF:", err);
     } finally {
