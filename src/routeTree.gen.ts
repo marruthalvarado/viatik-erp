@@ -47,6 +47,7 @@ import { Route as ServicioTecnicoCatalogoRouteImport } from './routes/servicio-t
 import { Route as ServicioTecnicoCiclotronsRouteImport } from './routes/servicio-tecnico.ciclotrones'
 import { Route as ServicioTecnicoContratosRouteImport } from './routes/servicio-tecnico.contratos'
 import { Route as ServicioTecnicoOrdenesRouteImport } from './routes/servicio-tecnico.ordenes'
+import { Route as ServicioTecnicoEvaluacionesRouteImport } from './routes/servicio-tecnico.evaluaciones'
 import { Route as ServicioTecnicoPlantillasRouteImport } from './routes/servicio-tecnico.plantillas'
 import { Route as ServicioTecnicoProtocolosRouteImport } from './routes/servicio-tecnico.protocolos'
 
@@ -243,6 +244,12 @@ const ServicioTecnicoOrdenesRoute = ServicioTecnicoOrdenesRouteImport.update({
   path: '/ordenes',
   getParentRoute: () => ServicioTecnicoRoute,
 } as any)
+const ServicioTecnicoEvaluacionesRoute =
+  ServicioTecnicoEvaluacionesRouteImport.update({
+    id: '/evaluaciones',
+    path: '/evaluaciones',
+    getParentRoute: () => ServicioTecnicoRoute,
+  } as any)
 const ServicioTecnicoPlantillasRoute =
   ServicioTecnicoPlantillasRouteImport.update({
     id: '/plantillas',
@@ -294,6 +301,7 @@ export interface FileRoutesByFullPath {
   '/servicio-tecnico/catalogo': typeof ServicioTecnicoCatalogoRoute
   '/servicio-tecnico/ciclotrones': typeof ServicioTecnicoCiclotronsRoute
   '/servicio-tecnico/contratos': typeof ServicioTecnicoContratosRoute
+  '/servicio-tecnico/evaluaciones': typeof ServicioTecnicoEvaluacionesRoute
   '/servicio-tecnico/ordenes': typeof ServicioTecnicoOrdenesRoute
   '/servicio-tecnico/plantillas': typeof ServicioTecnicoPlantillasRoute
   '/servicio-tecnico/protocolos': typeof ServicioTecnicoProtocolosRoute
@@ -336,6 +344,7 @@ export interface FileRoutesByTo {
   '/servicio-tecnico/catalogo': typeof ServicioTecnicoCatalogoRoute
   '/servicio-tecnico/ciclotrones': typeof ServicioTecnicoCiclotronsRoute
   '/servicio-tecnico/contratos': typeof ServicioTecnicoContratosRoute
+  '/servicio-tecnico/evaluaciones': typeof ServicioTecnicoEvaluacionesRoute
   '/servicio-tecnico/ordenes': typeof ServicioTecnicoOrdenesRoute
   '/servicio-tecnico/plantillas': typeof ServicioTecnicoPlantillasRoute
   '/servicio-tecnico/protocolos': typeof ServicioTecnicoProtocolosRoute
@@ -379,6 +388,7 @@ export interface FileRoutesById {
   '/servicio-tecnico/catalogo': typeof ServicioTecnicoCatalogoRoute
   '/servicio-tecnico/ciclotrones': typeof ServicioTecnicoCiclotronsRoute
   '/servicio-tecnico/contratos': typeof ServicioTecnicoContratosRoute
+  '/servicio-tecnico/evaluaciones': typeof ServicioTecnicoEvaluacionesRoute
   '/servicio-tecnico/ordenes': typeof ServicioTecnicoOrdenesRoute
   '/servicio-tecnico/plantillas': typeof ServicioTecnicoPlantillasRoute
   '/servicio-tecnico/protocolos': typeof ServicioTecnicoProtocolosRoute
@@ -423,6 +433,7 @@ export interface FileRouteTypes {
     | '/servicio-tecnico/catalogo'
     | '/servicio-tecnico/ciclotrones'
     | '/servicio-tecnico/contratos'
+    | '/servicio-tecnico/evaluaciones'
     | '/servicio-tecnico/ordenes'
     | '/servicio-tecnico/plantillas'
     | '/servicio-tecnico/protocolos'
@@ -465,6 +476,7 @@ export interface FileRouteTypes {
     | '/servicio-tecnico/catalogo'
     | '/servicio-tecnico/ciclotrones'
     | '/servicio-tecnico/contratos'
+    | '/servicio-tecnico/evaluaciones'
     | '/servicio-tecnico/ordenes'
     | '/servicio-tecnico/plantillas'
     | '/servicio-tecnico/protocolos'
@@ -507,6 +519,7 @@ export interface FileRouteTypes {
     | '/servicio-tecnico/catalogo'
     | '/servicio-tecnico/ciclotrones'
     | '/servicio-tecnico/contratos'
+    | '/servicio-tecnico/evaluaciones'
     | '/servicio-tecnico/ordenes'
     | '/servicio-tecnico/plantillas'
     | '/servicio-tecnico/protocolos'
@@ -801,6 +814,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServicioTecnicoContratosRouteImport
       parentRoute: typeof ServicioTecnicoRoute
     }
+    '/servicio-tecnico/evaluaciones': {
+      id: '/servicio-tecnico/evaluaciones'
+      path: '/evaluaciones'
+      fullPath: '/servicio-tecnico/evaluaciones'
+      preLoaderRoute: typeof ServicioTecnicoEvaluacionesRouteImport
+      parentRoute: typeof ServicioTecnicoRoute
+    }
     '/servicio-tecnico/ordenes': {
       id: '/servicio-tecnico/ordenes'
       path: '/ordenes'
@@ -865,6 +885,7 @@ interface ServicioTecnicoRouteChildren {
   ServicioTecnicoCatalogoRoute: typeof ServicioTecnicoCatalogoRoute
   ServicioTecnicoCiclotronsRoute: typeof ServicioTecnicoCiclotronsRoute
   ServicioTecnicoContratosRoute: typeof ServicioTecnicoContratosRoute
+  ServicioTecnicoEvaluacionesRoute: typeof ServicioTecnicoEvaluacionesRoute
   ServicioTecnicoOrdenesRoute: typeof ServicioTecnicoOrdenesRoute
   ServicioTecnicoPlantillasRoute: typeof ServicioTecnicoPlantillasRoute
   ServicioTecnicoProtocolosRoute: typeof ServicioTecnicoProtocolosRoute
@@ -875,6 +896,7 @@ const ServicioTecnicoRouteChildren: ServicioTecnicoRouteChildren = {
   ServicioTecnicoCatalogoRoute: ServicioTecnicoCatalogoRoute,
   ServicioTecnicoCiclotronsRoute: ServicioTecnicoCiclotronsRoute,
   ServicioTecnicoContratosRoute: ServicioTecnicoContratosRoute,
+  ServicioTecnicoEvaluacionesRoute: ServicioTecnicoEvaluacionesRoute,
   ServicioTecnicoOrdenesRoute: ServicioTecnicoOrdenesRoute,
   ServicioTecnicoPlantillasRoute: ServicioTecnicoPlantillasRoute,
   ServicioTecnicoProtocolosRoute: ServicioTecnicoProtocolosRoute,

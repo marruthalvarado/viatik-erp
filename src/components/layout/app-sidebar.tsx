@@ -97,6 +97,7 @@ const servicioTecnicoItems: NavItem[] = [
   { title: "Catálogo Equipos", url: "/servicio-tecnico/catalogo", icon: Stethoscope, modulo: "servicio_tecnico" },
   { title: "Protocolos MP", url: "/servicio-tecnico/protocolos", icon: BookMarked, modulo: "servicio_tecnico" },
   { title: "Ciclotrones", url: "/servicio-tecnico/ciclotrones", icon: Activity, modulo: "servicio_tecnico" },
+  { title: "Evaluaciones", url: "/servicio-tecnico/evaluaciones", icon: ClipboardList, modulo: "servicio_tecnico" },
 ];
 
 const systemItems: NavItem[] = [

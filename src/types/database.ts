@@ -5002,6 +5002,87 @@ export type Database = {
           },
         ];
       };
+      ciclo_evaluaciones: {
+        Row: {
+          id: string;
+          empresa_id: string;
+          "ciclotrón_id": string;
+          equipo_id: string | null;
+          numero: string;
+          fecha: string;
+          tipo_evaluacion: string;
+          ingeniero_nombre: string | null;
+          estado: string;
+          resultado_general: string | null;
+          tiene_deuterio: boolean;
+          modelo_pt: string | null;
+          version_sw: string | null;
+          datos_sitio: Record<string, unknown>;
+          datos_performance: Record<string, unknown>;
+          datos_evaluacion: Record<string, unknown>;
+          observaciones: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          empresa_id: string;
+          "ciclotrón_id": string;
+          equipo_id?: string | null;
+          numero: string;
+          fecha?: string;
+          tipo_evaluacion?: string;
+          ingeniero_nombre?: string | null;
+          estado?: string;
+          resultado_general?: string | null;
+          tiene_deuterio?: boolean;
+          modelo_pt?: string | null;
+          version_sw?: string | null;
+          datos_sitio?: Record<string, unknown>;
+          datos_performance?: Record<string, unknown>;
+          datos_evaluacion?: Record<string, unknown>;
+          observaciones?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          empresa_id?: string;
+          "ciclotrón_id"?: string;
+          equipo_id?: string | null;
+          numero?: string;
+          fecha?: string;
+          tipo_evaluacion?: string;
+          ingeniero_nombre?: string | null;
+          estado?: string;
+          resultado_general?: string | null;
+          tiene_deuterio?: boolean;
+          modelo_pt?: string | null;
+          version_sw?: string | null;
+          datos_sitio?: Record<string, unknown>;
+          datos_performance?: Record<string, unknown>;
+          datos_evaluacion?: Record<string, unknown>;
+          observaciones?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "ciclo_evaluaciones_empresa_id_fkey";
+            columns: ["empresa_id"];
+            isOneToOne: false;
+            referencedRelation: "empresas";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "ciclo_evaluaciones_ciclotrón_id_fkey";
+            columns: ["ciclotrón_id"];
+            isOneToOne: false;
+            referencedRelation: "ciclotrones";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
     };
     Enums: {
       [_ in never]: never;

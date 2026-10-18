@@ -197,3 +197,280 @@ export interface CicloAnomalia {
   severidad:    "warning" | "critical";
   hint:         string;  // Referencia al manual PETtrace 800
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EVALUACIONES DE CICLOTRÓN — DOC1604037 rev9
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Fila de la tabla isocrona (un paso de corriente de magneto) */
+export interface FilaIsocrona {
+  magnet: number;        // A
+  foil: number | null;   // µA
+  collLow: number | null;
+  target: number | null;
+  collUp: number | null;
+  sumColl?: number;      // calculado
+  ratio?: number;        // I-Coll/I-Target, calculado
+}
+
+/** Sub-test: Test Isocrono */
+export interface TestIsocrono {
+  posicion: number;                  // 1, 2, 3, 4, 5, 6
+  magnetStart: number;               // A
+  magnetStep: number;                // A (normalmente 0.2)
+  deeVoltage: number;                // kV
+  deltaVoltage: number;              // kV
+  vacuumPressure: number | null;     // mbar
+  gasFlow: number | null;            // sccm
+  isCurrentMA: number | null;        // mA
+  probeCurrentStart: number | null;  // µA
+  probeCurrentEnd: number | null;    // µA
+  filas: FilaIsocrona[];
+}
+
+/** Resultado del Phase-Analysis Tool (RF Performance) */
+export interface ResultadoPhaseAnalysis {
+  reflectedPowerP95: number | null;  // kW
+  anodeCurrentP95: number | null;    // A
+  screenCurrentP95: number | null;   // mA
+  dpaFwdVoltageP95: number | null;   // V
+  pass: boolean | null;
+}
+
+/** Tabla RF manual (equipos sin SCU Gen II) */
+export interface TablaRFManual {
+  deeVoltage1: { standby?: number; normalStartH?: number; normalEndH?: number; normalStartD?: number; normalEndD?: number };
+  deeVoltage2: { standby?: number; normalStartH?: number; normalEndH?: number; normalStartD?: number; normalEndD?: number };
+  forwardPower: { standby?: number; normalStartH?: number; normalEndH?: number; normalStartD?: number; normalEndD?: number };
+  reflectedPower: { standby?: number; normalStartH?: number; normalEndH?: number; normalStartD?: number; normalEndD?: number };
+  flap1: { standby?: number; normalStartH?: number; normalEndH?: number; normalStartD?: number; normalEndD?: number };
+  flap2: { standby?: number; normalStartH?: number; normalEndH?: number; normalStartD?: number; normalEndD?: number };
+  anodeVolt: { standby?: number; normalStartH?: number; normalEndH?: number; normalStartD?: number; normalEndD?: number };
+  anodeCurrent: { standby?: number; normalStartH?: number; normalEndH?: number; normalStartD?: number; normalEndD?: number };
+  screenCurrent: { standby?: number; normalStartH?: number; normalEndH?: number; normalStartD?: number; normalEndD?: number };
+}
+
+/** Sub-test: RF Performance */
+export interface TestRFPerformance {
+  modo: 'H' | 'D';
+  phaseAnalysis?: ResultadoPhaseAnalysis;
+  rfManual?: TablaRFManual;
+  anodeVoltageStandby?: number;    // kV — para Main Voltage Variation
+  anodeVoltagePass?: boolean | null;
+}
+
+/** Fila: I-arc vs Beam Current */
+export interface FilaIarcBeam {
+  targetCurrentUA: number;    // set point: 50, 100, 130
+  foilCurrentUA: number | null;
+  arcCurrentMA: number | null;
+  maxArcCurrentMA: number;    // límite GE
+  maxFoilCurrentUA: number;   // límite GE
+  pass?: boolean;
+}
+
+/** Fila: Ion Source Performance */
+export interface FilaIonSource {
+  isCurrentMA: number;         // 0, 50, 100, 200, 300, 400, 600, 800, 1000
+  probeCurrentH: number | null;
+  probeCurrentD: number | null;
+  maxProbeH: number;           // límite GE
+}
+
+/** Fila: Beam Transmission */
+export interface FilaTransmision {
+  targetCurrentUA: number;
+  foilCurrentUA: number | null;
+  probeInCurrentUA: number | null;
+  isCurrentMA: number | null;
+  transmissionToTarget?: number;  // %
+  transmissionToFoil?: number;    // %
+  passTarget?: boolean;
+  passFoil?: boolean;
+}
+
+/** Fila: Vacuum Tightness */
+export interface FilaVacioTightness {
+  gasFlowSccm: number;
+  chamberPressureMbar: number | null;
+  backingPressureMbar: number | null;
+  maxChamberMbar: number;
+  maxBackingMbar: number;
+}
+
+/** Fila: Vacuum Leak */
+export interface FilaVacioLeak {
+  timeSec: number;
+  pressureMbar: number | null;
+  maxLeakRate: number;
+}
+
+/** Datos Performance Test completo (Hoja 6) */
+export interface DatosPerformance {
+  isocronos: TestIsocrona[];      // array de 2 tests (pos 1-3 y pos 4-6)
+  rfProton?: TestRFPerformance;
+  rfDeuteron?: TestRFPerformance;  // solo si tiene_deuterio
+  mainVoltage?: { anodeVoltStandby: number | null; pass: boolean | null };
+  iarcVsBeam?: FilaIarcBeam[];
+  ionSource?: {
+    magnetCurrent: number;
+    deeVoltage: number;
+    deltaVoltage: number;
+    vacuum: number;
+    gasFlow: number;
+    filas: FilaIonSource[];
+  };
+  transmision?: FilaTransmision[];
+  vacuumTightness?: FilaVacioTightness[];
+  vacuumLeak?: FilaVacioLeak[];
+}
+
+// Alias para el array de isochronous (plural correcto)
+export type TestIsocrona = TestIsocrono;
+
+/** Datos de una producción dual beam (Hoja 7) */
+export interface ProduccionDualBeam {
+  numero: number;   // 1 a 10
+  site?: string;
+  batch?: string;
+  target?: string;
+  fecha?: string;
+  configuracion?: string;
+  // Parámetros del Beam Evaluator Tool
+  anodeCurrentHigh?: number;
+  anodeCurrentLimitEvents?: number;
+  anodeVoltageAvg?: number;
+  balanceAvg?: number;
+  balanceMax?: number;
+  balanceMin?: number;
+  balanceVariation?: number;
+  dee1Avg?: number;
+  dee1Variation?: number;
+  dee2Avg?: number;
+  dee2Variation?: number;
+  dpaFwdVoltHigh?: number;
+  flap1Avg?: number;
+  flap1Max?: number;
+  flap1Min?: number;
+  flap1Variation?: number;
+  flap2Avg?: number;
+  flap2Max?: number;
+  flap2Min?: number;
+  flap2Variation?: number;
+  gasFlowAvg?: number;
+  gasFlowVariance?: number;
+  isAvg?: number;
+  isMax?: number;
+  isVariation?: number;
+  magnetWorkingDiffAvg?: number;
+  magnetWorkingPointAvg?: number;
+  phaseErrorVariation?: number;
+  phaseLoadMax?: number;
+  phaseLoadMin?: number;
+  probeCurAvg?: number;
+  reflectedPowerHigh?: number;
+  reflectedVoltLimitEvents?: number;
+  residualBeamHigh?: number;
+  rfApparentPowerAvg?: number;
+  screenCurrentHigh?: number;
+  vacuumAvg?: number;
+  vacuumVariation?: number;
+  // Por posición activa
+  pos?: Record<string, {
+    beamBalanceHigh?: number;
+    beamBalanceLow?: number;
+    collimatorPctHigh?: number;
+    extractionPosAvg?: number;
+    extractionPosVariation?: number;
+    foilCurrentVariation?: number;
+    lossToTargetHigh?: number;
+    lossToTargetLow?: number;
+    lowerCollAvg?: number;
+    lowerCollVariation?: number;
+    targetCurrentAvg?: number;
+    targetCurrentErrorAvg?: number;
+    targetCurrentMax?: number;
+    targetCurrentVariation?: number;
+    upperCollAvg?: number;
+    upperCollVariation?: number;
+  }>;
+}
+
+/** Datos Inspección de Sitio (Hojas 1-5 condensadas) */
+export interface DatosSitio {
+  // Site Info (H1)
+  anioInstalacion?: number;
+  clienteNombre?: string;
+  sitioNombre?: string;
+  sitioAddress?: string;
+  siteManagerNombre?: string;
+  contactoDetalles?: string;
+  ciclotrónSystemId?: string;
+  ciclotrónSerial?: string;
+  localFeName?: string;
+  voltajeHertz?: string;
+  tieneUPS?: string;
+  // Master Room (H2)
+  ptRelease?: string;
+  acsVersion?: string;
+  pssVersion?: string;
+  masterStationModel?: string;
+  licenciaUA?: number;
+  // Equipment Room (H3)
+  tempCuartoEquipos?: number;
+  humedadCuartoEquipos?: number;
+  vacuumPressureStandby?: number;
+  vacuumPressureBeamOn?: number;
+  acuVersion?: string;
+  // Cyclotron Room (H4)
+  radiacion100cm?: number;
+  radiacion30cm1?: number;
+  radiacion30cm2?: number;
+  radiacion0cm1?: number;
+  radiacion0cm2?: number;
+  radiacion0cm3?: number;
+  radiacion0cm4?: number;
+  tiempoDesdeProduccion?: number;
+  tempCuartoCiclotrón?: number;
+  humedadCuartoCiclotrón?: number;
+  targetPos1?: string;
+  targetPos2?: string;
+  targetPos3?: string;
+  targetPos4?: string;
+  targetPos5?: string;
+  targetPos6?: string;
+  ltfTipo?: string;
+  ltfCantidad?: number;
+  // Other Info (H5)
+  bajoContrato?: boolean;
+  vencimientoContrato?: string;
+  utilizacionPromedio18F?: number;
+  corrientePromedio18F?: number;
+  estadoSistema?: string;
+  satisfaccionCliente?: string;
+  problemasConocidos?: string;
+  observacionesAdicionales?: string;
+}
+
+/** Entidad principal: Evaluación de ciclotrón */
+export interface CicloEvaluacion {
+  id: string;
+  empresa_id: string;
+  ciclotrón_id: string;
+  equipo_id: string | null;
+  numero: string;
+  fecha: string;
+  tipo_evaluacion: 'assessment' | 'upgrade_eval' | 'eosss' | '10yr_refurbish';
+  ingeniero_nombre: string | null;
+  estado: 'borrador' | 'en_progreso' | 'completado';
+  resultado_general: 'pass' | 'fail' | 'pendiente' | null;
+  tiene_deuterio: boolean;
+  modelo_pt: string | null;
+  version_sw: string | null;
+  datos_sitio: DatosSitio;
+  datos_performance: DatosPerformance;
+  datos_evaluacion: { producciones: ProduccionDualBeam[] };
+  observaciones: string | null;
+  created_at: string;
+  updated_at: string;
+}
