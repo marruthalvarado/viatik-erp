@@ -186,18 +186,19 @@ function buildDefaultFilas(magnetStart = 100, n = 10): FilaIsocrona[] {
 function TestIsocronosPanel({ datos, onChange }: { datos: DatosPerformance; onChange: (d: DatosPerformance) => void }) {
   const [grupo, setGrupo] = useState(0); // 0=pos1-3, 1=pos4-6
 
-  const test = datos.isocronos?.[grupo] ?? {
-    posicion: grupo === 0 ? 1 : 4,
+  const defaultTest = (g: number) => ({
+    posicion: g === 0 ? 1 : 4,
     magnetStart: 100, magnetStep: 0.2,
     deeVoltage: 38, deltaVoltage: 4.5,
     vacuumPressure: null, gasFlow: null, isCurrentMA: null,
     probeCurrentStart: null, probeCurrentEnd: null,
     filas: buildDefaultFilas(100, 10),
-  };
+  });
+
+  const test = datos.isocronos?.[grupo] ?? defaultTest(grupo);
 
   function updateTest(patch: Partial<typeof test>) {
     let updated = { ...test, ...patch };
-    // Cuando cambia magnetStart o magnetStep, recalcular la columna Magneto (A)
     if ("magnetStart" in patch || "magnetStep" in patch) {
       const start = updated.magnetStart ?? 100;
       const step  = updated.magnetStep  ?? 0.2;
@@ -206,7 +207,7 @@ function TestIsocronosPanel({ datos, onChange }: { datos: DatosPerformance; onCh
         magnet: Math.round((start + i * step) * 100) / 100,
       }));
     }
-    const arr = [...(datos.isocronos ?? [{}, {}])];
+    const arr = [...(datos.isocronos ?? [defaultTest(0), defaultTest(1)])];
     arr[grupo] = updated;
     onChange({ ...datos, isocronos: arr as DatosPerformance["isocronos"] });
   }
@@ -215,6 +216,22 @@ function TestIsocronosPanel({ datos, onChange }: { datos: DatosPerformance; onCh
     const filas = [...(test.filas ?? [])];
     filas[idx] = { ...filas[idx], [key]: val === "" ? null : Number(val) };
     updateTest({ filas });
+  }
+
+  function addFila() {
+    const filas = [...(test.filas ?? [])];
+    const lastMagnet = filas.length > 0 ? (filas[filas.length - 1].magnet ?? 0) : (test.magnetStart ?? 100);
+    const step = test.magnetStep ?? 0.2;
+    filas.push({ magnet: Math.round((lastMagnet + step) * 100) / 100, foil: null, collLow: null, target: null, collUp: null });
+    updateTest({ filas });
+  }
+
+  function removeFila() {
+    const filas = [...(test.filas ?? [])];
+    if (filas.length > 1) {
+      filas.pop();
+      updateTest({ filas });
+    }
   }
 
   // Gráfico
@@ -245,19 +262,22 @@ function TestIsocronosPanel({ datos, onChange }: { datos: DatosPerformance; onCh
       <InstruccionesCaja lines={[
         "Con el haz activo en la posición seleccionada, variar la corriente del magneto en pasos de 0.2 A.",
         "Para cada paso registrar: corriente Foil, Coll-Low, Target y Coll-Up en µA.",
-        "Calcular ratio = (Coll-Low + Coll-Up) / Target × 100%. Límite: < 5%.",
+        "Calcular ratio = (Coll-Low + Coll-Up) / 2 / Target × 100%. Límite: < 5%.",
         "Graficar todas las corrientes vs corriente de magneto para identificar el punto isocrono.",
       ]} />
 
       {/* Condiciones iniciales */}
       <div className="grid grid-cols-4 gap-3">
         {[
-          { key: "magnetStart", label: "Magneto inicio (A)", step: "0.1" },
-          { key: "deeVoltage",  label: "Dee Volt (kV)", step: "0.1" },
-          { key: "deltaVoltage", label: "ΔVoltage (kV)", step: "0.1" },
-          { key: "vacuumPressure", label: "Vacío (mbar)", step: "0.0001" },
-          { key: "gasFlow",     label: "Gas flow (sccm)", step: "0.1" },
-          { key: "isCurrentMA", label: "IS current (mA)", step: "1" },
+          { key: "posicion",        label: "Target position",   step: "1" },
+          { key: "magnetStart",     label: "Magneto inicio (A)", step: "0.1" },
+          { key: "deeVoltage",      label: "Dee Volt (kV)",     step: "0.1" },
+          { key: "deltaVoltage",    label: "ΔVoltage (kV)",     step: "0.1" },
+          { key: "vacuumPressure",  label: "Vacío (mbar)",      step: "0.0000001" },
+          { key: "gasFlow",         label: "Gas flow (sccm)",   step: "0.1" },
+          { key: "isCurrentMA",     label: "IS current (mA)",   step: "1" },
+          { key: "probeCurrentStart", label: "Probe I start (µA)", step: "0.1" },
+          { key: "probeCurrentEnd",   label: "Probe I end (µA)",   step: "0.1" },
         ].map(({ key, label, step }) => (
           <div key={key} className="space-y-1">
             <Label className="text-xs">{label}</Label>
@@ -283,7 +303,8 @@ function TestIsocronosPanel({ datos, onChange }: { datos: DatosPerformance; onCh
           <tbody>
             {(test.filas ?? buildDefaultFilas(test.magnetStart ?? 100, 10)).map((f, i) => {
               const sumColl = (f.collLow ?? 0) + (f.collUp ?? 0);
-              const ratio = f.target ? (sumColl / f.target) * 100 : null;
+              // Ratio = promedio Coll / Target × 100  (igual que Excel)
+              const ratio = f.target ? (sumColl / 2 / f.target) * 100 : null;
               const pass = ratio != null ? ratio < 5 : null;
               return (
                 <tr key={i} className="border-t hover:bg-muted/30">
@@ -297,14 +318,25 @@ function TestIsocronosPanel({ datos, onChange }: { datos: DatosPerformance; onCh
                         value={f[k] ?? ""} onChange={e => updateFila(i, k, e.target.value)} />
                     </td>
                   ))}
-                  <td className="px-2 py-1 text-muted-foreground">{sumColl > 0 ? sumColl.toFixed(1) : "—"}</td>
-                  <td className="px-2 py-1 text-muted-foreground">{ratio != null ? ratio.toFixed(2) : "—"}</td>
+                  <td className="px-2 py-1 text-muted-foreground">{sumColl > 0 ? sumColl.toFixed(2) : "—"}</td>
+                  <td className="px-2 py-1 text-muted-foreground">{ratio != null ? ratio.toFixed(1) + "%" : "—"}</td>
                   <td className="px-2 py-1"><PassBadge pass={pass} /></td>
                 </tr>
               );
             })}
           </tbody>
         </table>
+      </div>
+
+      {/* Botones filas */}
+      <div className="flex gap-2">
+        <Button type="button" variant="outline" size="sm" onClick={addFila} className="text-xs gap-1">
+          + Añadir fila
+        </Button>
+        <Button type="button" variant="ghost" size="sm" onClick={removeFila} className="text-xs text-red-500 hover:text-red-700"
+          disabled={(test.filas?.length ?? 0) <= 1}>
+          − Quitar última
+        </Button>
       </div>
 
       {/* Gráfico */}

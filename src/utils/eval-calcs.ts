@@ -17,7 +17,7 @@ export function calcIsocronos(datos: DatosPerformance): boolean | null {
   const checked = allFilas.filter((f: FilaIsocrona) => f.target && f.target > 0);
   if (!checked.length) return null;
   return checked.every((f: FilaIsocrona) => {
-    const ratio = (((f.collLow ?? 0) + (f.collUp ?? 0)) / (f.target ?? 1)) * 100;
+    const ratio = (((f.collLow ?? 0) + (f.collUp ?? 0)) / 2 / (f.target ?? 1)) * 100;
     return ratio < 5;
   });
 }
