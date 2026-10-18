@@ -482,9 +482,9 @@ function TestRFPanel({ datos, onChange, modo, modeloPt }: {
 function TestMainVoltage({ datos, onChange }: { datos: DatosPerformance; onChange: (d: DatosPerformance) => void }) {
   const mv = datos.mainVoltage ?? { anodeVoltStandby: null, pass: null };
 
-  // Pass: Anode voltage en standby entre 0.35–0.45 kV
+  // Pass: Anode voltage en standby entre 7.4–8.2 kV (SCU GEN2, según Excel DOC1604037)
   const pass = mv.anodeVoltStandby != null
-    ? mv.anodeVoltStandby >= 0.35 && mv.anodeVoltStandby <= 0.45
+    ? mv.anodeVoltStandby >= 7.4 && mv.anodeVoltStandby <= 8.2
     : null;
 
   function update(v: number | null) {
@@ -500,8 +500,8 @@ function TestMainVoltage({ datos, onChange }: { datos: DatosPerformance; onChang
 
       <InstruccionesCaja lines={[
         "Con el ciclotrón en Standby (sin haz), leer el voltaje del ánodo (PSARC PS/GEMS-02A).",
-        "El voltaje del ánodo en standby debe estar entre 0.35 – 0.45 kV para PASS.",
-        "SM-Acc §5-2: voltaje de arco típico ~0.4 kV, máximo 2 kV, corriente máx. 1.3 A.",
+        "El voltaje del ánodo en standby debe estar entre 7.4 – 8.2 kV para PASS.",
+        "SM-Acc §5-2: voltaje de arco típico ~7.9 kV, rango aceptable 7.4 – 8.2 kV.",
         "Verificar también que la variación de tensión de la fuente principal sea < ±2%.",
       ]} />
 
@@ -510,7 +510,7 @@ function TestMainVoltage({ datos, onChange }: { datos: DatosPerformance; onChang
           <Label className="text-xs">Voltaje ánodo standby (kV)</Label>
           <PassBadge pass={pass} />
         </div>
-        <p className="text-xs text-muted-foreground">Límite: 0.35 – 0.45 kV</p>
+        <p className="text-xs text-muted-foreground">Límite: 7.4 – 8.2 kV</p>
         <Input
           type="number" step="0.01"
           value={mv.anodeVoltStandby ?? ""}
