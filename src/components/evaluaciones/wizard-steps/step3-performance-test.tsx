@@ -811,6 +811,9 @@ function fmtE(v: number | null | undefined): string {
 }
 
 function TestVacuumTight({ datos, onChange }: { datos: DatosPerformance; onChange: (d: DatosPerformance) => void }) {
+  // rawInputs mantiene el texto crudo mientras el usuario escribe (evita perder "1." o "1.9E")
+  const [rawInputs, setRawInputs] = useState<Record<string, string>>({});
+
   const defaultFilas = Array.from({ length: 10 }, (_, i) => {
     const flow = i + 1;
     return {
@@ -831,11 +834,40 @@ function TestVacuumTight({ datos, onChange }: { datos: DatosPerformance; onChang
       }))
     : defaultFilas;
 
-  function updateFila(idx: number, key: string, val: string) {
-    const parsed = val === "" ? null : Number(val);
+  // Actualiza el padre solo con valores numéricos válidos
+  function commitFila(idx: number, key: string, raw: string) {
+    const parsed = raw === "" ? null : Number(raw);
+    const value = parsed == null || isNaN(parsed) ? null : parsed;
     const arr = [...filas];
-    arr[idx] = { ...arr[idx], [key]: parsed == null || isNaN(parsed) ? null : parsed };
+    arr[idx] = { ...arr[idx], [key]: value };
     onChange({ ...datos, vacuumTightness: arr });
+  }
+
+  function handleChange(idx: number, key: string, val: string) {
+    const k = `${idx}-${key}`;
+    setRawInputs(prev => ({ ...prev, [k]: val }));
+    // Commit inmediato solo si ya es un número válido (no en medio de "1.9E-")
+    const parsed = Number(val);
+    if (val === "" || !isNaN(parsed)) {
+      commitFila(idx, key, val);
+    }
+  }
+
+  function handleBlur(idx: number, key: string) {
+    const k = `${idx}-${key}`;
+    const raw = rawInputs[k];
+    if (raw !== undefined) {
+      commitFila(idx, key, raw);
+      setRawInputs(prev => { const n = { ...prev }; delete n[k]; return n; });
+    }
+  }
+
+  // Valor a mostrar: texto crudo si el usuario está escribiendo, sino el número formateado
+  function displayVal(idx: number, key: string, stored: number | null): string {
+    const k = `${idx}-${key}`;
+    if (k in rawInputs) return rawInputs[k];
+    if (stored == null || isNaN(stored)) return "";
+    return String(stored); // JavaScript convierte 1.9e-5 → "0.000019" que es legible
   }
 
   // Gráficos: siempre los 10 puntos; curva roja siempre visible
@@ -865,7 +897,7 @@ function TestVacuumTight({ datos, onChange }: { datos: DatosPerformance; onChang
       <InstruccionesCaja lines={[
         "Inyectar H₂ a caudales de 1 a 10 sccm (de 1 en 1) y registrar presión de cámara y respaldo.",
         "PASS: la curva medida (azul) debe quedar por debajo de la curva límite (roja) en ambos gráficos.",
-        "Los límites por caudal siguen la curva de referencia del Excel (DOC1604037).",
+        "Puedes ingresar en notación científica (ej. 1.9E-5) o decimal (ej. 0.000019).",
         "Si la presión de cámara supera el límite, verificar la bomba de difusión y el caudal de gas.",
       ]} />
 
@@ -885,19 +917,21 @@ function TestVacuumTight({ datos, onChange }: { datos: DatosPerformance; onChang
               ? f.backingPressureMbar <= f.maxBackingMbar : null;
             const pass = passC === false || passB === false ? false
               : passC === true || passB === true ? true : null;
-            const cVal = f.chamberPressureMbar != null && !isNaN(f.chamberPressureMbar) ? f.chamberPressureMbar : null;
-            const bVal = f.backingPressureMbar != null && !isNaN(f.backingPressureMbar) ? f.backingPressureMbar : null;
             return (
               <tr key={i} className="border-t hover:bg-muted/30">
                 <td className="px-2 py-1.5 font-medium">{f.gasFlowSccm}</td>
                 <td className="px-2 py-1.5">
-                  <Input type="text" className="h-7 w-24 text-xs px-1" placeholder="ej. 1.3E-5"
-                    value={cVal ?? ""} onChange={e => updateFila(i, "chamberPressureMbar", e.target.value)} />
+                  <Input type="text" className="h-7 w-24 text-xs px-1" placeholder="ej. 1.9E-5"
+                    value={displayVal(i, "chamberPressureMbar", f.chamberPressureMbar)}
+                    onChange={e => handleChange(i, "chamberPressureMbar", e.target.value)}
+                    onBlur={() => handleBlur(i, "chamberPressureMbar")} />
                 </td>
                 <td className="px-2 py-1.5 text-muted-foreground">{fmtE(f.maxChamberMbar)}</td>
                 <td className="px-2 py-1.5">
                   <Input type="text" className="h-7 w-24 text-xs px-1" placeholder="ej. 1.3E-2"
-                    value={bVal ?? ""} onChange={e => updateFila(i, "backingPressureMbar", e.target.value)} />
+                    value={displayVal(i, "backingPressureMbar", f.backingPressureMbar)}
+                    onChange={e => handleChange(i, "backingPressureMbar", e.target.value)}
+                    onBlur={() => handleBlur(i, "backingPressureMbar")} />
                 </td>
                 <td className="px-2 py-1.5 text-muted-foreground">{fmtE(f.maxBackingMbar)}</td>
                 <td className="px-2 py-1.5"><PassBadge pass={pass} /></td>
