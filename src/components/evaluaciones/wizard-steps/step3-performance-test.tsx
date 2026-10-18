@@ -140,8 +140,8 @@ export function Step3PerformanceTest({ evaluacion, onNext, onBack }: Props) {
       {/* ── Panel principal ──────────────────────────────── */}
       <div className="flex-1 min-w-0">
         {activeTab === "isocronos"   && <TestIsocronosPanel datos={datos} onChange={setDatos} />}
-        {activeTab === "rfProton"    && <TestRFPanel datos={datos} onChange={setDatos} modo="H" />}
-        {activeTab === "rfDeuteron"  && <TestRFPanel datos={datos} onChange={setDatos} modo="D" />}
+        {activeTab === "rfProton"    && <TestRFPanel datos={datos} onChange={setDatos} modo="H" modeloPt={evaluacion.modelo_pt ?? ""} />}
+        {activeTab === "rfDeuteron"  && <TestRFPanel datos={datos} onChange={setDatos} modo="D" modeloPt={evaluacion.modelo_pt ?? ""} />}
         {activeTab === "mainVoltage" && <TestMainVoltage datos={datos} onChange={setDatos} />}
         {activeTab === "iarcVsBeam"  && <TestIarcBeam datos={datos} onChange={setDatos} />}
         {activeTab === "ionSource"   && <TestIonSource datos={datos} onChange={setDatos} />}
@@ -364,7 +364,24 @@ function TestIsocronosPanel({ datos, onChange }: { datos: DatosPerformance; onCh
 
 // ── 2 & 3. RF Performance ─────────────────────────────────────────────────────
 
-function TestRFPanel({ datos, onChange, modo }: { datos: DatosPerformance; onChange: (d: DatosPerformance) => void; modo: "H" | "D" }) {
+function getRFLimits(modeloPt: string) {
+  // Límites según modelo (DOC1604037 rev9, hoja RF Performance)
+  if (modeloPt.toUpperCase().includes("880")) {
+    return { reflectedPowerP95: 1.0, anodeCurrentP95: 3.0, screenCurrentP95: 120, dpaFwdVoltageP95: 110 };
+  }
+  if (modeloPt.toUpperCase().includes("860")) {
+    return { reflectedPowerP95: 1.0, anodeCurrentP95: 2.8, screenCurrentP95: 120, dpaFwdVoltageP95: 100 };
+  }
+  // Default conservador (PT860)
+  return { reflectedPowerP95: 1.0, anodeCurrentP95: 2.8, screenCurrentP95: 120, dpaFwdVoltageP95: 100 };
+}
+
+function TestRFPanel({ datos, onChange, modo, modeloPt }: {
+  datos: DatosPerformance;
+  onChange: (d: DatosPerformance) => void;
+  modo: "H" | "D";
+  modeloPt: string;
+}) {
   const key = modo === "H" ? "rfProton" : "rfDeuteron";
   const rf = datos[key] ?? { modo, phaseAnalysis: {} };
   const pa = rf.phaseAnalysis ?? {};
@@ -374,13 +391,8 @@ function TestRFPanel({ datos, onChange, modo }: { datos: DatosPerformance; onCha
     onChange({ ...datos, [key]: updated });
   }
 
-  // Criterios Pass (límites GE)
-  const limits = {
-    reflectedPowerP95: 2.0,    // kW máx
-    anodeCurrentP95:   0.8,    // A máx
-    screenCurrentP95:  40,     // mA máx
-    dpaFwdVoltageP95:  90,     // V máx
-  };
+  // Criterios Pass según modelo (DOC1604037 rev9)
+  const limits = getRFLimits(modeloPt);
 
   const passReflPow = pa.reflectedPowerP95 != null ? pa.reflectedPowerP95 <= limits.reflectedPowerP95 : null;
   const passAnode   = pa.anodeCurrentP95   != null ? pa.anodeCurrentP95   <= limits.anodeCurrentP95   : null;
