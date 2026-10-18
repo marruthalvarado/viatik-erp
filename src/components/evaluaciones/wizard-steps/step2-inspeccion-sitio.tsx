@@ -49,8 +49,9 @@ export function Step2InspeccionSitio({ evaluacion, onNext, onBack }: Props) {
         </span>
       </div>
 
+
       {/* ── 1. Site Info ─────────────────────────────────────────────────── */}
-      {seccionHeader("1. Site Info", "DOC1604037 — Tab 1.Site info")}
+      {seccionHeader("1. Site Info")}
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1">
           <Label className="text-xs">Año de instalación</Label>
@@ -95,7 +96,7 @@ export function Step2InspeccionSitio({ evaluacion, onNext, onBack }: Props) {
       </div>
 
       {/* ── 2. Master Room ───────────────────────────────────────────────── */}
-      {seccionHeader("2. Master Room", "DOC1604037 — Tab 2.Master room")}
+      {seccionHeader("2. Master Room")}
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1">
           <Label className="text-xs">PT Release (versión software)</Label>
@@ -120,7 +121,7 @@ export function Step2InspeccionSitio({ evaluacion, onNext, onBack }: Props) {
       </div>
 
       {/* ── 3. Equipment Room ────────────────────────────────────────────── */}
-      {seccionHeader("3. Equipment Room", "DOC1604037 — Tab 3.Equipment room")}
+      {seccionHeader("3. Equipment Room")}
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1">
           <Label className="text-xs">Temperatura sala equipos (°C)</Label>
@@ -145,7 +146,7 @@ export function Step2InspeccionSitio({ evaluacion, onNext, onBack }: Props) {
       </div>
 
       {/* ── 4. Cyclotron Room ────────────────────────────────────────────── */}
-      {seccionHeader("4. Cyclotron Room", "DOC1604037 — Tab 4.Cyclotron room")}
+      {seccionHeader("4. Cyclotron Room")}
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1">
           <Label className="text-xs">Tiempo desde última producción (h)</Label>
@@ -216,7 +217,7 @@ export function Step2InspeccionSitio({ evaluacion, onNext, onBack }: Props) {
       </div>
 
       {/* ── 5. Other Info ────────────────────────────────────────────────── */}
-      {seccionHeader("5. Other Info", "DOC1604037 — Tab 5.Other Info")}
+      {seccionHeader("5. Other Info")}
       <div className="grid grid-cols-2 gap-4">
         <div className="flex items-center gap-3 col-span-2">
           <Switch

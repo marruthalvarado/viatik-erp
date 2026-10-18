@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -101,6 +102,8 @@ export function Step3PerformanceTest({ evaluacion, onNext, onBack }: Props) {
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Sub-tests</p>
         {visibleSubtests.map(st => {
           const r = resultados[st.id as keyof typeof resultados];
+          const isSkipped = (st.id === "rfProton" && datos.rfProton?.skipped)
+            || (st.id === "rfDeuteron" && datos.rfDeuteron?.skipped);
           return (
             <button
               key={st.id}
@@ -114,9 +117,11 @@ export function Step3PerformanceTest({ evaluacion, onNext, onBack }: Props) {
             >
               <span className="truncate">{st.label}</span>
               <span className="flex-none">
-                {r === true ? <CheckCircle2 className="h-3.5 w-3.5 text-green-400" />
-                 : r === false ? <XCircle className="h-3.5 w-3.5 text-red-400" />
-                 : <Clock className="h-3.5 w-3.5 opacity-40" />}
+                {isSkipped
+                  ? <span className="text-[10px] text-muted-foreground font-medium opacity-70">—</span>
+                  : r === true ? <CheckCircle2 className="h-3.5 w-3.5 text-green-400" />
+                  : r === false ? <XCircle className="h-3.5 w-3.5 text-red-400" />
+                  : <Clock className="h-3.5 w-3.5 opacity-40" />}
               </span>
             </button>
           );
@@ -193,7 +198,8 @@ function calcIsocronos(datos: DatosPerformance): boolean | null {
   });
 }
 
-function calcRF(rf?: { phaseAnalysis?: { reflectedPowerP95: number | null; anodeCurrentP95: number | null; screenCurrentP95: number | null; dpaFwdVoltageP95: number | null; pass: boolean | null } }): boolean | null {
+function calcRF(rf?: { skipped?: boolean; phaseAnalysis?: { reflectedPowerP95: number | null; anodeCurrentP95: number | null; screenCurrentP95: number | null; dpaFwdVoltageP95: number | null; pass: boolean | null } }): boolean | null {
+  if (rf?.skipped) return true;
   return rf?.phaseAnalysis?.pass ?? null;
 }
 
@@ -240,9 +246,9 @@ function calcVacuumLeak(filas: { pressureMbar?: number | null }[]): boolean | nu
 
 // ── 1. Isochronous test ───────────────────────────────────────────────────────
 
-function buildDefaultFilas(n = 10): FilaIsocrona[] {
+function buildDefaultFilas(magnetStart = 100, n = 10): FilaIsocrona[] {
   return Array.from({ length: n }, (_, i) => ({
-    magnet: 100 + i * 0.2,
+    magnet: Math.round((magnetStart + i * 0.2) * 100) / 100,
     foil: null, collLow: null, target: null, collUp: null,
   }));
 }
@@ -256,12 +262,22 @@ function TestIsocronosPanel({ datos, onChange }: { datos: DatosPerformance; onCh
     deeVoltage: 38, deltaVoltage: 4.5,
     vacuumPressure: null, gasFlow: null, isCurrentMA: null,
     probeCurrentStart: null, probeCurrentEnd: null,
-    filas: buildDefaultFilas(10),
+    filas: buildDefaultFilas(100, 10),
   };
 
   function updateTest(patch: Partial<typeof test>) {
+    let updated = { ...test, ...patch };
+    // Cuando cambia magnetStart o magnetStep, recalcular la columna Magneto (A)
+    if ("magnetStart" in patch || "magnetStep" in patch) {
+      const start = updated.magnetStart ?? 100;
+      const step  = updated.magnetStep  ?? 0.2;
+      updated.filas = (updated.filas ?? []).map((f, i) => ({
+        ...f,
+        magnet: Math.round((start + i * step) * 100) / 100,
+      }));
+    }
     const arr = [...(datos.isocronos ?? [{}, {}])];
-    arr[grupo] = { ...test, ...patch };
+    arr[grupo] = updated;
     onChange({ ...datos, isocronos: arr as DatosPerformance["isocronos"] });
   }
 
@@ -335,7 +351,7 @@ function TestIsocronosPanel({ datos, onChange }: { datos: DatosPerformance; onCh
             </tr>
           </thead>
           <tbody>
-            {(test.filas ?? buildDefaultFilas(10)).map((f, i) => {
+            {(test.filas ?? buildDefaultFilas(test.magnetStart ?? 100, 10)).map((f, i) => {
               const sumColl = (f.collLow ?? 0) + (f.collUp ?? 0);
               const ratio = f.target ? (sumColl / f.target) * 100 : null;
               const pass = ratio != null ? ratio < 5 : null;
@@ -425,43 +441,64 @@ function TestRFPanel({ datos, onChange, modo }: { datos: DatosPerformance; onCha
     { key: "dpaFwdVoltageP95",  label: "DPA FWD Voltage P95 (V)",  limit: `≤ ${limits.dpaFwdVoltageP95}`,  pass: passDPA     },
   ] as const;
 
+  const skipped = rf.skipped ?? false;
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <h3 className="font-semibold">RF Performance — modo {modo === "H" ? "H⁻ (Protón)" : "D⁻ (Deuterón)"}</h3>
-        <PassBadge pass={passAll} />
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <h3 className="font-semibold">RF Performance — modo {modo === "H" ? "H⁻ (Protón)" : "D⁻ (Deuterón)"}</h3>
+          {skipped
+            ? <Badge variant="outline" className="text-xs">No realizado</Badge>
+            : <PassBadge pass={passAll} />}
+        </div>
+        <div className="flex items-center gap-2">
+          <Label className="text-xs text-muted-foreground">No realizado</Label>
+          <Switch
+            checked={skipped}
+            onCheckedChange={v => onChange({ ...datos, [key]: { ...rf, skipped: v } })}
+          />
+        </div>
       </div>
 
-      <InstruccionesCaja lines={[
-        modo === "H"
-          ? "Iniciar producción en modo H⁻ a la corriente de licencia máxima."
-          : "Cambiar a modo D⁻ y realizar producción a 40 µA.",
-        "Ejecutar el Phase Analysis Tool (Beam Evaluator Tool) durante la producción.",
-        "Exportar el reporte y registrar los valores P95 de cada parámetro.",
-        "Los valores P95 deben estar por debajo de los límites indicados para PASS.",
-      ]} />
+      {skipped ? (
+        <div className="rounded-lg border border-muted bg-muted/30 p-4 text-sm text-muted-foreground text-center">
+          Este test fue marcado como "No realizado" y no se incluirá en el reporte PDF.
+        </div>
+      ) : (
+        <>
+          <InstruccionesCaja lines={[
+            modo === "H"
+              ? "Iniciar producción en modo H⁻ a la corriente de licencia máxima."
+              : "Cambiar a modo D⁻ y realizar producción a 40 µA.",
+            "Ejecutar el Phase Analysis Tool (Beam Evaluator Tool) durante la producción.",
+            "Exportar el reporte y registrar los valores P95 de cada parámetro.",
+            "Los valores P95 deben estar por debajo de los límites indicados para PASS.",
+          ]} />
 
-      <div className="grid grid-cols-2 gap-4">
-        {fields.map(f => (
-          <div key={f.key} className="border rounded-lg p-3 space-y-2">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs font-medium">{f.label}</Label>
-              <PassBadge pass={f.pass} />
-            </div>
-            <p className="text-xs text-muted-foreground">Límite: {f.limit}</p>
-            <Input
-              type="number" step="0.01"
-              value={(pa as Record<string, unknown>)[f.key] as string ?? ""}
-              onChange={e => updatePA({ [f.key]: e.target.value === "" ? null : Number(e.target.value) } as typeof pa)}
-            />
+          <div className="grid grid-cols-2 gap-4">
+            {fields.map(f => (
+              <div key={f.key} className="border rounded-lg p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-medium">{f.label}</Label>
+                  <PassBadge pass={f.pass} />
+                </div>
+                <p className="text-xs text-muted-foreground">Límite: {f.limit}</p>
+                <Input
+                  type="number" step="0.01"
+                  value={(pa as Record<string, unknown>)[f.key] as string ?? ""}
+                  onChange={e => updatePA({ [f.key]: e.target.value === "" ? null : Number(e.target.value) } as typeof pa)}
+                />
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      <div className="flex items-center gap-3 pt-2">
-        <span className="text-sm font-medium">Resultado RF {modo}:</span>
-        <PassBadge pass={passAll} />
-      </div>
+          <div className="flex items-center gap-3 pt-2">
+            <span className="text-sm font-medium">Resultado RF {modo}:</span>
+            <PassBadge pass={passAll} />
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -727,9 +764,12 @@ function TestTransmision({ datos, onChange }: { datos: DatosPerformance; onChang
 // ── 8. Vacuum Tightness ───────────────────────────────────────────────────────
 
 function TestVacuumTight({ datos, onChange }: { datos: DatosPerformance; onChange: (d: DatosPerformance) => void }) {
-  const defaultFilas = [1.0, 2.0, 5.0].map(gasFlowSccm => ({
-    gasFlowSccm, chamberPressureMbar: null, backingPressureMbar: null,
-    maxChamberMbar: 5e-5, maxBackingMbar: 4e-1,
+  const defaultFilas = Array.from({ length: 10 }, (_, i) => ({
+    gasFlowSccm: i + 1,
+    chamberPressureMbar: null as number | null,
+    backingPressureMbar: null as number | null,
+    maxChamberMbar: 5e-5,
+    maxBackingMbar: 4e-1,
   }));
   const filas = datos.vacuumTightness?.length ? datos.vacuumTightness : defaultFilas;
 
@@ -739,12 +779,19 @@ function TestVacuumTight({ datos, onChange }: { datos: DatosPerformance; onChang
     onChange({ ...datos, vacuumTightness: arr });
   }
 
+  const chartDataChamber = filas
+    .filter(f => f.chamberPressureMbar != null)
+    .map(f => ({ gasFlow: f.gasFlowSccm, "P-Cámara": f.chamberPressureMbar, Límite: 5e-5 }));
+  const chartDataBacking = filas
+    .filter(f => f.backingPressureMbar != null)
+    .map(f => ({ gasFlow: f.gasFlowSccm, "P-Respaldo": f.backingPressureMbar, Límite: 4e-1 }));
+
   return (
     <div className="space-y-4">
       <h3 className="font-semibold">8. Vacuum Tightness</h3>
 
       <InstruccionesCaja lines={[
-        "Inyectar gas (H₂) a diferentes caudales y registrar presión de cámara y respaldo.",
+        "Inyectar gas (H₂) a caudales de 1 a 10 sccm (de 1 en 1) y registrar presión de cámara y respaldo.",
         "La bomba de difusión Balzers DIF320 debe mantener presión de cámara < 5×10⁻⁵ mbar (SM-Acc §8).",
         "La presión de respaldo (backing) debe ser < 4×10⁻¹ mbar.",
         "Si la presión de cámara supera el límite, verificar la bomba de difusión y el caudal de gas.",
@@ -782,6 +829,42 @@ function TestVacuumTight({ datos, onChange }: { datos: DatosPerformance; onChang
           })}
         </tbody>
       </table>
+
+      {/* Gráficos */}
+      {chartDataChamber.length > 0 && (
+        <div className="space-y-4">
+          <div>
+            <p className="text-xs font-medium mb-1 text-muted-foreground">P-Cámara vs Gas Flow</p>
+            <ResponsiveContainer width="100%" height={180}>
+              <LineChart data={chartDataChamber}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="gasFlow" label={{ value: "Gas Flow (sccm)", position: "insideBottom", offset: -2 }} tick={{ fontSize: 10 }} />
+                <YAxis tick={{ fontSize: 10 }} />
+                <Tooltip />
+                <Legend />
+                <Line type="monotone" dataKey="P-Cámara" stroke="#3b82f6" dot={true} />
+                <Line type="monotone" dataKey="Límite" stroke="#ef4444" strokeDasharray="5 5" dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+          {chartDataBacking.length > 0 && (
+            <div>
+              <p className="text-xs font-medium mb-1 text-muted-foreground">P-Respaldo vs Gas Flow</p>
+              <ResponsiveContainer width="100%" height={180}>
+                <LineChart data={chartDataBacking}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="gasFlow" label={{ value: "Gas Flow (sccm)", position: "insideBottom", offset: -2 }} tick={{ fontSize: 10 }} />
+                  <YAxis tick={{ fontSize: 10 }} />
+                  <Tooltip />
+                  <Legend />
+                  <Line type="monotone" dataKey="P-Respaldo" stroke="#f59e0b" dot={true} />
+                  <Line type="monotone" dataKey="Límite" stroke="#ef4444" strokeDasharray="5 5" dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -789,8 +872,11 @@ function TestVacuumTight({ datos, onChange }: { datos: DatosPerformance; onChang
 // ── 9. Vacuum Leak Rate ───────────────────────────────────────────────────────
 
 function TestVacuumLeak({ datos, onChange }: { datos: DatosPerformance; onChange: (d: DatosPerformance) => void }) {
-  const defaultFilas = [0, 10, 20, 30].map(timeSec => ({
-    timeSec: timeSec * 60, pressureMbar: null, maxLeakRate: 2e-7,
+  // 13 filas: 0, 10, 20, ..., 120 segundos
+  const defaultFilas = Array.from({ length: 13 }, (_, i) => ({
+    timeSec: i * 10,
+    pressureMbar: null as number | null,
+    maxLeakRate: 2e-7,
   }));
   const filas = datos.vacuumLeak?.length ? datos.vacuumLeak : defaultFilas;
 
@@ -800,13 +886,17 @@ function TestVacuumLeak({ datos, onChange }: { datos: DatosPerformance; onChange
     onChange({ ...datos, vacuumLeak: arr });
   }
 
-  // Tasa de fuga = ΔP / Δt × V (aprox. 300 L cámara)
+  // Tasa de fuga = ΔP × V / Δt. V ≈ 300 L, Δt en segundos
   const V = 300; // L
   const first = filas[0]?.pressureMbar ?? null;
   const last  = filas[filas.length - 1]?.pressureMbar ?? null;
   const dt    = ((filas[filas.length - 1]?.timeSec ?? 0) - (filas[0]?.timeSec ?? 0)) || 1;
   const leakRate = (first != null && last != null) ? Math.abs(last - first) * V / dt : null;
   const pass = leakRate != null ? leakRate < 2e-7 : null;
+
+  const chartData = filas
+    .filter(f => f.pressureMbar != null)
+    .map(f => ({ time: f.timeSec, "P-Vacío": f.pressureMbar, "Max. Leak Rate": 2e-7 }));
 
   return (
     <div className="space-y-4">
@@ -817,15 +907,15 @@ function TestVacuumLeak({ datos, onChange }: { datos: DatosPerformance; onChange
 
       <InstruccionesCaja lines={[
         "Cerrar la válvula de gas y de las bombas de ion gauge.",
-        "Aislar la cámara del ciclotrón y registrar la presión cada 10 minutos durante 30 min.",
-        "Calcular la tasa de fuga: ΔP × V / Δt. V ≈ 300 L (volumen cámara).",
+        "Aislar la cámara del ciclotrón y registrar la presión cada 10 segundos hasta 120 s.",
+        "Calcular la tasa de fuga: ΔP × V / Δt. V ≈ 300 L (volumen cámara), Δt en segundos.",
         "Límite: < 2×10⁻⁷ mbar·L/s para PASS (SM-Acc §8).",
       ]} />
 
       <table className="w-full text-xs border rounded">
         <thead className="bg-muted">
           <tr>
-            {["Tiempo", "Presión cámara (mbar)"].map(h => (
+            {["Tiempo (s)", "Presión cámara (mbar)"].map(h => (
               <th key={h} className="px-3 py-2 text-left font-medium">{h}</th>
             ))}
           </tr>
@@ -833,7 +923,7 @@ function TestVacuumLeak({ datos, onChange }: { datos: DatosPerformance; onChange
         <tbody>
           {filas.map((f, i) => (
             <tr key={i} className="border-t hover:bg-muted/30">
-              <td className="px-3 py-2 font-medium">{f.timeSec / 60} min</td>
+              <td className="px-3 py-2 font-medium">{f.timeSec} s</td>
               <td className="px-3 py-2">
                 <Input type="text" className="h-7 w-28 text-xs px-1" placeholder="ej. 1.3E-7"
                   value={f.pressureMbar ?? ""} onChange={e => updateFila(i, e.target.value)} />
@@ -847,6 +937,24 @@ function TestVacuumLeak({ datos, onChange }: { datos: DatosPerformance; onChange
         <div className={cn("border rounded-lg p-3 text-sm font-medium",
           pass ? "border-green-200 bg-green-50 text-green-800" : "border-red-200 bg-red-50 text-red-800")}>
           Tasa de fuga calculada: {leakRate.toExponential(2)} mbar·L/s — {pass ? "✓ PASS (< 2×10⁻⁷)" : "✗ FAIL (≥ 2×10⁻⁷)"}
+        </div>
+      )}
+
+      {/* Gráfico */}
+      {chartData.length > 1 && (
+        <div>
+          <p className="text-xs font-medium mb-1 text-muted-foreground">Presión vs Tiempo</p>
+          <ResponsiveContainer width="100%" height={200}>
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="time" label={{ value: "Tiempo (s)", position: "insideBottom", offset: -2 }} tick={{ fontSize: 10 }} />
+              <YAxis tick={{ fontSize: 10 }} />
+              <Tooltip />
+              <Legend />
+              <Line type="monotone" dataKey="P-Vacío" stroke="#3b82f6" dot={true} />
+              <Line type="monotone" dataKey="Max. Leak Rate" stroke="#ef4444" strokeDasharray="5 5" dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
       )}
     </div>

@@ -19,9 +19,9 @@ import { Step4SystemEvaluation } from "./wizard-steps/step4-system-evaluation";
 
 const PASOS = [
   { id: 1, label: "Info General",        desc: "Ciclotrón, tipo y configuración" },
-  { id: 2, label: "Inspección de Sitio", desc: "Hojas 1–5: sitio, sala, equipo" },
-  { id: 3, label: "Performance Test",    desc: "Hoja 6: 9 sub-tests con PASS/FAIL" },
-  { id: 4, label: "System Evaluation",   desc: "Hoja 7: 10 producciones dual beam" },
+  { id: 2, label: "Inspección de Sitio", desc: "Sitio, sala de equipo y ciclotrón" },
+  { id: 3, label: "Performance Test",    desc: "9 sub-tests con PASS/FAIL" },
+  { id: 4, label: "System Evaluation",   desc: "10 producciones dual beam" },
 ];
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -63,7 +63,7 @@ export function EvaluacionWizard({ onCancel, onComplete, defaultCiclotrónId }: 
             <ChevronLeft className="h-4 w-4" />
             Cancelar
           </Button>
-          <h2 className="text-lg font-semibold">Nueva Evaluación — DOC1604037</h2>
+          <h2 className="text-lg font-semibold">Nueva Evaluación</h2>
         </div>
 
         {/* Stepper visual */}
