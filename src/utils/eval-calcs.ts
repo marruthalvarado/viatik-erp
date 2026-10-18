@@ -60,7 +60,10 @@ export function calcTransmision(
   filas: { transmissionToTarget?: number; transmissionToFoil?: number }[]
 ): boolean | null {
   if (!filas.length) return null;
-  return filas.every(f =>
+  // Solo se evalúan filas con datos; filas vacías se ignoran (PT860 solo requiere 50 µA)
+  const withData = filas.filter(f => f.transmissionToTarget != null || f.transmissionToFoil != null);
+  if (!withData.length) return null;
+  return withData.every(f =>
     (f.transmissionToTarget == null || f.transmissionToTarget >= 55) &&
     (f.transmissionToFoil   == null || f.transmissionToFoil   >= 65)
   );
@@ -99,7 +102,9 @@ export function calcularResultados(
     isocronos:   calcIsocronos(datos),
     rfProton:    calcRF(datos.rfProton),
     rfDeuteron:  tieneDeuterio ? calcRF(datos.rfDeuteron) : true,
-    mainVoltage: datos.mainVoltage?.pass ?? null,
+    mainVoltage: datos.mainVoltage?.anodeVoltStandby != null
+      ? datos.mainVoltage.anodeVoltStandby >= 7.4 && datos.mainVoltage.anodeVoltStandby <= 8.2
+      : null,
     iarcVsBeam:  calcIarcBeam(datos.iarcVsBeam ?? []),
     ionSource:   calcIonSource(datos.ionSource?.filas ?? []),
     transmision: calcTransmision(datos.transmision ?? []),

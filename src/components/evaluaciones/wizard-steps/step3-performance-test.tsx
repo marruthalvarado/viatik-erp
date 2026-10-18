@@ -747,7 +747,7 @@ function TestTransmision({ datos, onChange }: { datos: DatosPerformance; onChang
       <table className="w-full text-xs border rounded">
         <thead className="bg-muted">
           <tr>
-            {["Target set (µA)", "I-Probe-In (µA)", "I-Foil (µA)", "Trans.→Targ %", "Trans.→Foil %", "PASS"].map(h => (
+            {["Target set (µA)", "I-Foil (µA)", "I-Probe-In (µA)", "Trans.→Targ %", "Trans.→Foil %", "PASS"].map(h => (
               <th key={h} className="px-2 py-2 text-left font-medium">{h}</th>
             ))}
           </tr>
@@ -762,11 +762,11 @@ function TestTransmision({ datos, onChange }: { datos: DatosPerformance; onChang
                 <td className="px-2 py-1.5 font-medium">{f.targetCurrentUA}</td>
                 <td className="px-2 py-1.5">
                   <Input type="number" step="0.1" className="h-7 w-20 text-xs px-1"
-                    value={f.probeInCurrentUA ?? ""} onChange={e => updateFila(i, "probeInCurrentUA", e.target.value)} />
+                    value={f.foilCurrentUA ?? ""} onChange={e => updateFila(i, "foilCurrentUA", e.target.value)} />
                 </td>
                 <td className="px-2 py-1.5">
                   <Input type="number" step="0.1" className="h-7 w-20 text-xs px-1"
-                    value={f.foilCurrentUA ?? ""} onChange={e => updateFila(i, "foilCurrentUA", e.target.value)} />
+                    value={f.probeInCurrentUA ?? ""} onChange={e => updateFila(i, "probeInCurrentUA", e.target.value)} />
                 </td>
                 <td className="px-2 py-1.5">
                   <span className={cn("font-medium", f.passTarget === false && "text-red-600")}>
