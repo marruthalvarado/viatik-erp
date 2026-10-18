@@ -73,8 +73,7 @@ export function Step1InfoGeneral({ ciclotrones, crear, onNext, defaultCiclotrón
       <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 flex gap-2 text-sm text-blue-800">
         <Info className="h-4 w-4 mt-0.5 flex-none" />
         <span>
-          Protocolo DOC1604037 rev9 — New Upgrade Assessment. Completa la información
-          general del ciclotrón que vas a evaluar.
+          Completa la información general del ciclotrón que vas a evaluar.
         </span>
       </div>
 
