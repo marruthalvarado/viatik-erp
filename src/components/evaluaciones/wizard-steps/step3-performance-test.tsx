@@ -488,7 +488,9 @@ function TestMainVoltage({ datos, onChange }: { datos: DatosPerformance; onChang
     : null;
 
   function update(v: number | null) {
-    onChange({ ...datos, mainVoltage: { anodeVoltStandby: v, pass } });
+    // Recalcular pass con el nuevo valor para que el sidebar refleje el estado
+    const newPass = v != null ? v >= 7.4 && v <= 8.2 : null;
+    onChange({ ...datos, mainVoltage: { anodeVoltStandby: v, pass: newPass } });
   }
 
   return (
@@ -588,10 +590,10 @@ function TestIarcBeam({ datos, onChange }: { datos: DatosPerformance; onChange: 
 
 // ── 6. Ion Source Performance ─────────────────────────────────────────────────
 
-// Curva de corriente máxima permitida por setpoint IS (DOC1604037 / Excel referencia)
-// Regla: si probeCurrentH >= límite → "Valor alto, requiere optimización"
-//        si probeCurrentH < límite (o IS=0) → OK
-const IS_MAX_PROBE_H: Record<number, number | null> = {
+// Corriente mínima de sonda por setpoint IS (DOC1604037 / Excel referencia)
+// Regla: si probeCurrentH < mínimo → "Valor bajo, requiere optimización"
+//        si probeCurrentH >= mínimo (o IS=0) → OK
+const IS_MIN_PROBE_H: Record<number, number | null> = {
   0:    null, // IS=0 siempre OK
   50:   13,
   100:  37,
@@ -603,12 +605,12 @@ const IS_MAX_PROBE_H: Record<number, number | null> = {
   1000: 371,
 };
 
-const IS_SETPOINTS = [0, 50, 100, 200, 300, 400, 600, 800, 1000] as const;
+const IS_MIN_SETPOINTS = [0, 50, 100, 200, 300, 400, 600, 800, 1000] as const;
 
 function TestIonSource({ datos, onChange }: { datos: DatosPerformance; onChange: (d: DatosPerformance) => void }) {
-  const defaultFilas = IS_SETPOINTS.map(ma => ({
+  const defaultFilas = IS_MIN_SETPOINTS.map(ma => ({
     isCurrentMA: ma, probeCurrentH: null, probeCurrentD: null,
-    maxProbeH: IS_MAX_PROBE_H[ma] ?? 9999,
+    maxProbeH: IS_MIN_PROBE_H[ma] ?? 9999,
   }));
   const filas = datos.ionSource?.filas?.length ? datos.ionSource.filas : defaultFilas;
   const header = datos.ionSource ?? { magnetCurrent: 0, deeVoltage: 38, deltaVoltage: 4.5, vacuum: 0, gasFlow: 0, filas };
@@ -624,10 +626,10 @@ function TestIonSource({ datos, onChange }: { datos: DatosPerformance; onChange:
   }
 
   // Datos para el gráfico
-  const chartData = IS_SETPOINTS.map(ma => ({
+  const chartData = IS_MIN_SETPOINTS.map(ma => ({
     is: ma,
     probe: filas.find(f => f.isCurrentMA === ma)?.probeCurrentH ?? null,
-    max: IS_MAX_PROBE_H[ma] ?? null,
+    min: IS_MIN_PROBE_H[ma] ?? null,
   }));
 
   return (
@@ -638,7 +640,7 @@ function TestIonSource({ datos, onChange }: { datos: DatosPerformance; onChange:
         "En modo haz (Beam mode), variar la corriente del ion source (IS) desde 0 a 1000 mA.",
         "Para cada set-point registrar: corriente de la sonda (Probe Current H⁻) en µA.",
         "La PIG usa cátodo frío (SM-Acc §5-2) — no hay filamento; no aplicar procedimiento de activación.",
-        "Criterio PASS: la curva de sonda (azul) debe quedar por debajo de la curva máxima (roja).",
+        "Criterio PASS: la curva de sonda (azul) debe quedar por encima de la curva mínima (roja).",
       ]} />
 
       <table className="w-full text-xs border rounded">
@@ -651,9 +653,9 @@ function TestIonSource({ datos, onChange }: { datos: DatosPerformance; onChange:
         </thead>
         <tbody>
           {filas.map((f, i) => {
-            const limit = IS_MAX_PROBE_H[f.isCurrentMA];
-            const tooHigh = limit != null && f.probeCurrentH != null && f.probeCurrentH >= limit;
-            const ok      = limit != null && f.probeCurrentH != null && f.probeCurrentH < limit;
+            const min = IS_MIN_PROBE_H[f.isCurrentMA];
+            const tooLow = min != null && f.probeCurrentH != null && f.probeCurrentH < min;
+            const ok     = min != null && f.probeCurrentH != null && f.probeCurrentH >= min;
             return (
               <tr key={i} className="border-t hover:bg-muted/30">
                 <td className="px-3 py-2 font-medium">{f.isCurrentMA}</td>
@@ -663,11 +665,11 @@ function TestIonSource({ datos, onChange }: { datos: DatosPerformance; onChange:
                     onChange={e => updateFila(i, "probeCurrentH", e.target.value)} />
                 </td>
                 <td className="px-3 py-2 text-muted-foreground">
-                  {limit != null ? `< ${limit}` : "—"}
+                  {min != null ? `≥ ${min}` : "—"}
                 </td>
                 <td className="px-3 py-2">
-                  {tooHigh
-                    ? <span className="text-xs font-medium text-orange-600">⚠ Valor alto, requiere optimización</span>
+                  {tooLow
+                    ? <span className="text-xs font-medium text-orange-600">⚠ Valor bajo, requiere optimización</span>
                     : ok
                     ? <span className="text-xs font-medium text-green-600">✓ OK</span>
                     : <span className="text-xs text-muted-foreground">—</span>}
@@ -686,14 +688,14 @@ function TestIonSource({ datos, onChange }: { datos: DatosPerformance; onChange:
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis dataKey="is" label={{ value: "IS Current (mA)", position: "insideBottom", offset: -12, fontSize: 11 }} tick={{ fontSize: 10 }} />
             <YAxis label={{ value: "Probe H⁻ (µA)", angle: -90, position: "insideLeft", offset: 8, fontSize: 11 }} tick={{ fontSize: 10 }} />
-            <Tooltip formatter={(v: number, name: string) => [`${v} µA`, name === "probe" ? "Probe H⁻ medida" : "Máx. permitido"]} labelFormatter={v => `IS = ${v} mA`} />
-            <Line type="monotone" dataKey="max"   stroke="#ef4444" strokeWidth={2} dot={false} name="max"   connectNulls />
+            <Tooltip formatter={(v: number, name: string) => [`${v} µA`, name === "probe" ? "Probe H⁻ medida" : "Mín. requerido"]} labelFormatter={v => `IS = ${v} mA`} />
+            <Line type="monotone" dataKey="min"   stroke="#ef4444" strokeWidth={2} dot={false} name="min"   connectNulls />
             <Line type="monotone" dataKey="probe" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} name="probe" connectNulls />
           </LineChart>
         </ResponsiveContainer>
         <div className="flex items-center gap-6 mt-1 justify-center">
           <span className="flex items-center gap-1 text-xs"><span className="inline-block w-6 h-0.5 bg-blue-500"></span>Probe H⁻ medida</span>
-          <span className="flex items-center gap-1 text-xs"><span className="inline-block w-6 h-0.5 bg-red-500"></span>Máx. permitido</span>
+          <span className="flex items-center gap-1 text-xs"><span className="inline-block w-6 h-0.5 bg-red-500"></span>Mín. requerido</span>
         </div>
       </div>
     </div>

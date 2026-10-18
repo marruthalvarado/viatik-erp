@@ -36,8 +36,9 @@ export function calcIarcBeam(filas: { pass?: boolean }[]): boolean | null {
   return filas.every(f => f.pass !== false) ? true : false;
 }
 
-// Curva de corriente máxima por setpoint IS (DOC1604037)
-const IS_MAX_PROBE_H: Record<number, number | null> = {
+// Corriente mínima de sonda por setpoint IS (DOC1604037)
+// PASS si la corriente medida >= mínimo del setpoint (la curva azul debe superar la curva roja)
+const IS_MIN_PROBE_H: Record<number, number | null> = {
   0: null, 50: 13, 100: 37, 200: 121, 300: 189, 400: 244, 600: 312, 800: 343, 1000: 371,
 };
 
@@ -47,11 +48,11 @@ export function calcIonSource(
   if (!filas.length) return null;
   const withData = filas.filter(f => f.probeCurrentH != null && (f.isCurrentMA ?? 0) > 0);
   if (!withData.length) return null;
-  // PASS si ninguna fila supera el límite de su setpoint
+  // PASS si cada fila alcanza o supera el mínimo de su setpoint
   return withData.every(f => {
-    const limit = IS_MAX_PROBE_H[f.isCurrentMA ?? -1];
-    if (limit == null) return true; // IS=0 siempre OK
-    return (f.probeCurrentH ?? 0) < limit;
+    const min = IS_MIN_PROBE_H[f.isCurrentMA ?? -1];
+    if (min == null) return true; // IS=0 siempre OK
+    return (f.probeCurrentH ?? 0) >= min;
   });
 }
 
