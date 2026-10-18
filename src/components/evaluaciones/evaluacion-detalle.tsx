@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import type { CicloEvaluacion } from "@/types/entities";
 import { exportEvaluacionPDF } from "@/services/export/evaluacion-export";
+import { calcVacuumTight, calcVacuumLeak, calcIonSource, calcIarcBeam } from "@/utils/eval-calcs";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -132,18 +133,24 @@ export function EvaluacionDetalle({ evaluacion: ev, onBack }: Props) {
       )}
 
       {/* Performance test — resumen */}
-      {(perf.isocronos?.length || perf.rfProton || perf.transmision?.length) && (
+      {(perf.isocronos?.length || perf.rfProton || perf.transmision?.length
+        || perf.iarcVsBeam?.length || perf.ionSource || perf.vacuumTightness?.length || perf.vacuumLeak?.length) && (
         <Section title="Performance Test — Resultados">
+          {/* Isochronous — formula: PASS si al menos 1 fila tiene ratio < 5% */}
           {perf.isocronos?.map((t, i) => {
             const allFilas = t.filas ?? [];
-            const pass = allFilas.every(f => {
-              if (!f.target) return true;
-              return ((f.collLow ?? 0) + (f.collUp ?? 0)) / f.target * 100 < 5;
+            const isSkipped = (perf.skippedTests ?? []).includes("isocronos");
+            const checked = allFilas.filter(f => f.target && f.target > 0);
+            const pass = checked.length > 0 && checked.some(f => {
+              const ratio = (((f.collLow ?? 0) + (f.collUp ?? 0)) / 2 / (f.target ?? 1)) * 100;
+              return ratio < 5;
             });
             return (
               <div key={i} className="flex items-center gap-2 text-sm">
                 <span className="text-muted-foreground w-44">Isochronous (pos {i === 0 ? "1–3" : "4–6"})</span>
-                {allFilas.length > 0
+                {isSkipped
+                  ? <Badge variant="outline" className="text-muted-foreground">No realizado</Badge>
+                  : checked.length > 0
                   ? <Badge className={pass ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
                       {pass ? "PASS" : "FAIL"}
                     </Badge>
@@ -151,7 +158,8 @@ export function EvaluacionDetalle({ evaluacion: ev, onBack }: Props) {
               </div>
             );
           })}
-          {perf.rfProton && (
+          {/* RF Performance H⁻ */}
+          {perf.rfProton && !(perf.skippedTests ?? []).includes("rfProton") && (
             <div className="flex items-center gap-2 text-sm">
               <span className="text-muted-foreground w-44">RF Performance H⁻</span>
               <Badge className={perf.rfProton.phaseAnalysis?.pass
@@ -159,23 +167,66 @@ export function EvaluacionDetalle({ evaluacion: ev, onBack }: Props) {
                 : perf.rfProton.phaseAnalysis?.pass === false
                 ? "bg-red-100 text-red-800"
                 : "bg-muted text-muted-foreground"}>
-                {perf.rfProton.phaseAnalysis?.pass ? "PASS" : perf.rfProton.phaseAnalysis?.pass === false ? "FAIL" : "Pendiente"}
+                {perf.rfProton.phaseAnalysis?.pass === true ? "PASS"
+                  : perf.rfProton.phaseAnalysis?.pass === false ? "FAIL"
+                  : "Pendiente"}
               </Badge>
             </div>
           )}
-          {ev.tiene_deuterio && perf.rfDeuteron && (
+          {/* RF Performance D⁻ */}
+          {ev.tiene_deuterio && perf.rfDeuteron && !(perf.skippedTests ?? []).includes("rfDeuteron") && (
             <div className="flex items-center gap-2 text-sm">
-              <span className="text-muted-foreground w-44">RF Performance D-</span>
+              <span className="text-muted-foreground w-44">RF Performance D⁻</span>
               <Badge className={perf.rfDeuteron.phaseAnalysis?.pass
                 ? "bg-green-100 text-green-800"
                 : perf.rfDeuteron.phaseAnalysis?.pass === false
                 ? "bg-red-100 text-red-800"
                 : "bg-muted text-muted-foreground"}>
-                {perf.rfDeuteron.phaseAnalysis?.pass ? "PASS" : perf.rfDeuteron.phaseAnalysis?.pass === false ? "FAIL" : "Pendiente"}
+                {perf.rfDeuteron.phaseAnalysis?.pass === true ? "PASS"
+                  : perf.rfDeuteron.phaseAnalysis?.pass === false ? "FAIL"
+                  : "Pendiente"}
               </Badge>
             </div>
           )}
-          {perf.transmision?.length && (
+          {/* Main Voltage Variation */}
+          {perf.mainVoltage?.anodeVoltStandby != null && !(perf.skippedTests ?? []).includes("mainVoltage") && (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-muted-foreground w-44">Main Voltage Variation</span>
+              {(() => {
+                const v = perf.mainVoltage!.anodeVoltStandby!;
+                const pass = v >= 7.4 && v <= 8.2;
+                return <Badge className={pass ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
+                  {pass ? "PASS" : "FAIL"}
+                </Badge>;
+              })()}
+            </div>
+          )}
+          {/* IARC vs Beam */}
+          {perf.iarcVsBeam && perf.iarcVsBeam.length > 0 && !(perf.skippedTests ?? []).includes("iarcVsBeam") && (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-muted-foreground w-44">IARC vs Beam Current</span>
+              {(() => {
+                const r = calcIarcBeam(perf.iarcVsBeam ?? []);
+                return <Badge className={r === true ? "bg-green-100 text-green-800" : r === false ? "bg-red-100 text-red-800" : "bg-muted text-muted-foreground"}>
+                  {r === true ? "PASS" : r === false ? "FAIL" : "Pendiente"}
+                </Badge>;
+              })()}
+            </div>
+          )}
+          {/* Ion Source */}
+          {perf.ionSource && !(perf.skippedTests ?? []).includes("ionSource") && (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-muted-foreground w-44">Ion Source Performance</span>
+              {(() => {
+                const r = calcIonSource(perf.ionSource?.filas ?? []);
+                return <Badge className={r === true ? "bg-green-100 text-green-800" : r === false ? "bg-red-100 text-red-800" : "bg-muted text-muted-foreground"}>
+                  {r === true ? "PASS" : r === false ? "FAIL" : "Pendiente"}
+                </Badge>;
+              })()}
+            </div>
+          )}
+          {/* Beam Transmission */}
+          {!!perf.transmision?.length && !(perf.skippedTests ?? []).includes("transmision") && (
             <div className="flex items-center gap-2 text-sm">
               <span className="text-muted-foreground w-44">Beam Transmission</span>
               {(() => {
@@ -189,12 +240,28 @@ export function EvaluacionDetalle({ evaluacion: ev, onBack }: Props) {
               })()}
             </div>
           )}
-          {perf.mainVoltage?.pass != null && (
+          {/* Vacuum Tightness */}
+          {perf.vacuumTightness && perf.vacuumTightness.length > 0 && !(perf.skippedTests ?? []).includes("vacuumTight") && (
             <div className="flex items-center gap-2 text-sm">
-              <span className="text-muted-foreground w-44">Main Voltage Variation</span>
-              <Badge className={perf.mainVoltage.pass ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
-                {perf.mainVoltage.pass ? "PASS" : "FAIL"}
-              </Badge>
+              <span className="text-muted-foreground w-44">Vacuum Tightness</span>
+              {(() => {
+                const r = calcVacuumTight(perf.vacuumTightness ?? []);
+                return <Badge className={r === true ? "bg-green-100 text-green-800" : r === false ? "bg-red-100 text-red-800" : "bg-muted text-muted-foreground"}>
+                  {r === true ? "PASS" : r === false ? "FAIL" : "Pendiente"}
+                </Badge>;
+              })()}
+            </div>
+          )}
+          {/* Vacuum Leak Rate */}
+          {perf.vacuumLeak && perf.vacuumLeak.length > 0 && !(perf.skippedTests ?? []).includes("vacuumLeak") && (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-muted-foreground w-44">Vacuum Leak Rate</span>
+              {(() => {
+                const r = calcVacuumLeak(perf.vacuumLeak ?? []);
+                return <Badge className={r === true ? "bg-green-100 text-green-800" : r === false ? "bg-red-100 text-red-800" : "bg-muted text-muted-foreground"}>
+                  {r === true ? "PASS" : r === false ? "FAIL" : "Pendiente"}
+                </Badge>;
+              })()}
             </div>
           )}
         </Section>

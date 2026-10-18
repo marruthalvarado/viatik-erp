@@ -12,6 +12,7 @@
  */
 import type { CicloEvaluacion, DatosSitio, DatosPerformance, ProduccionDualBeam } from "@/types/entities";
 import { LOGO_VIATIQ_PNG_B64, LOGO_VIATIQ_W, LOGO_VIATIQ_H } from "@/assets/branding/logo-viatiq-b64";
+import { calcIarcBeam, calcIonSource, calcTransmision, calcVacuumTight, calcVacuumLeak } from "@/utils/eval-calcs";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -25,10 +26,14 @@ const fmtFecha = (d: string | null | undefined) => {
 const val = (v: string | number | boolean | null | undefined, suffix = "") =>
   v !== null && v !== undefined && v !== "" ? `${v}${suffix}` : "—";
 
-const passColor  = [22, 163, 74]  as [number, number, number];   // green-600
-const failColor  = [220, 38, 38]  as [number, number, number];   // red-600
-const greyLight  = [248, 250, 252] as [number, number, number];  // slate-50
-const greyHeader = [30, 41, 59]   as [number, number, number];   // slate-800
+const passColor  = [22, 163, 74]   as [number, number, number];
+const failColor  = [220, 38, 38]   as [number, number, number];
+const NAVY       = [15, 40, 100]   as [number, number, number];
+const BGNAVY     = [235, 240, 255] as [number, number, number];
+const DARK       = [15, 23, 42]    as [number, number, number];
+const WHITE      = [255, 255, 255] as [number, number, number];
+const greyLight  = [248, 250, 252] as [number, number, number];
+const greyHeader = NAVY;
 
 const TIPO_MAP: Record<string, string> = {
   assessment:       "Assessment General",
@@ -61,28 +66,36 @@ export async function exportEvaluacionPDF(
   let pageNumber = 1;
 
   function addHeaderFooter() {
+    // Banda navy superior
+    const HDR_H = 22;
+    doc.setFillColor(...NAVY);
+    doc.rect(0, 0, PW, HDR_H, "F");
+
     // Logo
     try {
-      doc.addImage(LOGO_VIATIQ_PNG_B64, "PNG", M, 6, LOGO_VIATIQ_W * 0.25, LOGO_VIATIQ_H * 0.25);
+      const lw = LOGO_VIATIQ_W * 0.07;
+      const lh = LOGO_VIATIQ_H * 0.07;
+      doc.addImage(LOGO_VIATIQ_PNG_B64, "PNG", M, (HDR_H - lh) / 2, lw, lh);
     } catch { /* logo opcional */ }
 
-    // Título empresa
+    // Título en la banda
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(8);
-    doc.setTextColor(100, 116, 139);
-    doc.text(opts.empresa?.nombre ?? "VIATIQ", PW / 2, 11, { align: "center" });
-    doc.text("Reporte de Evaluación — DOC1604037 rev9", PW / 2, 15, { align: "center" });
-
-    // Línea separadora
-    doc.setDrawColor(203, 213, 225);
-    doc.setLineWidth(0.3);
-    doc.line(M, 19, PW - M, 19);
+    doc.setFontSize(9);
+    doc.setTextColor(...WHITE);
+    doc.text(opts.empresa?.nombre ?? "VIATIQ", PW / 2, 9, { align: "center" });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+    doc.setTextColor(...BGNAVY);
+    doc.text("Reporte de Evaluacion — DOC1604037 rev9", PW / 2, 16, { align: "center" });
 
     // Footer
     doc.setFontSize(7);
-    doc.setTextColor(148, 163, 184);
-    doc.text(`Pág. ${pageNumber}`, PW - M, PH - 6, { align: "right" });
-    doc.text(`${ev.numero} · ${fmtFecha(ev.fecha)}`, M, PH - 6);
+    doc.setTextColor(...DARK);
+    doc.text(`Pag. ${pageNumber}`, PW - M, PH - 6, { align: "right" });
+    doc.text(`${ev.numero}  ${fmtFecha(ev.fecha)}`, M, PH - 6);
+    doc.setDrawColor(203, 213, 225);
+    doc.setLineWidth(0.2);
+    doc.line(M, PH - 9, PW - M, PH - 9);
     pageNumber++;
   }
 
@@ -92,38 +105,40 @@ export async function exportEvaluacionPDF(
   // Banda de color resultado
   const resultBg = ev.resultado_general === "pass" ? passColor
                  : ev.resultado_general === "fail"  ? failColor
-                 : greyHeader;
+                 : NAVY;
 
   doc.setFillColor(...resultBg);
-  doc.roundedRect(M, 24, PW - M * 2, 28, 3, 3, "F");
+  doc.roundedRect(M, 28, PW - M * 2, 28, 3, 3, "F");
 
   // Número evaluación
   doc.setFont("helvetica", "bold");
   doc.setFontSize(22);
   doc.setTextColor(255, 255, 255);
-  doc.text(ev.numero, PW / 2, 35, { align: "center" });
+  doc.text(ev.numero, PW / 2, 40, { align: "center" });
 
   // Resultado
-  const resLabel = ev.resultado_general === "pass" ? "✓ PASS"
-                 : ev.resultado_general === "fail"  ? "✗ FAIL"
+  const resLabel = ev.resultado_general === "pass" ? "PASS"
+                 : ev.resultado_general === "fail"  ? "FAIL"
                  : "PENDIENTE";
   doc.setFontSize(14);
-  doc.text(resLabel, PW / 2, 44, { align: "center" });
+  doc.text(resLabel, PW / 2, 49, { align: "center" });
 
   // Tipo evaluación
   doc.setFontSize(9);
   doc.setTextColor(200, 220, 255);
-  doc.text(TIPO_MAP[ev.tipo_evaluacion] ?? ev.tipo_evaluacion, PW / 2, 50, { align: "center" });
+  doc.text(TIPO_MAP[ev.tipo_evaluacion] ?? ev.tipo_evaluacion, PW / 2, 55, { align: "center" });
 
   // Tabla de datos generales
+  const s0 = ev.datos_sitio as DatosSitio ?? {};
+  const cicloLabel = s0.ciclotrónSerial ?? s0.ciclotrónSystemId ?? ev.ciclotrón_id;
   autoTable(doc, {
-    startY: 57,
+    startY: 62,
     margin: { left: M, right: M },
     theme: "plain",
     styles: { fontSize: 9, cellPadding: 2.5 },
     columnStyles: { 0: { fontStyle: "bold", cellWidth: 50, textColor: [71,85,105] } },
     body: [
-      ["Ciclotrón / Equipo", ev.ciclotrón_id],
+      ["Ciclotrón / Equipo", cicloLabel],
       ["Modelo PT",          val(ev.modelo_pt)],
       ["Versión Software",   val(ev.version_sw)],
       ["Tiene Deuterón",     ev.tiene_deuterio ? "Sí" : "No"],
@@ -134,7 +149,7 @@ export async function exportEvaluacionPDF(
   });
 
   // ── 2. SITE INFORMATION ───────────────────────────────────────────────────
-  const s = ev.datos_sitio as DatosSitio ?? {};
+  const s = s0;
 
   const sectionTitle = (title: string, y: number) => {
     doc.setFillColor(...greyHeader);
@@ -194,6 +209,7 @@ export async function exportEvaluacionPDF(
   addHeaderFooter();
 
   const p = ev.datos_performance as DatosPerformance ?? {};
+  const skip = new Set(p.skippedTests ?? []);
 
   // Helpers para sub-tests
   const boolPass = (v: boolean | null | undefined): string =>
@@ -201,99 +217,119 @@ export async function exportEvaluacionPDF(
   const boolPassColor = (v: boolean | null | undefined): [number, number, number] =>
     v === true ? passColor : v === false ? failColor : [100, 116, 139];
 
+  // Helper: calcular PASS por TestIsocrona individual
+  const calcIsoPerTest = (t?: { filas?: { target?: number | null; collLow?: number | null; collUp?: number | null }[] }): boolean | null => {
+    if (!t) return null;
+    const checked = (t.filas ?? []).filter(f => f.target && f.target > 0);
+    if (!checked.length) return null;
+    return checked.some(f => (((f.collLow ?? 0) + (f.collUp ?? 0)) / 2 / (f.target ?? 1)) * 100 < 5);
+  };
+
   // Construir filas de sub-tests
-  interface SubTest { nombre: string; resultado: boolean | null | undefined; detalle: string }
+  interface SubTest { nombre: string; resultado: boolean | null | undefined; detalle: string; skipped?: boolean }
   const subTests: SubTest[] = [];
 
-  // T1 – Isocronous Test (pos 1-3)
+  // T1 – Isochronous Test (pos 1-3)
   const iso1 = p.isocronos?.[0];
   subTests.push({
-    nombre: "T1 – Isochronous Test (Pos 1-3)",
-    resultado: iso1?.pass,
-    detalle: iso1
-      ? `Target current: ${val(iso1.targetCurrent, " µA")} · Arc: ${val(iso1.arcCurrent, " µA")}`
-      : "—",
+    nombre: "T1 - Isochronous Test (Pos 1-3)",
+    resultado: skip.has("isocronos") ? true : calcIsoPerTest(iso1),
+    detalle: iso1?.filas?.length ? `${iso1.filas.length} posiciones medidas` : "—",
+    skipped: skip.has("isocronos"),
   });
 
-  // T2 – Isocronous Test (pos 4-6)
+  // T2 – Isochronous Test (pos 4-6)
   const iso2 = p.isocronos?.[1];
   subTests.push({
-    nombre: "T2 – Isochronous Test (Pos 4-6)",
-    resultado: iso2?.pass,
-    detalle: iso2
-      ? `Target current: ${val(iso2.targetCurrent, " µA")} · Arc: ${val(iso2.arcCurrent, " µA")}`
-      : "—",
+    nombre: "T2 - Isochronous Test (Pos 4-6)",
+    resultado: skip.has("isocronos") ? true : calcIsoPerTest(iso2),
+    detalle: iso2?.filas?.length ? `${iso2.filas.length} posiciones medidas` : "—",
+    skipped: skip.has("isocronos"),
   });
 
-  // T3 – RF Performance (H⁺)
+  // T3 – RF Performance (H-)
   const rfP = p.rfProton;
   subTests.push({
-    nombre: "T3 – RF Performance (H⁺)",
-    resultado: rfP?.pass,
-    detalle: rfP
-      ? `Dee1: ${val(rfP.dee1Voltage, " kV")} · Dee2: ${val(rfP.dee2Voltage, " kV")}`
+    nombre: "T3 - RF Performance (H-)",
+    resultado: skip.has("rfProton") ? true : (rfP?.phaseAnalysis?.pass ?? null),
+    detalle: rfP?.phaseAnalysis
+      ? `Refl. Power P95: ${val(rfP.phaseAnalysis.reflectedPowerP95, " kW")} · Anode I P95: ${val(rfP.phaseAnalysis.anodeCurrentP95, " mA")}`
       : "—",
+    skipped: skip.has("rfProton"),
   });
 
-  // T4 – RF Performance (D⁻) — solo si tiene deuterio
+  // T4 – RF Performance (D-) — solo si tiene deuterio
   if (ev.tiene_deuterio) {
     const rfD = p.rfDeuteron;
     subTests.push({
-      nombre: "T4 – RF Performance (D⁻)",
-      resultado: rfD?.pass,
-      detalle: rfD
-        ? `Dee1: ${val(rfD.dee1Voltage, " kV")} · Dee2: ${val(rfD.dee2Voltage, " kV")}`
+      nombre: "T4 - RF Performance (D-)",
+      resultado: skip.has("rfDeuteron") ? true : (rfD?.phaseAnalysis?.pass ?? null),
+      detalle: rfD?.phaseAnalysis
+        ? `Refl. Power P95: ${val(rfD.phaseAnalysis.reflectedPowerP95, " kW")} · Anode I P95: ${val(rfD.phaseAnalysis.anodeCurrentP95, " mA")}`
         : "—",
+      skipped: skip.has("rfDeuteron"),
     });
   }
 
-  // T5 – Main Voltage
+  // T5 – Main Voltage Variation
   const mv = p.mainVoltage;
+  const mvPass = mv?.anodeVoltStandby != null
+    ? mv.anodeVoltStandby >= 7.4 && mv.anodeVoltStandby <= 8.2
+    : (mv?.pass ?? null);
   subTests.push({
-    nombre: "T5 – Main Voltage",
-    resultado: mv?.pass,
-    detalle: mv ? `Anode standby: ${val(mv.anodeVoltStandby, " V")}` : "—",
+    nombre: "T5 - Main Voltage Variation",
+    resultado: skip.has("mainVoltage") ? true : mvPass,
+    detalle: mv ? `Anode standby: ${val(mv.anodeVoltStandby, " V")} (spec: 7.4-8.2 V)` : "—",
+    skipped: skip.has("mainVoltage"),
   });
 
   // T6 – IARC vs Beam
-  const iarcPasses = p.iarcVsBeam?.map(f => f.pass);
-  const iarcAllPass = iarcPasses?.every(v => v === true) ?? null;
   subTests.push({
-    nombre: "T6 – IARC vs Beam Current",
-    resultado: iarcAllPass === true ? true : iarcPasses?.some(v => v === false) ? false : null,
-    detalle: p.iarcVsBeam?.length
-      ? `${p.iarcVsBeam.length} puntos medidos`
-      : "—",
+    nombre: "T6 - IARC vs Beam Current",
+    resultado: skip.has("iarcVsBeam") ? true : calcIarcBeam(p.iarcVsBeam ?? []),
+    detalle: p.iarcVsBeam?.length ? `${p.iarcVsBeam.length} puntos medidos` : "—",
+    skipped: skip.has("iarcVsBeam"),
   });
 
-  // T7 – Ion Source
-  const ionSrc = p.ionSource;
+  // T7 – Ion Source Performance
   subTests.push({
-    nombre: "T7 – Ion Source",
-    resultado: ionSrc ? (ionSrc.filas?.every(f => f.pass !== false) ? true : false) : null,
-    detalle: ionSrc
-      ? `Magnet: ${val(ionSrc.magnetCurrent, " A")} · Dee: ${val(ionSrc.deeVoltage, " kV")}`
+    nombre: "T7 - Ion Source Performance",
+    resultado: skip.has("ionSource") ? true : calcIonSource(p.ionSource?.filas ?? []),
+    detalle: p.ionSource
+      ? `Magnet: ${val(p.ionSource.magnetCurrent, " A")} · Dee: ${val(p.ionSource.deeVoltage, " kV")}`
       : "—",
+    skipped: skip.has("ionSource"),
   });
 
   // T8 – Vacuum Tightness
-  const vtPasses = p.vacuumTightness?.map(f => f.pass);
   subTests.push({
-    nombre: "T8 – Vacuum Tightness",
-    resultado: vtPasses?.every(v => v === true) ? true : vtPasses?.some(v => v === false) ? false : null,
+    nombre: "T8 - Vacuum Tightness",
+    resultado: skip.has("vacuumTight") ? true : calcVacuumTight(p.vacuumTightness ?? []),
     detalle: p.vacuumTightness?.length ? `${p.vacuumTightness.length} mediciones` : "—",
+    skipped: skip.has("vacuumTight"),
   });
 
   // T9 – Vacuum Leak Rate
-  const vlPasses = p.vacuumLeak?.map(f => f.pass);
   subTests.push({
-    nombre: "T9 – Vacuum Leak Rate",
-    resultado: vlPasses?.every(v => v === true) ? true : vlPasses?.some(v => v === false) ? false : null,
+    nombre: "T9 - Vacuum Leak Rate",
+    resultado: skip.has("vacuumLeak") ? true : calcVacuumLeak(p.vacuumLeak ?? []),
     detalle: p.vacuumLeak?.length ? `${p.vacuumLeak.length} mediciones` : "—",
+    skipped: skip.has("vacuumLeak"),
   });
 
-  let y3 = 24;
-  y3 = sectionTitle("PERFORMANCE TEST — Sub-Tests", y3);
+  // Beam Transmission (extra)
+  const transmResult = skip.has("transmision") ? true : calcTransmision(p.transmision ?? []);
+  if (p.transmision?.length) {
+    subTests.push({
+      nombre: "T10 - Beam Transmission",
+      resultado: transmResult,
+      detalle: `${p.transmision.length} puntos medidos`,
+      skipped: skip.has("transmision"),
+    });
+  }
+
+  let y3 = 27;
+  y3 = sectionTitle("PERFORMANCE TEST - Sub-Tests", y3);
 
   autoTable(doc, {
     startY: y3,
@@ -310,26 +346,32 @@ export async function exportEvaluacionPDF(
     body: subTests.map((t, i) => [
       String(i + 1),
       t.nombre,
-      boolPass(t.resultado),
-      t.detalle,
+      t.skipped ? "N/A" : boolPass(t.resultado),
+      t.skipped ? "No realizado" : t.detalle,
     ]),
     didParseCell(data) {
       if (data.column.index === 2 && data.section === "body") {
         const t = subTests[data.row.index];
-        data.cell.styles.textColor = boolPassColor(t.resultado);
+        if (t.skipped) {
+          data.cell.styles.textColor = [100, 116, 139];
+        } else {
+          data.cell.styles.textColor = boolPassColor(t.resultado);
+        }
       }
     },
-    alternateRowStyles: { fillColor: greyLight },
+    alternateRowStyles: { fillColor: BGNAVY },
   });
 
-  // ── 4. SYSTEM EVALUATION — 10 producciones ────────────────────────────────
+  // ── 4. SYSTEM EVALUATION — 10 producciones (solo si no está marcado como "No realizado") ──
+  const systemEvalSkipped = ev.datos_evaluacion?.skipped === true;
+  const prods: ProduccionDualBeam[] = ev.datos_evaluacion?.producciones ?? [];
+
+  if (!systemEvalSkipped) {
   doc.addPage();
   addHeaderFooter();
 
-  const prods: ProduccionDualBeam[] = ev.datos_evaluacion?.producciones ?? [];
-
-  let y4 = 24;
-  y4 = sectionTitle("SYSTEM EVALUATION — Dual Beam Productions", y4);
+  let y4 = 27;
+  y4 = sectionTitle("SYSTEM EVALUATION - Dual Beam Productions", y4);
 
   autoTable(doc, {
     startY: y4,
@@ -359,13 +401,15 @@ export async function exportEvaluacionPDF(
     alternateRowStyles: { fillColor: greyLight },
   });
 
+  } // end if (!systemEvalSkipped)
+
   // ── 5. RESULTADO FINAL + OBSERVACIONES ────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const yFinal = (doc as any).lastAutoTable?.finalY ?? 180;
 
   if (yFinal > PH - 50) doc.addPage(), addHeaderFooter();
 
-  const yR = yFinal > PH - 50 ? 24 : yFinal + 8;
+  const yR = yFinal > PH - 50 ? 27 : yFinal + 8;
 
   // Banda resultado
   doc.setFillColor(...resultBg);
