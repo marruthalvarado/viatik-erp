@@ -791,66 +791,115 @@ function TestTransmision({ datos, onChange }: { datos: DatosPerformance; onChang
 
 // ── 8. Vacuum Tightness ───────────────────────────────────────────────────────
 
+// Límites por gas flow (curva roja del Excel DOC1604037)
+const VACUUM_LIMITS: Record<number, { maxChamber: number; maxBacking: number }> = {
+  1:  { maxChamber: 3.6e-6,  maxBacking: 1.3e-2 },
+  2:  { maxChamber: 6.1e-6,  maxBacking: 2.1e-2 },
+  3:  { maxChamber: 8.9e-6,  maxBacking: 2.7e-2 },
+  4:  { maxChamber: 1.1e-5,  maxBacking: 3.3e-2 },
+  5:  { maxChamber: 1.3e-5,  maxBacking: 3.9e-2 },
+  6:  { maxChamber: 1.5e-5,  maxBacking: 4.5e-2 },
+  7:  { maxChamber: 1.6e-5,  maxBacking: 4.7e-2 },
+  8:  { maxChamber: 1.8e-5,  maxBacking: 5.4e-2 },
+  9:  { maxChamber: 2.0e-5,  maxBacking: 5.9e-2 },
+  10: { maxChamber: 2.2e-5,  maxBacking: 6.5e-2 },
+};
+
+function fmtE(v: number | null | undefined): string {
+  if (v == null || isNaN(v as number)) return "—";
+  return v.toExponential(2);
+}
+
 function TestVacuumTight({ datos, onChange }: { datos: DatosPerformance; onChange: (d: DatosPerformance) => void }) {
-  const defaultFilas = Array.from({ length: 10 }, (_, i) => ({
-    gasFlowSccm: i + 1,
-    chamberPressureMbar: null as number | null,
-    backingPressureMbar: null as number | null,
-    maxChamberMbar: 5e-5,
-    maxBackingMbar: 4e-1,
-  }));
-  const filas = datos.vacuumTightness?.length ? datos.vacuumTightness : defaultFilas;
+  const defaultFilas = Array.from({ length: 10 }, (_, i) => {
+    const flow = i + 1;
+    return {
+      gasFlowSccm: flow,
+      chamberPressureMbar: null as number | null,
+      backingPressureMbar: null as number | null,
+      maxChamberMbar: VACUUM_LIMITS[flow].maxChamber,
+      maxBackingMbar: VACUUM_LIMITS[flow].maxBacking,
+    };
+  });
+
+  // Merge saved rows preserving per-flow limits
+  const filas = datos.vacuumTightness?.length
+    ? datos.vacuumTightness.map((f, i) => ({
+        ...f,
+        maxChamberMbar: VACUUM_LIMITS[i + 1]?.maxChamber ?? f.maxChamberMbar,
+        maxBackingMbar: VACUUM_LIMITS[i + 1]?.maxBacking ?? f.maxBackingMbar,
+      }))
+    : defaultFilas;
 
   function updateFila(idx: number, key: string, val: string) {
+    const parsed = val === "" ? null : Number(val);
     const arr = [...filas];
-    arr[idx] = { ...arr[idx], [key]: val === "" ? null : Number(val) };
+    arr[idx] = { ...arr[idx], [key]: parsed == null || isNaN(parsed) ? null : parsed };
     onChange({ ...datos, vacuumTightness: arr });
   }
 
-  const chartDataChamber = filas
-    .filter(f => f.chamberPressureMbar != null)
-    .map(f => ({ gasFlow: f.gasFlowSccm, "P-Cámara": f.chamberPressureMbar, Límite: 5e-5 }));
-  const chartDataBacking = filas
-    .filter(f => f.backingPressureMbar != null)
-    .map(f => ({ gasFlow: f.gasFlowSccm, "P-Respaldo": f.backingPressureMbar, Límite: 4e-1 }));
+  // Gráficos: siempre los 10 puntos; curva roja siempre visible
+  const chartChamber = Array.from({ length: 10 }, (_, i) => {
+    const flow = i + 1;
+    const f = filas.find(r => r.gasFlowSccm === flow);
+    return {
+      flow,
+      medido: f?.chamberPressureMbar ?? null,
+      límite: VACUUM_LIMITS[flow].maxChamber,
+    };
+  });
+  const chartBacking = Array.from({ length: 10 }, (_, i) => {
+    const flow = i + 1;
+    const f = filas.find(r => r.gasFlowSccm === flow);
+    return {
+      flow,
+      medido: f?.backingPressureMbar ?? null,
+      límite: VACUUM_LIMITS[flow].maxBacking,
+    };
+  });
 
   return (
     <div className="space-y-4">
       <h3 className="font-semibold">8. Vacuum Tightness</h3>
 
       <InstruccionesCaja lines={[
-        "Inyectar gas (H₂) a caudales de 1 a 10 sccm (de 1 en 1) y registrar presión de cámara y respaldo.",
-        "La bomba de difusión Balzers DIF320 debe mantener presión de cámara < 5×10⁻⁵ mbar (SM-Acc §8).",
-        "La presión de respaldo (backing) debe ser < 4×10⁻¹ mbar.",
+        "Inyectar H₂ a caudales de 1 a 10 sccm (de 1 en 1) y registrar presión de cámara y respaldo.",
+        "PASS: la curva medida (azul) debe quedar por debajo de la curva límite (roja) en ambos gráficos.",
+        "Los límites por caudal siguen la curva de referencia del Excel (DOC1604037).",
         "Si la presión de cámara supera el límite, verificar la bomba de difusión y el caudal de gas.",
       ]} />
 
       <table className="w-full text-xs border rounded">
         <thead className="bg-muted">
           <tr>
-            {["Gas Flow (sccm)", "P-Cámara (mbar)", "Límite cámara", "P-Respaldo (mbar)", "Límite respaldo", "Pass"].map(h => (
+            {["Gas Flow (sccm)", "P-Cámara (mbar)", "Máx cámara", "P-Respaldo (mbar)", "Máx respaldo", "Pass"].map(h => (
               <th key={h} className="px-2 py-2 text-left font-medium">{h}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {filas.map((f, i) => {
-            const passC = f.chamberPressureMbar != null ? f.chamberPressureMbar <= f.maxChamberMbar : null;
-            const passB = f.backingPressureMbar != null ? f.backingPressureMbar <= f.maxBackingMbar : null;
-            const pass  = passC === false || passB === false ? false : passC === true || passB === true ? true : null;
+            const passC = f.chamberPressureMbar != null && !isNaN(f.chamberPressureMbar)
+              ? f.chamberPressureMbar <= f.maxChamberMbar : null;
+            const passB = f.backingPressureMbar != null && !isNaN(f.backingPressureMbar)
+              ? f.backingPressureMbar <= f.maxBackingMbar : null;
+            const pass = passC === false || passB === false ? false
+              : passC === true || passB === true ? true : null;
+            const cVal = f.chamberPressureMbar != null && !isNaN(f.chamberPressureMbar) ? f.chamberPressureMbar : null;
+            const bVal = f.backingPressureMbar != null && !isNaN(f.backingPressureMbar) ? f.backingPressureMbar : null;
             return (
               <tr key={i} className="border-t hover:bg-muted/30">
                 <td className="px-2 py-1.5 font-medium">{f.gasFlowSccm}</td>
                 <td className="px-2 py-1.5">
                   <Input type="text" className="h-7 w-24 text-xs px-1" placeholder="ej. 1.3E-5"
-                    value={f.chamberPressureMbar ?? ""} onChange={e => updateFila(i, "chamberPressureMbar", e.target.value)} />
+                    value={cVal ?? ""} onChange={e => updateFila(i, "chamberPressureMbar", e.target.value)} />
                 </td>
-                <td className="px-2 py-1.5 text-muted-foreground">5×10⁻⁵</td>
+                <td className="px-2 py-1.5 text-muted-foreground">{fmtE(f.maxChamberMbar)}</td>
                 <td className="px-2 py-1.5">
                   <Input type="text" className="h-7 w-24 text-xs px-1" placeholder="ej. 1.3E-2"
-                    value={f.backingPressureMbar ?? ""} onChange={e => updateFila(i, "backingPressureMbar", e.target.value)} />
+                    value={bVal ?? ""} onChange={e => updateFila(i, "backingPressureMbar", e.target.value)} />
                 </td>
-                <td className="px-2 py-1.5 text-muted-foreground">4×10⁻¹</td>
+                <td className="px-2 py-1.5 text-muted-foreground">{fmtE(f.maxBackingMbar)}</td>
                 <td className="px-2 py-1.5"><PassBadge pass={pass} /></td>
               </tr>
             );
@@ -858,41 +907,35 @@ function TestVacuumTight({ datos, onChange }: { datos: DatosPerformance; onChang
         </tbody>
       </table>
 
-      {/* Gráficos */}
-      {chartDataChamber.length > 0 && (
-        <div className="space-y-4">
-          <div>
-            <p className="text-xs font-medium mb-1 text-muted-foreground">P-Cámara vs Gas Flow</p>
-            <ResponsiveContainer width="100%" height={180}>
-              <LineChart data={chartDataChamber}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="gasFlow" label={{ value: "Gas Flow (sccm)", position: "insideBottom", offset: -2 }} tick={{ fontSize: 10 }} />
-                <YAxis tick={{ fontSize: 10 }} />
-                <Tooltip />
-                <Legend />
-                <Line type="monotone" dataKey="P-Cámara" stroke="#3b82f6" dot={true} />
-                <Line type="monotone" dataKey="Límite" stroke="#ef4444" strokeDasharray="5 5" dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-          {chartDataBacking.length > 0 && (
-            <div>
-              <p className="text-xs font-medium mb-1 text-muted-foreground">P-Respaldo vs Gas Flow</p>
-              <ResponsiveContainer width="100%" height={180}>
-                <LineChart data={chartDataBacking}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="gasFlow" label={{ value: "Gas Flow (sccm)", position: "insideBottom", offset: -2 }} tick={{ fontSize: 10 }} />
-                  <YAxis tick={{ fontSize: 10 }} />
-                  <Tooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="P-Respaldo" stroke="#f59e0b" dot={true} />
-                  <Line type="monotone" dataKey="Límite" stroke="#ef4444" strokeDasharray="5 5" dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          )}
+      {/* Gráficos — siempre visibles con curva límite */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="border rounded-lg p-3">
+          <p className="text-xs font-medium mb-2">P-Cámara vs Gas Flow</p>
+          <ResponsiveContainer width="100%" height={180}>
+            <LineChart data={chartChamber} margin={{ top: 4, right: 8, bottom: 16, left: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="flow" label={{ value: "Gas Flow (sccm)", position: "insideBottom", offset: -10, fontSize: 10 }} tick={{ fontSize: 9 }} />
+              <YAxis tick={{ fontSize: 9 }} tickFormatter={v => v.toExponential(1)} width={52} />
+              <Tooltip formatter={(v: number) => v.toExponential(2)} />
+              <Line type="monotone" dataKey="límite" stroke="#ef4444" strokeWidth={2} dot={false} name="Límite" connectNulls />
+              <Line type="monotone" dataKey="medido" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} name="Medido" connectNulls={false} />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
-      )}
+        <div className="border rounded-lg p-3">
+          <p className="text-xs font-medium mb-2">P-Respaldo vs Gas Flow</p>
+          <ResponsiveContainer width="100%" height={180}>
+            <LineChart data={chartBacking} margin={{ top: 4, right: 8, bottom: 16, left: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="flow" label={{ value: "Gas Flow (sccm)", position: "insideBottom", offset: -10, fontSize: 10 }} tick={{ fontSize: 9 }} />
+              <YAxis tick={{ fontSize: 9 }} tickFormatter={v => v.toExponential(1)} width={52} />
+              <Tooltip formatter={(v: number) => v.toExponential(2)} />
+              <Line type="monotone" dataKey="límite" stroke="#ef4444" strokeWidth={2} dot={false} name="Límite" connectNulls />
+              <Line type="monotone" dataKey="medido" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} name="Medido" connectNulls={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
     </div>
   );
 }

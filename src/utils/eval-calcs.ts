@@ -69,8 +69,23 @@ export function calcTransmision(
   );
 }
 
+// Límites por gas flow para Vacuum Tightness (DOC1604037)
+const VT_LIMITS: Record<number, { maxChamber: number; maxBacking: number }> = {
+  1:  { maxChamber: 3.6e-6,  maxBacking: 1.3e-2 },
+  2:  { maxChamber: 6.1e-6,  maxBacking: 2.1e-2 },
+  3:  { maxChamber: 8.9e-6,  maxBacking: 2.7e-2 },
+  4:  { maxChamber: 1.1e-5,  maxBacking: 3.3e-2 },
+  5:  { maxChamber: 1.3e-5,  maxBacking: 3.9e-2 },
+  6:  { maxChamber: 1.5e-5,  maxBacking: 4.5e-2 },
+  7:  { maxChamber: 1.6e-5,  maxBacking: 4.7e-2 },
+  8:  { maxChamber: 1.8e-5,  maxBacking: 5.4e-2 },
+  9:  { maxChamber: 2.0e-5,  maxBacking: 5.9e-2 },
+  10: { maxChamber: 2.2e-5,  maxBacking: 6.5e-2 },
+};
+
 export function calcVacuumTight(
   filas: {
+    gasFlowSccm?: number;
     chamberPressureMbar?: number | null;
     backingPressureMbar?: number | null;
     maxChamberMbar?: number;
@@ -78,10 +93,21 @@ export function calcVacuumTight(
   }[]
 ): boolean | null {
   if (!filas.length) return null;
-  return filas.every(f =>
-    (f.chamberPressureMbar == null || f.chamberPressureMbar <= (f.maxChamberMbar ?? 5e-5)) &&
-    (f.backingPressureMbar == null || f.backingPressureMbar <= (f.maxBackingMbar ?? 4e-1))
+  const withData = filas.filter(
+    f => (f.chamberPressureMbar != null && !isNaN(f.chamberPressureMbar)) ||
+         (f.backingPressureMbar != null && !isNaN(f.backingPressureMbar))
   );
+  if (!withData.length) return null;
+  return withData.every(f => {
+    const lim = VT_LIMITS[f.gasFlowSccm ?? 0];
+    const maxC = f.maxChamberMbar ?? lim?.maxChamber ?? 5e-5;
+    const maxB = f.maxBackingMbar ?? lim?.maxBacking ?? 4e-1;
+    const cOk = (f.chamberPressureMbar == null || isNaN(f.chamberPressureMbar))
+      ? true : f.chamberPressureMbar <= maxC;
+    const bOk = (f.backingPressureMbar == null || isNaN(f.backingPressureMbar))
+      ? true : f.backingPressureMbar <= maxB;
+    return cOk && bOk;
+  });
 }
 
 export function calcVacuumLeak(filas: { pressureMbar?: number | null }[]): boolean | null {
