@@ -49,6 +49,49 @@ function InstruccionesCaja({ lines }: { lines: string[] }) {
   );
 }
 
+/** Cabecera reutilizable con título, badge PASS/FAIL y toggle "No realizado" */
+function SubtestSkipHeader({
+  title, pass, subtestId, datos, onChange,
+}: {
+  title: string;
+  pass: boolean | null | undefined;
+  subtestId: string;
+  datos: DatosPerformance;
+  onChange: (d: DatosPerformance) => void;
+}) {
+  const skipped = (datos.skippedTests ?? []).includes(subtestId);
+  function toggleSkip(v: boolean) {
+    const current = datos.skippedTests ?? [];
+    const next = v
+      ? [...current.filter(id => id !== subtestId), subtestId]
+      : current.filter(id => id !== subtestId);
+    onChange({ ...datos, skippedTests: next });
+  }
+  return (
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-3">
+        <h3 className="font-semibold">{title}</h3>
+        {skipped
+          ? <Badge variant="outline" className="text-xs">No realizado</Badge>
+          : <PassBadge pass={pass} />}
+      </div>
+      <div className="flex items-center gap-2">
+        <Label className="text-xs text-muted-foreground">No realizado</Label>
+        <Switch checked={skipped} onCheckedChange={toggleSkip} />
+      </div>
+    </div>
+  );
+}
+
+/** Banner gris mostrado cuando un sub-test está marcado como "No realizado" */
+function SkippedBanner() {
+  return (
+    <div className="rounded-lg border border-muted bg-muted/30 p-4 text-sm text-muted-foreground text-center">
+      Este test fue marcado como "No realizado" y no se incluirá en el reporte PDF.
+    </div>
+  );
+}
+
 // ── Sub-test IDs ──────────────────────────────────────────────────────────────
 
 const SUBTESTS = [
@@ -103,7 +146,8 @@ export function Step3PerformanceTest({ evaluacion, onNext, onBack }: Props) {
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Sub-tests</p>
         {visibleSubtests.map(st => {
           const r = resultados[st.id as keyof typeof resultados];
-          const isSkipped = (st.id === "rfProton" && datos.rfProton?.skipped)
+          const isSkipped = (datos.skippedTests ?? []).includes(st.id)
+            || (st.id === "rfProton" && datos.rfProton?.skipped)
             || (st.id === "rfDeuteron" && datos.rfDeuteron?.skipped);
           return (
             <button
@@ -184,6 +228,7 @@ function buildDefaultFilas(magnetStart = 100, n = 10): FilaIsocrona[] {
 }
 
 function TestIsocronosPanel({ datos, onChange }: { datos: DatosPerformance; onChange: (d: DatosPerformance) => void }) {
+  const skipped = (datos.skippedTests ?? []).includes("isocronos");
   const [grupo, setGrupo] = useState(0); // 0=pos1-3, 1=pos4-6
 
   const defaultTest = (g: number) => ({
@@ -243,21 +288,35 @@ function TestIsocronosPanel({ datos, onChange }: { datos: DatosPerformance; onCh
     "Coll-Up": f.collUp,
   }));
 
+  // Calcular pass para badge (any grupo has ratio < 5%)
+  const isoPass = (() => {
+    const allFilas = (datos.isocronos ?? []).flatMap(t => t.filas ?? []);
+    const checked = allFilas.filter(f => f.target && f.target > 0);
+    if (!checked.length) return null;
+    return checked.some(f => (((f.collLow ?? 0) + (f.collUp ?? 0)) / 2 / (f.target ?? 1)) * 100 < 5) ? true : false;
+  })();
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold">1. Isochronous Test</h3>
-        <div className="flex rounded-md overflow-hidden border">
-          <button onClick={() => setGrupo(0)}
-            className={cn("px-3 py-1 text-sm", grupo === 0 ? "bg-primary text-primary-foreground" : "hover:bg-muted")}>
-            Pos 1–3
-          </button>
-          <button onClick={() => setGrupo(1)}
-            className={cn("px-3 py-1 text-sm border-l", grupo === 1 ? "bg-primary text-primary-foreground" : "hover:bg-muted")}>
-            Pos 4–6
-          </button>
-        </div>
+      <SubtestSkipHeader
+        title="1. Isochronous Test"
+        pass={isoPass}
+        subtestId="isocronos"
+        datos={datos}
+        onChange={onChange}
+      />
+      <div className="flex rounded-md overflow-hidden border w-fit">
+        <button onClick={() => setGrupo(0)}
+          className={cn("px-3 py-1 text-sm", grupo === 0 ? "bg-primary text-primary-foreground" : "hover:bg-muted")}>
+          Pos 1–3
+        </button>
+        <button onClick={() => setGrupo(1)}
+          className={cn("px-3 py-1 text-sm border-l", grupo === 1 ? "bg-primary text-primary-foreground" : "hover:bg-muted")}>
+          Pos 4–6
+        </button>
       </div>
+
+      {skipped ? <SkippedBanner /> : <>
 
       <InstruccionesCaja lines={[
         "Con el haz activo en la posición seleccionada, variar la corriente del magneto en pasos de 0.2 A.",
@@ -358,6 +417,7 @@ function TestIsocronosPanel({ datos, onChange }: { datos: DatosPerformance; onCh
           </ResponsiveContainer>
         </div>
       )}
+      </>}
     </div>
   );
 }
@@ -481,6 +541,7 @@ function TestRFPanel({ datos, onChange, modo, modeloPt }: {
 
 function TestMainVoltage({ datos, onChange }: { datos: DatosPerformance; onChange: (d: DatosPerformance) => void }) {
   const mv = datos.mainVoltage ?? { anodeVoltStandby: null, pass: null };
+  const skipped = (datos.skippedTests ?? []).includes("mainVoltage");
 
   // Pass: Anode voltage en standby entre 7.4–8.2 kV (SCU GEN2, según Excel DOC1604037)
   const pass = mv.anodeVoltStandby != null
@@ -488,18 +549,15 @@ function TestMainVoltage({ datos, onChange }: { datos: DatosPerformance; onChang
     : null;
 
   function update(v: number | null) {
-    // Recalcular pass con el nuevo valor para que el sidebar refleje el estado
     const newPass = v != null ? v >= 7.4 && v <= 8.2 : null;
     onChange({ ...datos, mainVoltage: { anodeVoltStandby: v, pass: newPass } });
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <h3 className="font-semibold">4. Main Voltage Variation</h3>
-        <PassBadge pass={pass} />
-      </div>
+      <SubtestSkipHeader title="4. Main Voltage Variation" pass={pass} subtestId="mainVoltage" datos={datos} onChange={onChange} />
 
+      {skipped ? <SkippedBanner /> : <>
       <InstruccionesCaja lines={[
         "Con el ciclotrón en Standby (sin haz), leer el voltaje del ánodo (PSARC PS/GEMS-02A).",
         "El voltaje del ánodo en standby debe estar entre 7.4 – 8.2 kV para PASS.",
@@ -519,6 +577,7 @@ function TestMainVoltage({ datos, onChange }: { datos: DatosPerformance; onChang
           onChange={e => update(e.target.value === "" ? null : Number(e.target.value))}
         />
       </div>
+      </>}
     </div>
   );
 }
@@ -528,16 +587,17 @@ function TestMainVoltage({ datos, onChange }: { datos: DatosPerformance; onChang
 const IARC_SETPOINTS = [50, 100, 130] as const;
 
 function TestIarcBeam({ datos, onChange }: { datos: DatosPerformance; onChange: (d: DatosPerformance) => void }) {
+  const skipped = (datos.skippedTests ?? []).includes("iarcVsBeam");
   const defaultFilas = IARC_SETPOINTS.map(ua => ({
     targetCurrentUA: ua, foilCurrentUA: null, arcCurrentMA: null,
     maxArcCurrentMA: 1300, maxFoilCurrentUA: ua * 1.1, pass: undefined,
   }));
   const filas = datos.iarcVsBeam?.length ? datos.iarcVsBeam : defaultFilas;
+  const iarcPass = filas.every(f => f.pass !== false) && filas.some(f => f.pass === true) ? true : filas.some(f => f.pass === false) ? false : null;
 
   function updateFila(idx: number, patch: Record<string, unknown>) {
     const arr = [...filas];
     const updated = { ...arr[idx], ...patch };
-    // Auto-pass
     updated.pass = (updated.arcCurrentMA != null && updated.foilCurrentUA != null)
       ? updated.arcCurrentMA <= updated.maxArcCurrentMA && updated.foilCurrentUA <= updated.maxFoilCurrentUA
       : undefined;
@@ -547,8 +607,9 @@ function TestIarcBeam({ datos, onChange }: { datos: DatosPerformance; onChange: 
 
   return (
     <div className="space-y-4">
-      <h3 className="font-semibold">5. I-arc vs Beam Current</h3>
+      <SubtestSkipHeader title="5. I-arc vs Beam Current" pass={iarcPass} subtestId="iarcVsBeam" datos={datos} onChange={onChange} />
 
+      {skipped ? <SkippedBanner /> : <>
       <InstruccionesCaja lines={[
         "Con haz en H⁻, configurar corriente de target a 50 µA, 100 µA y 130 µA.",
         "Para cada set-point registrar: corriente Foil (µA) y corriente de arco (mA).",
@@ -584,6 +645,7 @@ function TestIarcBeam({ datos, onChange }: { datos: DatosPerformance; onChange: 
           ))}
         </tbody>
       </table>
+      </>}
     </div>
   );
 }
@@ -608,12 +670,16 @@ const IS_MIN_PROBE_H: Record<number, number | null> = {
 const IS_MIN_SETPOINTS = [0, 50, 100, 200, 300, 400, 600, 800, 1000] as const;
 
 function TestIonSource({ datos, onChange }: { datos: DatosPerformance; onChange: (d: DatosPerformance) => void }) {
+  const skipped = (datos.skippedTests ?? []).includes("ionSource");
   const defaultFilas = IS_MIN_SETPOINTS.map(ma => ({
     isCurrentMA: ma, probeCurrentH: null, probeCurrentD: null,
     maxProbeH: IS_MIN_PROBE_H[ma] ?? 9999,
   }));
   const filas = datos.ionSource?.filas?.length ? datos.ionSource.filas : defaultFilas;
   const header = datos.ionSource ?? { magnetCurrent: 0, deeVoltage: 38, deltaVoltage: 4.5, vacuum: 0, gasFlow: 0, filas };
+  const withData = filas.filter(f => f.probeCurrentH != null && (f.isCurrentMA ?? 0) > 0);
+  const ionPass: boolean | null = withData.length === 0 ? null
+    : withData.every(f => { const min = IS_MIN_PROBE_H[f.isCurrentMA ?? -1]; return min == null || (f.probeCurrentH ?? 0) >= min; }) ? true : false;
 
   function updateFilas(arr: typeof filas) {
     onChange({ ...datos, ionSource: { ...header, filas: arr } });
@@ -634,8 +700,9 @@ function TestIonSource({ datos, onChange }: { datos: DatosPerformance; onChange:
 
   return (
     <div className="space-y-4">
-      <h3 className="font-semibold">6. Ion Source Performance</h3>
+      <SubtestSkipHeader title="6. Ion Source Performance" pass={ionPass} subtestId="ionSource" datos={datos} onChange={onChange} />
 
+      {skipped ? <SkippedBanner /> : <>
       <InstruccionesCaja lines={[
         "En modo haz (Beam mode), variar la corriente del ion source (IS) desde 0 a 1000 mA.",
         "Para cada set-point registrar: corriente de la sonda (Probe Current H⁻) en µA.",
@@ -698,6 +765,7 @@ function TestIonSource({ datos, onChange }: { datos: DatosPerformance; onChange:
           <span className="flex items-center gap-1 text-xs"><span className="inline-block w-6 h-0.5 bg-red-500"></span>Mín. requerido</span>
         </div>
       </div>
+      </>}
     </div>
   );
 }
@@ -705,6 +773,7 @@ function TestIonSource({ datos, onChange }: { datos: DatosPerformance; onChange:
 // ── 7. Beam Transmission ──────────────────────────────────────────────────────
 
 function TestTransmision({ datos, onChange }: { datos: DatosPerformance; onChange: (d: DatosPerformance) => void }) {
+  const skipped = (datos.skippedTests ?? []).includes("transmision");
   const defaultFilas = [50, 100, 130].map(ua => ({
     targetCurrentUA: ua,
     foilCurrentUA: null,
@@ -733,10 +802,17 @@ function TestTransmision({ datos, onChange }: { datos: DatosPerformance; onChang
     onChange({ ...datos, transmision: arr });
   }
 
+  const transPass: boolean | null = (() => {
+    const wd = filas.filter(f => f.transmissionToTarget != null || f.transmissionToFoil != null);
+    if (!wd.length) return null;
+    return wd.every(f => (f.transmissionToTarget == null || f.transmissionToTarget >= 55) && (f.transmissionToFoil == null || f.transmissionToFoil >= 65)) ? true : false;
+  })();
+
   return (
     <div className="space-y-4">
-      <h3 className="font-semibold">7. Beam Transmission</h3>
+      <SubtestSkipHeader title="7. Beam Transmission" pass={transPass} subtestId="transmision" datos={datos} onChange={onChange} />
 
+      {skipped ? <SkippedBanner /> : <>
       <InstruccionesCaja lines={[
         "Con Probe In activado, registrar la corriente de entrada de haz (Probe In Current).",
         "Registrar simultáneamente la corriente en Foil y en Target para cada set-point.",
@@ -785,6 +861,7 @@ function TestTransmision({ datos, onChange }: { datos: DatosPerformance; onChang
         </tbody>
       </table>
       <p className="text-xs text-muted-foreground">Criterio: Transmisión a Target ≥ 55% · Transmisión a Foil ≥ 65%</p>
+      </>}
     </div>
   );
 }
@@ -811,6 +888,7 @@ function fmtE(v: number | null | undefined): string {
 }
 
 function TestVacuumTight({ datos, onChange }: { datos: DatosPerformance; onChange: (d: DatosPerformance) => void }) {
+  const skipped = (datos.skippedTests ?? []).includes("vacuumTight");
   // rawInputs mantiene el texto crudo mientras el usuario escribe (evita perder "1." o "1.9E")
   const [rawInputs, setRawInputs] = useState<Record<string, string>>({});
 
@@ -890,10 +968,21 @@ function TestVacuumTight({ datos, onChange }: { datos: DatosPerformance; onChang
     };
   });
 
+  const vtPass: boolean | null = (() => {
+    const wd = filas.filter(f => (f.chamberPressureMbar != null && !isNaN(f.chamberPressureMbar)) || (f.backingPressureMbar != null && !isNaN(f.backingPressureMbar as number)));
+    if (!wd.length) return null;
+    return wd.every(f => {
+      const lim = VACUUM_LIMITS[f.gasFlowSccm ?? 0];
+      return (f.chamberPressureMbar == null || isNaN(f.chamberPressureMbar) || f.chamberPressureMbar <= (lim?.maxChamber ?? 5e-5)) &&
+             (f.backingPressureMbar == null || isNaN(f.backingPressureMbar as number) || (f.backingPressureMbar as number) <= (lim?.maxBacking ?? 4e-1));
+    }) ? true : false;
+  })();
+
   return (
     <div className="space-y-4">
-      <h3 className="font-semibold">8. Vacuum Tightness</h3>
+      <SubtestSkipHeader title="8. Vacuum Tightness" pass={vtPass} subtestId="vacuumTight" datos={datos} onChange={onChange} />
 
+      {skipped ? <SkippedBanner /> : <>
       <InstruccionesCaja lines={[
         "Inyectar H₂ a caudales de 1 a 10 sccm (de 1 en 1) y registrar presión de cámara y respaldo.",
         "PASS: la curva medida (azul) debe quedar por debajo de la curva límite (roja) en ambos gráficos.",
@@ -970,6 +1059,7 @@ function TestVacuumTight({ datos, onChange }: { datos: DatosPerformance; onChang
           </ResponsiveContainer>
         </div>
       </div>
+      </>}
     </div>
   );
 }
@@ -995,6 +1085,7 @@ const LEAK_LIMITS: Record<number, number> = {
 };
 
 function TestVacuumLeak({ datos, onChange }: { datos: DatosPerformance; onChange: (d: DatosPerformance) => void }) {
+  const skipped = (datos.skippedTests ?? []).includes("vacuumLeak");
   const [rawInputs, setRawInputs] = useState<Record<string, string>>({});
 
   const TIMES = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120];
@@ -1057,11 +1148,9 @@ function TestVacuumLeak({ datos, onChange }: { datos: DatosPerformance; onChange
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <h3 className="font-semibold">9. Vacuum Leak Rate</h3>
-        <PassBadge pass={pass} />
-      </div>
+      <SubtestSkipHeader title="9. Vacuum Leak Rate" pass={pass} subtestId="vacuumLeak" datos={datos} onChange={onChange} />
 
+      {skipped ? <SkippedBanner /> : <>
       <InstruccionesCaja lines={[
         "Sistema frío, sin corrida de beam reciente, con vacío totalmente recuperado.",
         "Poner VCU en modo Standby con todas las BEV cerradas y sin gas flow.",
@@ -1119,6 +1208,7 @@ function TestVacuumLeak({ datos, onChange }: { datos: DatosPerformance; onChange
           </ResponsiveContainer>
         </div>
       </div>
+      </>}
     </div>
   );
 }

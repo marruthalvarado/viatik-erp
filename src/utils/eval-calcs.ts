@@ -136,17 +136,18 @@ export function calcularResultados(
   datos: DatosPerformance,
   tieneDeuterio: boolean
 ): ResultadosStep3 {
+  const skip = new Set(datos.skippedTests ?? []);
   return {
-    isocronos:   calcIsocronos(datos),
-    rfProton:    calcRF(datos.rfProton),
-    rfDeuteron:  tieneDeuterio ? calcRF(datos.rfDeuteron) : true,
-    mainVoltage: datos.mainVoltage?.anodeVoltStandby != null
+    isocronos:   skip.has("isocronos")   ? true : calcIsocronos(datos),
+    rfProton:    skip.has("rfProton")    ? true : calcRF(datos.rfProton),
+    rfDeuteron:  skip.has("rfDeuteron")  ? true : tieneDeuterio ? calcRF(datos.rfDeuteron) : true,
+    mainVoltage: skip.has("mainVoltage") ? true : datos.mainVoltage?.anodeVoltStandby != null
       ? datos.mainVoltage.anodeVoltStandby >= 7.4 && datos.mainVoltage.anodeVoltStandby <= 8.2
       : null,
-    iarcVsBeam:  calcIarcBeam(datos.iarcVsBeam ?? []),
-    ionSource:   calcIonSource(datos.ionSource?.filas ?? []),
-    transmision: calcTransmision(datos.transmision ?? []),
-    vacuumTight: calcVacuumTight(datos.vacuumTightness ?? []),
-    vacuumLeak:  calcVacuumLeak(datos.vacuumLeak ?? []),
+    iarcVsBeam:  skip.has("iarcVsBeam")  ? true : calcIarcBeam(datos.iarcVsBeam ?? []),
+    ionSource:   skip.has("ionSource")   ? true : calcIonSource(datos.ionSource?.filas ?? []),
+    transmision: skip.has("transmision") ? true : calcTransmision(datos.transmision ?? []),
+    vacuumTight: skip.has("vacuumTight") ? true : calcVacuumTight(datos.vacuumTightness ?? []),
+    vacuumLeak:  skip.has("vacuumLeak")  ? true : calcVacuumLeak(datos.vacuumLeak ?? []),
   };
 }

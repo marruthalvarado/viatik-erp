@@ -323,6 +323,8 @@ export interface DatosPerformance {
   transmision?: FilaTransmision[];
   vacuumTightness?: FilaVacioTightness[];
   vacuumLeak?: FilaVacioLeak[];
+  /** IDs de sub-tests marcados como "No realizado" — no afectan al resultado general */
+  skippedTests?: string[];
 }
 
 // Alias para el array de isochronous (plural correcto)
