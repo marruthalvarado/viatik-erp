@@ -100,8 +100,8 @@ export function useGuardarDatosPerformance() {
 export function useGuardarDatosEvaluacion() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ evalId, producciones }: { evalId: string; producciones: ProduccionDualInput[] }) =>
-      svc.guardarDatosEvaluacion(evalId, producciones),
+    mutationFn: ({ evalId, producciones, skipped }: { evalId: string; producciones: ProduccionDualInput[]; skipped?: boolean }) =>
+      svc.guardarDatosEvaluacion(evalId, producciones, skipped ?? false),
     onSuccess: (data: CicloEvaluacion) => {
       qc.setQueryData(KEYS.detail(data.id), data);
     },

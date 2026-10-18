@@ -151,12 +151,13 @@ export async function guardarDatosPerformance(
 /** Guarda los datos de System Evaluation (paso 4) */
 export async function guardarDatosEvaluacion(
   evalId: string,
-  producciones: ProduccionDualInput[]
+  producciones: ProduccionDualInput[],
+  skipped = false
 ): Promise<CicloEvaluacion> {
   const { data, error } = await supabase.rpc("guardar_ciclo_eval_seccion", {
     p_eval_id: evalId,
     p_seccion: "evaluacion",
-    p_datos:   { producciones },
+    p_datos:   { skipped, producciones },
   });
   if (error) throw error;
   return mapRow(data as Record<string, unknown>);

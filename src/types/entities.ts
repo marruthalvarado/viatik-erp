@@ -469,7 +469,7 @@ export interface CicloEvaluacion {
   version_sw: string | null;
   datos_sitio: DatosSitio;
   datos_performance: DatosPerformance;
-  datos_evaluacion: { producciones: ProduccionDualBeam[] };
+  datos_evaluacion: { skipped?: boolean; producciones: ProduccionDualBeam[] };
   observaciones: string | null;
   created_at: string;
   updated_at: string;

@@ -3,14 +3,16 @@
  * Paso 4: System Evaluation — 10 producciones dual beam con datos del Beam Evaluator Tool
  */
 import { useState } from "react";
-import { ChevronLeft, CheckCircle2, Info, ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronLeft, CheckCircle2, Info, ChevronDown, ChevronUp, SkipForward } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import type { CicloEvaluacion, ProduccionDualBeam } from "@/types/entities";
 import { useGuardarDatosEvaluacion, useCompletarEvaluacion } from "@/hooks/entities/use-evaluaciones";
+import { calcularResultados } from "@/utils/eval-calcs";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -92,6 +94,7 @@ export function Step4SystemEvaluation({ evaluacion, onNext, onBack }: Props) {
     ? evaluacion.datos_evaluacion.producciones
     : Array.from({ length: 10 }, (_, i) => defaultProduccion(i + 1));
 
+  const [skipped, setSkipped]           = useState<boolean>(evaluacion.datos_evaluacion?.skipped ?? false);
   const [producciones, setProducciones] = useState<ProduccionDualBeam[]>(initialProducciones);
   const [activeProd, setActiveProd]     = useState<number>(1);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(
@@ -119,15 +122,21 @@ export function Step4SystemEvaluation({ evaluacion, onNext, onBack }: Props) {
   async function handleGuardar(andComplete = false) {
     const ev = await guardar.mutateAsync({
       evalId: evaluacion.id,
-      producciones,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      producciones: producciones as any,
+      skipped,
     });
 
     if (andComplete) {
-      // Calcular resultado general
-      const resultado = calcResultadoGeneral(producciones);
+      const resultado = calcResultadoCombinado(
+        evaluacion.datos_performance ?? {},
+        evaluacion.tiene_deuterio,
+        producciones,
+        skipped
+      );
       const finalEv = await completar.mutateAsync({
         evalId: ev.id,
-        resultado: resultado ?? "pass",
+        resultado,
         observaciones: undefined,
       });
       onNext(finalEv);
@@ -136,18 +145,61 @@ export function Step4SystemEvaluation({ evaluacion, onNext, onBack }: Props) {
     }
   }
 
-  function calcResultadoGeneral(ps: ProduccionDualBeam[]): "pass" | "fail" {
-    // Solo evalúa producciones con datos ingresados; sin datos no hay resultado definido
-    const withData = ps.filter(hasDatos);
-    const fail = withData.some(p =>
-      (p.screenCurrentHigh != null && p.screenCurrentHigh > 40) ||
-      (p.reflectedPowerHigh != null && p.reflectedPowerHigh > 2.0)
-    );
-    return fail ? "fail" : "pass";
+  function calcResultadoCombinado(
+    datosPerf: CicloEvaluacion["datos_performance"],
+    tieneDeuterio: boolean,
+    ps: ProduccionDualBeam[],
+    step4Skipped: boolean
+  ): "pass" | "fail" {
+    // Step 3 — todos los sub-tests con datos deben ser true
+    const r3 = calcularResultados(datosPerf ?? {}, tieneDeuterio);
+    const step3Values = Object.values(r3).filter(v => v !== null) as boolean[];
+    const step3Pass   = step3Values.length === 0 || step3Values.every(v => v === true);
+
+    // Step 4 — solo si no está marcado como "No realizado"
+    let step4Pass = true;
+    if (!step4Skipped) {
+      const withData = ps.filter(hasDatos);
+      step4Pass = !withData.some(p =>
+        (p.screenCurrentHigh != null && p.screenCurrentHigh > 40) ||
+        (p.reflectedPowerHigh != null && p.reflectedPowerHigh > 2.0)
+      );
+    }
+
+    return step3Pass && step4Pass ? "pass" : "fail";
   }
 
   return (
     <div className="space-y-4">
+      {/* Toggle "No realizado" a nivel de todo el paso 4 */}
+      <div className={cn(
+        "flex items-center justify-between rounded-lg border p-4 transition-colors",
+        skipped ? "border-amber-300 bg-amber-50" : "border-muted"
+      )}>
+        <div className="flex items-center gap-3">
+          <SkipForward className={cn("h-5 w-5", skipped ? "text-amber-600" : "text-muted-foreground")} />
+          <div>
+            <p className="font-medium text-sm">System Evaluation — No realizado</p>
+            <p className="text-xs text-muted-foreground">
+              Activa si no se realizó la evaluación de producciones. Se excluirá del resultado final.
+            </p>
+          </div>
+        </div>
+        <Switch checked={skipped} onCheckedChange={setSkipped} />
+      </div>
+
+      {skipped ? (
+        /* Placeholder cuando está marcado como "No realizado" */
+        <div className="rounded-lg border-2 border-dashed border-amber-300 bg-amber-50/50 p-8 text-center space-y-2">
+          <SkipForward className="h-8 w-8 text-amber-400 mx-auto" />
+          <p className="font-medium text-amber-800">System Evaluation no realizada</p>
+          <p className="text-sm text-amber-700">
+            Este paso está marcado como "No realizado" y no afectará el resultado final.
+            El PASS/FAIL se determinará únicamente con los resultados del Performance Test (Paso 3).
+          </p>
+        </div>
+      ) : (
+        <>
       <div className="rounded-lg border border-blue-100 bg-blue-50 p-3 flex gap-2 text-sm text-blue-800">
         <Info className="h-4 w-4 mt-0.5 flex-none" />
         <span>
@@ -257,6 +309,8 @@ export function Step4SystemEvaluation({ evaluacion, onNext, onBack }: Props) {
           ))}
         </div>
       </div>
+        </>
+      )}
 
       {/* Navegación */}
       <div className="flex justify-between pt-4 border-t">
@@ -274,8 +328,8 @@ export function Step4SystemEvaluation({ evaluacion, onNext, onBack }: Props) {
           </Button>
           <Button
             onClick={() => handleGuardar(true)}
-            disabled={guardar.isPending || completar.isPending || produccionesConDatos === 0}
-            title={produccionesConDatos === 0 ? "Ingresa datos en al menos una producción para completar" : undefined}
+            disabled={guardar.isPending || completar.isPending || (!skipped && produccionesConDatos === 0)}
+            title={!skipped && produccionesConDatos === 0 ? "Ingresa datos en al menos una producción, o marca el paso como 'No realizado'" : undefined}
             className="gap-2"
           >
             <CheckCircle2 className="h-4 w-4" />
