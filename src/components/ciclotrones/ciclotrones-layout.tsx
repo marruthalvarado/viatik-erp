@@ -35,6 +35,7 @@ import {
 import { CiclotrónForm } from "./ciclotrón-form";
 import { ProduccionUpload } from "./produccion-upload";
 import { ProduccionAnalisis } from "./produccion-analisis";
+import { CicloEvaluacionesTab } from "./ciclo-evaluaciones-tab";
 
 // ── Configuración visual de estados ──────────────────────────────────────────
 const ESTADO_CFG: Record<CicloProduccion["estado"], {
@@ -168,6 +169,7 @@ export function CiclotronsLayout() {
   const [editingCiclotrón, setEditingCiclotrón] = useState<Ciclotrón | null>(null);
   const [showUpload, setShowUpload] = useState(false);
   const [showAnalisis, setShowAnalisis] = useState(false);
+  const [activeTab, setActiveTab] = useState<"producciones" | "evaluaciones">("producciones");
 
   function openEdit(c: Ciclotrón) {
     setEditingCiclotrón(c);
@@ -283,31 +285,66 @@ export function CiclotronsLayout() {
             </ScrollArea>
           </div>
 
-          {/* Panel derecho: producciones del ciclotrón seleccionado */}
+          {/* Panel derecho: producciones / evaluaciones del ciclotrón seleccionado */}
           <div className="flex-1 flex flex-col overflow-hidden">
             {!selectedCiclotrón ? (
               <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-                Selecciona un ciclotrón para ver sus producciones
+                Selecciona un ciclotrón para ver sus datos
               </div>
             ) : (
               <>
+                {/* Header del panel */}
                 <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
                   <div>
                     <h2 className="font-medium">{selectedCiclotrón.nombre}</h2>
                     <p className="text-xs text-muted-foreground">{selectedCiclotrón.sitio}</p>
                   </div>
-                  <Button size="sm" onClick={() => openUpload(selectedCiclotrón)}>
-                    <Upload className="h-4 w-4 mr-2" /> Cargar batch
-                  </Button>
+                  {activeTab === "producciones" && (
+                    <Button size="sm" onClick={() => openUpload(selectedCiclotrón)}>
+                      <Upload className="h-4 w-4 mr-2" /> Cargar batch
+                    </Button>
+                  )}
                 </div>
-                <ScrollArea className="flex-1 p-4">
-                  <ProduccionesList
-                    ciclotrón={selectedCiclotrón}
-                    selectedId={selectedProduccion?.id ?? null}
-                    onSelect={(p) => openAnalisis(p)}
-                    onUpload={() => openUpload(selectedCiclotrón)}
-                  />
-                </ScrollArea>
+
+                {/* Tabs */}
+                <div className="flex border-b bg-background px-4">
+                  <button
+                    className={`py-2 px-3 text-sm font-medium border-b-2 transition-colors ${
+                      activeTab === "producciones"
+                        ? "border-primary text-primary"
+                        : "border-transparent text-muted-foreground hover:text-foreground"
+                    }`}
+                    onClick={() => setActiveTab("producciones")}
+                  >
+                    Producciones
+                  </button>
+                  <button
+                    className={`py-2 px-3 text-sm font-medium border-b-2 transition-colors ${
+                      activeTab === "evaluaciones"
+                        ? "border-primary text-primary"
+                        : "border-transparent text-muted-foreground hover:text-foreground"
+                    }`}
+                    onClick={() => setActiveTab("evaluaciones")}
+                  >
+                    Evaluaciones
+                  </button>
+                </div>
+
+                {/* Contenido del tab activo */}
+                {activeTab === "producciones" ? (
+                  <ScrollArea className="flex-1 p-4">
+                    <ProduccionesList
+                      ciclotrón={selectedCiclotrón}
+                      selectedId={selectedProduccion?.id ?? null}
+                      onSelect={(p) => openAnalisis(p)}
+                      onUpload={() => openUpload(selectedCiclotrón)}
+                    />
+                  </ScrollArea>
+                ) : (
+                  <div className="flex-1 flex flex-col overflow-hidden">
+                    <CicloEvaluacionesTab ciclotrón={selectedCiclotrón} />
+                  </div>
+                )}
               </>
             )}
           </div>

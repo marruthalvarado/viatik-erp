@@ -2,6 +2,7 @@
  * evaluacion-detalle.tsx
  * Vista de detalle de una evaluación completada — con botón de exportar PDF
  */
+import { useState } from "react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { ChevronLeft, CheckCircle2, XCircle, Clock, FileText, FlaskConical } from "lucide-react";
@@ -9,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import type { CicloEvaluacion } from "@/types/entities";
+import { exportEvaluacionPDF } from "@/services/export/evaluacion-export";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -55,9 +57,21 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 // ── Componente principal ──────────────────────────────────────────────────────
 
 export function EvaluacionDetalle({ evaluacion: ev, onBack }: Props) {
+  const [exportando, setExportando] = useState(false);
   const site = ev.datos_sitio ?? {};
   const perf = ev.datos_performance ?? {};
   const eval_ = ev.datos_evaluacion ?? {};
+
+  async function handleExportPDF() {
+    setExportando(true);
+    try {
+      await exportEvaluacionPDF(ev);
+    } catch (err) {
+      console.error("Error exportando PDF:", err);
+    } finally {
+      setExportando(false);
+    }
+  }
 
   const tipoMap: Record<string, string> = {
     assessment:      "Assessment",
@@ -86,9 +100,9 @@ export function EvaluacionDetalle({ evaluacion: ev, onBack }: Props) {
         </div>
         <div className="flex items-center gap-2">
           <BadgeResultado resultado={ev.resultado_general} />
-          <Button variant="outline" size="sm" className="gap-2" disabled>
+          <Button variant="outline" size="sm" className="gap-2" onClick={handleExportPDF} disabled={exportando}>
             <FileText className="h-4 w-4" />
-            Exportar PDF
+            {exportando ? "Generando…" : "Exportar PDF"}
           </Button>
         </div>
       </div>
