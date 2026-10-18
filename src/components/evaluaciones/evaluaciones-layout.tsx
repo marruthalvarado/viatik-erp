@@ -60,25 +60,44 @@ export function EvaluacionesLayout() {
 
   const [showWizard, setShowWizard]             = useState(false);
   const [selectedId, setSelectedId]             = useState<string | null>(null);
+  const [resumeEval, setResumeEval]             = useState<CicloEvaluacion | null>(null);
   const [confirmDelete, setConfirmDelete]       = useState<string | null>(null);
 
   const selected = evaluaciones.find(e => e.id === selectedId) ?? null;
 
   function handleNueva() {
     setSelectedId(null);
+    setResumeEval(null);
     setShowWizard(true);
+  }
+
+  function handleClickEval(ev: CicloEvaluacion) {
+    if (ev.estado === "borrador") {
+      // Reanudar en el wizard desde donde se dejó
+      setResumeEval(ev);
+      setShowWizard(true);
+    } else {
+      setSelectedId(ev.id);
+    }
   }
 
   function handleWizardDone(eval_: CicloEvaluacion) {
     setShowWizard(false);
+    setResumeEval(null);
     setSelectedId(eval_.id);
+  }
+
+  function handleWizardCancel() {
+    setShowWizard(false);
+    setResumeEval(null);
   }
 
   if (showWizard) {
     return (
       <EvaluacionWizard
-        onCancel={() => setShowWizard(false)}
+        onCancel={handleWizardCancel}
         onComplete={handleWizardDone}
+        evaluacionInicial={resumeEval ?? undefined}
       />
     );
   }
@@ -128,7 +147,7 @@ export function EvaluacionesLayout() {
             <div
               key={ev.id}
               className="flex items-center gap-4 p-4 hover:bg-muted/40 cursor-pointer transition-colors"
-              onClick={() => setSelectedId(ev.id)}
+              onClick={() => handleClickEval(ev)}
             >
               {/* Icono resultado */}
               <div className="flex-none">
@@ -158,17 +177,22 @@ export function EvaluacionesLayout() {
               </div>
 
               {/* Acciones */}
-              <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center gap-2">
                 {ev.estado === "borrador" && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-red-500 hover:text-red-700"
-                    onClick={() => setConfirmDelete(ev.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  <span className="text-xs text-blue-600 font-medium hidden sm:inline">Continuar →</span>
                 )}
+                <div onClick={e => e.stopPropagation()}>
+                  {ev.estado === "borrador" && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-red-500 hover:text-red-700"
+                      onClick={() => setConfirmDelete(ev.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
                 <ChevronRight className="h-4 w-4 text-muted-foreground" />
               </div>
             </div>

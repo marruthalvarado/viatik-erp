@@ -24,19 +24,40 @@ const PASOS = [
   { id: 4, label: "System Evaluation",   desc: "10 producciones dual beam" },
 ];
 
+// ── Detectar paso inicial según datos ya guardados ────────────────────────────
+
+function detectarPasoInicial(ev: CicloEvaluacion): number {
+  // Si ya tiene datos de performance, ir al paso 4
+  const perf = ev.datos_performance;
+  if (perf && (
+    perf.isocronos?.length || perf.rfProton || perf.mainVoltage ||
+    perf.iarcVsBeam?.length || perf.ionSource || perf.transmision?.length ||
+    perf.vacuumTightness?.length || perf.vacuumLeak?.length
+  )) return 4;
+  // Si ya tiene datos de sitio, ir al paso 3
+  const sitio = ev.datos_sitio;
+  if (sitio && Object.values(sitio).some(v => v != null && v !== "")) return 3;
+  // Por defecto, ir al paso 2
+  return 2;
+}
+
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface Props {
   onCancel:            () => void;
   onComplete:          (ev: CicloEvaluacion) => void;
   defaultCiclotrónId?: string;
+  /** Borrador existente para continuar donde se dejó */
+  evaluacionInicial?:  CicloEvaluacion;
 }
 
 // ── Componente ────────────────────────────────────────────────────────────────
 
-export function EvaluacionWizard({ onCancel, onComplete, defaultCiclotrónId }: Props) {
-  const [paso, setPaso]           = useState(1);
-  const [evaluacion, setEval]     = useState<CicloEvaluacion | null>(null);
+export function EvaluacionWizard({ onCancel, onComplete, defaultCiclotrónId, evaluacionInicial }: Props) {
+  const [paso, setPaso]       = useState(() =>
+    evaluacionInicial ? detectarPasoInicial(evaluacionInicial) : 1
+  );
+  const [evaluacion, setEval] = useState<CicloEvaluacion | null>(evaluacionInicial ?? null);
 
   const crear = useCrearEvaluacion();
   const { data: ciclotrones = [] } = useCiclotrones();
