@@ -588,11 +588,27 @@ function TestIarcBeam({ datos, onChange }: { datos: DatosPerformance; onChange: 
 
 // ── 6. Ion Source Performance ─────────────────────────────────────────────────
 
+// Curva de corriente máxima permitida por setpoint IS (DOC1604037 / Excel referencia)
+// Regla: si probeCurrentH >= límite → "Valor alto, requiere optimización"
+//        si probeCurrentH < límite (o IS=0) → OK
+const IS_MAX_PROBE_H: Record<number, number | null> = {
+  0:    null, // IS=0 siempre OK
+  50:   13,
+  100:  37,
+  200:  121,
+  300:  189,
+  400:  244,
+  600:  312,
+  800:  343,
+  1000: 371,
+};
+
 const IS_SETPOINTS = [0, 50, 100, 200, 300, 400, 600, 800, 1000] as const;
 
 function TestIonSource({ datos, onChange }: { datos: DatosPerformance; onChange: (d: DatosPerformance) => void }) {
   const defaultFilas = IS_SETPOINTS.map(ma => ({
-    isCurrentMA: ma, probeCurrentH: null, probeCurrentD: null, maxProbeH: 120,
+    isCurrentMA: ma, probeCurrentH: null, probeCurrentD: null,
+    maxProbeH: IS_MAX_PROBE_H[ma] ?? 9999,
   }));
   const filas = datos.ionSource?.filas?.length ? datos.ionSource.filas : defaultFilas;
   const header = datos.ionSource ?? { magnetCurrent: 0, deeVoltage: 38, deltaVoltage: 4.5, vacuum: 0, gasFlow: 0, filas };
@@ -607,6 +623,13 @@ function TestIonSource({ datos, onChange }: { datos: DatosPerformance; onChange:
     updateFilas(arr);
   }
 
+  // Datos para el gráfico
+  const chartData = IS_SETPOINTS.map(ma => ({
+    is: ma,
+    probe: filas.find(f => f.isCurrentMA === ma)?.probeCurrentH ?? null,
+    max: IS_MAX_PROBE_H[ma] ?? null,
+  }));
+
   return (
     <div className="space-y-4">
       <h3 className="font-semibold">6. Ion Source Performance</h3>
@@ -615,20 +638,22 @@ function TestIonSource({ datos, onChange }: { datos: DatosPerformance; onChange:
         "En modo haz (Beam mode), variar la corriente del ion source (IS) desde 0 a 1000 mA.",
         "Para cada set-point registrar: corriente de la sonda (Probe Current H⁻) en µA.",
         "La PIG usa cátodo frío (SM-Acc §5-2) — no hay filamento; no aplicar procedimiento de activación.",
-        "La corriente de sonda H⁻ debe crecer monotónicamente. Si hay caída brusca, revisar gas flow.",
+        "Criterio PASS: la curva de sonda (azul) debe quedar por debajo de la curva máxima (roja).",
       ]} />
 
       <table className="w-full text-xs border rounded">
         <thead className="bg-muted">
           <tr>
-            {["IS Current (mA)", "Probe H⁻ (µA)", "Límite", "Pass"].map(h => (
+            {["IS Current (mA)", "Probe H⁻ (µA)", "Máx. permitido (µA)", "Estado"].map(h => (
               <th key={h} className="px-3 py-2 text-left font-medium">{h}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {filas.map((f, i) => {
-            const pass = f.probeCurrentH != null ? f.probeCurrentH <= f.maxProbeH : null;
+            const limit = IS_MAX_PROBE_H[f.isCurrentMA];
+            const tooHigh = limit != null && f.probeCurrentH != null && f.probeCurrentH >= limit;
+            const ok      = limit != null && f.probeCurrentH != null && f.probeCurrentH < limit;
             return (
               <tr key={i} className="border-t hover:bg-muted/30">
                 <td className="px-3 py-2 font-medium">{f.isCurrentMA}</td>
@@ -637,13 +662,40 @@ function TestIonSource({ datos, onChange }: { datos: DatosPerformance; onChange:
                     value={f.probeCurrentH ?? ""}
                     onChange={e => updateFila(i, "probeCurrentH", e.target.value)} />
                 </td>
-                <td className="px-3 py-2 text-muted-foreground">≤ {f.maxProbeH} µA</td>
-                <td className="px-3 py-2"><PassBadge pass={pass} /></td>
+                <td className="px-3 py-2 text-muted-foreground">
+                  {limit != null ? `< ${limit}` : "—"}
+                </td>
+                <td className="px-3 py-2">
+                  {tooHigh
+                    ? <span className="text-xs font-medium text-orange-600">⚠ Valor alto, requiere optimización</span>
+                    : ok
+                    ? <span className="text-xs font-medium text-green-600">✓ OK</span>
+                    : <span className="text-xs text-muted-foreground">—</span>}
+                </td>
               </tr>
             );
           })}
         </tbody>
       </table>
+
+      {/* Gráfico: curva medida vs curva máxima */}
+      <div className="border rounded-lg p-4">
+        <p className="text-xs font-medium mb-2">Probe Current H⁻ vs Ion Source Current</p>
+        <ResponsiveContainer width="100%" height={220}>
+          <LineChart data={chartData} margin={{ top: 4, right: 16, bottom: 20, left: 8 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+            <XAxis dataKey="is" label={{ value: "IS Current (mA)", position: "insideBottom", offset: -12, fontSize: 11 }} tick={{ fontSize: 10 }} />
+            <YAxis label={{ value: "Probe H⁻ (µA)", angle: -90, position: "insideLeft", offset: 8, fontSize: 11 }} tick={{ fontSize: 10 }} />
+            <Tooltip formatter={(v: number, name: string) => [`${v} µA`, name === "probe" ? "Probe H⁻ medida" : "Máx. permitido"]} labelFormatter={v => `IS = ${v} mA`} />
+            <Line type="monotone" dataKey="max"   stroke="#ef4444" strokeWidth={2} dot={false} name="max"   connectNulls />
+            <Line type="monotone" dataKey="probe" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} name="probe" connectNulls />
+          </LineChart>
+        </ResponsiveContainer>
+        <div className="flex items-center gap-6 mt-1 justify-center">
+          <span className="flex items-center gap-1 text-xs"><span className="inline-block w-6 h-0.5 bg-blue-500"></span>Probe H⁻ medida</span>
+          <span className="flex items-center gap-1 text-xs"><span className="inline-block w-6 h-0.5 bg-red-500"></span>Máx. permitido</span>
+        </div>
+      </div>
     </div>
   );
 }

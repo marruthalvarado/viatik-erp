@@ -36,13 +36,23 @@ export function calcIarcBeam(filas: { pass?: boolean }[]): boolean | null {
   return filas.every(f => f.pass !== false) ? true : false;
 }
 
+// Curva de corriente máxima por setpoint IS (DOC1604037)
+const IS_MAX_PROBE_H: Record<number, number | null> = {
+  0: null, 50: 13, 100: 37, 200: 121, 300: 189, 400: 244, 600: 312, 800: 343, 1000: 371,
+};
+
 export function calcIonSource(
-  filas: { probeCurrentH?: number | null; maxProbeH?: number }[]
+  filas: { isCurrentMA?: number; probeCurrentH?: number | null }[]
 ): boolean | null {
   if (!filas.length) return null;
-  const checked = filas.filter(f => f.probeCurrentH != null);
-  if (!checked.length) return null;
-  return checked.every(f => (f.probeCurrentH ?? 0) <= (f.maxProbeH ?? Infinity));
+  const withData = filas.filter(f => f.probeCurrentH != null && (f.isCurrentMA ?? 0) > 0);
+  if (!withData.length) return null;
+  // PASS si ninguna fila supera el límite de su setpoint
+  return withData.every(f => {
+    const limit = IS_MAX_PROBE_H[f.isCurrentMA ?? -1];
+    if (limit == null) return true; // IS=0 siempre OK
+    return (f.probeCurrentH ?? 0) < limit;
+  });
 }
 
 export function calcTransmision(
