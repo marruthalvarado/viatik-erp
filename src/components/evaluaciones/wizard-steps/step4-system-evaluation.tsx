@@ -152,7 +152,7 @@ export function Step4SystemEvaluation({ evaluacion, onNext, onBack }: Props) {
         <Info className="h-4 w-4 mt-0.5 flex-none" />
         <span>
           Registrar datos del <strong>Beam Evaluator Tool</strong> para cada producción dual beam.
-          El informe final consolidará todas las producciones. DOC1604037 rev9 — Tab 7.System Evaluation.
+          El informe final consolidará todas las producciones.
         </span>
       </div>
 
