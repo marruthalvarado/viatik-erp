@@ -210,7 +210,7 @@ export function CicloEvaluacionesTab({ ciclotrón }: Props) {
             <AlertDialogAction
               className="bg-red-600 hover:bg-red-700"
               onClick={() => {
-                if (confirmDelete) eliminar.mutate(confirmDelete);
+                if (confirmDelete) eliminar.mutate({ evalId: confirmDelete });
                 setConfirmDelete(null);
               }}
             >

@@ -130,12 +130,13 @@ export function useCompletarEvaluacion() {
   });
 }
 
-/** Elimina una evaluación en borrador */
+/** Elimina una evaluación. force=true permite eliminar cualquier estado (admin). */
 export function useEliminarEvaluacion() {
   const { empresaActivaId } = useCompany();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (evalId: string) => svc.eliminarEvaluacion(evalId),
+    mutationFn: ({ evalId, force = false }: { evalId: string; force?: boolean }) =>
+      svc.eliminarEvaluacion(evalId, force),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: KEYS.all(empresaActivaId ?? "") });
     },

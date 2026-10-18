@@ -21,8 +21,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useCompany } from "@/contexts/company-context";
 import { useEvaluaciones, useEliminarEvaluacion } from "@/hooks/entities/use-evaluaciones";
 import type { CicloEvaluacion } from "@/types/entities";
+
+const ADMIN_ROLES = ["admin", "SUPER_ADMIN"];
 import { EvaluacionWizard } from "./evaluacion-wizard";
 import { EvaluacionDetalle } from "./evaluacion-detalle";
 
@@ -55,6 +58,8 @@ function badgeTipo(tipo: string) {
 // ── Componente principal ──────────────────────────────────────────────────────
 
 export function EvaluacionesLayout() {
+  const { rolActivo } = useCompany();
+  const isAdmin = ADMIN_ROLES.includes(rolActivo?.codigo ?? "");
   const { data: evaluaciones = [], isLoading } = useEvaluaciones();
   const eliminar = useEliminarEvaluacion();
 
@@ -182,7 +187,7 @@ export function EvaluacionesLayout() {
                   <span className="text-xs text-blue-600 font-medium hidden sm:inline">Continuar →</span>
                 )}
                 <div onClick={e => e.stopPropagation()}>
-                  {ev.estado === "borrador" && (
+                  {(ev.estado === "borrador" || isAdmin) && (
                     <Button
                       variant="ghost"
                       size="icon"
@@ -206,7 +211,7 @@ export function EvaluacionesLayout() {
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar evaluación?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta acción es irreversible. Solo se puede eliminar evaluaciones en borrador.
+              Esta acción es irreversible y no se puede deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -214,7 +219,11 @@ export function EvaluacionesLayout() {
             <AlertDialogAction
               className="bg-red-600 hover:bg-red-700"
               onClick={() => {
-                if (confirmDelete) eliminar.mutate(confirmDelete);
+                if (confirmDelete) {
+                  const ev = evaluaciones.find(e => e.id === confirmDelete);
+                  const force = isAdmin && ev?.estado !== "borrador";
+                  eliminar.mutate({ evalId: confirmDelete, force });
+                }
                 setConfirmDelete(null);
               }}
             >

@@ -187,12 +187,10 @@ export async function marcarEnProgreso(evalId: string): Promise<void> {
   if (error) throw error;
 }
 
-/** Elimina una evaluación (solo en borrador) */
-export async function eliminarEvaluacion(evalId: string): Promise<void> {
-  const { error } = await supabase
-    .from("ciclo_evaluaciones")
-    .delete()
-    .eq("id", evalId)
-    .eq("estado", "borrador");
+/** Elimina una evaluación. Con force=true elimina cualquier estado (uso admin). */
+export async function eliminarEvaluacion(evalId: string, force = false): Promise<void> {
+  let query = supabase.from("ciclo_evaluaciones").delete().eq("id", evalId);
+  if (!force) query = query.eq("estado", "borrador");
+  const { error } = await query;
   if (error) throw error;
 }
