@@ -976,32 +976,84 @@ function TestVacuumTight({ datos, onChange }: { datos: DatosPerformance; onChang
 
 // ── 9. Vacuum Leak Rate ───────────────────────────────────────────────────────
 
-function TestVacuumLeak({ datos, onChange }: { datos: DatosPerformance; onChange: (d: DatosPerformance) => void }) {
-  // 13 filas: 0, 10, 20, ..., 120 segundos
-  const defaultFilas = Array.from({ length: 13 }, (_, i) => ({
-    timeSec: i * 10,
-    pressureMbar: null as number | null,
-    maxLeakRate: 2e-7,
-  }));
-  const filas = datos.vacuumLeak?.length ? datos.vacuumLeak : defaultFilas;
+// Límites por tiempo para Vacuum Leak Rate (curva roja del Excel, DOC1604037)
+// Pass criteria: Blue line should be below red line at every time point
+const LEAK_LIMITS: Record<number, number> = {
+  0: 1.80e-7,
+  10: 1.00e-6,
+  20: 1.50e-6,
+  30: 1.90e-6,
+  40: 2.30e-6,
+  50: 2.70e-6,
+  60: 3.00e-6,
+  70: 3.30e-6,
+  80: 3.60e-6,
+  90: 3.90e-6,
+  100: 4.20e-6,
+  110: 4.60e-6,
+  120: 4.90e-6,
+};
 
-  function updateFila(idx: number, val: string) {
+function TestVacuumLeak({ datos, onChange }: { datos: DatosPerformance; onChange: (d: DatosPerformance) => void }) {
+  const [rawInputs, setRawInputs] = useState<Record<string, string>>({});
+
+  const TIMES = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120];
+
+  const defaultFilas = TIMES.map(t => ({
+    timeSec: t,
+    pressureMbar: null as number | null,
+    maxLeakRate: LEAK_LIMITS[t],
+  }));
+
+  const filas = datos.vacuumLeak?.length
+    ? datos.vacuumLeak.map((f) => ({
+        ...f,
+        maxLeakRate: LEAK_LIMITS[f.timeSec ?? 0] ?? f.maxLeakRate,
+      }))
+    : defaultFilas;
+
+  function commitFila(idx: number, raw: string) {
+    const parsed = raw === "" ? null : Number(raw);
+    const value = parsed == null || isNaN(parsed) ? null : parsed;
     const arr = [...filas];
-    arr[idx] = { ...arr[idx], pressureMbar: val === "" ? null : Number(val) };
+    arr[idx] = { ...arr[idx], pressureMbar: value };
     onChange({ ...datos, vacuumLeak: arr });
   }
 
-  // Tasa de fuga = ΔP × V / Δt. V ≈ 300 L, Δt en segundos
-  const V = 300; // L
-  const first = filas[0]?.pressureMbar ?? null;
-  const last  = filas[filas.length - 1]?.pressureMbar ?? null;
-  const dt    = ((filas[filas.length - 1]?.timeSec ?? 0) - (filas[0]?.timeSec ?? 0)) || 1;
-  const leakRate = (first != null && last != null) ? Math.abs(last - first) * V / dt : null;
-  const pass = leakRate != null ? leakRate < 2e-7 : null;
+  function handleChange(idx: number, val: string) {
+    setRawInputs(prev => ({ ...prev, [idx]: val }));
+    const parsed = Number(val);
+    if (val === "" || !isNaN(parsed)) commitFila(idx, val);
+  }
 
-  const chartData = filas
-    .filter(f => f.pressureMbar != null)
-    .map(f => ({ time: f.timeSec, "P-Vacío": f.pressureMbar, "Max. Leak Rate": 2e-7 }));
+  function handleBlur(idx: number) {
+    const raw = rawInputs[idx];
+    if (raw !== undefined) {
+      commitFila(idx, raw);
+      setRawInputs(prev => { const n = { ...prev }; delete n[idx]; return n; });
+    }
+  }
+
+  function displayVal(idx: number, stored: number | null): string {
+    if (String(idx) in rawInputs) return rawInputs[idx];
+    if (stored == null || isNaN(stored)) return "";
+    return String(stored);
+  }
+
+  // PASS: cada fila con dato debe estar ≤ su límite
+  const withData = filas.filter(f => f.pressureMbar != null && !isNaN(f.pressureMbar));
+  const pass: boolean | null = withData.length === 0 ? null
+    : withData.every(f => (f.pressureMbar as number) <= (LEAK_LIMITS[f.timeSec ?? 0] ?? Infinity));
+
+  // Gráfico: siempre los 13 puntos, curva roja siempre visible
+  const chartData = TIMES.map(t => {
+    const f = filas.find(r => r.timeSec === t);
+    return {
+      time: t,
+      "Medido": f?.pressureMbar ?? null,
+      "Límite": LEAK_LIMITS[t],
+    };
+  });
 
   return (
     <div className="space-y-4">
@@ -1011,57 +1063,62 @@ function TestVacuumLeak({ datos, onChange }: { datos: DatosPerformance; onChange
       </div>
 
       <InstruccionesCaja lines={[
-        "Cerrar la válvula de gas y de las bombas de ion gauge.",
-        "Aislar la cámara del ciclotrón y registrar la presión cada 10 segundos hasta 120 s.",
-        "Calcular la tasa de fuga: ΔP × V / Δt. V ≈ 300 L (volumen cámara), Δt en segundos.",
-        "Límite: < 2×10⁻⁷ mbar·L/s para PASS (SM-Acc §8).",
+        "Sistema frío, sin corrida de beam reciente, con vacío totalmente recuperado.",
+        "Poner VCU en modo Standby con todas las BEV cerradas y sin gas flow.",
+        "Registrar la presión de cámara cada 10 segundos hasta 120 s.",
+        "PASS: la curva medida (azul) debe quedar por debajo de la curva límite (roja).",
       ]} />
 
-      <table className="w-full text-xs border rounded">
-        <thead className="bg-muted">
-          <tr>
-            {["Tiempo (s)", "Presión cámara (mbar)"].map(h => (
-              <th key={h} className="px-3 py-2 text-left font-medium">{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {filas.map((f, i) => (
-            <tr key={i} className="border-t hover:bg-muted/30">
-              <td className="px-3 py-2 font-medium">{f.timeSec} s</td>
-              <td className="px-3 py-2">
-                <Input type="text" className="h-7 w-28 text-xs px-1" placeholder="ej. 1.3E-7"
-                  value={f.pressureMbar ?? ""} onChange={e => updateFila(i, e.target.value)} />
-              </td>
+      <div className="grid grid-cols-2 gap-6">
+        {/* Tabla */}
+        <table className="text-xs border rounded">
+          <thead className="bg-muted">
+            <tr>
+              {["Tiempo (s)", "P-Cámara (mbar)", "Límite (mbar)", "Pass"].map(h => (
+                <th key={h} className="px-2 py-2 text-left font-medium">{h}</th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {filas.map((f, i) => {
+              const lim = LEAK_LIMITS[f.timeSec ?? 0];
+              const rowPass = f.pressureMbar != null && !isNaN(f.pressureMbar)
+                ? f.pressureMbar <= lim : null;
+              return (
+                <tr key={i} className="border-t hover:bg-muted/30">
+                  <td className="px-2 py-1.5 font-medium">{f.timeSec} s</td>
+                  <td className="px-2 py-1.5">
+                    <Input type="text" className="h-7 w-24 text-xs px-1" placeholder="ej. 1.3E-6"
+                      value={displayVal(i, f.pressureMbar)}
+                      onChange={e => handleChange(i, e.target.value)}
+                      onBlur={() => handleBlur(i)} />
+                  </td>
+                  <td className="px-2 py-1.5 text-muted-foreground">{fmtE(lim)}</td>
+                  <td className="px-2 py-1.5"><PassBadge pass={rowPass} /></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
 
-      {leakRate != null && (
-        <div className={cn("border rounded-lg p-3 text-sm font-medium",
-          pass ? "border-green-200 bg-green-50 text-green-800" : "border-red-200 bg-red-50 text-red-800")}>
-          Tasa de fuga calculada: {leakRate.toExponential(2)} mbar·L/s — {pass ? "✓ PASS (< 2×10⁻⁷)" : "✗ FAIL (≥ 2×10⁻⁷)"}
-        </div>
-      )}
-
-      {/* Gráfico */}
-      {chartData.length > 1 && (
-        <div>
-          <p className="text-xs font-medium mb-1 text-muted-foreground">Presión vs Tiempo</p>
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={chartData}>
+        {/* Gráfico */}
+        <div className="border rounded-lg p-3 flex flex-col">
+          <p className="text-xs font-medium mb-2">Vacuum pressure vs Time</p>
+          <ResponsiveContainer width="100%" height={260}>
+            <LineChart data={chartData} margin={{ top: 4, right: 8, bottom: 16, left: 8 }}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="time" label={{ value: "Tiempo (s)", position: "insideBottom", offset: -2 }} tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 10 }} />
-              <Tooltip />
-              <Legend />
-              <Line type="monotone" dataKey="P-Vacío" stroke="#3b82f6" dot={true} />
-              <Line type="monotone" dataKey="Max. Leak Rate" stroke="#ef4444" strokeDasharray="5 5" dot={false} />
+              <XAxis dataKey="time"
+                label={{ value: "Time (s)", position: "insideBottom", offset: -10, fontSize: 10 }}
+                tick={{ fontSize: 9 }} />
+              <YAxis tick={{ fontSize: 9 }} tickFormatter={v => v.toExponential(1)} width={56} />
+              <Tooltip formatter={(v: number) => v.toExponential(2)} />
+              <Legend wrapperStyle={{ fontSize: 10 }} />
+              <Line type="monotone" dataKey="Límite" stroke="#ef4444" strokeWidth={2} dot={false} name="Max leak rate" connectNulls />
+              <Line type="monotone" dataKey="Medido" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} name="Vacuum pressure" connectNulls={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
-      )}
+      </div>
     </div>
   );
 }

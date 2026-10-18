@@ -110,12 +110,24 @@ export function calcVacuumTight(
   });
 }
 
-export function calcVacuumLeak(filas: { pressureMbar?: number | null }[]): boolean | null {
-  if (filas.length < 2) return null;
-  const first = filas[0].pressureMbar ?? null;
-  const last  = filas[filas.length - 1].pressureMbar ?? null;
-  if (first == null || last == null) return null;
-  return (last - first) < 5e-6;
+// Límites por tiempo para Vacuum Leak Rate (DOC1604037)
+const LEAK_LIMITS: Record<number, number> = {
+  0: 1.80e-7, 10: 1.00e-6, 20: 1.50e-6, 30: 1.90e-6, 40: 2.30e-6,
+  50: 2.70e-6, 60: 3.00e-6, 70: 3.30e-6, 80: 3.60e-6, 90: 3.90e-6,
+  100: 4.20e-6, 110: 4.60e-6, 120: 4.90e-6,
+};
+
+export function calcVacuumLeak(
+  filas: { timeSec?: number; pressureMbar?: number | null; maxLeakRate?: number }[]
+): boolean | null {
+  if (!filas.length) return null;
+  const withData = filas.filter(f => f.pressureMbar != null && !isNaN(f.pressureMbar as number));
+  if (!withData.length) return null;
+  // PASS: la presión medida en cada punto ≤ límite de ese tiempo (curva azul bajo curva roja)
+  return withData.every(f => {
+    const lim = f.maxLeakRate ?? LEAK_LIMITS[f.timeSec ?? -1] ?? Infinity;
+    return (f.pressureMbar as number) <= lim;
+  });
 }
 
 // ── Cálculo combinado de todos los sub-tests del paso 3 ───────────────────────
