@@ -62,10 +62,10 @@ const greyLight  = [248, 250, 252] as [number, number, number];
 const LGREY      = [241, 245, 249] as [number, number, number];
 
 const TIPO_MAP: Record<string, string> = {
-  assessment:       "Assessment General",
-  upgrade_eval:     "Upgrade Evaluation",
+  assessment:       "Evaluación General",
+  upgrade_eval:     "Evaluación de Actualización",
   eosss:            "EoSSS (Fin de Contrato)",
-  "10yr_refurbish": "10-Year Refurbishment",
+  "10yr_refurbish": "Reacondicionamiento 10 Años",
 };
 
 // ── Tipos públicos ────────────────────────────────────────────────────────────
@@ -79,6 +79,9 @@ export interface EvaluacionExportOptions {
     direccion?: string | null;
     logo_url?: string | null;
   };
+  cliente?: {
+    logo_url?: string | null;
+  };
 }
 
 // ── Función principal ─────────────────────────────────────────────────────────
@@ -90,9 +93,12 @@ export async function exportEvaluacionPDF(
   const { jsPDF } = await import("jspdf");
   const { autoTable } = await import("jspdf-autotable");
 
-  // Pre-cargar logo de empresa si hay URL
+  // Pre-cargar logos
   const empresaLogoImg = opts.empresa?.logo_url
     ? await fetchImageBase64(opts.empresa.logo_url)
+    : null;
+  const clienteLogoImg = opts.cliente?.logo_url
+    ? await fetchImageBase64(opts.cliente.logo_url)
     : null;
 
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
@@ -108,9 +114,9 @@ export async function exportEvaluacionPDF(
     doc.setFillColor(...NAVY);
     doc.rect(0, 0, PW, HDR_H, "F");
 
+    type JsPDFImg = { addImage: (img: string, fmt: string, x: number, y: number, w: number, h: number) => void };
     try {
       if (empresaLogoImg) {
-        type JsPDFImg = { addImage: (img: string, fmt: string, x: number, y: number, w: number, h: number) => void };
         const maxW = 38, maxH = 14;
         (doc as unknown as JsPDFImg).addImage(
           `data:image/${empresaLogoImg.mime.toLowerCase()};base64,${empresaLogoImg.b64}`,
@@ -120,6 +126,17 @@ export async function exportEvaluacionPDF(
         const lw = LOGO_VIATIQ_W * 0.07;
         const lh = LOGO_VIATIQ_H * 0.07;
         doc.addImage(LOGO_VIATIQ_PNG_B64, "PNG", M, (HDR_H - lh) / 2, lw, lh);
+      }
+    } catch { /* logo opcional */ }
+
+    // Logo del cliente (lado derecho del header)
+    try {
+      if (clienteLogoImg) {
+        const maxW = 38, maxH = 14;
+        (doc as unknown as JsPDFImg).addImage(
+          `data:image/${clienteLogoImg.mime.toLowerCase()};base64,${clienteLogoImg.b64}`,
+          clienteLogoImg.mime, PW - M - maxW, (HDR_H - maxH) / 2, maxW, maxH,
+        );
       }
     } catch { /* logo opcional */ }
 
@@ -261,7 +278,7 @@ export async function exportEvaluacionPDF(
     ["Vacío Standby",    val(s.vacuumPressureStandby, " mbar"), "Vacío Beam On",  val(s.vacuumPressureBeamOn, " mbar")],
     ["Contrato activo",  s.bajoContrato != null ? (s.bajoContrato ? "Sí" : "No") : "—",
                                                            "Vencimiento contrato", val(s.vencimientoContrato)],
-    ["I prom. ¹⁸F (µA)", val(s.corrientePromedio18F),      "Util. prom. ¹⁸F (%)", val(s.utilizacionPromedio18F)],
+    ["I prom. 18F (µA)", val(s.corrientePromedio18F),      "Util. prom. 18F (%)", val(s.utilizacionPromedio18F)],
     ["Estado sistema",   val(s.estadoSistema),              "Satisfacción cliente", val(s.satisfaccionCliente)],
   ];
 
@@ -395,11 +412,15 @@ export async function exportEvaluacionPDF(
     });
   }
 
-  if ((p.transmision?.length ?? 0) > 0 && !skip.has("transmision")) {
+  const transmConDatos = (p.transmision ?? []).filter(f =>
+    (f as { foilCurrentUA?: number | null }).foilCurrentUA != null ||
+    (f as { probeInCurrentUA?: number | null }).probeInCurrentUA != null
+  );
+  if (transmConDatos.length > 0 && !skip.has("transmision")) {
     subTests.push({
       nombre: "T10 - Beam Transmission",
       resultado: calcTransmision(p.transmision ?? []),
-      detalle: `${p.transmision!.length} puntos medidos`,
+      detalle: `${transmConDatos.length} punto${transmConDatos.length !== 1 ? "s" : ""} medido${transmConDatos.length !== 1 ? "s" : ""}`,
     });
   }
 
@@ -677,7 +698,7 @@ export async function exportEvaluacionPDF(
         return [
           String(f.isCurrentMA ?? "—"),
           f.probeCurrentH != null ? fmtNum(f.probeCurrentH, 1) : "—",
-          min != null ? `≥ ${min}` : "—",
+          min != null ? ">= " + min : "—",
           pass === true ? "OK" : pass === false ? "Bajo" : "—",
         ];
       }),
@@ -707,13 +728,17 @@ export async function exportEvaluacionPDF(
       head: [["Gas flow (sccm)", "Chamber P (mbar)", "Spec Chamber", "Backing P (mbar)", "Spec Backing"]],
       headStyles: { fillColor: [71,85,105], textColor: 255, fontSize: 7, cellPadding: 1.5 },
       styles: { fontSize: 7, cellPadding: 1.5, halign: "center" },
-      body: (p.vacuumTightness ?? []).filter(f => f.chamberPressureMbar != null).map(f => [
-        String((f as { gasFlowSccm?: number }).gasFlowSccm ?? "—"),
-        f.chamberPressureMbar != null ? f.chamberPressureMbar.toExponential(2) : "—",
-        `≤ ${((f as { maxChamberMbar?: number }).maxChamberMbar ?? "—")}`,
-        f.backingPressureMbar != null ? (f.backingPressureMbar as number).toFixed(3) : "—",
-        `≤ ${((f as { maxBackingMbar?: number }).maxBackingMbar ?? "—")}`,
-      ]),
+      body: (p.vacuumTightness ?? []).filter(f => f.chamberPressureMbar != null).map(f => {
+        const maxCh = (f as { maxChamberMbar?: number }).maxChamberMbar;
+        const maxBk = (f as { maxBackingMbar?: number }).maxBackingMbar;
+        return [
+          String((f as { gasFlowSccm?: number }).gasFlowSccm ?? "—"),
+          f.chamberPressureMbar != null ? f.chamberPressureMbar.toExponential(2) : "—",
+          maxCh != null ? "<= " + maxCh.toExponential(2) : "—",
+          f.backingPressureMbar != null ? (f.backingPressureMbar as number).toFixed(3) : "—",
+          maxBk != null ? "<= " + maxBk.toFixed(3) : "—",
+        ];
+      }),
       alternateRowStyles: { fillColor: greyLight },
     });
     yd = getY() + 5;
@@ -732,33 +757,62 @@ export async function exportEvaluacionPDF(
       head: [["Tiempo (s)", "Presión (mbar)", "Límite (mbar)"]],
       headStyles: { fillColor: [71,85,105], textColor: 255, fontSize: 7, cellPadding: 1.5 },
       styles: { fontSize: 7, cellPadding: 1.5, halign: "center" },
-      body: vlFilas.map(f => [
-        String((f as { timeSec?: number }).timeSec ?? "—"),
-        f.pressureMbar != null ? f.pressureMbar.toExponential(2) : "—",
-        `≤ ${((f as { maxLeakRate?: number }).maxLeakRate ?? "—")}`,
-      ]),
+      body: vlFilas.map(f => {
+        const maxL = (f as { maxLeakRate?: number }).maxLeakRate;
+        return [
+          String((f as { timeSec?: number }).timeSec ?? "—"),
+          f.pressureMbar != null ? f.pressureMbar.toExponential(2) : "—",
+          maxL != null ? "<= " + maxL.toExponential(2) : "—",
+        ];
+      }),
       alternateRowStyles: { fillColor: greyLight },
     });
     yd = getY() + 5;
   }
 
   // ── T10 Beam Transmission ─────────────────────────────────────────────────
-  if (!skip.has("transmision") && (p.transmision?.length ?? 0) > 0) {
+  const trFilasConDatos = (p.transmision ?? []).filter(f =>
+    f.foilCurrentUA != null || f.probeInCurrentUA != null
+  );
+  if (!skip.has("transmision") && trFilasConDatos.length > 0) {
     const trPass = calcTransmision(p.transmision ?? []);
-    yd = ensureSpace(yd, 30);
+    yd = ensureSpace(yd, 35);
     yd = subTitle("T10 - Beam Transmission", yd, trPass);
 
     autoTable(doc, {
       startY: yd,
       margin: { left: M, right: M },
-      head: [["#", "Beam Current (µA)", "Transmission (%)"]],
+      head: [["#", "Target (µA)", "I-Foil (µA)", "I-Probe-In (µA)", "Trans.→Target%", "Trans.→Foil%"]],
       headStyles: { fillColor: [71,85,105], textColor: 255, fontSize: 7, cellPadding: 1.5 },
       styles: { fontSize: 7, cellPadding: 1.5, halign: "center" },
-      body: (p.transmision ?? []).map((f, i) => [
-        String(i + 1),
-        fmtNum((f as { beamCurrent?: number }).beamCurrent, 1),
-        fmtNum((f as { transmission?: number }).transmission, 1),
-      ]),
+      body: trFilasConDatos.map((f, i) => {
+        const tgt  = (f as { transmissionToTarget?: number }).transmissionToTarget;
+        const foil = (f as { transmissionToFoil?: number }).transmissionToFoil;
+        return [
+          String(i + 1),
+          fmtNum(f.targetCurrentUA, 0),
+          f.foilCurrentUA != null ? fmtNum(f.foilCurrentUA, 1) : "—",
+          f.probeInCurrentUA != null ? fmtNum(f.probeInCurrentUA, 1) : "—",
+          tgt  != null ? tgt.toFixed(1)  + "%" : "—",
+          foil != null ? foil.toFixed(1) + "%" : "—",
+        ];
+      }),
+      didParseCell(data) {
+        if (data.section === "body") {
+          const f = trFilasConDatos[data.row.index];
+          if (data.column.index === 4) {
+            const v = (f as { transmissionToTarget?: number }).transmissionToTarget;
+            if (v != null) data.cell.styles.textColor = v >= 55 ? passColor : failColor;
+          }
+          if (data.column.index === 5) {
+            const v = (f as { transmissionToFoil?: number }).transmissionToFoil;
+            if (v != null) data.cell.styles.textColor = v >= 65 ? passColor : failColor;
+          }
+        }
+      },
+      columnStyles: {
+        0: { cellWidth: 8 },
+      },
       alternateRowStyles: { fillColor: greyLight },
     });
     yd = getY() + 5;

@@ -2,7 +2,7 @@
  * evaluacion-detalle.tsx
  * Vista de detalle de una evaluación completada — con botón de exportar PDF
  */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { ChevronLeft, CheckCircle2, XCircle, Clock, FileText, FlaskConical } from "lucide-react";
@@ -13,6 +13,7 @@ import type { CicloEvaluacion } from "@/types/entities";
 import { exportEvaluacionPDF } from "@/services/export/evaluacion-export";
 import { useCompany } from "@/contexts/company-context";
 import { calcVacuumTight, calcVacuumLeak, calcIonSource, calcIarcBeam } from "@/utils/eval-calcs";
+import { supabase } from "@/integrations/supabase/client";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -60,24 +61,51 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export function EvaluacionDetalle({ evaluacion: ev, onBack }: Props) {
   const [exportando, setExportando] = useState(false);
+  const [clienteLogoUrl, setClienteLogoUrl] = useState<string | null>(null);
   const { empresaActiva } = useCompany();
   const site = ev.datos_sitio ?? {};
+
+  // Cargar logo del cliente via ciclotrón → clientes
+  useEffect(() => {
+    supabase
+      .from("ciclotrones")
+      .select("cliente_id")
+      .eq("id", ev.ciclotrón_id)
+      .single()
+      .then(({ data: cicData }) => {
+        if (!cicData?.cliente_id) return;
+        return supabase
+          .from("clientes")
+          .select("logo_url")
+          .eq("id", cicData.cliente_id)
+          .single();
+      })
+      .then((res) => {
+        if (res && !res.error && res.data?.logo_url) {
+          setClienteLogoUrl(res.data.logo_url);
+        }
+      })
+      .catch(() => { /* logo opcional */ });
+  }, [ev.ciclotrón_id]);
   const perf = ev.datos_performance ?? {};
   const eval_ = ev.datos_evaluacion ?? {};
 
   async function handleExportPDF() {
     setExportando(true);
     try {
-      await exportEvaluacionPDF(ev, empresaActiva ? {
-        empresa: {
-          nombre:    empresaActiva.nombre,
-          ruc:       empresaActiva.ruc,
-          telefono:  empresaActiva.telefono,
-          correo:    empresaActiva.correo,
-          direccion: empresaActiva.direccion,
-          logo_url:  empresaActiva.logo_url,
-        },
-      } : undefined);
+      await exportEvaluacionPDF(ev, {
+        ...(empresaActiva ? {
+          empresa: {
+            nombre:    empresaActiva.nombre,
+            ruc:       empresaActiva.ruc,
+            telefono:  empresaActiva.telefono,
+            correo:    empresaActiva.correo,
+            direccion: empresaActiva.direccion,
+            logo_url:  empresaActiva.logo_url,
+          },
+        } : {}),
+        ...(clienteLogoUrl ? { cliente: { logo_url: clienteLogoUrl } } : {}),
+      });
     } catch (err) {
       console.error("Error exportando PDF:", err);
     } finally {
