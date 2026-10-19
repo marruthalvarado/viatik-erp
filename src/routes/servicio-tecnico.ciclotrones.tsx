@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { AppShell } from "@/components/layout/app-shell";
+import { FullPageShell } from "@/components/layout/full-page-shell";
 import { CiclotronsLayout } from "@/components/ciclotrones/ciclotrones-layout";
 
 export const Route = createFileRoute("/servicio-tecnico/ciclotrones")({
@@ -9,8 +9,8 @@ export const Route = createFileRoute("/servicio-tecnico/ciclotrones")({
 
 function CiclotronsPage() {
   return (
-    <AppShell>
+    <FullPageShell>
       <CiclotronsLayout />
-    </AppShell>
+    </FullPageShell>
   );
 }
