@@ -69,13 +69,40 @@ export function CicloEvaluacionesTab({ ciclotrón }: Props) {
   const { data: evaluaciones = [], isLoading } = useEvaluacionesByCiclotrón(ciclotrón.id);
   const eliminar = useEliminarEvaluacion();
 
-  const [showWizard, setShowWizard]       = useState(false);
-  const [selectedEv, setSelectedEv]       = useState<CicloEvaluacion | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [showWizard, setShowWizard]           = useState(false);
+  const [wizardEv, setWizardEv]               = useState<CicloEvaluacion | undefined>(undefined);
+  const [selectedEv, setSelectedEv]           = useState<CicloEvaluacion | null>(null);
+  const [confirmDelete, setConfirmDelete]     = useState<string | null>(null);
+
+  function openNueva() {
+    setWizardEv(undefined);
+    setShowWizard(true);
+  }
+
+  function openContinuar(ev: CicloEvaluacion) {
+    setWizardEv(ev);
+    setShowWizard(true);
+  }
+
+  function handleRowClick(ev: CicloEvaluacion) {
+    if (ev.estado === "borrador") {
+      openContinuar(ev);
+    } else {
+      setSelectedEv(ev);
+    }
+  }
 
   function handleWizardDone(ev: CicloEvaluacion) {
     setShowWizard(false);
+    setWizardEv(undefined);
     setSelectedEv(ev);
+  }
+
+  function handleWizardClose(open: boolean) {
+    if (!open) {
+      setShowWizard(false);
+      setWizardEv(undefined);
+    }
   }
 
   return (
@@ -86,7 +113,7 @@ export function CicloEvaluacionesTab({ ciclotrón }: Props) {
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Evaluaciones
           </p>
-          <Button size="sm" variant="outline" className="gap-1 h-7 text-xs" onClick={() => setShowWizard(true)}>
+          <Button size="sm" variant="outline" className="gap-1 h-7 text-xs" onClick={openNueva}>
             <Plus className="h-3 w-3" />
             Nueva
           </Button>
@@ -100,7 +127,7 @@ export function CicloEvaluacionesTab({ ciclotrón }: Props) {
           <div className="flex flex-col items-center gap-3 py-10 text-muted-foreground">
             <ClipboardList className="h-8 w-8" />
             <p className="text-sm">No hay evaluaciones para este ciclotrón</p>
-            <Button size="sm" onClick={() => setShowWizard(true)} className="gap-1">
+            <Button size="sm" onClick={openNueva} className="gap-1">
               <Plus className="h-3 w-3" />
               Nueva Evaluación
             </Button>
@@ -113,7 +140,7 @@ export function CicloEvaluacionesTab({ ciclotrón }: Props) {
               <div
                 key={ev.id}
                 className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors"
-                onClick={() => setSelectedEv(ev)}
+                onClick={() => handleRowClick(ev)}
               >
                 {/* Icono resultado */}
                 <div className="flex-none">
@@ -157,19 +184,24 @@ export function CicloEvaluacionesTab({ ciclotrón }: Props) {
         )}
       </ScrollArea>
 
-      {/* Wizard — Sheet full-width */}
-      <Sheet open={showWizard} onOpenChange={setShowWizard}>
+      {/* Wizard — Sheet full-width (nueva o continuar borrador) */}
+      <Sheet open={showWizard} onOpenChange={handleWizardClose}>
         <SheetContent
           side="right"
           className="!w-screen !max-w-full h-screen flex flex-col p-0 gap-0"
         >
           <SheetHeader className="px-6 py-4 border-b flex-shrink-0">
-            <SheetTitle>Nueva Evaluación — {ciclotrón.nombre}</SheetTitle>
+            <SheetTitle>
+              {wizardEv
+                ? `Continuar evaluación ${wizardEv.numero} — ${ciclotrón.nombre}`
+                : `Nueva Evaluación — ${ciclotrón.nombre}`}
+            </SheetTitle>
           </SheetHeader>
           <ScrollArea className="flex-1 px-6 py-4">
             <EvaluacionWizard
               defaultCiclotrónId={ciclotrón.id}
-              onCancel={() => setShowWizard(false)}
+              evaluacionInicial={wizardEv}
+              onCancel={() => handleWizardClose(false)}
               onComplete={handleWizardDone}
             />
           </ScrollArea>
