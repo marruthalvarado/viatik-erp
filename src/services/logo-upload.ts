@@ -25,13 +25,16 @@ export async function uploadLogoEmpresa(
   const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
   const publicUrl = `${data.publicUrl}?t=${Date.now()}`; // cache-bust
 
-  // Guardar en empresas.logo_url
-  const { error: updErr } = await supabase
+  // Guardar en empresas.logo_url (se usa .select para detectar 0 filas afectadas por RLS)
+  const { error: updErr, data: updData } = await supabase
     .from("empresas")
     .update({ logo_url: publicUrl })
-    .eq("id", empresaId);
+    .eq("id", empresaId)
+    .select("id");
 
   if (updErr) throw new Error(`Error guardando logo_url: ${updErr.message}`);
+  // Si RLS bloqueó silenciosamente el UPDATE (0 filas afectadas), informar al usuario
+  if (!updData || updData.length === 0) throw new Error("Sin permisos para actualizar el logo de esta empresa.");
 
   return publicUrl;
 }

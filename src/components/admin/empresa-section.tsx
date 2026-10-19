@@ -51,7 +51,7 @@ const empresaSchema = z.object({
 type EmpresaFormValues = z.infer<typeof empresaSchema>;
 
 export function EmpresaSection() {
-  const { empresaActivaId } = useCompany();
+  const { empresaActivaId, refresh } = useCompany();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const logoRef = useRef<HTMLInputElement>(null);
@@ -68,7 +68,8 @@ export function EmpresaSection() {
     setUploadingLogo(true);
     try {
       await uploadLogoEmpresa(empresaActivaId, file);
-      await qc.invalidateQueries({ queryKey: ["empresa", empresaActivaId] });
+      await qc.invalidateQueries({ queryKey: ["empresas", "one", empresaActivaId] });
+      await refresh();
       toast.success("Logo actualizado.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error subiendo el logo.");
