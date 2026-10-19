@@ -3,13 +3,15 @@
  * Wizard de 4 pasos para crear/continuar una evaluación de ciclotrón
  * DOC1604037 rev9 — GE PETtrace 800
  */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ChevronLeft, ChevronRight, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { CicloEvaluacion } from "@/types/entities";
 import { useCrearEvaluacion } from "@/hooks/entities/use-evaluaciones";
 import { useCiclotrones } from "@/hooks/entities/use-ciclotrones";
+import { useAuth } from "@/contexts/auth-context";
+import { supabase } from "@/integrations/supabase/client";
 import { Step1InfoGeneral } from "./wizard-steps/step1-info-general";
 import { Step2InspeccionSitio } from "./wizard-steps/step2-inspeccion-sitio";
 import { Step3PerformanceTest } from "./wizard-steps/step3-performance-test";
@@ -58,9 +60,26 @@ export function EvaluacionWizard({ onCancel, onComplete, defaultCiclotrónId, ev
     evaluacionInicial ? detectarPasoInicial(evaluacionInicial) : 1
   );
   const [evaluacion, setEval] = useState<CicloEvaluacion | null>(evaluacionInicial ?? null);
+  const [ingenieroNombre, setIngenieroNombre] = useState("");
 
   const crear = useCrearEvaluacion();
   const { data: ciclotrones = [] } = useCiclotrones();
+  const { user } = useAuth();
+
+  // Cargar nombre del usuario conectado desde public.usuarios
+  useEffect(() => {
+    if (!user?.id) return;
+    supabase
+      .from("usuarios")
+      .select("nombres, apellidos")
+      .eq("id", user.id)
+      .single()
+      .then(({ data }) => {
+        if (data) {
+          setIngenieroNombre(`${data.nombres ?? ""} ${data.apellidos ?? ""}`.trim());
+        }
+      });
+  }, [user?.id]);
 
   // Avanza al paso siguiente
   function handleNext(ev: CicloEvaluacion) {
@@ -127,6 +146,7 @@ export function EvaluacionWizard({ onCancel, onComplete, defaultCiclotrónId, ev
             crear={crear}
             onNext={handleStep1}
             defaultCiclotrónId={defaultCiclotrónId}
+            defaultIngenieroNombre={ingenieroNombre}
           />
         )}
         {paso === 2 && evaluacion && (

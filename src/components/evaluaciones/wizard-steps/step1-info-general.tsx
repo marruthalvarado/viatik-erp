@@ -1,7 +1,10 @@
 /**
  * step1-info-general.tsx
- * Paso 1: Información general de la evaluación
+ * Paso 1: Información general de la evaluación.
+ * Los campos se auto-completan con la última evaluación del ciclotrón seleccionado.
+ * El nombre del ingeniero se pre-llena con el usuario conectado.
  */
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -20,6 +23,7 @@ import {
 import type { CicloEvaluacion } from "@/types/entities";
 import type { UseMutationResult } from "@tanstack/react-query";
 import type { CrearEvaluacionParams } from "@/services/servicio-tecnico/ciclo-evaluaciones";
+import { supabase } from "@/integrations/supabase/client";
 
 // ── Schema ────────────────────────────────────────────────────────────────────
 
@@ -36,25 +40,73 @@ type FormData = z.infer<typeof schema>;
 interface Ciclotrón { id: string; nombre: string }
 
 interface Props {
-  ciclotrones:        Ciclotrón[];
-  crear:              UseMutationResult<CicloEvaluacion, Error, Omit<CrearEvaluacionParams, "empresa_id">>;
-  onNext:             (ev: CicloEvaluacion) => void;
-  defaultCiclotrónId?: string;
+  ciclotrones:             Ciclotrón[];
+  crear:                   UseMutationResult<CicloEvaluacion, Error, Omit<CrearEvaluacionParams, "empresa_id">>;
+  onNext:                  (ev: CicloEvaluacion) => void;
+  defaultCiclotrónId?:     string;
+  defaultIngenieroNombre?: string;
 }
 
 // ── Componente ────────────────────────────────────────────────────────────────
 
-export function Step1InfoGeneral({ ciclotrones, crear, onNext, defaultCiclotrónId }: Props) {
+export function Step1InfoGeneral({
+  ciclotrones,
+  crear,
+  onNext,
+  defaultCiclotrónId,
+  defaultIngenieroNombre,
+}: Props) {
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
-      tipo_evaluacion: "assessment",
-      tiene_deuterio:  false,
-      ciclotrón_id:    defaultCiclotrónId ?? "",
+      tipo_evaluacion:  "assessment",
+      tiene_deuterio:   false,
+      ciclotrón_id:     defaultCiclotrónId ?? "",
+      ingeniero_nombre: "",
     },
   });
 
-  const tieneDeuterio = watch("tiene_deuterio");
+  const tieneDeuterio  = watch("tiene_deuterio");
+  const selectedModelo = watch("modelo_pt");
+  const selectedCiclo  = watch("ciclotrón_id");
+  const selectedTipo   = watch("tipo_evaluacion");
+
+  // Actualizar nombre del ingeniero cuando llegue el dato del usuario (carga asíncrona)
+  useEffect(() => {
+    if (defaultIngenieroNombre) {
+      setValue("ingeniero_nombre", defaultIngenieroNombre);
+    }
+  }, [defaultIngenieroNombre, setValue]);
+
+  // Auto-llenar con última evaluación al montar si hay ciclotrón pre-seleccionado
+  useEffect(() => {
+    if (defaultCiclotrónId) {
+      void fillFromLastEval(defaultCiclotrónId);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** Busca la última evaluación del ciclotrón y pre-llena modelo, versión y deuterón */
+  async function fillFromLastEval(ciclotrónId: string) {
+    const { data } = await supabase
+      .from("ciclo_evaluaciones")
+      .select("modelo_pt, version_sw, tiene_deuterio")
+      .eq("ciclotrón_id", ciclotrónId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (data) {
+      if (data.modelo_pt)  setValue("modelo_pt",      data.modelo_pt);
+      if (data.version_sw) setValue("version_sw",     data.version_sw);
+      setValue("tiene_deuterio", data.tiene_deuterio ?? false);
+    }
+  }
+
+  async function handleCiclotrónChange(id: string) {
+    setValue("ciclotrón_id", id);
+    await fillFromLastEval(id);
+  }
 
   async function onSubmit(data: FormData) {
     const ev = await crear.mutateAsync({
@@ -73,14 +125,14 @@ export function Step1InfoGeneral({ ciclotrones, crear, onNext, defaultCiclotrón
       <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 flex gap-2 text-sm text-blue-800">
         <Info className="h-4 w-4 mt-0.5 flex-none" />
         <span>
-          Completa la información general del ciclotrón que vas a evaluar.
+          Los campos se auto-completan con la última evaluación de este ciclotrón. Puedes editarlos si es necesario.
         </span>
       </div>
 
       {/* Ciclotrón */}
       <div className="space-y-1">
         <Label>Ciclotrón *</Label>
-        <Select onValueChange={v => setValue("ciclotrón_id", v)}>
+        <Select value={selectedCiclo} onValueChange={handleCiclotrónChange}>
           <SelectTrigger className={errors.ciclotrón_id ? "border-red-500" : ""}>
             <SelectValue placeholder="Selecciona el ciclotrón…" />
           </SelectTrigger>
@@ -97,7 +149,7 @@ export function Step1InfoGeneral({ ciclotrones, crear, onNext, defaultCiclotrón
       <div className="space-y-1">
         <Label>Tipo de Evaluación *</Label>
         <Select
-          defaultValue="assessment"
+          value={selectedTipo}
           onValueChange={v => setValue("tipo_evaluacion", v as FormData["tipo_evaluacion"])}
         >
           <SelectTrigger>
@@ -115,7 +167,7 @@ export function Step1InfoGeneral({ ciclotrones, crear, onNext, defaultCiclotrón
       {/* Modelo PT */}
       <div className="space-y-1">
         <Label>Modelo del equipo *</Label>
-        <Select onValueChange={v => setValue("modelo_pt", v)}>
+        <Select value={selectedModelo ?? ""} onValueChange={v => setValue("modelo_pt", v)}>
           <SelectTrigger className={errors.modelo_pt ? "border-red-500" : ""}>
             <SelectValue placeholder="Selecciona el modelo…" />
           </SelectTrigger>
