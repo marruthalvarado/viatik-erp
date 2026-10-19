@@ -194,12 +194,14 @@ export function ProduccionAnalisis({ produccion, params, ciclotrón }: Props) {
       setAnomalias(anoms);
       setMeta(parsed.meta);
 
-      // Sincronizar conteo en BD si difiere (motor actualizado)
-      if (anoms.length !== produccion.anomalias_count) {
+      // Sincronizar en BD si el conteo de anomalías o el setpoint difieren
+      const setpointDifiere = Math.abs(targetISp - (produccion.target_i_setpoint ?? 0)) > 0.5;
+      if (anoms.length !== produccion.anomalias_count || setpointDifiere) {
         void resincronizar.mutate({
-          produccionId: produccion.id,
-          ciclotronId:  produccion["ciclotrón_id"],
-          anomalias:    anoms,
+          produccionId:    produccion.id,
+          ciclotronId:     produccion["ciclotrón_id"],
+          anomalias:       anoms,
+          targetISetpoint: targetISp,
         });
       }
     } catch (e) {

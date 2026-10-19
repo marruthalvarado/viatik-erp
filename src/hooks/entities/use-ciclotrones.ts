@@ -209,16 +209,19 @@ export function useResincronizarAnalisisBatch() {
       produccionId,
       ciclotronId,
       anomalias,
+      targetISetpoint,
     }: {
       produccionId: string;
       ciclotronId: string;
       anomalias: CicloAnomalia[];
+      targetISetpoint?: number;
     }) => {
       const resumen = resumirAnomalias(anomalias);
       return actualizarCicloProduccion(produccionId, {
-        anomalias_count: resumen.total,
-        anomalias:       anomalias as unknown as import("@/types/database").Json,
-        estado:          estadoDesdeAnomalias(anomalias),
+        anomalias_count:   resumen.total,
+        anomalias:         anomalias as unknown as import("@/types/database").Json,
+        estado:            estadoDesdeAnomalias(anomalias),
+        ...(targetISetpoint != null && { target_i_setpoint: targetISetpoint }),
       });
     },
     onSuccess: (_data, { ciclotronId }) => {
