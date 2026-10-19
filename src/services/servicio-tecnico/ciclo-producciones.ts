@@ -17,6 +17,7 @@ export async function getCicloProduccionesDeciclotron(
     .from("ciclo_producciones")
     .select("*")
     .eq("ciclotrón_id", ciclotrónId)
+    .order("numero_batch", { ascending: false, nullsFirst: false })
     .order("fecha", { ascending: false })
     .order("created_at", { ascending: false });
   if (error) throw error;
