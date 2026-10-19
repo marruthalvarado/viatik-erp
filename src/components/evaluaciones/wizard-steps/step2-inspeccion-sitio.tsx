@@ -18,57 +18,76 @@ import { useGuardarDatosSitio } from "@/hooks/entities/use-evaluaciones";
 import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
-  evaluacion: CicloEvaluacion;
-  onNext:     (ev: CicloEvaluacion) => void;
-  onBack:     () => void;
+  evaluacion:       CicloEvaluacion;
+  onNext:           (ev: CicloEvaluacion) => void;
+  onBack:           () => void;
+  ingenieroNombre?: string;  // nombre del técnico del Step 1, siempre sobreescribe localFeName
 }
 
-export function Step2InspeccionSitio({ evaluacion, onNext, onBack }: Props) {
+export function Step2InspeccionSitio({ evaluacion, onNext, onBack, ingenieroNombre }: Props) {
   const guardar = useGuardarDatosSitio();
   const { register, handleSubmit, watch, setValue, reset } = useForm<DatosSitio>({
     defaultValues: evaluacion.datos_sitio ?? {},
   });
 
-  // Auto-llenar desde la última evaluación anterior si esta aún no tiene datos de sitio
+  // Auto-llenar datos estables al montar si la evaluación aún no tiene datos propios
   useEffect(() => {
-    // datos_sitio llega como {} cuando es null en BD (ver mapRow), verificar si tiene contenido real
     const tieneDatos = evaluacion.datos_sitio &&
       Object.values(evaluacion.datos_sitio).some(v => v !== null && v !== undefined && v !== "");
-    if (tieneDatos) return; // ya tiene datos propios guardados, no sobreescribir
 
-    void (async () => {
-      const { data } = await supabase
-        .from("ciclo_evaluaciones")
-        .select("datos_sitio")
-        .eq("ciclotrón_id", evaluacion.ciclotrón_id)
-        .neq("id", evaluacion.id)
-        .not("datos_sitio", "is", null)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+    if (!tieneDatos) {
+      // Prioridad 1: config_sitio del ciclotrón (persiste aunque se borren evaluaciones)
+      // Prioridad 2: última evaluación anterior con datos
+      void (async () => {
+        // Intentar desde el ciclotrón directamente
+        const { data: cic } = await supabase
+          .from("ciclotrones")
+          .select("config_sitio")
+          .eq("id", evaluacion.ciclotrón_id)
+          .maybeSingle();
 
-      if (data?.datos_sitio) {
-        // Solo pre-llenar campos de sitio estables (no mediciones puntuales como temperatura/radiación)
-        const sitio = data.datos_sitio as DatosSitio;
-        const campos: (keyof DatosSitio)[] = [
-          "clienteNombre", "sitioNombre", "sitioAddress", "siteManagerNombre",
-          "contactoDetalles", "ciclotrónSystemId", "ciclotrónSerial",
-          "localFeName", "voltajeHertz", "anioInstalacion",
-          "ptRelease", "acsVersion", "pssVersion", "masterStationModel", "licenciaUA",
-          "acuVersion", "bajoContrato", "vencimientoContrato",
-          "targetPos1", "targetPos2", "targetPos3", "targetPos4", "targetPos5", "targetPos6",
-          "estadoSistema",
-        ];
-        campos.forEach(k => {
-          const v = sitio[k];
-          if (v !== null && v !== undefined && v !== "") {
-            setValue(k, v as never);
-          }
-        });
-      }
-    })();
+        let sitio: DatosSitio | null = null;
+
+        if (cic?.config_sitio) {
+          sitio = cic.config_sitio as DatosSitio;
+        } else {
+          // Fallback: última evaluación anterior
+          const { data: prev } = await supabase
+            .from("ciclo_evaluaciones")
+            .select("datos_sitio")
+            .eq("ciclotrón_id", evaluacion.ciclotrón_id)
+            .neq("id", evaluacion.id)
+            .not("datos_sitio", "is", null)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (prev?.datos_sitio) sitio = prev.datos_sitio as DatosSitio;
+        }
+
+        if (sitio) {
+          const campos: (keyof DatosSitio)[] = [
+            "clienteNombre", "sitioNombre", "sitioAddress", "siteManagerNombre",
+            "contactoDetalles", "ciclotrónSystemId", "ciclotrónSerial",
+            "voltajeHertz", "anioInstalacion",
+            "ptRelease", "acsVersion", "pssVersion", "masterStationModel", "licenciaUA",
+            "acuVersion", "bajoContrato", "vencimientoContrato",
+            "targetPos1", "targetPos2", "targetPos3", "targetPos4", "targetPos5", "targetPos6",
+            "estadoSistema",
+          ];
+          campos.forEach(k => {
+            const v = sitio![k];
+            if (v !== null && v !== undefined && v !== "") setValue(k, v as never);
+          });
+        }
+      })();
+    }
+
+    // FE local siempre viene del técnico que hace ESTA evaluación (Step 1), no del historial
+    if (ingenieroNombre) {
+      setValue("localFeName", ingenieroNombre);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [ingenieroNombre]);
 
   async function onSubmit(data: DatosSitio) {
     const ev = await guardar.mutateAsync({ evalId: evaluacion.id, datos: data });

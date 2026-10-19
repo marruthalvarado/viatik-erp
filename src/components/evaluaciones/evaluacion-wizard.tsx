@@ -154,6 +154,7 @@ export function EvaluacionWizard({ onCancel, onComplete, defaultCiclotrónId, ev
             evaluacion={evaluacion}
             onNext={handleNext}
             onBack={() => setPaso(1)}
+            ingenieroNombre={evaluacion.ingeniero_nombre ?? ingenieroNombre}
           />
         )}
         {paso === 3 && evaluacion && (

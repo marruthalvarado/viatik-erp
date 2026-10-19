@@ -120,7 +120,7 @@ export async function crearEvaluacion(
   return mapRow(data as Record<string, unknown>);
 }
 
-/** Guarda la sección de datos del sitio (paso 2) */
+/** Guarda la sección de datos del sitio (paso 2) y sincroniza config_sitio en el ciclotrón */
 export async function guardarDatosSitio(
   evalId: string,
   datos: DatosSitio
@@ -131,7 +131,45 @@ export async function guardarDatosSitio(
     p_datos:   datos,
   });
   if (error) throw error;
-  return mapRow(data as Record<string, unknown>);
+  const ev = mapRow(data as Record<string, unknown>);
+
+  // Sincronizar campos estables al ciclotrón (sin mediciones puntuales)
+  // Así los datos persisten aunque se borren las evaluaciones
+  if (ev.ciclotrón_id) {
+    const camposEstables: Partial<DatosSitio> = {
+      clienteNombre:      datos.clienteNombre,
+      sitioNombre:        datos.sitioNombre,
+      sitioAddress:       datos.sitioAddress,
+      siteManagerNombre:  datos.siteManagerNombre,
+      contactoDetalles:   datos.contactoDetalles,
+      ciclotrónSystemId:  datos.ciclotrónSystemId,
+      ciclotrónSerial:    datos.ciclotrónSerial,
+      voltajeHertz:       datos.voltajeHertz,
+      anioInstalacion:    datos.anioInstalacion,
+      ptRelease:          datos.ptRelease,
+      acsVersion:         datos.acsVersion,
+      pssVersion:         datos.pssVersion,
+      masterStationModel: datos.masterStationModel,
+      licenciaUA:         datos.licenciaUA,
+      acuVersion:         datos.acuVersion,
+      bajoContrato:       datos.bajoContrato,
+      vencimientoContrato: datos.vencimientoContrato,
+      targetPos1:         datos.targetPos1,
+      targetPos2:         datos.targetPos2,
+      targetPos3:         datos.targetPos3,
+      targetPos4:         datos.targetPos4,
+      targetPos5:         datos.targetPos5,
+      targetPos6:         datos.targetPos6,
+      estadoSistema:      datos.estadoSistema,
+    };
+    // Ignorar error si falla (no bloquear el flujo principal)
+    await supabase
+      .from("ciclotrones")
+      .update({ config_sitio: camposEstables })
+      .eq("id", ev.ciclotrón_id);
+  }
+
+  return ev;
 }
 
 /** Guarda los datos del Performance Test (paso 3) */
