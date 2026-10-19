@@ -5,10 +5,10 @@
  *  Izquierda — lista de ciclotrones de la empresa
  *  Derecha   — producciones del ciclotrón seleccionado + análisis de batch
  */
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   Plus, Settings2, Trash2, Upload, ChevronRight,
-  AlertCircle, AlertTriangle, CheckCircle2, Clock, Activity,
+  AlertCircle, AlertTriangle, CheckCircle2, Clock, Activity, Search,
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
 
 import type { Ciclotrón, CicloProduccion } from "@/types/entities";
 import {
@@ -73,6 +74,19 @@ function ProduccionesList({
 }) {
   const { data: producciones, isLoading } = useCicloProduccionesDeCiclotrón(ciclotrón.id);
   const eliminar = useEliminarCicloProduccion();
+  const [busqueda, setBusqueda] = useState("");
+
+  const filtradas = useMemo(() => {
+    if (!producciones) return [];
+    if (!busqueda.trim()) return producciones;
+    const q = busqueda.toLowerCase();
+    return producciones.filter((p) =>
+      (p.numero_batch != null && String(p.numero_batch).includes(q)) ||
+      (p.tracer?.toLowerCase().includes(q)) ||
+      (p.fecha?.includes(q)) ||
+      (p.notas?.toLowerCase().includes(q))
+    );
+  }, [producciones, busqueda]);
 
   if (isLoading) return <p className="text-sm text-muted-foreground p-4">Cargando…</p>;
   if (!producciones?.length) {
@@ -88,73 +102,97 @@ function ProduccionesList({
   }
 
   return (
-    <div className="space-y-2">
-      {producciones.map((p) => (
-        <div
-          key={p.id}
-          className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors
-            ${selectedId === p.id ? "border-primary bg-primary/5" : "hover:bg-muted/50"}`}
-          onClick={() => onSelect(p)}
-        >
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-medium text-sm">
-                {p.tracer ?? "Batch"}
-                {p.numero_batch != null && ` #${p.numero_batch}`}
-              </span>
-              <EstadoBadge estado={p.estado} />
-              {p.anomalias_count > 0 && (
-                <span className="text-xs text-red-600">{p.anomalias_count} anomalía(s)</span>
-              )}
-            </div>
-            <div className="text-xs text-muted-foreground mt-0.5 flex gap-3">
-              {p.fecha && (
-                <span>{format(new Date(p.fecha.includes("T") ? p.fecha : p.fecha + "T00:00:00"), "dd MMM yyyy", { locale: es })}</span>
-              )}
-              {p.duracion_segundos != null && (
-                <span>{Math.round(p.duracion_segundos / 60)} min</span>
-              )}
-              {p.target_i_setpoint != null && (
-                <span>{p.target_i_setpoint.toFixed(0)} µA</span>
-              )}
-            </div>
-            {p.notas && (
-              <p className="text-xs text-muted-foreground truncate mt-0.5">{p.notas}</p>
-            )}
-          </div>
-          <div className="flex items-center gap-1">
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-red-600"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Eliminar producción</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Se eliminará el registro del batch y su análisis. El archivo en Storage también se eliminará.
-                    Esta acción no se puede deshacer.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction
-                    className="bg-red-600 hover:bg-red-700"
-                    onClick={() => eliminar.mutate(p.id)}
-                  >
-                    Eliminar
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
+    <div className="flex flex-col h-full">
+      {/* Buscador + contador */}
+      <div className="flex items-center gap-2 mb-3 flex-shrink-0">
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+          <Input
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar batch…"
+            className="pl-8 h-8 text-sm"
+          />
         </div>
-      ))}
+        <span className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">
+          {filtradas.length}{busqueda ? ` de ${producciones.length}` : ""} batch{producciones.length !== 1 ? "es" : ""}
+        </span>
+      </div>
+
+      {/* Lista scrollable */}
+      <ScrollArea className="flex-1 min-h-0">
+        <div className="space-y-2 pr-3">
+          {filtradas.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-8">Sin resultados para "{busqueda}"</p>
+          )}
+          {filtradas.map((p) => (
+            <div
+              key={p.id}
+              className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors
+                ${selectedId === p.id ? "border-primary bg-primary/5" : "hover:bg-muted/50"}`}
+              onClick={() => onSelect(p)}
+            >
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-medium text-sm">
+                    {p.tracer ?? "Batch"}
+                    {p.numero_batch != null && ` #${p.numero_batch}`}
+                  </span>
+                  <EstadoBadge estado={p.estado} />
+                  {p.anomalias_count > 0 && (
+                    <span className="text-xs text-red-600">{p.anomalias_count} anomalía(s)</span>
+                  )}
+                </div>
+                <div className="text-xs text-muted-foreground mt-0.5 flex gap-3">
+                  {p.fecha && (
+                    <span>{format(new Date(p.fecha.includes("T") ? p.fecha : p.fecha + "T00:00:00"), "dd MMM yyyy", { locale: es })}</span>
+                  )}
+                  {p.duracion_segundos != null && (
+                    <span>{Math.round(p.duracion_segundos / 60)} min</span>
+                  )}
+                  {p.target_i_setpoint != null && (
+                    <span>{p.target_i_setpoint.toFixed(0)} µA</span>
+                  )}
+                </div>
+                {p.notas && (
+                  <p className="text-xs text-muted-foreground truncate mt-0.5">{p.notas}</p>
+                )}
+              </div>
+              <div className="flex items-center gap-1">
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-red-600"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Eliminar producción</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Se eliminará el registro del batch y su análisis. El archivo en Storage también se eliminará.
+                        Esta acción no se puede deshacer.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction
+                        className="bg-red-600 hover:bg-red-700"
+                        onClick={() => eliminar.mutate(p.id)}
+                      >
+                        Eliminar
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            </div>
+          ))}
+        </div>
+      </ScrollArea>
     </div>
   );
 }
@@ -344,14 +382,14 @@ export function CiclotronsLayout() {
 
                 {/* Contenido del tab activo */}
                 {activeTab === "producciones" && (
-                  <ScrollArea className="flex-1 p-4">
+                  <div className="flex-1 min-h-0 flex flex-col p-4">
                     <ProduccionesList
                       ciclotrón={selectedCiclotrón}
                       selectedId={selectedProduccion?.id ?? null}
                       onSelect={(p) => openAnalisis(p)}
                       onUpload={() => openUpload(selectedCiclotrón)}
                     />
-                  </ScrollArea>
+                  </div>
                 )}
                 {activeTab === "evaluaciones" && (
                   <div className="flex-1 flex flex-col overflow-hidden">

@@ -52,11 +52,11 @@ export function FullPageShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col h-screen overflow-hidden">
       <UnirseEmpresaDialog />
 
       {/* Header compacto sin sidebar trigger */}
-      <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background/80 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <header className="flex-shrink-0 sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background/80 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <BrandLogo className="h-7 w-auto flex-none" />
         <div className="hidden sm:block flex-1 min-w-0">
           <Breadcrumbs />
@@ -67,12 +67,12 @@ export function FullPageShell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      {/* Contenido a pantalla completa — padding mínimo en móvil */}
-      <main className="flex-1 px-2 py-3 sm:px-4 sm:py-4 md:px-6 md:py-6 w-full">
+      {/* Contenido a pantalla completa — min-h-0 para que flex-1 sea acotado */}
+      <main className="flex-1 min-h-0 overflow-hidden w-full">
         {children}
       </main>
 
-      <footer className="border-t bg-background px-4 py-2.5 text-center text-[11px] text-muted-foreground">
+      <footer className="flex-shrink-0 border-t bg-background px-4 py-2.5 text-center text-[11px] text-muted-foreground">
         VIATIQ v1.0 RC1 &nbsp;·&nbsp; © 2026 Nahdan Todos los derechos reservados.
       </footer>
     </div>
