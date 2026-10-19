@@ -215,15 +215,11 @@ export async function exportEvaluacionPDF(
   // ══════════════════════════════════════════════════════════════════════════
   addHeaderFooter();
 
-  const resultBg = ev.resultado_general === "pass" ? passColor
-                 : ev.resultado_general === "fail"  ? failColor
-                 : NAVY;
-  const resLabel = ev.resultado_general === "pass" ? "PASS"
-                 : ev.resultado_general === "fail"  ? "FAIL"
-                 : "PENDIENTE";
+  // Estado label: "Completado" si la evaluación fue cerrada, "Pendiente" en cualquier otro caso
+  const estadoLabel = ev.estado === "completado" ? "Completado" : "Pendiente";
 
-  // Banda cover compacta
-  doc.setFillColor(...resultBg);
+  // Banda cover compacta — siempre azul oscuro, independiente del resultado
+  doc.setFillColor(...NAVY);
   doc.roundedRect(M, 26, PW - M * 2, 20, 3, 3, "F");
 
   doc.setFont("helvetica", "bold");
@@ -232,7 +228,7 @@ export async function exportEvaluacionPDF(
   doc.text(ev.numero, PW / 2, 34, { align: "center" });
 
   doc.setFontSize(11);
-  doc.text(resLabel, PW / 2, 41.5, { align: "center" });
+  doc.text(estadoLabel, PW / 2, 41.5, { align: "center" });
 
   doc.setFontSize(8);
   doc.setTextColor(200, 220, 255);
@@ -466,17 +462,47 @@ export async function exportEvaluacionPDF(
     yFinal = 27;
   }
 
-  doc.setFillColor(...resultBg);
-  doc.roundedRect(M, yFinal, PW - M * 2, 12, 2, 2, "F");
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-  doc.setTextColor(...WHITE);
-  doc.text("Resultado Final:", M + 4, yFinal + 4.5);
-  doc.setFontSize(12);
-  doc.text(resLabel, PW - M - 4, yFinal + 5, { align: "right" });
+  // Mensaje de resultado basado en tests que fallaron
+  const failedTestNames = subTests
+    .filter(t => t.resultado === false)
+    .map(t => t.nombre);
+  const hasTests = subTests.length > 0;
+
+  let resultBoxH = 12;
+  if (!hasTests) {
+    // Sin tests evaluados aún
+    doc.setFillColor(...LGREY);
+    doc.roundedRect(M, yFinal, PW - M * 2, resultBoxH, 2, 2, "F");
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(...DARK);
+    doc.text("Evaluacion pendiente de completar.", PW / 2, yFinal + 7.5, { align: "center" });
+  } else if (failedTestNames.length === 0) {
+    // Todos los tests dentro de especificación
+    doc.setFillColor(220, 252, 231);
+    doc.roundedRect(M, yFinal, PW - M * 2, resultBoxH, 2, 2, "F");
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(22, 101, 52);
+    doc.text("Todos los tests realizados se encuentran dentro de especificacion.", PW / 2, yFinal + 7.5, { align: "center" });
+  } else {
+    // Hay tests fuera de especificación — listarlos
+    const shortNames = failedTestNames.map(n => n.replace(/^T\d+ - /, "")).join(", ");
+    const msg = `Los siguientes tests no se encuentran dentro de especificacion: ${shortNames}.`;
+    const msgLines = doc.splitTextToSize(msg, PW - M * 2 - 8);
+    resultBoxH = Math.max(12, msgLines.length * 5 + 6);
+    doc.setFillColor(254, 226, 226);
+    doc.roundedRect(M, yFinal, PW - M * 2, resultBoxH, 2, 2, "F");
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(153, 27, 27);
+    doc.text(msgLines, M + 4, yFinal + 4.5);
+  }
+
+  const resultBoxBottom = yFinal + resultBoxH;
 
   if (ev.observaciones) {
-    let yObs = yFinal + 16;
+    let yObs = resultBoxBottom + 4;
     doc.setFontSize(7.5);
     doc.setFont("helvetica", "italic");
     doc.setTextColor(71, 85, 105);
@@ -486,9 +512,11 @@ export async function exportEvaluacionPDF(
     const lines = doc.splitTextToSize(ev.observaciones, PW - M * 2);
     doc.text(lines, M, yObs + 4.5);
     yFinal = yObs + 4.5 + lines.length * 4;
+  } else {
+    yFinal = resultBoxBottom;
   }
 
-  const yFirma = yFinal + (ev.observaciones ? 10 : 18);
+  const yFirma = yFinal + (ev.observaciones ? 10 : 6);
   doc.setDrawColor(100, 116, 139);
   doc.setLineWidth(0.3);
   doc.line(M, yFirma, M + 55, yFirma);
