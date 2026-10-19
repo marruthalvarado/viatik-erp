@@ -31,7 +31,10 @@ export function Step2InspeccionSitio({ evaluacion, onNext, onBack }: Props) {
 
   // Auto-llenar desde la última evaluación anterior si esta aún no tiene datos de sitio
   useEffect(() => {
-    if (evaluacion.datos_sitio) return; // ya tiene datos propios, no sobreescribir
+    // datos_sitio llega como {} cuando es null en BD (ver mapRow), verificar si tiene contenido real
+    const tieneDatos = evaluacion.datos_sitio &&
+      Object.values(evaluacion.datos_sitio).some(v => v !== null && v !== undefined && v !== "");
+    if (tieneDatos) return; // ya tiene datos propios guardados, no sobreescribir
 
     void (async () => {
       const { data } = await supabase
