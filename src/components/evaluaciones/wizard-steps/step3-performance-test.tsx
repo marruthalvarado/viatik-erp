@@ -684,6 +684,11 @@ function TestIonSource({ datos, onChange }: { datos: DatosPerformance; onChange:
   const ionPass: boolean | null = withData.length === 0 ? null
     : withData.every(f => { const min = IS_MIN_PROBE_H[f.isCurrentMA ?? -1]; return min == null || (f.probeCurrentH ?? 0) >= min; }) ? true : false;
 
+  function updateHeader(key: string, rawVal: string) {
+    const num = rawVal === "" ? 0 : Number(rawVal);
+    onChange({ ...datos, ionSource: { ...header, [key]: num, filas } });
+  }
+
   function updateFilas(arr: typeof filas) {
     onChange({ ...datos, ionSource: { ...header, filas: arr } });
   }
@@ -712,6 +717,28 @@ function TestIonSource({ datos, onChange }: { datos: DatosPerformance; onChange:
         "La PIG usa cátodo frío (SM-Acc §5-2) — no hay filamento; no aplicar procedimiento de activación.",
         "Criterio PASS: la curva de sonda (azul) debe quedar por encima de la curva mínima (roja).",
       ]} />
+
+      {/* Parámetros de configuración */}
+      <div className="grid grid-cols-4 gap-3">
+        {[
+          { key: "magnetCurrent",  label: "Magneto corriente (A)", step: "0.1" },
+          { key: "deeVoltage",     label: "Dee Volt (kV)",          step: "0.1" },
+          { key: "deltaVoltage",   label: "ΔVoltage (kV)",          step: "0.1" },
+          { key: "vacuum",         label: "Vacío (mbar)",            step: "0.0000001" },
+          { key: "gasFlow",        label: "Gas flow (sccm)",         step: "0.1" },
+        ].map(({ key, label, step }) => (
+          <div key={key} className="space-y-1">
+            <label className="text-xs text-muted-foreground">{label}</label>
+            <Input
+              type="number"
+              step={step}
+              className="h-8 text-xs"
+              value={(header as Record<string, number | null>)[key] ?? ""}
+              onChange={e => updateHeader(key, e.target.value)}
+            />
+          </div>
+        ))}
+      </div>
 
       <table className="w-full text-xs border rounded">
         <thead className="bg-muted">
