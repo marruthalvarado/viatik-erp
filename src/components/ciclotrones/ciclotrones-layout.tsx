@@ -109,7 +109,7 @@ function ProduccionesList({
             </div>
             <div className="text-xs text-muted-foreground mt-0.5 flex gap-3">
               {p.fecha && (
-                <span>{format(new Date(p.fecha), "dd MMM yyyy", { locale: es })}</span>
+                <span>{format(new Date(p.fecha.includes("T") ? p.fecha : p.fecha + "T00:00:00"), "dd MMM yyyy", { locale: es })}</span>
               )}
               {p.duracion_segundos != null && (
                 <span>{Math.round(p.duracion_segundos / 60)} min</span>
