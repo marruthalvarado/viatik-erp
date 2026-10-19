@@ -84,7 +84,7 @@ export function CicloEvaluacionesTab({ ciclotrón }: Props) {
         {/* Sub-header */}
         <div className="flex items-center justify-between mb-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Evaluaciones — DOC1604037
+            Evaluaciones
           </p>
           <Button size="sm" variant="outline" className="gap-1 h-7 text-xs" onClick={() => setShowWizard(true)}>
             <Plus className="h-3 w-3" />

@@ -139,7 +139,7 @@ export function EvaluacionesLayout() {
           <ClipboardList className="h-10 w-10 text-muted-foreground mx-auto" />
           <p className="font-medium">No hay evaluaciones registradas</p>
           <p className="text-sm text-muted-foreground">
-            Crea una nueva evaluación para iniciar el protocolo DOC1604037
+            Crea una nueva evaluación para comenzar
           </p>
           <Button onClick={handleNueva} className="mt-2 gap-2">
             <Plus className="h-4 w-4" />
