@@ -149,7 +149,7 @@ export function useSubirAnalizarBatch() {
 
       // 2. Calcular estadísticas
       const duracion  = calcDuracionSegundos(parsed.rows);
-      const targetISp = calcTargetISetpoint(parsed.rows);
+      const targetISp = calcTargetISetpoint(parsed.rows, params.gas_flow.min);
 
       // 3. Detectar anomalías
       const anomalias: CicloAnomalia[] = detectAnomalias(parsed.rows, params, targetISp);

@@ -188,7 +188,7 @@ export function ProduccionAnalisis({ produccion, params, ciclotrón }: Props) {
       const blob = await descargarArchivoBatch(produccion.archivo_path);
       const file = new File([blob], produccion.archivo_nombre ?? "batch.log");
       const parsed = await parseBatchFile(file);
-      const targetISp = calcTargetISetpoint(parsed.rows);
+      const targetISp = calcTargetISetpoint(parsed.rows, params.gas_flow.min);
       const anoms = detectAnomalias(parsed.rows, params, targetISp);
       setRows(parsed.rows);
       setAnomalias(anoms);

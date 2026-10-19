@@ -294,9 +294,12 @@ export function calcDuracionSegundos(rows: BatchRow[]): number {
   return rows.length * 3;
 }
 
-/** Target-I setpoint: mediana de las filas de irradiación activa */
-export function calcTargetISetpoint(rows: BatchRow[]): number {
-  const active = rows.filter((r) => r.gasFlow > 4 && r.targetI > 10);
+/** Target-I setpoint: mediana de las filas de irradiación activa.
+ *  @param gasFlowMin  Umbral mínimo de Gas flow para considerar irradiación activa.
+ *                     Usar el valor configurado del ciclotrón (gas_flow.min).
+ *                     Si no se provee, se usa 3.5 como fallback seguro. */
+export function calcTargetISetpoint(rows: BatchRow[], gasFlowMin = 3.5): number {
+  const active = rows.filter((r) => r.gasFlow >= gasFlowMin && r.targetI > 10);
   if (active.length === 0) return 0;
   const sorted = [...active.map((r) => r.targetI)].sort((a, b) => a - b);
   return sorted[Math.floor(sorted.length / 2)];
