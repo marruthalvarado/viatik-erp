@@ -4514,6 +4514,28 @@ export type Database = {
       };
     };
     Functions: {
+      ciclo_fault_resumen: {
+        Args: { p_ciclotrón_id: string; p_dias_atras?: number };
+        Returns: Array<{
+          clave: string;
+          subsistema: string;
+          tipo: string;
+          total: number;
+          primera_vez: string;
+          ultima_vez: string;
+          mensaje_ref: string;
+        }>;
+      };
+      ciclo_fault_historial: {
+        Args: { p_ciclotrón_id: string; p_clave: string; p_limite?: number };
+        Returns: Array<{
+          log_id: string;
+          archivo: string;
+          fecha_ts: string;
+          mensaje: string;
+          codigo: number;
+        }>;
+      };
       crear_costeo: {
         Args: { p_empresa_id: string; p_datos: Record<string, unknown>; p_componentes?: unknown[] };
         Returns: { id: string; numero: string };
@@ -5076,6 +5098,70 @@ export type Database = {
           },
           {
             foreignKeyName: "ciclo_evaluaciones_ciclotrón_id_fkey";
+            columns: ["ciclotrón_id"];
+            isOneToOne: false;
+            referencedRelation: "ciclotrones";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+    };
+      ciclo_error_logs: {
+        Row: {
+          id: string;
+          empresa_id: string;
+          "ciclotrón_id": string;
+          archivo_nombre: string;
+          fecha_inicio: string | null;
+          fecha_fin: string | null;
+          total_eventos: number;
+          total_faults: number;
+          total_warnings: number;
+          total_info: number;
+          eventos: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          empresa_id: string;
+          "ciclotrón_id": string;
+          archivo_nombre: string;
+          fecha_inicio?: string | null;
+          fecha_fin?: string | null;
+          total_eventos?: number;
+          total_faults?: number;
+          total_warnings?: number;
+          total_info?: number;
+          eventos?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          empresa_id?: string;
+          "ciclotrón_id"?: string;
+          archivo_nombre?: string;
+          fecha_inicio?: string | null;
+          fecha_fin?: string | null;
+          total_eventos?: number;
+          total_faults?: number;
+          total_warnings?: number;
+          total_info?: number;
+          eventos?: Json;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "ciclo_error_logs_empresa_id_fkey";
+            columns: ["empresa_id"];
+            isOneToOne: false;
+            referencedRelation: "empresas";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "ciclo_error_logs_ciclotrón_id_fkey";
             columns: ["ciclotrón_id"];
             isOneToOne: false;
             referencedRelation: "ciclotrones";

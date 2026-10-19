@@ -36,6 +36,7 @@ import { CiclotrónForm } from "./ciclotrón-form";
 import { ProduccionUpload } from "./produccion-upload";
 import { ProduccionAnalisis } from "./produccion-analisis";
 import { CicloEvaluacionesTab } from "./ciclo-evaluaciones-tab";
+import { CicloErrorLogsTab } from "./ciclo-error-logs-tab";
 
 // ── Configuración visual de estados ──────────────────────────────────────────
 const ESTADO_CFG: Record<CicloProduccion["estado"], {
@@ -169,7 +170,7 @@ export function CiclotronsLayout() {
   const [editingCiclotrón, setEditingCiclotrón] = useState<Ciclotrón | null>(null);
   const [showUpload, setShowUpload] = useState(false);
   const [showAnalisis, setShowAnalisis] = useState(false);
-  const [activeTab, setActiveTab] = useState<"producciones" | "evaluaciones">("producciones");
+  const [activeTab, setActiveTab] = useState<"producciones" | "evaluaciones" | "error_logs">("producciones");
 
   function openEdit(c: Ciclotrón) {
     setEditingCiclotrón(c);
@@ -304,6 +305,7 @@ export function CiclotronsLayout() {
                       <Upload className="h-4 w-4 mr-2" /> Cargar batch
                     </Button>
                   )}
+                  {activeTab === "error_logs" && null}
                 </div>
 
                 {/* Tabs */}
@@ -328,10 +330,20 @@ export function CiclotronsLayout() {
                   >
                     Evaluaciones
                   </button>
+                  <button
+                    className={`py-2 px-3 text-sm font-medium border-b-2 transition-colors ${
+                      activeTab === "error_logs"
+                        ? "border-primary text-primary"
+                        : "border-transparent text-muted-foreground hover:text-foreground"
+                    }`}
+                    onClick={() => setActiveTab("error_logs")}
+                  >
+                    Error Logs
+                  </button>
                 </div>
 
                 {/* Contenido del tab activo */}
-                {activeTab === "producciones" ? (
+                {activeTab === "producciones" && (
                   <ScrollArea className="flex-1 p-4">
                     <ProduccionesList
                       ciclotrón={selectedCiclotrón}
@@ -340,9 +352,15 @@ export function CiclotronsLayout() {
                       onUpload={() => openUpload(selectedCiclotrón)}
                     />
                   </ScrollArea>
-                ) : (
+                )}
+                {activeTab === "evaluaciones" && (
                   <div className="flex-1 flex flex-col overflow-hidden">
                     <CicloEvaluacionesTab ciclotrón={selectedCiclotrón} />
+                  </div>
+                )}
+                {activeTab === "error_logs" && (
+                  <div className="flex-1 overflow-auto p-4">
+                    <CicloErrorLogsTab ciclotrón={selectedCiclotrón} />
                   </div>
                 )}
               </>

@@ -454,6 +454,80 @@ export interface DatosSitio {
   observacionesAdicionales?: string;
 }
 
+// ── Error Logs de Ciclotrón ───────────────────────────────────────────────────
+
+/** Tipo de evento en el log */
+export type TipoEventoLog = 'info' | 'warning' | 'fault';
+
+/** Subsistema al que pertenece el evento */
+export type SubsistemaLog =
+  | 'ion_source'
+  | 'vacuum'
+  | 'safety'
+  | 'network'
+  | 'target'
+  | 'maintenance'
+  | 'production'
+  | 'other';
+
+/** Un evento parseado del .txt del GE PETtrace */
+export interface EventoLog {
+  /** Timestamp ISO del evento */
+  ts: string;
+  tipo: TipoEventoLog;
+  subsistema: SubsistemaLog;
+  /** Texto original del mensaje */
+  mensaje: string;
+  /** Código numérico entre paréntesis al final de la línea */
+  codigo: number;
+  /** Clave normalizada para agrupación (ej: "gas_flow_fault") */
+  clave: string;
+}
+
+/** Archivo de log subido y parseado */
+export interface CicloErrorLog {
+  id: string;
+  empresa_id: string;
+  ciclotrón_id: string;
+  archivo_nombre: string;
+  fecha_inicio: string | null;
+  fecha_fin: string | null;
+  total_eventos: number;
+  total_faults: number;
+  total_warnings: number;
+  total_info: number;
+  eventos: EventoLog[];
+  created_at: string;
+  updated_at: string;
+}
+
+/** Resumen de un fault_key para detección de tendencias */
+export interface CicloFaultResumen {
+  clave: string;
+  subsistema: SubsistemaLog;
+  tipo: TipoEventoLog;
+  total: number;
+  primera_vez: string;
+  ultima_vez: string;
+  mensaje_ref: string;
+}
+
+/** Patrón detectado por el motor de análisis */
+export interface CicloFaultPatron {
+  clave: string;
+  titulo: string;
+  descripcion: string;
+  severidad: 'critico' | 'advertencia' | 'informativo';
+  /** Referencia al manual de servicio */
+  referencia_manual: string | null;
+  /** Texto sugerido para pre-llenar descripción_problema en OS */
+  sugerencia_os: string | null;
+  ocurrencias: number;
+  ultima_vez: string | null;
+  /** IDs de OS correctivas generadas previamente para este fault */
+  os_previas_ids: string[];
+}
+
 /** Entidad principal: Evaluación de ciclotrón */
 export interface CicloEvaluacion {
   id: string;
