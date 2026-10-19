@@ -2,7 +2,9 @@
  * step2-inspeccion-sitio.tsx
  * Paso 2: Inspección de Sitio (Hojas 1–5 condensadas)
  * DOC1604037 rev9
+ * Los campos de sitio se auto-completan con la última evaluación del ciclotrón.
  */
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { ChevronLeft, ChevronRight, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,6 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import type { CicloEvaluacion, DatosSitio } from "@/types/entities";
 import { useGuardarDatosSitio } from "@/hooks/entities/use-evaluaciones";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
   evaluacion: CicloEvaluacion;
@@ -22,9 +25,47 @@ interface Props {
 
 export function Step2InspeccionSitio({ evaluacion, onNext, onBack }: Props) {
   const guardar = useGuardarDatosSitio();
-  const { register, handleSubmit, watch, setValue } = useForm<DatosSitio>({
+  const { register, handleSubmit, watch, setValue, reset } = useForm<DatosSitio>({
     defaultValues: evaluacion.datos_sitio ?? {},
   });
+
+  // Auto-llenar desde la última evaluación anterior si esta aún no tiene datos de sitio
+  useEffect(() => {
+    if (evaluacion.datos_sitio) return; // ya tiene datos propios, no sobreescribir
+
+    void (async () => {
+      const { data } = await supabase
+        .from("ciclo_evaluaciones")
+        .select("datos_sitio")
+        .eq("ciclotrón_id", evaluacion.ciclotrón_id)
+        .neq("id", evaluacion.id)
+        .not("datos_sitio", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (data?.datos_sitio) {
+        // Solo pre-llenar campos de sitio estables (no mediciones puntuales como temperatura/radiación)
+        const sitio = data.datos_sitio as DatosSitio;
+        const campos: (keyof DatosSitio)[] = [
+          "clienteNombre", "sitioNombre", "sitioAddress", "siteManagerNombre",
+          "contactoDetalles", "ciclotrónSystemId", "ciclotrónSerial",
+          "localFeName", "voltajeHertz", "anioInstalacion",
+          "ptRelease", "acsVersion", "pssVersion", "masterStationModel", "licenciaUA",
+          "acuVersion", "bajoContrato", "vencimientoContrato",
+          "targetPos1", "targetPos2", "targetPos3", "targetPos4", "targetPos5", "targetPos6",
+          "estadoSistema",
+        ];
+        campos.forEach(k => {
+          const v = sitio[k];
+          if (v !== null && v !== undefined && v !== "") {
+            setValue(k, v as never);
+          }
+        });
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function onSubmit(data: DatosSitio) {
     const ev = await guardar.mutateAsync({ evalId: evaluacion.id, datos: data });
@@ -44,8 +85,8 @@ export function Step2InspeccionSitio({ evaluacion, onNext, onBack }: Props) {
       <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 flex gap-2 text-sm text-blue-800">
         <Info className="h-4 w-4 mt-0.5 flex-none" />
         <span>
-          Registra la información del sitio antes de realizar los tests.
-          Todos los campos son opcionales pero ayudan a contextualizar el reporte final.
+          Los campos se auto-completan con la última evaluación de este ciclotrón. Puedes editarlos si es necesario.
+          Las mediciones puntuales (temperatura, radiación) deben registrarse para esta visita.
         </span>
       </div>
 
