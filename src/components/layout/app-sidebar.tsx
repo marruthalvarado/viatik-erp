@@ -106,7 +106,7 @@ const systemItems: NavItem[] = [
 ];
 
 /** Códigos de rol que siempre tienen acceso total (sin filtro de módulos) */
-const ROLES_ADMIN = ["admin", "administrador"];
+const ROLES_ADMIN = ["admin", "administrador", "super_admin", "super_administrador"];
 
 export function AppSidebar() {
   const { state } = useSidebar();
