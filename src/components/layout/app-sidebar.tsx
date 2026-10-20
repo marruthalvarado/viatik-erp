@@ -77,27 +77,27 @@ const financeItems: NavItem[] = [
   { title: "Impuestos SRI", url: "/impuestos", icon: Calculator, modulo: "impuestos" },
   { title: "Conciliación", url: "/conciliacion", icon: Landmark, modulo: "conciliacion" },
   { title: "Contabilidad", url: "/contabilidad", icon: BookOpen, modulo: "contabilidad" },
-  { title: "Rpt. Financieros", url: "/reportes/financieros", icon: TrendingUp, modulo: "reportes" },
-  { title: "Rpt. Operativos", url: "/reportes/operativos", icon: Activity, modulo: "reportes" },
-  { title: "Workflow Rpt.", url: "/reportes/workflow", icon: Network, modulo: "reportes" },
+  { title: "Rpt. Financieros", url: "/reportes/financieros", icon: TrendingUp, modulo: "rpt_financieros" },
+  { title: "Rpt. Operativos", url: "/reportes/operativos", icon: Activity, modulo: "rpt_operativos" },
+  { title: "Workflow Rpt.", url: "/reportes/workflow", icon: Network, modulo: "rpt_workflow" },
 ];
 
 const importacionesItems: NavItem[] = [
-  { title: "Dashboard",       url: "/importaciones/dashboard",        icon: LayoutDashboard, modulo: "importaciones" },
-  { title: "Costeos",         url: "/importaciones/costeos",          icon: Calculator,      modulo: "importaciones" },
-  { title: "Costeos Proyecto",url: "/importaciones/costeos-proyecto", icon: FolderKanban,    modulo: "importaciones" },
-  { title: "Embarques",       url: "/importaciones/embarques",        icon: Globe,           modulo: "importaciones" },
-  { title: "Grupos de Envío", url: "/importaciones/grupos",           icon: Boxes,           modulo: "importaciones" },
+  { title: "Dashboard",        url: "/importaciones/dashboard",        icon: LayoutDashboard, modulo: "imp_dashboard" },
+  { title: "Costeos",          url: "/importaciones/costeos",          icon: Calculator,      modulo: "imp_costeos" },
+  { title: "Costeos Proyecto", url: "/importaciones/costeos-proyecto", icon: FolderKanban,    modulo: "imp_costeos_proyecto" },
+  { title: "Embarques",        url: "/importaciones/embarques",        icon: Globe,           modulo: "imp_embarques" },
+  { title: "Grupos de Envío",  url: "/importaciones/grupos",           icon: Boxes,           modulo: "imp_grupos" },
 ];
 
 const servicioTecnicoItems: NavItem[] = [
-  { title: "Órdenes de Servicio", url: "/servicio-tecnico/ordenes", icon: ClipboardList, modulo: "servicio_tecnico" },
-  { title: "Base Instalada", url: "/servicio-tecnico/base-instalada", icon: Shield, modulo: "servicio_tecnico" },
-  { title: "Contratos Mant.", url: "/servicio-tecnico/contratos", icon: FileCheck, modulo: "servicio_tecnico" },
-  { title: "Catálogo Equipos", url: "/servicio-tecnico/catalogo", icon: Stethoscope, modulo: "servicio_tecnico" },
-  { title: "Protocolos MP", url: "/servicio-tecnico/protocolos", icon: BookMarked, modulo: "servicio_tecnico" },
-  { title: "Ciclotrones", url: "/servicio-tecnico/ciclotrones", icon: Activity, modulo: "servicio_tecnico" },
-  { title: "Evaluaciones", url: "/servicio-tecnico/evaluaciones", icon: ClipboardList, modulo: "servicio_tecnico" },
+  { title: "Órdenes de Servicio", url: "/servicio-tecnico/ordenes",        icon: ClipboardList, modulo: "st_ordenes" },
+  { title: "Base Instalada",       url: "/servicio-tecnico/base-instalada", icon: Shield,        modulo: "st_base_instalada" },
+  { title: "Contratos Mant.",      url: "/servicio-tecnico/contratos",      icon: FileCheck,     modulo: "st_contratos" },
+  { title: "Catálogo Equipos",     url: "/servicio-tecnico/catalogo",       icon: Stethoscope,   modulo: "st_catalogo_equipos" },
+  { title: "Protocolos MP",        url: "/servicio-tecnico/protocolos",     icon: BookMarked,    modulo: "st_protocolos" },
+  { title: "Ciclotrones",          url: "/servicio-tecnico/ciclotrones",    icon: Activity,      modulo: "st_ciclotrones" },
+  { title: "Evaluaciones",         url: "/servicio-tecnico/evaluaciones",   icon: ListChecks,    modulo: "st_evaluaciones" },
 ];
 
 const systemItems: NavItem[] = [
@@ -120,12 +120,20 @@ export function AppSidebar() {
   // - rolActivo aún no cargó → mostrar todo (evita parpadeo)
   // - rol admin → siempre visible
   // - modulos_permitidos null → sin restricción (visible)
-  // - modulos_permitidos array → solo los módulos incluidos
+  // - modulos_permitidos array → solo los códigos incluidos
+  //   · Retrocompat: código de grupo antiguo ("servicio_tecnico", "importaciones", "reportes")
+  //     sigue dando acceso a todos sus sub-ítems (st_*, imp_*, rpt_*)
   function puedeVer(modulo: string): boolean {
-    if (!rolActivo) return true; // mientras carga, mostrar todo
+    if (!rolActivo) return true;
     if (ROLES_ADMIN.includes(rolActivo.codigo.toLowerCase())) return true;
     if (rolActivo.modulos_permitidos === null) return true;
-    return rolActivo.modulos_permitidos.includes(modulo);
+    const perms = rolActivo.modulos_permitidos;
+    if (perms.includes(modulo)) return true;
+    // Retrocompat: código de grupo antiguo concede acceso a sus sub-ítems
+    if (modulo.startsWith("st_")  && perms.includes("servicio_tecnico")) return true;
+    if (modulo.startsWith("imp_") && perms.includes("importaciones"))    return true;
+    if (modulo.startsWith("rpt_") && perms.includes("reportes"))         return true;
+    return false;
   }
 
   const renderGroup = (label: string, items: NavItem[]) => {

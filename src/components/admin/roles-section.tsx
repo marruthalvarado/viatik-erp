@@ -43,29 +43,42 @@ interface Modulo {
 
 const MODULOS: Modulo[] = [
   // Workspace
-  { codigo: "dashboard",   label: "Dashboard",    hint: "Sidebar › Dashboard",       grupo: "Workspace" },
-  { codigo: "rendiciones", label: "Rendiciones",  hint: "Sidebar › Rendiciones",     grupo: "Workspace" },
-  { codigo: "workflow",    label: "Workflow",      hint: "Sidebar › Workflow",        grupo: "Workspace" },
-  { codigo: "documentos",  label: "Documentos",   hint: "Sidebar › Documentos",      grupo: "Workspace" },
+  { codigo: "dashboard",   label: "Dashboard",   hint: "Sidebar › Dashboard",   grupo: "Workspace" },
+  { codigo: "rendiciones", label: "Rendiciones", hint: "Sidebar › Rendiciones", grupo: "Workspace" },
+  { codigo: "workflow",    label: "Workflow",     hint: "Sidebar › Workflow",    grupo: "Workspace" },
+  { codigo: "documentos",  label: "Documentos",  hint: "Sidebar › Documentos",  grupo: "Workspace" },
   // Relaciones
-  { codigo: "clientes",    label: "Clientes",     hint: "Sidebar › Clientes",        grupo: "Relaciones" },
-  { codigo: "proyectos",   label: "Proyectos",    hint: "Sidebar › Proyectos",       grupo: "Relaciones" },
-  { codigo: "proveedores", label: "Proveedores",  hint: "Sidebar › Proveedores",     grupo: "Relaciones" },
+  { codigo: "clientes",    label: "Clientes",    hint: "Sidebar › Clientes",    grupo: "Relaciones" },
+  { codigo: "proyectos",   label: "Proyectos",   hint: "Sidebar › Proyectos",   grupo: "Relaciones" },
+  { codigo: "proveedores", label: "Proveedores", hint: "Sidebar › Proveedores", grupo: "Relaciones" },
   // Finanzas
-  { codigo: "presupuestos",  label: "Presupuestos",       hint: "Sidebar › Presupuestos",         grupo: "Finanzas" },
-  { codigo: "facturas",      label: "Facturas emitidas",  hint: "Sidebar › Facturas emit.",       grupo: "Finanzas" },
-  { codigo: "gastos_empresa",label: "Gastos empresa",     hint: "Sidebar › Gastos empresa",       grupo: "Finanzas" },
-  { codigo: "catalogo",      label: "Catálogo",           hint: "Sidebar › Catálogo",             grupo: "Finanzas" },
-  { codigo: "cotizaciones",  label: "Cotizaciones",       hint: "Sidebar › Cotizaciones",         grupo: "Finanzas" },
-  { codigo: "inventario",    label: "Inventario",         hint: "Sidebar › Inventario",           grupo: "Finanzas" },
-  { codigo: "impuestos",     label: "Impuestos SRI",      hint: "Sidebar › Impuestos SRI",        grupo: "Finanzas" },
-  { codigo: "conciliacion",  label: "Conciliación",       hint: "Sidebar › Conciliación",         grupo: "Finanzas" },
-  { codigo: "contabilidad",  label: "Contabilidad",       hint: "Sidebar › Contabilidad",         grupo: "Finanzas" },
-  { codigo: "reportes",      label: "Reportes",           hint: "Sidebar › Rpt. Financieros + Rpt. Operativos + Workflow Rpt.", grupo: "Finanzas" },
-  // Importaciones
-  { codigo: "importaciones", label: "Importaciones", hint: "Sidebar › Dashboard + Costeos + Embarques + Grupos de Envío", grupo: "Importaciones" },
-  // Servicio Técnico
-  { codigo: "servicio_tecnico", label: "Servicio Técnico", hint: "Sidebar › Órdenes de Servicio + Base Instalada + Contratos Mant.", grupo: "Servicio Técnico" },
+  { codigo: "presupuestos",   label: "Presupuestos",      hint: "Sidebar › Presupuestos",      grupo: "Finanzas" },
+  { codigo: "facturas",       label: "Facturas emitidas", hint: "Sidebar › Facturas emit.",    grupo: "Finanzas" },
+  { codigo: "gastos_empresa", label: "Gastos empresa",    hint: "Sidebar › Gastos empresa",    grupo: "Finanzas" },
+  { codigo: "catalogo",       label: "Catálogo",          hint: "Sidebar › Catálogo",          grupo: "Finanzas" },
+  { codigo: "cotizaciones",   label: "Cotizaciones",      hint: "Sidebar › Cotizaciones",      grupo: "Finanzas" },
+  { codigo: "inventario",     label: "Inventario",        hint: "Sidebar › Inventario",        grupo: "Finanzas" },
+  { codigo: "impuestos",      label: "Impuestos SRI",     hint: "Sidebar › Impuestos SRI",     grupo: "Finanzas" },
+  { codigo: "conciliacion",   label: "Conciliación",      hint: "Sidebar › Conciliación",      grupo: "Finanzas" },
+  { codigo: "contabilidad",   label: "Contabilidad",      hint: "Sidebar › Contabilidad",      grupo: "Finanzas" },
+  // Reportes (sub-ítems individuales)
+  { codigo: "rpt_financieros", label: "Rpt. Financieros", hint: "Sidebar › Rpt. Financieros", grupo: "Reportes" },
+  { codigo: "rpt_operativos",  label: "Rpt. Operativos",  hint: "Sidebar › Rpt. Operativos",  grupo: "Reportes" },
+  { codigo: "rpt_workflow",    label: "Rpt. Workflow",     hint: "Sidebar › Workflow Rpt.",     grupo: "Reportes" },
+  // Importaciones (sub-ítems individuales)
+  { codigo: "imp_dashboard",        label: "Dashboard",        hint: "Sidebar › Importaciones › Dashboard",        grupo: "Importaciones" },
+  { codigo: "imp_costeos",          label: "Costeos",          hint: "Sidebar › Importaciones › Costeos",          grupo: "Importaciones" },
+  { codigo: "imp_costeos_proyecto", label: "Costeos Proyecto", hint: "Sidebar › Importaciones › Costeos Proyecto", grupo: "Importaciones" },
+  { codigo: "imp_embarques",        label: "Embarques",        hint: "Sidebar › Importaciones › Embarques",        grupo: "Importaciones" },
+  { codigo: "imp_grupos",           label: "Grupos de Envío",  hint: "Sidebar › Importaciones › Grupos de Envío",  grupo: "Importaciones" },
+  // Servicio Técnico (sub-ítems individuales)
+  { codigo: "st_ordenes",          label: "Órdenes de Servicio", hint: "Sidebar › Servicio Técnico › Órdenes de Servicio", grupo: "Servicio Técnico" },
+  { codigo: "st_base_instalada",   label: "Base Instalada",      hint: "Sidebar › Servicio Técnico › Base Instalada",      grupo: "Servicio Técnico" },
+  { codigo: "st_contratos",        label: "Contratos Mant.",     hint: "Sidebar › Servicio Técnico › Contratos Mant.",     grupo: "Servicio Técnico" },
+  { codigo: "st_catalogo_equipos", label: "Catálogo Equipos",    hint: "Sidebar › Servicio Técnico › Catálogo Equipos",    grupo: "Servicio Técnico" },
+  { codigo: "st_protocolos",       label: "Protocolos MP",       hint: "Sidebar › Servicio Técnico › Protocolos MP",       grupo: "Servicio Técnico" },
+  { codigo: "st_ciclotrones",      label: "Ciclotrones",         hint: "Sidebar › Servicio Técnico › Ciclotrones",         grupo: "Servicio Técnico" },
+  { codigo: "st_evaluaciones",     label: "Evaluaciones",        hint: "Sidebar › Servicio Técnico › Evaluaciones",        grupo: "Servicio Técnico" },
   // Sistema
   { codigo: "configuracion",  label: "Configuración",  hint: "Sidebar › Configuración",  grupo: "Sistema" },
   { codigo: "administracion", label: "Administración", hint: "Sidebar › Administracion", grupo: "Sistema" },
@@ -109,18 +122,36 @@ interface ModulosChecklistProps {
 
 function ModulosChecklist({ value, onChange }: ModulosChecklistProps) {
   const sinRestriccion = value === null;
+  const current = value ?? [];
 
   function toggleSinRestriccion(checked: boolean) {
     onChange(checked ? null : []);
   }
 
   function toggleModulo(codigo: string, checked: boolean) {
-    const current = value ?? [];
     if (checked) {
       onChange([...current, codigo]);
     } else {
       onChange(current.filter((c) => c !== codigo));
     }
+  }
+
+  function toggleGrupo(grupo: string, checked: boolean) {
+    const codigos = MODULOS.filter((m) => m.grupo === grupo).map((m) => m.codigo);
+    if (checked) {
+      const sinDuplicados = [...new Set([...current, ...codigos])];
+      onChange(sinDuplicados);
+    } else {
+      onChange(current.filter((c) => !codigos.includes(c)));
+    }
+  }
+
+  function grupoEstado(grupo: string): boolean | "indeterminate" {
+    const codigos = MODULOS.filter((m) => m.grupo === grupo).map((m) => m.codigo);
+    const activos = codigos.filter((c) => current.includes(c));
+    if (activos.length === 0) return false;
+    if (activos.length === codigos.length) return true;
+    return "indeterminate";
   }
 
   return (
@@ -131,36 +162,49 @@ function ModulosChecklist({ value, onChange }: ModulosChecklistProps) {
         <span className="text-sm font-medium">Acceso total (sin restricciones)</span>
       </label>
 
-      {/* Checklist por grupo, solo visible cuando hay restricción */}
+      {/* Checklist por grupo */}
       {!sinRestriccion && (
         <div className="rounded-md border p-3 space-y-4">
-          {GRUPOS.map((grupo) => (
-            <div key={grupo}>
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {grupo}
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                {MODULOS.filter((m) => m.grupo === grupo).map((m) => (
-                  <label
-                    key={m.codigo}
-                    className="flex items-start gap-2 cursor-pointer select-none"
-                  >
-                    <Checkbox
-                      className="mt-0.5 shrink-0"
-                      checked={(value ?? []).includes(m.codigo)}
-                      onCheckedChange={(c) => toggleModulo(m.codigo, !!c)}
-                    />
-                    <div className="min-w-0">
-                      <span className="text-sm leading-tight">{m.label}</span>
-                      <p className="text-[10px] text-muted-foreground leading-tight truncate" title={m.hint}>
-                        {m.hint}
-                      </p>
-                    </div>
-                  </label>
-                ))}
+          {GRUPOS.map((grupo) => {
+            const estado = grupoEstado(grupo);
+            return (
+              <div key={grupo}>
+                {/* Header del grupo con checkbox "Todos" */}
+                <label className="flex items-center gap-2 cursor-pointer select-none mb-2">
+                  <Checkbox
+                    checked={estado === true}
+                    data-state={estado === "indeterminate" ? "indeterminate" : undefined}
+                    className={estado === "indeterminate" ? "opacity-60" : ""}
+                    onCheckedChange={(c) => toggleGrupo(grupo, !!c)}
+                  />
+                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {grupo}
+                  </span>
+                </label>
+                {/* Sub-ítems */}
+                <div className="ml-5 grid grid-cols-2 gap-2">
+                  {MODULOS.filter((m) => m.grupo === grupo).map((m) => (
+                    <label
+                      key={m.codigo}
+                      className="flex items-start gap-2 cursor-pointer select-none"
+                    >
+                      <Checkbox
+                        className="mt-0.5 shrink-0"
+                        checked={current.includes(m.codigo)}
+                        onCheckedChange={(c) => toggleModulo(m.codigo, !!c)}
+                      />
+                      <div className="min-w-0">
+                        <span className="text-sm leading-tight">{m.label}</span>
+                        <p className="text-[10px] text-muted-foreground leading-tight" title={m.hint}>
+                          {m.hint}
+                        </p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
