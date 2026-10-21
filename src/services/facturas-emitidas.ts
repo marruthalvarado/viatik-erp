@@ -67,6 +67,40 @@ export async function deleteFacturaEmitida(id: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+// ─── Importación en lote (TXT SRI) ───────────────────────────────────────────
+
+/**
+ * Devuelve un Set con las claves de acceso de facturas emitidas ya registradas
+ * para la empresa, facilitando la detección de duplicados al importar.
+ */
+export async function getClaveAccesoExistentesEmitidas(
+  empresaId: string,
+): Promise<Set<string>> {
+  const { data, error } = await supabase
+    .from("facturas_emitidas")
+    .select("clave_acceso")
+    .eq("empresa_id", empresaId)
+    .is("deleted_at", null)
+    .not("clave_acceso", "is", null);
+  if (error) throw new Error(error.message);
+  return new Set((data ?? []).map((r) => r.clave_acceso as string));
+}
+
+/**
+ * Inserta múltiples facturas emitidas en un solo batch.
+ * Retorna la cantidad de registros insertados.
+ */
+export async function createFacturasEmitidasLote(
+  rows: Omit<FacturaEmitida, "id" | "created_at" | "updated_at" | "deleted_at">[],
+): Promise<number> {
+  const { data, error } = await supabase
+    .from("facturas_emitidas")
+    .insert(rows as never)
+    .select("id");
+  if (error) throw new Error(error.message);
+  return (data ?? []).length;
+}
+
 // ─── Resumen financiero ───────────────────────────────────────────────────────
 
 export interface ResumenFacturacionMensual {

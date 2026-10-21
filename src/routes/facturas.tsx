@@ -50,6 +50,8 @@ import type { SortState } from "@/components/common/sortable-header";
 import { readFacturaXmlFile } from "@/services/factura-xml-parser";
 import type { FacturaXmlData } from "@/services/factura-xml-parser";
 import { readFacturaPdfFile } from "@/services/factura-pdf-parser";
+import { readTxtFacturasEmitidasFile } from "@/services/factura-emitida-txt-parser";
+import type { FilaTxtFacturaEmitida } from "@/services/factura-emitida-txt-parser";
 import type { FacturaEmitida } from "@/services/facturas-emitidas";
 import {
   useFacturasEmitidas,
@@ -57,7 +59,10 @@ import {
   useActualizarFactura,
   useEliminarFactura,
   useFlujoCajaProyectado,
+  useClaveAccesoExistentesEmitidas,
+  useCrearFacturasEmitidasLote,
 } from "@/hooks/entities/use-facturas-emitidas";
+import { ImportFacturasEmitidasDialog } from "@/components/facturas/import-facturas-emitidas-dialog";
 import { useProyectos } from "@/hooks/entities/use-proyectos";
 import { useCobrosAgregados } from "@/hooks/entities/use-cobros";
 import { useClientes } from "@/hooks/entities/use-clientes";
@@ -125,6 +130,9 @@ function FacturasContent() {
   const [expandedFactura, setExpandedFactura] = useState<string | null>(null);
   const [emitirSriFactura, setEmitirSriFactura] = useState<FacturaEmitida | null>(null);
   const [reconciliarOpen, setReconciliarOpen] = useState(false);
+  const [txtFilas, setTxtFilas] = useState<FilaTxtFacturaEmitida[]>([]);
+  const [txtDialogOpen, setTxtDialogOpen] = useState(false);
+  const [loadingTxt, setLoadingTxt] = useState(false);
 
   function handleSort(col: string) { setSort((p) => nextSort(p, col)); }
   function setColFilter(col: string, val: string) {
@@ -136,6 +144,7 @@ function FacturasContent() {
   }
   const fileRef = useRef<HTMLInputElement>(null);
   const pdfRef = useRef<HTMLInputElement>(null);
+  const txtRef = useRef<HTMLInputElement>(null);
 
   const facturas = useFacturasEmitidas(empresaActivaId, anio);
   const flujoCaja = useFlujoCajaProyectado(empresaActivaId, anio);
@@ -145,6 +154,8 @@ function FacturasContent() {
   const crear = useCrearFactura();
   const actualizar = useActualizarFactura();
   const eliminar = useEliminarFactura();
+  const crearLote = useCrearFacturasEmitidasLote();
+  const clavesExistentesQuery = useClaveAccesoExistentesEmitidas(empresaActivaId);
   const cobrosAgregados = useCobrosAgregados(empresaActivaId);
 
   /** IVA % por defecto desde parametros_sistema (fallback: 15) */
@@ -345,6 +356,52 @@ function FacturasContent() {
     }
   }
 
+  async function handleTxtUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLoadingTxt(true);
+    try {
+      const filas = await readTxtFacturasEmitidasFile(file);
+      setTxtFilas(filas);
+      setTxtDialogOpen(true);
+    } catch (err) {
+      toast.error("Error al leer TXT: " + (err as Error).message);
+    } finally {
+      setLoadingTxt(false);
+      if (txtRef.current) txtRef.current.value = "";
+    }
+  }
+
+  async function handleImportarTxt(
+    filas: { fila: FilaTxtFacturaEmitida; proyectoId: string | null }[],
+  ) {
+    if (!empresaActivaId) return;
+    const rows = filas.map(({ fila, proyectoId }) => ({
+      empresa_id: empresaActivaId,
+      numero: fila.numero,
+      fecha: fila.fecha,
+      tipo: fila.tipo_comprobante.toLowerCase() === "factura" ? "factura" : "nota_credito",
+      razon_social: "",
+      ruc_cliente: null,
+      direccion_cliente: null,
+      subtotal: fila.subtotal,
+      descuento: 0,
+      iva: fila.iva,
+      total: fila.total,
+      proyecto_id: proyectoId,
+      observacion: null,
+      clave_acceso: fila.clave_acceso || null,
+      xml_content: null,
+      created_by: null,
+      estado_sri: "AUTORIZADO" as const,
+      retencion_iva_pct: 0,
+      retencion_ir_pct: 0,
+      fecha_vencimiento: null,
+    }));
+    const n = await crearLote.mutateAsync(rows);
+    toast.success(`${n} factura${n !== 1 ? "s" : ""} importada${n !== 1 ? "s" : ""} correctamente`);
+  }
+
   async function onSubmit(values: FormValues) {
     if (!empresaActivaId) return;
     try {
@@ -503,11 +560,12 @@ function FacturasContent() {
             </select>
             <input ref={fileRef} type="file" accept=".xml" className="hidden" onChange={handleXmlUpload} />
             <input ref={pdfRef} type="file" accept=".pdf" className="hidden" onChange={handlePdfUpload} />
+            <input ref={txtRef} type="file" accept=".txt" className="hidden" onChange={handleTxtUpload} />
             <Button
               variant="outline"
               size="sm"
               onClick={() => fileRef.current?.click()}
-              disabled={loadingXml || loadingPdf}
+              disabled={loadingXml || loadingPdf || loadingTxt}
             >
               <Upload className="size-4 mr-1.5" />
               {loadingXml ? "Leyendo..." : "Cargar XML"}
@@ -516,10 +574,19 @@ function FacturasContent() {
               variant="outline"
               size="sm"
               onClick={() => pdfRef.current?.click()}
-              disabled={loadingXml || loadingPdf}
+              disabled={loadingXml || loadingPdf || loadingTxt}
             >
               <Upload className="size-4 mr-1.5" />
               {loadingPdf ? "Leyendo..." : "Cargar PDF"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => txtRef.current?.click()}
+              disabled={loadingXml || loadingPdf || loadingTxt}
+            >
+              <FileDown className="size-4 mr-1.5" />
+              {loadingTxt ? "Leyendo..." : "Cargar TXT"}
             </Button>
             <Button
               variant="outline"
@@ -828,6 +895,17 @@ function FacturasContent() {
             </div>
           </div>
         </>
+      )}
+
+      {txtDialogOpen && (
+        <ImportFacturasEmitidasDialog
+          open={txtDialogOpen}
+          onOpenChange={setTxtDialogOpen}
+          filas={txtFilas}
+          proyectos={proyectos.data?.rows ?? []}
+          clavesExistentes={clavesExistentesQuery.data}
+          onImportar={handleImportarTxt}
+        />
       )}
 
       {emitirSriFactura && empresaActivaId && (

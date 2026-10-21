@@ -10,6 +10,8 @@ import {
   getFacturacionMensual,
   getKpiFacturacion,
   getFlujoCajaProyectado,
+  getClaveAccesoExistentesEmitidas,
+  createFacturasEmitidasLote,
 } from "@/services/facturas-emitidas";
 import type { FacturaEmitida } from "@/services/facturas-emitidas";
 
@@ -86,6 +88,28 @@ export function useEliminarFactura() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: deleteFacturaEmitida,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["facturas_emitidas"] });
+      qc.invalidateQueries({ queryKey: ["presupuestos", "resumen_financiero"] });
+    },
+  });
+}
+
+// ─── Importación en lote (TXT SRI) ───────────────────────────────────────────
+
+export function useClaveAccesoExistentesEmitidas(empresaId: string | null) {
+  return useQuery({
+    queryKey: ["facturas_emitidas", "claves_existentes", empresaId],
+    queryFn: () => getClaveAccesoExistentesEmitidas(empresaId!),
+    enabled: !!empresaId,
+    staleTime: 30_000,
+  });
+}
+
+export function useCrearFacturasEmitidasLote() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: createFacturasEmitidasLote,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["facturas_emitidas"] });
       qc.invalidateQueries({ queryKey: ["presupuestos", "resumen_financiero"] });
