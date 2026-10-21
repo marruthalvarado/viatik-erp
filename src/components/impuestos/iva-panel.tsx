@@ -119,7 +119,19 @@ export function IvaPanel({ empresaId, anio, tipo }: Props) {
       {data && (
         <>
           {/* KPI cards */}
-          <div className={`grid gap-3 ${data.credito_tributario_anterior > 0 ? "grid-cols-2 md:grid-cols-5" : "grid-cols-2 md:grid-cols-4"}`}>
+          <div className={`grid gap-3 grid-cols-2 ${
+            [
+              true,
+              data.credito_tributario_importaciones > 0,
+              data.credito_tributario_anterior > 0,
+            ].filter(Boolean).length === 3
+              ? "md:grid-cols-6"
+              : [data.credito_tributario_importaciones > 0, data.credito_tributario_anterior > 0].filter(Boolean).length === 2
+              ? "md:grid-cols-6"
+              : [data.credito_tributario_importaciones > 0, data.credito_tributario_anterior > 0].some(Boolean)
+              ? "md:grid-cols-5"
+              : "md:grid-cols-4"
+          }`}>
             <IvaKpi
               label="IVA Ventas (cobrado)"
               value={data.iva_ventas}
@@ -138,6 +150,14 @@ export function IvaPanel({ empresaId, anio, tipo }: Props) {
               sub={`${data.num_compras} gastos deducibles`}
               tone="green"
             />
+            {data.credito_tributario_importaciones > 0 && (
+              <IvaKpi
+                label="Crédito IVA importaciones"
+                value={data.credito_tributario_importaciones}
+                sub="IVA pagado en DAI/aduana"
+                tone="green"
+              />
+            )}
             {data.credito_tributario_anterior > 0 && (
               <IvaKpi
                 label="Crédito mes anterior"
@@ -163,6 +183,13 @@ export function IvaPanel({ empresaId, anio, tipo }: Props) {
             {" (retenciones) − "}
             <span className="font-medium text-foreground">{formatCurrency(data.credito_tributario_compras)}</span>
             {" (crédito compras)"}
+            {data.credito_tributario_importaciones > 0 && (
+              <>
+                {" − "}
+                <span className="font-medium text-emerald-600">{formatCurrency(data.credito_tributario_importaciones)}</span>
+                {" (IVA importaciones)"}
+              </>
+            )}
             {data.credito_tributario_anterior > 0 && (
               <>
                 {" − "}
