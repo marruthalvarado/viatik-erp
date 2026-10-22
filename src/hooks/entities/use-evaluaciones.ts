@@ -135,10 +135,14 @@ export function useEliminarEvaluacion() {
   const { empresaActivaId } = useCompany();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ evalId, force = false }: { evalId: string; force?: boolean }) =>
+    mutationFn: ({ evalId, ciclotrónId, force = false }: { evalId: string; ciclotrónId?: string; force?: boolean }) =>
       svc.eliminarEvaluacion(evalId, force),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: KEYS.all(empresaActivaId ?? "") });
+    onSuccess: (_data, vars) => {
+      const eid = empresaActivaId ?? "";
+      qc.invalidateQueries({ queryKey: KEYS.all(eid) });
+      if (vars.ciclotrónId) {
+        qc.invalidateQueries({ queryKey: KEYS.byCiclo(eid, vars.ciclotrónId) });
+      }
     },
   });
 }
