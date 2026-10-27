@@ -754,6 +754,7 @@ export type Database = {
           meses_garantia: number | null;
           notas: string | null;
           proveedor_id: string | null;
+          es_opcion: boolean;
           created_at: string;
         };
         Insert: {
@@ -771,6 +772,7 @@ export type Database = {
           meses_garantia?: number | null;
           notas?: string | null;
           proveedor_id?: string | null;
+          es_opcion?: boolean;
         };
         Update: Partial<Database["public"]["Tables"]["cotizacion_items"]["Insert"]>;
         Relationships: [];

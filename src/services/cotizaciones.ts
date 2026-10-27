@@ -74,6 +74,7 @@ export interface CotizacionItemPayload {
   meses_garantia?: number;
   notas?: string;
   proveedor_id?: string;
+  es_opcion?: boolean;
 }
 
 // ── Lecturas ────────────────────────────────────────────────────────────────

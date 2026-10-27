@@ -437,7 +437,7 @@ export async function exportCotizacionPdf(
   sectionTitle("DESCRIPCIÓN TÉCNICA DE LA OFERTA", y);
   y += 8;
 
-  const byFab = groupByFabricante(c.items);
+  const byFab = groupByFabricante(c.items.filter((it) => !it.es_opcion));
 
   for (const [fab, items] of byFab) {
     // ── Encabezado del fabricante: barra teal con logo ────────────────────
@@ -599,7 +599,7 @@ export async function exportCotizacionPdf(
   }
 
   // ── OPCIONES (si hay ítems con precio 0) ─────────────────────────────────
-  const opcionItems = c.items.filter((it) => it.precio_neto === 0);
+  const opcionItems = c.items.filter((it) => it.es_opcion === true);
   if (opcionItems.length > 0) {
     if (y + 14 > H - 22) { doc.addPage(); y = HDRH + 8; }
     doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(...TEAL);
@@ -1054,7 +1054,7 @@ export async function exportCotizacionDocx(
   // ── Descripción técnica (tarjetas por producto) ──────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const techChildren: any[] = [sectionHeading("DESCRIPCIÓN TÉCNICA DE LA OFERTA")];
-  const byFab = groupByFabricante(c.items);
+  const byFab = groupByFabricante(c.items.filter((it) => !it.es_opcion));
 
   for (const [fab, items] of byFab) {
     // Encabezado fabricante

@@ -40,6 +40,7 @@ interface ItemForm {
   dias_entrega: string;
   meses_garantia: string;
   notas: string;
+  es_opcion: boolean;
 }
 
 interface FormData {
@@ -74,7 +75,7 @@ const en30 = new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0];
 const ITEM_DEFAULT: ItemForm = {
   catalogo_id: "", descripcion: "", fabricante: "", modelo: "",
   cantidad: 1, precio_unitario: 0, descuento_pct: 0,
-  dias_entrega: "", meses_garantia: "", notas: "",
+  dias_entrega: "", meses_garantia: "", notas: "", es_opcion: false,
 };
 
 export function CotizacionForm({ open, cotizacion, defaultProyectoId, onClose }: Props) {
@@ -173,6 +174,7 @@ export function CotizacionForm({ open, cotizacion, defaultProyectoId, onClose }:
           dias_entrega: it.dias_entrega?.toString() ?? "",
           meses_garantia: it.meses_garantia?.toString() ?? "",
           notas: it.notas ?? "",
+          es_opcion: it.es_opcion ?? false,
         })),
       });
     } else {
@@ -281,6 +283,7 @@ export function CotizacionForm({ open, cotizacion, defaultProyectoId, onClose }:
       dias_entrega: it.dias_entrega ? parseInt(it.dias_entrega) : undefined,
       meses_garantia: it.meses_garantia ? parseInt(it.meses_garantia) : undefined,
       notas: it.notas.trim() || undefined,
+      es_opcion: it.es_opcion ?? false,
     }));
 
     try {
@@ -637,6 +640,20 @@ export function CotizacionForm({ open, cotizacion, defaultProyectoId, onClose }:
                       <div className="h-8 flex items-center font-mono text-sm font-medium px-1">
                         {fmtMoney(neto)}
                       </div>
+                    </div>
+                    <div className="space-y-1 flex flex-col justify-center">
+                      <Label className="text-xs text-muted-foreground">Es opción</Label>
+                      <Controller
+                        control={control}
+                        name={`items.${idx}.es_opcion`}
+                        render={({ field }) => (
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            className="mt-1"
+                          />
+                        )}
+                      />
                     </div>
                   </div>
                 </div>
