@@ -45,3 +45,4 @@ scripts/*.csv
 
 # Supabase CLI temp files
 supabase/.temp/
+scripts/crear-cotizacion-posijet.mjs
