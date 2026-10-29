@@ -72,6 +72,31 @@ async function fetchPropuestaParametros(empresa_id: string): Promise<PropuestaPa
 }
 
 /**
+ * Inyecta automáticamente el asunto y la razón social de la cotización en el
+ * resumen ejecutivo, justo después de la frase fija "presenta la propuesta por".
+ * Si la frase no se encuentra, devuelve el texto sin cambios.
+ */
+function injectResumenContext(
+  params: PropuestaParametros,
+  asunto: string | null | undefined,
+  razonSocial: string | null | undefined,
+): PropuestaParametros {
+  const MARKER = "presenta la propuesta por";
+  const text = params.resumen_ejecutivo;
+  const idx = text.indexOf(MARKER);
+  if (idx !== -1 && (asunto || razonSocial)) {
+    const antes = text.slice(0, idx + MARKER.length);
+    const despues = text.slice(idx + MARKER.length);
+    const detalle = [asunto, razonSocial].filter(Boolean).join(" para ");
+    return {
+      ...params,
+      resumen_ejecutivo: `${antes} ${detalle}${despues}`,
+    };
+  }
+  return params;
+}
+
+/**
  * Descarga un blob desde una URL.
  * Intenta tres enfoques en cascada para máxima compatibilidad.
  */
@@ -195,7 +220,11 @@ export async function exportCotizacionPdf(
   const { jsPDF } = await import("jspdf");
   const { autoTable } = await import("jspdf-autotable");
 
-  const params = await fetchPropuestaParametros(opts.empresa_id);
+  const params = injectResumenContext(
+    await fetchPropuestaParametros(opts.empresa_id),
+    c.asunto,
+    c.razon_social,
+  );
 
   // Pre-cargar imágenes en paralelo
   const urlsToFetch = [
@@ -906,7 +935,11 @@ export async function exportCotizacionDocx(
     ShadingType, VerticalAlign, ImageRun,
   } = await import("docx");
 
-  const params = await fetchPropuestaParametros(opts.empresa_id);
+  const params = injectResumenContext(
+    await fetchPropuestaParametros(opts.empresa_id),
+    c.asunto,
+    c.razon_social,
+  );
 
   // Pre-cargar imágenes en paralelo (para ImageRun de docx necesitamos ArrayBuffer)
   const urlsToFetch = [
