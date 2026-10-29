@@ -619,24 +619,26 @@ export async function exportCotizacionPdf(
       y += 13;
     }
 
-    // Subtotal por fabricante sin descuento (precio_unitario * cantidad)
-    const subtotalOriginal = items.reduce((s, it) => s + it.precio_unitario * it.cantidad, 0);
+    // Subtotal neto por fabricante
+    const subtotalNeto = items.reduce((s, it) => s + it.precio_neto, 0);
 
     autoTable(doc as Parameters<typeof autoTable>[0], {
       startY: y,
       margin: { left: ML, right: MR },
-      head: [["Ítem", "Descripción", "Cant.", "Precio Unitario", "Total"]],
+      head: [["Ítem", "Descripción", "Cant.", "Precio Unitario", "Descuento", "Total"]],
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       body: ([
         ...items.map((it) => {
           globalItemNum++;
-          const totalOriginal = it.precio_unitario * it.cantidad;
+          const bruto = it.precio_unitario * it.cantidad;
+          const descAmt = bruto - it.precio_neto;
           return [
             String(globalItemNum),
             it.catalogo?.nombre ?? it.descripcion,
             String(it.cantidad),
             fmtMoney(it.precio_unitario),
-            fmtMoney(totalOriginal),
+            descAmt > 0 ? `-${fmtMoney(descAmt)}` : "—",
+            fmtMoney(it.precio_neto),
           ];
         }),
         ...(byFab.size > 1 ? [[
@@ -644,7 +646,8 @@ export async function exportCotizacionPdf(
           { content: `SUBTOTAL ${fab.toUpperCase()}`, styles: { fillColor: [...BGROW], fontStyle: "bold" as const, textColor: [...TEAL] } },
           { content: "", styles: { fillColor: [...BGROW] } },
           { content: "", styles: { fillColor: [...BGROW] } },
-          { content: fmtMoney(subtotalOriginal), styles: { fillColor: [...BGROW], fontStyle: "bold" as const, textColor: [...TEAL] } },
+          { content: "", styles: { fillColor: [...BGROW] } },
+          { content: fmtMoney(subtotalNeto), styles: { fillColor: [...BGROW], fontStyle: "bold" as const, textColor: [...TEAL] } },
         ]] : []),
       ] as unknown as import("jspdf-autotable").RowInput[]),
       styles: { fontSize: 7.5, cellPadding: 2, textColor: [...DARK] },
@@ -653,8 +656,9 @@ export async function exportCotizacionPdf(
       columnStyles: {
         0: { cellWidth: 10, halign: "center" },
         2: { cellWidth: 12, halign: "center" },
-        3: { cellWidth: 32, halign: "right" },
-        4: { cellWidth: 28, halign: "right", fontStyle: "bold" },
+        3: { cellWidth: 28, halign: "right" },
+        4: { cellWidth: 26, halign: "right" },
+        5: { cellWidth: 26, halign: "right", fontStyle: "bold" },
       },
     });
     y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
@@ -671,21 +675,27 @@ export async function exportCotizacionPdf(
     autoTable(doc as Parameters<typeof autoTable>[0], {
       startY: y,
       margin: { left: ML, right: MR },
-      head: [["Ítem", "Descripción", "Cant.", "Precio Unitario", "Total"]],
-      body: opcionItems.map((it, i) => [
-        `${i + 1}*`,
-        it.catalogo?.nombre ?? it.descripcion,
-        String(it.cantidad),
-        fmtMoney(it.precio_unitario),
-        fmtMoney(it.precio_neto),
-      ]),
+      head: [["Ítem", "Descripción", "Cant.", "Precio Unitario", "Descuento", "Total"]],
+      body: opcionItems.map((it, i) => {
+        const bruto = it.precio_unitario * it.cantidad;
+        const descAmt = bruto - it.precio_neto;
+        return [
+          `${i + 1}*`,
+          it.catalogo?.nombre ?? it.descripcion,
+          String(it.cantidad),
+          fmtMoney(it.precio_unitario),
+          descAmt > 0 ? `-${fmtMoney(descAmt)}` : "—",
+          fmtMoney(it.precio_neto),
+        ];
+      }),
       styles: { fontSize: 7.5, cellPadding: 2, textColor: [...DARK] },
       headStyles: { fillColor: [...TEAL], textColor: [...WHITE], fontStyle: "bold", fontSize: 7.5 },
       columnStyles: {
         0: { cellWidth: 10, halign: "center" },
         2: { cellWidth: 12, halign: "center" },
-        3: { cellWidth: 32, halign: "right" },
-        4: { cellWidth: 28, halign: "right" },
+        3: { cellWidth: 28, halign: "right" },
+        4: { cellWidth: 26, halign: "right" },
+        5: { cellWidth: 26, halign: "right" },
       },
     });
     y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
@@ -1273,9 +1283,9 @@ export async function exportCotizacionDocx(
   }
 
   // ── Tabla de precios (una tabla continua, fabricante como fila span) ──────
-  // 5 columnas: Ítem | Descripción | Cant. | Precio Unitario | Total
-  const PRICE_COL_W = [400, 4200, 600, 1100, 1060];
-  const priceHeaders = ["Ítem", "Descripción", "Cant.", "Precio Unitario", "Total"];
+  // 6 columnas: Ítem | Descripción | Cant. | Precio Unitario | Descuento | Total
+  const PRICE_COL_W = [400, 3300, 600, 1100, 900, 1060];
+  const priceHeaders = ["Ítem", "Descripción", "Cant.", "Precio Unitario", "Descuento", "Total"];
   const PRICE_TOTAL_W = PRICE_COL_W.reduce((a, b) => a + b, 0); // 7360
 
   const makePriceHeaderRow = () =>
@@ -1298,13 +1308,13 @@ export async function exportCotizacionDocx(
   const allPriceRows: any[] = [];
 
   for (const [fab, items] of byFab) {
-    // Fila de fabricante abarcando las 5 columnas
+    // Fila de fabricante abarcando las 6 columnas
     if (byFab.size > 1) {
       allPriceRows.push(
         new TableRow({
           children: [
             new TableCell({
-              columnSpan: 5,
+              columnSpan: 6,
               width: cellW(PRICE_TOTAL_W),
               shading: { type: ShadingType.CLEAR, fill: BGBLUE },
               borders: grayB,
@@ -1321,6 +1331,9 @@ export async function exportCotizacionDocx(
     items.forEach((it, localIdx) => {
       const bg = localIdx % 2 === 0 ? BGLIGHT : WHITE;
       const itemName = it.catalogo?.nombre ?? it.descripcion;
+      const brutoItem = it.precio_unitario * it.cantidad;
+      const descAmtItem = brutoItem - it.precio_neto;
+      const descCellText = descAmtItem > 0 ? `-${fmtMoney(descAmtItem)}` : "—";
       allPriceRows.push(
         new TableRow({
           children: [
@@ -1328,19 +1341,20 @@ export async function exportCotizacionDocx(
             new TableCell({ width: cellW(PRICE_COL_W[1]), shading: { type: ShadingType.CLEAR, fill: bg }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([normal(itemName, "111827", 15)], AlignmentType.LEFT, 0)] }),
             new TableCell({ width: cellW(PRICE_COL_W[2]), shading: { type: ShadingType.CLEAR, fill: bg }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([normal(String(it.cantidad), "111827", 15)], AlignmentType.RIGHT, 0)] }),
             new TableCell({ width: cellW(PRICE_COL_W[3]), shading: { type: ShadingType.CLEAR, fill: bg }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([normal(fmtMoney(it.precio_unitario), "111827", 15)], AlignmentType.RIGHT, 0)] }),
-            new TableCell({ width: cellW(PRICE_COL_W[4]), shading: { type: ShadingType.CLEAR, fill: bg }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([bold(fmtMoney(it.precio_neto), BLUE_HEX, 15)], AlignmentType.RIGHT, 0)] }),
+            new TableCell({ width: cellW(PRICE_COL_W[4]), shading: { type: ShadingType.CLEAR, fill: bg }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([normal(descCellText, descAmtItem > 0 ? "B91C1C" : GRAY_HEX, 15)], AlignmentType.RIGHT, 0)] }),
+            new TableCell({ width: cellW(PRICE_COL_W[5]), shading: { type: ShadingType.CLEAR, fill: bg }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([bold(fmtMoney(it.precio_neto), BLUE_HEX, 15)], AlignmentType.RIGHT, 0)] }),
           ],
         })
       );
     });
 
     if (byFab.size > 1) {
-      const subtotalLabelW = PRICE_COL_W[0] + PRICE_COL_W[1] + PRICE_COL_W[2] + PRICE_COL_W[3];
+      const subtotalLabelW = PRICE_COL_W[0] + PRICE_COL_W[1] + PRICE_COL_W[2] + PRICE_COL_W[3] + PRICE_COL_W[4];
       allPriceRows.push(
         new TableRow({
           children: [
-            new TableCell({ columnSpan: 4, width: cellW(subtotalLabelW), shading: { type: ShadingType.CLEAR, fill: BGBLUE }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([bold(`Subtotal ${fab}`, BLUE_HEX, 15)], AlignmentType.RIGHT, 0)] }),
-            new TableCell({ width: cellW(PRICE_COL_W[4]), shading: { type: ShadingType.CLEAR, fill: BGBLUE }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([bold(fmtMoney(subtotal), BLUE_HEX, 15)], AlignmentType.RIGHT, 0)] }),
+            new TableCell({ columnSpan: 5, width: cellW(subtotalLabelW), shading: { type: ShadingType.CLEAR, fill: BGBLUE }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([bold(`Subtotal ${fab}`, BLUE_HEX, 15)], AlignmentType.RIGHT, 0)] }),
+            new TableCell({ width: cellW(PRICE_COL_W[5]), shading: { type: ShadingType.CLEAR, fill: BGBLUE }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([bold(fmtMoney(subtotal), BLUE_HEX, 15)], AlignmentType.RIGHT, 0)] }),
           ],
         })
       );
@@ -1366,9 +1380,9 @@ export async function exportCotizacionDocx(
       para([small("Los siguientes ítems son opcionales y no están incluidos en el total de la propuesta.", GRAY_HEX)], AlignmentType.LEFT, 80),
     );
 
-    const OPCION_COL_W = [400, 4200, 600, 1100, 1060];
+    const OPCION_COL_W = [400, 3300, 600, 1100, 900, 1060];
     const opcionHeaderRow = new TableRow({
-      children: ["Ítem", "Descripción", "Cant.", "Precio Unitario", "Total"].map((h, i) =>
+      children: ["Ítem", "Descripción", "Cant.", "Precio Unitario", "Descuento", "Total"].map((h, i) =>
         new TableCell({
           width: cellW(OPCION_COL_W[i]),
           shading: { type: ShadingType.CLEAR, fill: BGBLUE }, borders: noB,
@@ -1382,6 +1396,9 @@ export async function exportCotizacionDocx(
       const bg = localIdx % 2 === 0 ? BGLIGHT : WHITE;
       const nombre = it.catalogo?.nombre ?? it.descripcion;
       const descCell = [para([normal(nombre, "111827", 15)], AlignmentType.LEFT, 0)];
+      const brutoOp = it.precio_unitario * it.cantidad;
+      const descAmtOp = brutoOp - it.precio_neto;
+      const descOpText = descAmtOp > 0 ? `-${fmtMoney(descAmtOp)}` : "—";
 
       return new TableRow({
         children: [
@@ -1389,7 +1406,8 @@ export async function exportCotizacionDocx(
           new TableCell({ width: cellW(OPCION_COL_W[1]), shading: { type: ShadingType.CLEAR, fill: bg }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: descCell }),
           new TableCell({ width: cellW(OPCION_COL_W[2]), shading: { type: ShadingType.CLEAR, fill: bg }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([normal(String(it.cantidad), "111827", 15)], AlignmentType.RIGHT, 0)] }),
           new TableCell({ width: cellW(OPCION_COL_W[3]), shading: { type: ShadingType.CLEAR, fill: bg }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([normal(fmtMoney(it.precio_unitario), "111827", 15)], AlignmentType.RIGHT, 0)] }),
-          new TableCell({ width: cellW(OPCION_COL_W[4]), shading: { type: ShadingType.CLEAR, fill: bg }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([normal(fmtMoney(it.precio_neto), "111827", 15)], AlignmentType.RIGHT, 0)] }),
+          new TableCell({ width: cellW(OPCION_COL_W[4]), shading: { type: ShadingType.CLEAR, fill: bg }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([normal(descOpText, descAmtOp > 0 ? "B91C1C" : GRAY_HEX, 15)], AlignmentType.RIGHT, 0)] }),
+          new TableCell({ width: cellW(OPCION_COL_W[5]), shading: { type: ShadingType.CLEAR, fill: bg }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([normal(fmtMoney(it.precio_neto), "111827", 15)], AlignmentType.RIGHT, 0)] }),
         ],
       });
     });
