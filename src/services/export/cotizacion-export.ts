@@ -598,23 +598,29 @@ export async function exportCotizacionPdf(
     y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
   }
 
-  // ── OPCIONES (si hay ítems con precio 0) ─────────────────────────────────
+  // ── OPCIONES ──────────────────────────────────────────────────────────────
   const opcionItems = c.items.filter((it) => it.es_opcion === true);
   if (opcionItems.length > 0) {
     if (y + 14 > H - 22) { doc.addPage(); y = HDRH + 8; }
     doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(...TEAL);
-    doc.text("Opciones", ML, y); y += 7;
+    doc.text("Opciones", ML, y); y += 3;
+    doc.setFontSize(7.5); doc.setFont("helvetica", "normal"); doc.setTextColor(...DARK);
+    doc.text("Los siguientes ítems son opcionales y no están incluidos en el total.", ML, y + 4); y += 9;
     autoTable(doc as Parameters<typeof autoTable>[0], {
       startY: y,
       margin: { left: ML, right: MR },
       head: [["Ítem", "Descripción", "Cant.", "Precio Unitario", "Total"]],
-      body: opcionItems.map((it, i) => [
-        `${i + 1}*`,
-        it.catalogo?.nombre ?? it.descripcion,
-        String(it.cantidad),
-        fmtMoney(it.precio_unitario),
-        fmtMoney(it.precio_neto),
-      ]),
+      body: opcionItems.map((it, i) => {
+        const nombre = it.catalogo?.nombre ?? it.descripcion;
+        const desc = it.catalogo?.nombre && it.descripcion ? it.descripcion : "";
+        return [
+          `${i + 1}*`,
+          desc ? `${nombre}\n${desc}` : nombre,
+          String(it.cantidad),
+          fmtMoney(it.precio_unitario),
+          fmtMoney(it.precio_neto),
+        ];
+      }),
       styles: { fontSize: 7.5, cellPadding: 2, textColor: [...DARK] },
       headStyles: { fillColor: [...TEAL], textColor: [...WHITE], fontStyle: "bold", fontSize: 7.5 },
       columnStyles: {
@@ -622,6 +628,17 @@ export async function exportCotizacionPdf(
         2: { cellWidth: 12, halign: "center" },
         3: { cellWidth: 32, halign: "right" },
         4: { cellWidth: 28, halign: "right" },
+      },
+      // Nombre en negrita, descripción en normal/gris
+      didParseCell: (data) => {
+        if (data.column.index === 1 && data.section === "body") {
+          const lines = String(data.cell.raw ?? "").split("\n");
+          if (lines.length > 1) {
+            // jspdf-autotable renderiza el texto como un bloque; aplicamos estilo normal
+            // La negrita se aplica a nivel de fila solo si queremos el nombre resaltado
+            data.cell.styles.fontStyle = "normal";
+          }
+        }
       },
     });
     y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
@@ -1229,6 +1246,60 @@ export async function exportCotizacionDocx(
     para([], AlignmentType.LEFT, 80),
   );
 
+  // ── Opciones ──────────────────────────────────────────────────────────────
+  const wordOpcionItems = c.items.filter((it) => it.es_opcion === true);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const opcionesSection: any[] = [];
+  if (wordOpcionItems.length > 0) {
+    opcionesSection.push(
+      sectionHeading("OPCIONES"),
+      para([small("Los siguientes ítems son opcionales y no están incluidos en el total de la propuesta.", GRAY_HEX)], AlignmentType.LEFT, 80),
+    );
+
+    const OPCION_COL_W = [400, 4200, 600, 1100, 1060];
+    const opcionHeaderRow = new TableRow({
+      children: ["Ítem", "Descripción", "Cant.", "Precio Unitario", "Total"].map((h, i) =>
+        new TableCell({
+          width: cellW(OPCION_COL_W[i]),
+          shading: { type: ShadingType.CLEAR, fill: BGBLUE }, borders: noB,
+          verticalAlign: VerticalAlign.CENTER, margins: { top: 60, bottom: 60, left: 80, right: 80 },
+          children: [para([bold(h, BLUE_HEX, 15)], i >= 2 ? AlignmentType.RIGHT : AlignmentType.LEFT, 0)],
+        })
+      ),
+    });
+
+    const opcionRows = wordOpcionItems.map((it, localIdx) => {
+      const bg = localIdx % 2 === 0 ? BGLIGHT : WHITE;
+      const nombre = it.catalogo?.nombre ?? it.descripcion;
+      const desc = it.catalogo?.nombre && it.descripcion ? it.descripcion : "";
+      const descCell = desc
+        ? [
+            para([bold(nombre, "111827", 15)], AlignmentType.LEFT, 0),
+            para([small(desc, GRAY_HEX)], AlignmentType.LEFT, 0),
+          ]
+        : [para([normal(nombre, "111827", 15)], AlignmentType.LEFT, 0)];
+
+      return new TableRow({
+        children: [
+          new TableCell({ width: cellW(OPCION_COL_W[0]), shading: { type: ShadingType.CLEAR, fill: bg }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([normal(`${localIdx + 1}*`, GRAY_HEX, 15)], AlignmentType.CENTER, 0)] }),
+          new TableCell({ width: cellW(OPCION_COL_W[1]), shading: { type: ShadingType.CLEAR, fill: bg }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: descCell }),
+          new TableCell({ width: cellW(OPCION_COL_W[2]), shading: { type: ShadingType.CLEAR, fill: bg }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([normal(String(it.cantidad), "111827", 15)], AlignmentType.RIGHT, 0)] }),
+          new TableCell({ width: cellW(OPCION_COL_W[3]), shading: { type: ShadingType.CLEAR, fill: bg }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([normal(fmtMoney(it.precio_unitario), "111827", 15)], AlignmentType.RIGHT, 0)] }),
+          new TableCell({ width: cellW(OPCION_COL_W[4]), shading: { type: ShadingType.CLEAR, fill: bg }, borders: grayB, margins: { top: 60, bottom: 60, left: 80, right: 80 }, children: [para([normal(fmtMoney(it.precio_neto), "111827", 15)], AlignmentType.RIGHT, 0)] }),
+        ],
+      });
+    });
+
+    opcionesSection.push(
+      new Table({
+        width: { size: 9360, type: WidthType.DXA },
+        columnWidths: OPCION_COL_W,
+        rows: [opcionHeaderRow, ...opcionRows],
+      }),
+      para([], AlignmentType.LEFT, 120),
+    );
+  }
+
   // ── Totales ──────────────────────────────────────────────────────────────
   const totalesRows = [
     ["Subtotal", fmtMoney(c.subtotal)],
@@ -1346,6 +1417,8 @@ export async function exportCotizacionDocx(
         ...techChildren,
         // Precios
         ...priceChildren,
+        // Opciones (ítems opcionales)
+        ...opcionesSection,
         // Totales
         totalesTable,
         para([], AlignmentType.LEFT, 160),
