@@ -531,6 +531,68 @@ export async function exportCotizacionPdf(
     y += 4;
   }
 
+  // ── OPCIONES en la descripción técnica ────────────────────────────────────
+  const descOpcionItems = c.items.filter((it) => it.es_opcion === true);
+  if (descOpcionItems.length > 0) {
+    // Separador / sub-título "Opciones"
+    if (y + 18 > H - 22) { doc.addPage(); y = HDRH + 8; }
+    doc.setFillColor(...TEAL);
+    doc.rect(ML, y, CW, 10, "F");
+    doc.setFontSize(9.5); doc.setTextColor(...WHITE); doc.setFont("helvetica", "bold");
+    doc.text("OPCIONES", ML + 4, y + 7);
+    y += 13;
+
+    for (const it of descOpcionItems) {
+      const fotoImg = getImg(it.catalogo?.foto_url);
+      const descLarga = it.catalogo?.descripcion_larga || it.catalogo?.descripcion_tecnica || it.descripcion;
+      const headerName = it.catalogo?.nombre ?? it.descripcion;
+      const leftW = fotoImg ? CW * 0.62 : CW;
+      const rightW = CW - leftW - 4;
+
+      doc.setFontSize(8); doc.setFont("helvetica", "normal");
+      const descLines = descLarga ? doc.splitTextToSize(descLarga, leftW) as string[] : [];
+      const descH = descLines.length * 4.2;
+      const cardH = Math.max(descH + 22, fotoImg ? 46 : 22);
+
+      if (y + cardH + 10 > H - 22 && y > HDRH + 30) { doc.addPage(); y = HDRH + 8; }
+
+      // Barra del nombre del producto
+      doc.setFillColor(82, 160, 158); // teal ligeramente más claro para diferenciar de ítems principales
+      doc.rect(ML, y, CW, 8, "F");
+      doc.setFontSize(9); doc.setTextColor(...WHITE); doc.setFont("helvetica", "bold");
+      doc.text(doc.splitTextToSize(headerName, CW - 8)[0], ML + 3, y + 5.5);
+      y += 9;
+
+      // Sub-título
+      doc.setFontSize(7.5); doc.setFont("helvetica", "italic"); doc.setTextColor(...GRAY);
+      const subLabel = [it.fabricante, it.modelo ? `Modelo: ${it.modelo}` : null, `Cantidad: ${it.cantidad}`]
+        .filter(Boolean).join("  ·  ");
+      doc.text(subLabel, ML, y + 4);
+      y += 8;
+
+      const textStartY = y;
+      if (fotoImg) {
+        const imgX = ML + leftW + 4;
+        const imgW = rightW - 2;
+        const imgH = Math.min(imgW * 0.7, cardH - 10);
+        addImg(fotoImg, imgX, textStartY - 2, imgW, imgH);
+      }
+      if (descLines.length > 0) {
+        const LH = 4.2 * 1.55;
+        doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(...DARK);
+        for (const line of descLines) {
+          if (y + LH > H - 22) { doc.addPage(); y = HDRH + 8; }
+          doc.text(line, ML, y);
+          y += LH;
+        }
+      } else {
+        y += fotoImg ? Math.max(cardH - 17, 4) : 4;
+      }
+      if (fotoImg) y = Math.max(y, textStartY + Math.min((rightW - 2) * 0.7, cardH - 10));
+      y += 10;
+    }
+  }
+
   // ── DETALLE DE PRECIOS (nueva hoja siempre) ───────────────────────────────
   doc.addPage(); y = HDRH + 8;
   sectionTitle("DETALLE DE PRECIOS POR ÍTEM", y);
@@ -610,17 +672,13 @@ export async function exportCotizacionPdf(
       startY: y,
       margin: { left: ML, right: MR },
       head: [["Ítem", "Descripción", "Cant.", "Precio Unitario", "Total"]],
-      body: opcionItems.map((it, i) => {
-        const nombre = it.catalogo?.nombre ?? it.descripcion;
-        const desc = it.catalogo?.nombre && it.descripcion ? it.descripcion : "";
-        return [
-          `${i + 1}*`,
-          desc ? `${nombre}\n${desc}` : nombre,
-          String(it.cantidad),
-          fmtMoney(it.precio_unitario),
-          fmtMoney(it.precio_neto),
-        ];
-      }),
+      body: opcionItems.map((it, i) => [
+        `${i + 1}*`,
+        it.catalogo?.nombre ?? it.descripcion,
+        String(it.cantidad),
+        fmtMoney(it.precio_unitario),
+        fmtMoney(it.precio_neto),
+      ]),
       styles: { fontSize: 7.5, cellPadding: 2, textColor: [...DARK] },
       headStyles: { fillColor: [...TEAL], textColor: [...WHITE], fontStyle: "bold", fontSize: 7.5 },
       columnStyles: {
@@ -628,17 +686,6 @@ export async function exportCotizacionPdf(
         2: { cellWidth: 12, halign: "center" },
         3: { cellWidth: 32, halign: "right" },
         4: { cellWidth: 28, halign: "right" },
-      },
-      // Nombre en negrita, descripción en normal/gris
-      didParseCell: (data) => {
-        if (data.column.index === 1 && data.section === "body") {
-          const lines = String(data.cell.raw ?? "").split("\n");
-          if (lines.length > 1) {
-            // jspdf-autotable renderiza el texto como un bloque; aplicamos estilo normal
-            // La negrita se aplica a nivel de fila solo si queremos el nombre resaltado
-            data.cell.styles.fontStyle = "normal";
-          }
-        }
       },
     });
     y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
@@ -1162,6 +1209,69 @@ export async function exportCotizacionDocx(
     techChildren.push(para([], AlignmentType.LEFT, 120));
   }
 
+  // ── Opciones en la descripción técnica (Word) ─────────────────────────────
+  const wordDescOpcionItems = c.items.filter((it) => it.es_opcion === true);
+  if (wordDescOpcionItems.length > 0) {
+    // Encabezado "OPCIONES"
+    techChildren.push(
+      new Paragraph({
+        children: [bold("OPCIONES", WHITE, 19)],
+        shading: { type: ShadingType.CLEAR, fill: BGBLUE },
+        spacing: { before: 160, after: 80 },
+        indent: { left: 120, right: 120 },
+      }),
+    );
+
+    for (const it of wordDescOpcionItems) {
+      const fotoImgRun = makeImageRun(getImg(it.catalogo?.foto_url), 185, 130);
+      const descLarga = it.catalogo?.descripcion_larga || it.descripcion;
+      const headerName = it.catalogo?.nombre ?? it.descripcion;
+
+      techChildren.push(
+        new Paragraph({
+          children: [bold(headerName, "111827", 22)],
+          spacing: { before: 140, after: 40 },
+        }),
+        new Paragraph({
+          children: [italic(`${it.fabricante || ""}  ·  Modelo: ${it.modelo || "—"}  ·  Cantidad: ${it.cantidad}`, GRAY_HEX, 17)],
+          spacing: { after: 80 },
+        }),
+      );
+
+      if (descLarga || fotoImgRun) {
+        const leftColW = fotoImgRun ? 5700 : 9360;
+        const rightColW = 9360 - leftColW - 0;
+        const row = new TableRow({
+          children: [
+            new TableCell({
+              width: cellW(leftColW), borders: noB,
+              margins: { top: 60, bottom: 60, left: 0, right: 120 },
+              children: descLarga
+                ? [para([normal(descLarga, "374151", 17)], AlignmentType.JUSTIFIED, 0)]
+                : [para([], AlignmentType.LEFT, 0)],
+            }),
+            ...(fotoImgRun ? [new TableCell({
+              width: cellW(rightColW), borders: noB,
+              margins: { top: 0, bottom: 0, left: 60, right: 0 },
+              verticalAlign: VerticalAlign.TOP,
+              children: [new Paragraph({ children: [fotoImgRun], alignment: AlignmentType.CENTER, spacing: { after: 0 } })],
+            })] : []),
+          ],
+        });
+        techChildren.push(
+          new Table({
+            width: { size: 9360, type: WidthType.DXA },
+            columnWidths: fotoImgRun ? [leftColW, rightColW] : [leftColW],
+            borders: noB,
+            rows: [row],
+          }),
+          para([], AlignmentType.LEFT, 60),
+        );
+      }
+    }
+    techChildren.push(para([], AlignmentType.LEFT, 120));
+  }
+
   // ── Tabla de precios (una tabla continua, fabricante como fila span) ──────
   // 5 columnas: Ítem | Descripción | Cant. | Precio Unitario | Total
   const PRICE_COL_W = [400, 4200, 600, 1100, 1060];
@@ -1271,13 +1381,7 @@ export async function exportCotizacionDocx(
     const opcionRows = wordOpcionItems.map((it, localIdx) => {
       const bg = localIdx % 2 === 0 ? BGLIGHT : WHITE;
       const nombre = it.catalogo?.nombre ?? it.descripcion;
-      const desc = it.catalogo?.nombre && it.descripcion ? it.descripcion : "";
-      const descCell = desc
-        ? [
-            para([bold(nombre, "111827", 15)], AlignmentType.LEFT, 0),
-            para([small(desc, GRAY_HEX)], AlignmentType.LEFT, 0),
-          ]
-        : [para([normal(nombre, "111827", 15)], AlignmentType.LEFT, 0)];
+      const descCell = [para([normal(nombre, "111827", 15)], AlignmentType.LEFT, 0)];
 
       return new TableRow({
         children: [
